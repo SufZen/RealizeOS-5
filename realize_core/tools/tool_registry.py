@@ -175,6 +175,8 @@ class ToolRegistry:
             "realize_core.tools.web_tool",
             "realize_core.tools.google_workspace_tool",
             "realize_core.tools.browser_tool",
+            "realize_core.tools.gws_cli_tool",
+            "realize_core.tools.google_sheets_tool",
         ]
 
         for module_name in known_modules:

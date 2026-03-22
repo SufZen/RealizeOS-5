@@ -7,6 +7,9 @@ Supports composable, tool-aware workflows with step types:
 - condition — Branch based on a previous step's result
 - human  — Ask the user for input/confirmation before proceeding
 
+Also supports SKILL.md format (V5): the markdown body is used as
+detailed instructions for the LLM agent.
+
 Each step's result feeds into the next step's context.
 """
 import json
@@ -87,8 +90,17 @@ async def execute_skill(
     """
     skill_name = skill.get("name", "unnamed")
     version = skill.get("_version", 1)
+    skill_format = skill.get("_format", "yaml")
 
-    logger.info(f"Executing skill: {skill_name} (v{version}) for system={system_key}")
+    logger.info(f"Executing skill: {skill_name} (v{version}, format={skill_format}) "
+                f"for system={system_key}")
+
+    # V5: SKILL.md format — use markdown instructions
+    if skill_format == "skill_md":
+        return await _execute_skill_md(
+            skill, user_message, system_key, user_id,
+            kb_path, system_config, shared_config, channel,
+        )
 
     if version == 1:
         return await _execute_v1_pipeline(
@@ -352,3 +364,59 @@ async def _execute_human_step(step, ctx) -> str:
     question = step.get("question", step.get("prompt", "Please confirm to continue."))
     question = ctx.inject(question)
     return f"__HUMAN_INPUT_NEEDED__\n{question}"
+
+
+# ---------------------------------------------------------------------------
+# SKILL.md execution path (V5)
+# ---------------------------------------------------------------------------
+
+async def _execute_skill_md(
+    skill: dict,
+    user_message: str,
+    system_key: str,
+    user_id: str,
+    kb_path, system_config, shared_config, channel,
+) -> str:
+    """
+    Execute a SKILL.md format skill.
+
+    Uses the markdown body (``_instructions``) as detailed instructions
+    appended to the agent's system prompt.  The ``agent`` field from
+    the frontmatter determines which agent persona to use.
+    """
+    from realize_core.llm.claude_client import call_claude
+    from realize_core.prompt.builder import build_system_prompt
+
+    agent_key = skill.get("agent", "orchestrator")
+    instructions = skill.get("_instructions", "")
+    skill_name = skill.get("name", "unnamed")
+
+    # Build base system prompt for the chosen agent
+    system_prompt = build_system_prompt(
+        kb_path=kb_path,
+        system_config=system_config or {},
+        system_key=system_key,
+        agent_key=agent_key,
+        user_message=user_message,
+        shared_config=shared_config,
+        channel=channel,
+    )
+
+    # Append the SKILL.md instructions as additional context
+    if instructions:
+        system_prompt = (
+            f"{system_prompt}\n\n"
+            f"## Active Skill: {skill_name}\n"
+            f"Follow these detailed instructions for this task:\n\n"
+            f"{instructions}"
+        )
+
+    messages = [{"role": "user", "content": user_message}]
+
+    response = await call_claude(
+        system_prompt=system_prompt,
+        messages=messages,
+    )
+
+    logger.info(f"SKILL.md execution complete: {skill_name}")
+    return response

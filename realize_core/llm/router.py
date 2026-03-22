@@ -5,6 +5,11 @@ Strategy:
 - Tier 1 (cheap/free): Simple Q&A, summaries, routing classification
 - Tier 2 (mid): Content creation, reasoning, financial analysis, tool use
 - Tier 3 (premium): Complex strategy, cross-system coordination
+
+V5 additions:
+- Benchmark-based model selection via BenchmarkCache (cost-benefit scoring)
+- LiteLLM fallback: 50+ providers available when primary providers fail
+- Routing strategies: balanced, cost_optimized, quality_first, speed_first
 """
 import logging
 
@@ -172,12 +177,47 @@ def select_model(task_type: str) -> str:
     return model_map.get(task_type, "gemini_flash")
 
 
+def select_model_by_benchmark(
+    task_type: str,
+    strategy: str = "balanced",
+    available_models: set[str] | None = None,
+) -> str | None:
+    """
+    Select the optimal model using benchmark-based cost-benefit scoring.
+
+    This is an alternative to the keyword+tier model selection. It uses
+    multi-dimensional scoring (quality, cost, speed, task-fit) with
+    configurable strategy weights to pick the best model.
+
+    Args:
+        task_type: Classified task type from classify_task()
+        strategy: One of "balanced", "cost_optimized", "quality_first", "speed_first"
+        available_models: Optional set of model_ids to consider
+
+    Returns:
+        Best model_id string, or None if benchmark cache is unavailable.
+    """
+    try:
+        from realize_core.llm.benchmark_cache import get_benchmark_cache
+
+        cache = get_benchmark_cache()
+        best = cache.get_best_model(task_type, strategy, available_models)
+        if best:
+            logger.info(f"Benchmark routing: {best} for task_type={task_type} strategy={strategy}")
+        return best
+    except Exception as e:
+        logger.debug(f"Benchmark-based selection unavailable: {e}")
+        return None
+
+
 async def route_to_llm(
     system_prompt: str,
     messages: list[dict],
     task_type: str,
     system_key: str = "",
     max_retries: int = 2,
+    use_benchmark: bool = False,
+    strategy: str = "balanced",
 ) -> str:
     """
     Route the request to the appropriate LLM based on task type.
@@ -186,16 +226,31 @@ async def route_to_llm(
     provider fails, walks the entire fallback chain trying each available
     provider until one succeeds.
 
+    V5 additions:
+    - use_benchmark=True enables benchmark-based model selection
+    - LiteLLM provider as additional fallback (50+ providers)
+
     Args:
         system_prompt: Assembled system prompt
         messages: Conversation history
         task_type: Classified task type from classify_task()
         system_key: Venture key (for logging)
         max_retries: Max providers to try before giving up
+        use_benchmark: If True, use benchmark-based cost-benefit scoring
+        strategy: Routing strategy when use_benchmark=True
 
     Returns:
         LLM response text
     """
+    # Optionally use benchmark-based selection
+    if use_benchmark:
+        benchmark_model = select_model_by_benchmark(task_type, strategy)
+        if benchmark_model:
+            result = await _try_litellm_completion(system_prompt, messages, benchmark_model)
+            if result is not None:
+                return result
+            logger.info("Benchmark model failed, falling back to standard routing")
+
     model_key = select_model(task_type)
     logger.info(f"Routing to {model_key} for task_type={task_type}")
 
@@ -249,6 +304,13 @@ async def route_to_llm(
             except Exception as e:
                 logger.warning(f"Fallback {fallback_name} exception: {e}")
 
+        # Attempt 3: Try LiteLLM as extended fallback (50+ providers)
+        if "litellm" not in tried:
+            litellm_result = await _try_litellm_completion(system_prompt, messages)
+            if litellm_result is not None:
+                logger.info("LiteLLM fallback succeeded")
+                return litellm_result
+
     except Exception as e:
         logger.debug(f"Registry routing failed, falling back to direct calls: {e}")
 
@@ -265,3 +327,35 @@ async def route_to_llm(
     else:
         return await call_gemini_flash(system_prompt, messages)
 
+
+async def _try_litellm_completion(
+    system_prompt: str,
+    messages: list[dict],
+    model: str | None = None,
+) -> str | None:
+    """
+    Try a completion via the LiteLLM provider.
+
+    Returns the response text on success, or None on failure.
+    This is a soft fallback — callers can continue to other providers.
+    """
+    try:
+        from realize_core.llm.litellm_provider import LiteLLMProvider
+
+        provider = LiteLLMProvider()
+        if not provider.is_available():
+            return None
+
+        response = await provider.complete(
+            system_prompt=system_prompt,
+            messages=messages,
+            model=model,
+        )
+        if response.ok:
+            return response.text
+        logger.warning(f"LiteLLM completion error: {response.error}")
+        return None
+
+    except Exception as e:
+        logger.debug(f"LiteLLM not available: {e}")
+        return None

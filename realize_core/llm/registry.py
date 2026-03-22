@@ -170,8 +170,22 @@ class ProviderRegistry:
         except Exception as e:
             logger.debug(f"Ollama provider not registered: {e}")
 
-        # Default fallback chain: Claude → Gemini → OpenAI → Ollama
-        self.set_fallback_chain(["claude", "gemini", "openai", "ollama"])
+        # LiteLLM (unified gateway to 50+ providers)
+        try:
+            from realize_core.llm.litellm_provider import LiteLLMProvider
+            litellm_p = LiteLLMProvider()
+            self.register(litellm_p, {
+                "gpt4o": "gpt-4o",
+                "gpt4o_mini": "gpt-4o-mini",
+                "o3_mini": "o3-mini",
+                "mistral_large": "mistral/mistral-large-latest",
+                "deepseek_v3": "deepseek/deepseek-chat",
+            })
+        except Exception as e:
+            logger.debug(f"LiteLLM provider not registered: {e}")
+
+        # Default fallback chain: Claude → Gemini → OpenAI → Ollama → LiteLLM
+        self.set_fallback_chain(["claude", "gemini", "openai", "ollama", "litellm"])
 
         available = self.list_available()
         logger.info(f"Provider registry ready: {len(self._providers)} registered, "

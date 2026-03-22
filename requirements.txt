@@ -4,6 +4,9 @@
 anthropic>=0.40.0
 google-genai>=1.0.0
 
+# LLM Router (unified interface to 50+ providers)
+litellm>=1.50.0
+
 # Knowledge Base
 pyyaml>=6.0
 

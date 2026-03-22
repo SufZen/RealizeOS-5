@@ -5,6 +5,7 @@ Covers:
 - Edge cases: empty message, short message, mixed keywords, case insensitivity
 - Model selection mapping and default fallback
 - Self-tuning quality override mechanism
+- Benchmark-based model selection (V5)
 """
 from unittest.mock import patch
 
@@ -20,6 +21,7 @@ from realize_core.llm.router import (
     _get_quality_override,
     classify_task,
     select_model,
+    select_model_by_benchmark,
 )
 
 # ---------------------------------------------------------------------------
@@ -260,3 +262,57 @@ class TestKeywordSetsIntegrity:
 
     def test_web_action_keywords_exist(self):
         assert len(WEB_ACTION_KEYWORDS) > 0
+
+
+# ---------------------------------------------------------------------------
+# Benchmark-based model selection (V5)
+# ---------------------------------------------------------------------------
+
+class TestBenchmarkSelection:
+    """Test benchmark-based model selection."""
+
+    def test_returns_model_id_for_reasoning(self):
+        """Benchmark selection returns a model for reasoning tasks."""
+        result = select_model_by_benchmark("reasoning")
+        assert result is not None
+        assert isinstance(result, str)
+
+    def test_returns_model_id_for_simple(self):
+        result = select_model_by_benchmark("simple")
+        assert result is not None
+
+    def test_returns_model_id_for_content(self):
+        result = select_model_by_benchmark("content")
+        assert result is not None
+
+    def test_cost_optimized_strategy(self):
+        result = select_model_by_benchmark("simple", strategy="cost_optimized")
+        assert result is not None
+
+    def test_quality_first_strategy(self):
+        result = select_model_by_benchmark("reasoning", strategy="quality_first")
+        assert result is not None
+
+    def test_speed_first_strategy(self):
+        result = select_model_by_benchmark("simple", strategy="speed_first")
+        assert result is not None
+
+    def test_available_models_filter(self):
+        """Only returns from available models when specified."""
+        available = {"claude-sonnet-4-6-20260217"}
+        result = select_model_by_benchmark("reasoning", available_models=available)
+        assert result == "claude-sonnet-4-6-20260217"
+
+    def test_returns_none_when_cache_fails(self):
+        """Returns None gracefully when benchmark cache is unavailable."""
+        with patch("realize_core.llm.benchmark_cache.get_benchmark_cache") as mock:
+            mock.side_effect = Exception("Cache broken")
+            result = select_model_by_benchmark("reasoning")
+            assert result is None
+
+    def test_all_task_types_return_result(self):
+        """Every valid task type returns a benchmark result."""
+        task_types = ["simple", "content", "reasoning", "financial", "complex"]
+        for tt in task_types:
+            result = select_model_by_benchmark(tt)
+            assert result is not None, f"No benchmark result for task_type={tt}"
