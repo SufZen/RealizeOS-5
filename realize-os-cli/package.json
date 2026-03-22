@@ -1,0 +1,54 @@
+{
+  "name": "@realize-os/cli",
+  "version": "5.0.0",
+  "description": "RealizeOS CLI — Deploy and manage your AI operations system with Docker",
+  "keywords": ["realize-os", "ai", "llm", "operations", "docker", "cli"],
+  "license": "MIT",
+  "author": "RealizeOS Team",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/SufZen/RealizeOS-5"
+  },
+  "type": "module",
+  "main": "dist/cli.js",
+  "bin": {
+    "realize-os": "dist/cli.js"
+  },
+  "files": [
+    "dist/**/*",
+    "templates/**/*",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/cli.ts",
+    "start": "node dist/cli.js",
+    "lint": "eslint src/ --ext .ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "chalk": "^5.3.0",
+    "commander": "^12.1.0",
+    "ejs": "^3.1.10",
+    "enquirer": "^2.4.1",
+    "execa": "^9.3.0",
+    "ora": "^8.0.1",
+    "semver": "^7.6.3"
+  },
+  "devDependencies": {
+    "@types/ejs": "^3.1.5",
+    "@types/node": "^20.14.0",
+    "@types/semver": "^7.5.8",
+    "tsx": "^4.16.0",
+    "typescript": "^5.5.0",
+    "vitest": "^2.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

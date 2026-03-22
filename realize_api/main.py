@@ -17,16 +17,20 @@ from fastapi.staticfiles import StaticFiles
 from realize_api.middleware import APIKeyMiddleware
 from realize_api.routes import (
     activity,
+    agents_v2,
     approvals,
     chat,
     dashboard,
     evolution,
+    extensions,
     health,
+    routing,
     settings,
     setup,
     systems,
     ventures,
     webhooks,
+    workflows,
 )
 
 logger = logging.getLogger(__name__)
@@ -170,6 +174,11 @@ def create_app() -> FastAPI:
     app.include_router(settings.router, prefix="/api", tags=["Settings"])
     app.include_router(webhooks.router, prefix="/api", tags=["Webhooks"])
     app.include_router(setup.router, prefix="/api", tags=["Setup"])
+    # Sprint 3 — V2 API routes
+    app.include_router(agents_v2.router, prefix="/api", tags=["Agents V2"])
+    app.include_router(workflows.router, prefix="/api", tags=["Workflows"])
+    app.include_router(extensions.router, prefix="/api", tags=["Extensions"])
+    app.include_router(routing.router, prefix="/api", tags=["Routing"])
 
     # Serve dashboard from static/ (only if built)
     static_dir = Path(__file__).parent.parent / "static"

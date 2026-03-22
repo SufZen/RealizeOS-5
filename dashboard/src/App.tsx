@@ -14,6 +14,10 @@ import {
   Wrench,
   BookOpen,
   Plug,
+  GitBranch,
+  FileCode2,
+  Route as RouteIcon,
+  Puzzle,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -29,6 +33,10 @@ const SettingsPage = lazy(() => import('@/pages/settings-page'))
 const ToolsPage = lazy(() => import('@/pages/tools-page'))
 const SkillsPage = lazy(() => import('@/pages/skills-page'))
 const SetupPage = lazy(() => import('@/pages/setup-page'))
+const PipelineBuilderPage = lazy(() => import('@/pages/pipeline-builder'))
+const WorkflowEditorPage = lazy(() => import('@/pages/workflow-editor'))
+const RoutingPage = lazy(() => import('@/pages/routing-page'))
+const IntegrationsPage = lazy(() => import('@/pages/integrations-page'))
 
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Overview' },
@@ -38,7 +46,11 @@ const navItems = [
   { to: '/evolution', icon: Sparkles, label: 'Evolution' },
   { to: '/approvals', icon: ShieldCheck, label: 'Approvals' },
   { to: '/skills', icon: BookOpen, label: 'Skills' },
+  { to: '/pipelines', icon: GitBranch, label: 'Pipelines' },
+  { to: '/workflows', icon: FileCode2, label: 'Workflows' },
+  { to: '/routing', icon: RouteIcon, label: 'Routing' },
   { to: '/tools', icon: Wrench, label: 'Tools' },
+  { to: '/integrations', icon: Puzzle, label: 'Integrations' },
   { to: '/setup', icon: Plug, label: 'Setup' },
   { to: '/settings', icon: Settings, label: 'Settings' },
 ]
@@ -185,6 +197,10 @@ export default function App() {
                 <Route path="/approvals" element={<ApprovalsPage />} />
                 <Route path="/skills" element={<SkillsPage />} />
                 <Route path="/tools" element={<ToolsPage />} />
+                <Route path="/pipelines" element={<PipelineBuilderPage />} />
+                <Route path="/workflows" element={<WorkflowEditorPage />} />
+                <Route path="/routing" element={<RoutingPage />} />
+                <Route path="/integrations" element={<IntegrationsPage />} />
                 <Route path="/setup" element={<SetupPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
               </Routes>
