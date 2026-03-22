@@ -13,6 +13,11 @@ Layers (assembled in order):
 9. Session layer (active creative session state)
 10. Proactive behavior instructions (when proactive_mode enabled)
 11. Channel format instructions
+
+Token optimization features:
+- estimate_tokens(): Fast token count estimation (chars / 3.5)
+- truncate_to_budget(): Smart per-layer budget with priority preservation
+- deduplicate_layers(): Detect and remove redundant content across layers
 """
 import logging
 from pathlib import Path
@@ -92,6 +97,197 @@ def _read_kb_file(kb_path: Path, relative_path: str, max_chars: int = 6000) -> s
 def clear_cache():
     """Clear the file cache (call after KB update)."""
     _file_cache.clear()
+
+
+# ---------------------------------------------------------------------------
+# Token optimization
+# ---------------------------------------------------------------------------
+
+# Average ratio of characters to tokens for English text across major models.
+# GPT-4/Claude average ~3.5 chars per token; we use this as a fast estimator.
+_CHARS_PER_TOKEN = 3.5
+
+
+def estimate_tokens(text: str) -> int:
+    """
+    Fast token count estimation without loading a tokenizer.
+
+    Uses the empirical average of ~3.5 characters per token for English text.
+    This is within 10% of tiktoken/sentencepiece for typical prompts.
+
+    Returns:
+        Estimated token count.
+    """
+    if not text:
+        return 0
+    return max(1, int(len(text) / _CHARS_PER_TOKEN))
+
+
+# Layer priority: higher number = cut last (more important).
+# Uses layer heading patterns to identify each layer.
+_LAYER_PRIORITIES: dict[str, int] = {
+    "## Identity": 9,         # Core identity — never cut
+    "## Active Agent": 8,     # Agent definition — critical
+    "## Writing Style": 8,    # Channel format — critical
+    "## Response Format": 8,  # Channel format — critical
+    "## Collaboration": 7,    # Proactive instructions
+    "## Venture Identity": 6, # Brand context
+    "## Venture Voice": 6,
+    "## Team Routing": 5,     # Routing table
+    "## Active Creative": 5,  # Session context
+    "## Relevant Knowledge": 4,  # RAG results — can trim
+    "## Loaded Context": 3,   # Extra files — can trim
+    "## Recent Learning": 3,  # Memory — can trim
+    "## Cross-System": 2,     # Cross-venture — lowest priority
+    "## User Preferences": 4, # Preferences
+    "## Push-Back": 6,        # Pushback protocol
+}
+
+
+def _get_layer_priority(layer_text: str) -> int:
+    """Determine the priority of a prompt layer from its heading."""
+    for heading, priority in _LAYER_PRIORITIES.items():
+        if heading in layer_text[:100]:
+            return priority
+    return 5  # default mid-priority
+
+
+def truncate_to_budget(
+    layers: list[str],
+    token_budget: int,
+    separator: str = "\n\n---\n\n",
+) -> list[str]:
+    """
+    Smart truncation: trim lowest-priority layers first to fit within budget.
+
+    Steps:
+    1. Calculate total tokens
+    2. If under budget, return as-is
+    3. Sort layers by priority (lowest first)
+    4. Trim lowest-priority layers until under budget
+    5. Within a trimmed layer, keep the header and first paragraph
+
+    Args:
+        layers: List of prompt layer strings
+        token_budget: Maximum total tokens
+        separator: Layer separator (for overhead calculation)
+
+    Returns:
+        Trimmed list of layers that fits within the budget.
+    """
+    if not layers:
+        return layers
+
+    sep_tokens = estimate_tokens(separator) * (len(layers) - 1)
+    total_tokens = sum(estimate_tokens(layer) for layer in layers) + sep_tokens
+
+    if total_tokens <= token_budget:
+        return layers
+
+    logger.info(
+        f"Token budget exceeded: {total_tokens} > {token_budget}, trimming..."
+    )
+
+    # Create (index, priority, tokens) tuples and sort by priority ascending
+    indexed = [
+        (i, _get_layer_priority(layer), estimate_tokens(layer), layer)
+        for i, layer in enumerate(layers)
+    ]
+    indexed.sort(key=lambda x: x[1])  # Sort by priority (lowest first)
+
+    tokens_to_cut = total_tokens - token_budget
+    trimmed: dict[int, str] = {}  # index -> trimmed content
+
+    for idx, priority, layer_tokens, layer_text in indexed:
+        if tokens_to_cut <= 0:
+            break
+
+        if priority >= 8:
+            # Never cut critical layers (identity, agent, format)
+            continue
+
+        # Trim the layer: keep header + first paragraph
+        lines = layer_text.split("\n")
+        if len(lines) <= 3:
+            # Too short to trim meaningfully — remove entirely
+            tokens_saved = layer_tokens
+            trimmed[idx] = ""  # Mark for removal
+        else:
+            # Keep header (first 2 lines) + truncation marker
+            kept = "\n".join(lines[:2]) + "\n\n[...trimmed to save tokens]"
+            tokens_saved = layer_tokens - estimate_tokens(kept)
+            if tokens_saved > 0:
+                trimmed[idx] = kept
+            else:
+                trimmed[idx] = ""
+                tokens_saved = layer_tokens
+
+        tokens_to_cut -= tokens_saved
+        logger.debug(f"Trimmed layer at index {idx} (priority={priority}), saved ~{tokens_saved} tokens")
+
+    # Rebuild layers in original order
+    result = []
+    for i, layer in enumerate(layers):
+        if i in trimmed:
+            if trimmed[i]:  # Trimmed but not removed
+                result.append(trimmed[i])
+            # else: removed entirely
+        else:
+            result.append(layer)
+
+    return result
+
+
+def deduplicate_layers(layers: list[str], similarity_threshold: float = 0.7) -> list[str]:
+    """
+    Remove redundant content across prompt layers.
+
+    Detects when two layers share a high proportion of identical lines
+    and removes the lower-priority duplicate.
+
+    Args:
+        layers: List of prompt layer strings
+        similarity_threshold: Minimum ratio of shared lines to trigger dedup (0-1)
+
+    Returns:
+        Deduplicated list of layers.
+    """
+    if len(layers) <= 1:
+        return layers
+
+    # Extract significant lines (3+ words, not headers/separators)
+    def extract_lines(text: str) -> set[str]:
+        lines = set()
+        for line in text.split("\n"):
+            stripped = line.strip().lower()
+            if len(stripped.split()) >= 3 and not stripped.startswith("#") and stripped != "---":
+                lines.add(stripped)
+        return lines
+
+    line_sets = [(i, extract_lines(layer), layer) for i, layer in enumerate(layers)]
+    remove_indices: set[int] = set()
+
+    for i, (idx_a, lines_a, _) in enumerate(line_sets):
+        if idx_a in remove_indices or not lines_a:
+            continue
+        for j in range(i + 1, len(line_sets)):
+            idx_b, lines_b, _ = line_sets[j]
+            if idx_b in remove_indices or not lines_b:
+                continue
+
+            overlap = lines_a & lines_b
+            smaller = min(len(lines_a), len(lines_b))
+            if smaller > 0 and len(overlap) / smaller >= similarity_threshold:
+                # Remove the one with lower priority
+                pri_a = _get_layer_priority(layers[idx_a])
+                pri_b = _get_layer_priority(layers[idx_b])
+                victim = idx_b if pri_a >= pri_b else idx_a
+                remove_indices.add(victim)
+                logger.debug(
+                    f"Deduplicated layer {victim} (overlap={len(overlap)}/{smaller} lines)"
+                )
+
+    return [layer for i, layer in enumerate(layers) if i not in remove_indices]
 
 
 def warm_cache(kb_path: Path, systems: dict, shared_config: dict = None):
@@ -389,6 +585,7 @@ def build_system_prompt(
     channel: str = "api",
     features: dict = None,
     all_systems: dict = None,
+    token_budget: int | None = None,
 ) -> str:
     """
     Assemble the full system prompt from KB layers.
@@ -405,6 +602,7 @@ def build_system_prompt(
         channel: Channel name for format instructions
         features: Feature flags dict (from get_features())
         all_systems: All system configs (for cross-system context)
+        token_budget: Maximum token budget for the prompt (None = unlimited)
 
     Returns:
         Assembled system prompt string.
@@ -481,5 +679,13 @@ def build_system_prompt(
     # Layer 12: Channel format instructions
     format_instructions = CHANNEL_FORMAT_INSTRUCTIONS.get(channel, CHANNEL_FORMAT_INSTRUCTIONS["api"])
     layers.append(format_instructions)
+
+    # ── Token optimization ────────────────────────────────────────
+    # 1. Deduplicate overlapping layers
+    layers = deduplicate_layers(layers)
+
+    # 2. Truncate to budget if specified
+    if token_budget and token_budget > 0:
+        layers = truncate_to_budget(layers, token_budget)
 
     return "\n\n---\n\n".join(layers)

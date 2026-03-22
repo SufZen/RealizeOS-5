@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Documentation
+    url: https://github.com/SufZen/RealizeOS-5/tree/main/docs
+    about: Check the docs before opening an issue
+  - name: Getting Started Guide
+    url: https://github.com/SufZen/RealizeOS-5/blob/main/docs/getting-started.md
+    about: Setup and configuration walkthrough
