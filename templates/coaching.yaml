@@ -1,0 +1,47 @@
+# RealizeOS Template: Coaching / Training
+# For business coaches, life coaches, trainers, and course creators.
+
+name: "My Coaching Practice"
+
+systems:
+  - key: coaching
+    name: "Coaching Practice"
+    directory: systems/my-business-1
+
+    routing:
+      content: [writer, reviewer]
+      strategy: [analyst, orchestrator]
+      client_work: [orchestrator, writer]
+      general: [orchestrator]
+
+    agent_routing:
+      writer: [write, draft, post, email, curriculum, module, lesson, worksheet, blog, social]
+      analyst: [analyze, research, assess, survey, feedback, benchmark, trend, market]
+      reviewer: [review, check, proofread, quality, tone, approve]
+      orchestrator: [plan, help, think, prioritize, schedule, client, program]
+
+example_tasks:
+  - "Write a LinkedIn post about a coaching insight from this week"
+  - "Draft a workshop curriculum outline from talking points"
+  - "Create a client intake questionnaire"
+  - "Summarize session notes into action items for a client"
+  - "Write a nurture email sequence for new leads"
+  - "Develop a 4-week coaching program outline"
+  - "Analyze client feedback surveys for improvement patterns"
+
+features:
+  review_pipeline: true
+  auto_memory: true
+  skills_v2: true
+
+llm:
+  default_model: claude-sonnet
+  routing:
+    simple: gemini-flash
+    content: claude-sonnet
+    strategy: claude-sonnet
+    complex: claude-opus
+
+channels:
+  - type: api
+    port: 8080

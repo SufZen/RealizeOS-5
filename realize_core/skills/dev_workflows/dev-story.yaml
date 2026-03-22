@@ -1,0 +1,84 @@
+# Dev Story Workflow — v2 Skill
+# Triggers when the user wants to break work into stories or implement a story.
+# Produces actionable dev stories from a plan or spec.
+
+name: dev_story
+version: 2
+description: "Create dev stories from a plan or implement a specific story"
+
+triggers:
+  - "create stories"
+  - "break into stories"
+  - "dev story"
+  - "implement story"
+  - "work on story"
+  - "sprint planning"
+  - "break down"
+
+steps:
+  - id: identify_work
+    type: agent
+    agent: analyst
+    instructions: |
+      The user wants to create or implement development stories.
+      
+      Check docs/dev-process/active/sprint-status.yaml for current sprint context.
+      Check docs/dev-process/plans/ for the active plan.
+      
+      If the user wants to CREATE stories:
+      - Analyze the plan/spec to identify discrete units of work
+      - Each story should be completable in one session
+      - Include clear acceptance criteria
+      
+      If the user wants to IMPLEMENT a story:
+      - Find the story in sprint-status.yaml
+      - Identify the files and tests that need changes
+      - Outline the implementation approach
+
+  - id: produce_stories
+    type: agent
+    agent: writer
+    inject_context:
+      - identify_work
+    instructions: |
+      Based on the analysis, produce the output:
+      
+      If CREATING stories, for each story produce:
+      
+      # Story: [Title]
+      ## Priority: P0 / P1 / P2
+      ## Description
+      Clear, actionable description.
+      ## Acceptance Criteria
+      - [ ] Criterion 1
+      - [ ] Criterion 2
+      ## Files Affected
+      - `path/to/file` — what changes
+      
+      If IMPLEMENTING a story, produce:
+      - Step-by-step implementation plan
+      - Code changes needed
+      - Tests to write or update
+      
+      Keep stories focused. One story = one concern.
+
+  - id: confirm_output
+    type: human
+    prompt: |
+      {produce_stories}
+      
+      Should I save these stories and update the sprint status?
+
+  - id: save_stories
+    type: agent
+    agent: orchestrator
+    inject_context:
+      - produce_stories
+    instructions: |
+      Save each story as a separate file in docs/dev-process/plans/stories/
+      following the naming pattern: P[phase]-[number]-[short-name].md
+      
+      Update docs/dev-process/active/sprint-status.yaml to include the new stories
+      under the appropriate epic.
+      
+      Confirm what was saved and suggest which story to start with.

@@ -1,0 +1,88 @@
+# Code Review Workflow — v2 Skill
+# Triggers when the user wants a code review or quality check.
+# Reviews changes against project conventions and acceptance criteria.
+
+name: code_review
+version: 2
+description: "Review code changes against project standards and acceptance criteria"
+
+triggers:
+  - "code review"
+  - "review my code"
+  - "review changes"
+  - "check my work"
+  - "quality check"
+  - "PR review"
+
+steps:
+  - id: gather_changes
+    type: agent
+    agent: analyst
+    instructions: |
+      The user wants a code review.
+      
+      1. Check docs/dev-process/active/project-context.md for project conventions
+      2. Check docs/dev-process/active/sprint-status.yaml for the active story
+      3. Identify the files that were changed (ask the user if unclear)
+      
+      Produce a summary of:
+      - What files changed
+      - What story/task this relates to
+      - What conventions apply
+
+  - id: review_code
+    type: agent
+    agent: analyst
+    inject_context:
+      - gather_changes
+    instructions: |
+      Review the code changes against these criteria:
+      
+      ## Correctness
+      - Does the code do what the story requires?
+      - Are edge cases handled?
+      - Are there potential bugs?
+      
+      ## Conventions
+      - Does it follow the project's coding standards?
+      - Are naming conventions consistent?
+      - Is the code properly documented?
+      
+      ## Tests
+      - Are there tests for the new/changed code?
+      - Do the tests cover the acceptance criteria?
+      - Are edge cases tested?
+      
+      ## Architecture
+      - Does it fit the existing patterns?
+      - Are there any anti-patterns?
+      - Is it properly decoupled?
+      
+      Produce a structured review with:
+      - ✅ Things done well
+      - ⚠️ Suggestions for improvement
+      - ❌ Issues that must be fixed
+      - Overall verdict: APPROVED / CHANGES REQUESTED
+
+  - id: present_review
+    type: human
+    prompt: |
+      {review_code}
+      
+      Would you like me to help fix any of the issues found?
+
+  - id: update_status
+    type: agent
+    agent: orchestrator
+    inject_context:
+      - review_code
+    instructions: |
+      If the review verdict was APPROVED:
+      - Update the story status to "done" in sprint-status.yaml
+      - Add a completion note with the date
+      
+      If CHANGES REQUESTED:
+      - Keep the story as "in-progress"
+      - List the required changes as a note
+      
+      Update session-log.md with a note about the review.

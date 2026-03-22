@@ -1,0 +1,47 @@
+# RealizeOS Template: Freelance / Solo Professional
+# For freelance developers, designers, writers, and independent professionals.
+
+name: "My Freelance Business"
+
+systems:
+  - key: freelance
+    name: "Freelance Business"
+    directory: systems/my-business-1
+
+    routing:
+      content: [writer, reviewer]
+      strategy: [analyst, orchestrator]
+      client_work: [orchestrator, writer, reviewer]
+      general: [orchestrator]
+
+    agent_routing:
+      writer: [write, draft, proposal, post, blog, email, case study, portfolio, bio, pitch]
+      analyst: [analyze, research, rate, pricing, market, competitor, scope, estimate]
+      reviewer: [review, check, proofread, quality, venture, approve]
+      orchestrator: [plan, help, think, prioritize, project, scope, timeline, client]
+
+example_tasks:
+  - "Draft a project proposal from a client brief"
+  - "Write a case study from a completed project"
+  - "Create a follow-up email sequence for past clients"
+  - "Estimate scope and pricing for a new project inquiry"
+  - "Write weekly LinkedIn posts to attract new clients"
+  - "Prepare a portfolio description for a new service offering"
+  - "Analyze market rates for your skill set in your region"
+
+features:
+  review_pipeline: true
+  auto_memory: true
+  skills_v2: true
+
+llm:
+  default_model: claude-sonnet
+  routing:
+    simple: gemini-flash
+    content: claude-sonnet
+    strategy: claude-sonnet
+    complex: claude-opus
+
+channels:
+  - type: api
+    port: 8080

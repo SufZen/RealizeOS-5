@@ -1,0 +1,49 @@
+# RealizeOS Template: Creative / Marketing Agency
+# For agencies managing ventures, campaigns, and creative output.
+
+name: "My Agency"
+
+systems:
+  - key: agency
+    name: "Creative Agency"
+    directory: systems/my-business-1
+
+    routing:
+      content: [writer, reviewer]
+      strategy: [analyst, orchestrator]
+      creative: [writer, reviewer]
+      client_work: [orchestrator, writer, reviewer]
+      general: [orchestrator]
+
+    agent_routing:
+      writer: [write, draft, copy, headline, post, blog, email, campaign, creative, ad, social]
+      analyst: [analyze, audit, report, metrics, competitor, market, audience, persona, seo]
+      reviewer: [review, venture, check, quality, consistency, tone, proofread, approve]
+      orchestrator: [plan, brief, strategy, brainstorm, prioritize, client]
+
+example_tasks:
+  - "Run a content brief through the Writer → Reviewer pipeline"
+  - "Generate 5 social post variations from a single idea"
+  - "Rewrite existing copy in a client's venture voice"
+  - "Build a monthly content calendar from talking points"
+  - "Audit a client's website copy for venture consistency"
+  - "Draft a campaign concept with headline options"
+  - "Create a post-campaign performance summary"
+
+features:
+  review_pipeline: true
+  auto_memory: true
+  skills_v2: true
+
+llm:
+  default_model: claude-sonnet
+  routing:
+    simple: gemini-flash
+    content: claude-sonnet
+    creative: claude-sonnet
+    strategy: claude-sonnet
+    complex: claude-opus
+
+channels:
+  - type: api
+    port: 8080

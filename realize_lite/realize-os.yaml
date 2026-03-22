@@ -1,0 +1,58 @@
+# RealizeOS Configuration
+# This file defines your systems, agents, and preferences.
+# Edit this file to customize your AI operations setup.
+
+# Your workspace name
+name: "My Workspace"
+
+# Systems — each system represents a business, project, or domain
+# Your workspace supports multiple ventures out of the box.
+# Uncomment additional systems when you're ready to use them.
+systems:
+  - key: my-business-1                    # Unique identifier (lowercase, no spaces)
+    name: "My Business 1"                 # Display name
+    directory: systems/my-business-1      # Path to the FABRIC directory
+    description: "First venture"
+
+    # Agent routing — which agents handle which request types
+    routing:
+      content: [writer, reviewer]       # Content requests → Writer then Reviewer
+      strategy: [analyst, orchestrator] # Strategy requests → Analyst then Orchestrator
+      research: [analyst]               # Research → Analyst
+      general: [orchestrator]           # Everything else → Orchestrator
+
+#  - key: my-business-2
+#    name: "My Business 2"
+#    directory: systems/my-business-2
+#    description: "Second venture"
+#    routing:
+#      content: [writer, reviewer]
+#      strategy: [analyst, orchestrator]
+#      research: [analyst]
+#      general: [orchestrator]
+
+#  - key: my-business-3
+#    name: "My Business 3"
+#    directory: systems/my-business-3
+#    description: "Third venture"
+#    routing:
+#      content: [writer, reviewer]
+#      strategy: [analyst, orchestrator]
+#      research: [analyst]
+#      general: [orchestrator]
+
+# To add more systems: copy a block above, uncomment it, and update the key, name, directory, and description.
+# Or simply ask: "Create a new venture" and the AI will set it up for you.
+
+# Shared resources (applies to all systems)
+shared:
+  identity: shared/identity.md
+  preferences: shared/user-preferences.md
+  methods: shared/methods/
+
+# Features (toggle on/off)
+features:
+  review_pipeline: true     # Require reviewer approval for publishable content
+  auto_memory: true         # Automatically log learnings to I-insights/
+  proactive_mode: true      # AI suggests next steps and asks clarifying questions
+  cross_system: false       # Enable cross-system context (for multi-system setups)

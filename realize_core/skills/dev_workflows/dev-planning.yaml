@@ -1,0 +1,85 @@
+# Dev Planning Workflow — v2 Skill
+# Triggers when the user wants to plan a new feature or project.
+# Produces a structured development plan following the plan template.
+
+name: dev_planning
+version: 2
+description: "Create a structured development plan for a new feature or project"
+
+triggers:
+  - "plan a feature"
+  - "development plan"
+  - "project plan"
+  - "roadmap"
+  - "plan this"
+  - "create a plan"
+  - "feature planning"
+
+steps:
+  - id: gather_requirements
+    type: agent
+    agent: analyst
+    instructions: |
+      The user wants to create a development plan.
+      
+      Ask clarifying questions to understand:
+      1. What is the end goal?
+      2. What problem does this solve?
+      3. What are the constraints (time, tech, team)?
+      4. Are there dependencies on other work?
+      
+      Summarize the requirements in a clear, structured format.
+
+  - id: confirm_scope
+    type: human
+    prompt: |
+      Here's what I understood about the project scope:
+      
+      {gather_requirements}
+      
+      Should I proceed with creating the development plan, or would you like to adjust anything?
+
+  - id: create_plan
+    type: agent
+    agent: writer
+    inject_context:
+      - gather_requirements
+    instructions: |
+      Create a development plan following this structure:
+      
+      # [Project Name]
+      
+      ## Goal
+      One sentence describing the end state.
+      
+      ## Context
+      Why this matters and what problem it solves.
+      
+      ## Phases
+      Break the work into logical phases. For each phase:
+      - Number and name the phase
+      - List concrete steps in a table
+      - Define clear "done when" criteria
+      - Note dependencies on other phases
+      
+      ## Risks
+      Identify key risks with impact levels and mitigations.
+      
+      ## Timeline
+      Provide estimated durations for each phase.
+      
+      Use the user's requirements from the previous step.
+      Keep it actionable — every step should be something a developer can pick up.
+
+  - id: save_plan
+    type: agent
+    agent: orchestrator
+    inject_context:
+      - create_plan
+    instructions: |
+      Save the development plan to the user's docs/dev-process/plans/ directory
+      with a descriptive filename following the pattern: YYYY-MM-project-name.md
+      
+      Also update docs/dev-process/active/current-focus.md to reference this new plan.
+      
+      Confirm to the user where the plan was saved and suggest next steps.

@@ -1,0 +1,61 @@
+# RealizeOS Template: Portfolio / Multi-Venture
+# For operators managing multiple ventures, ventures, or projects.
+
+name: "My Portfolio"
+
+systems:
+  - key: my-business-1
+    name: "Venture One"
+    directory: systems/my-business-1
+
+    routing:
+      content: [writer, reviewer]
+      strategy: [analyst, orchestrator]
+      general: [orchestrator]
+
+    agent_routing:
+      writer: [write, draft, post, blog, content, newsletter]
+      analyst: [analyze, research, market, compete, data, financial, deal]
+      reviewer: [review, check, proofread, quality, approve]
+      orchestrator: [plan, help, think, prioritize, overview]
+
+  - key: my-business-2
+    name: "Venture Two"
+    directory: systems/my-business-2
+
+    routing:
+      content: [writer, reviewer]
+      operations: [orchestrator]
+      general: [orchestrator]
+
+    agent_routing:
+      writer: [write, draft, post, content]
+      reviewer: [review, check, quality]
+      orchestrator: [plan, help, think, manage, operations]
+
+example_tasks:
+  - "Get a cross-venture status summary across all systems"
+  - "Switch context to a different venture without losing state"
+  - "Generate investor updates for each venture separately"
+  - "Track priorities and pipeline across all businesses"
+  - "Research a new market opportunity in one venture"
+  - "Consolidate weekly activity into a portfolio review"
+  - "Draft an announcement for a new venture launch"
+
+features:
+  review_pipeline: true
+  auto_memory: true
+  skills_v2: true
+  cross_system: true
+
+llm:
+  default_model: claude-sonnet
+  routing:
+    simple: gemini-flash
+    content: claude-sonnet
+    strategy: claude-sonnet
+    complex: claude-opus
+
+channels:
+  - type: api
+    port: 8080

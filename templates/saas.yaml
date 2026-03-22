@@ -1,0 +1,49 @@
+# RealizeOS Template: SaaS / Tech Product
+# For SaaS founders, product teams, and tech companies.
+
+name: "My SaaS"
+
+systems:
+  - key: product
+    name: "SaaS Product"
+    directory: systems/my-business-1
+
+    routing:
+      content: [writer, reviewer]
+      product: [analyst, orchestrator]
+      support: [orchestrator]
+      marketing: [writer, reviewer]
+      general: [orchestrator]
+
+    agent_routing:
+      writer: [write, draft, blog, docs, changelog, announcement, landing, email, copy]
+      analyst: [analyze, research, feature, roadmap, compete, metrics, churn, revenue, pricing]
+      reviewer: [review, check, proofread, quality, ux, approve]
+      orchestrator: [plan, help, think, prioritize, sprint, release, support, ticket]
+
+example_tasks:
+  - "Turn user interview notes into structured product insights"
+  - "Draft release notes and changelog entries"
+  - "Write onboarding emails and help center articles"
+  - "Analyze churn feedback and surface recurring patterns"
+  - "Create a GTM brief for a new feature launch"
+  - "Draft a competitive analysis for a new market entry"
+  - "Write a technical blog post from a feature spec"
+
+features:
+  review_pipeline: true
+  auto_memory: true
+  skills_v2: true
+
+llm:
+  default_model: claude-sonnet
+  routing:
+    simple: gemini-flash
+    content: claude-sonnet
+    product: claude-sonnet
+    strategy: claude-opus
+    complex: claude-opus
+
+channels:
+  - type: api
+    port: 8080

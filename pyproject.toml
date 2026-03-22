@@ -1,0 +1,46 @@
+[project]
+name = "realize-os"
+version = "0.1.0"
+description = "AI-native personal operations system"
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+markers = [
+    "slow: marks tests that take a long time (deselect with '-m \"not slow\"')",
+    "integration: marks tests that require external services",
+]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+src = ["realize_core", "realize_api", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP"]
+ignore = [
+    "E501",   # line too long (handled by formatter)
+    "N802",   # function name should be lowercase (test classes)
+]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.coverage.run]
+source = ["realize_core"]
+omit = [
+    "realize_core/tools/*",          # external integrations
+    "realize_core/llm/*_client.py",  # LLM API clients (mocked in tests)
+    "realize_core/memory/store.py",  # SQLite storage layer
+]
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 50
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__",
+    "logger\\.",
+    "except ImportError",
+]

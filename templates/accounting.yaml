@@ -1,0 +1,47 @@
+# RealizeOS Template: Accounting / Financial Services
+# For accountants, bookkeepers, tax advisors, and financial consultants.
+
+name: "My Accounting Practice"
+
+systems:
+  - key: accounting
+    name: "Accounting Practice"
+    directory: systems/my-business-1
+
+    routing:
+      content: [writer, reviewer]
+      analysis: [analyst, orchestrator]
+      client_work: [orchestrator, writer]
+      general: [orchestrator]
+
+    agent_routing:
+      writer: [write, draft, email, letter, report, newsletter, blog, memo, summary]
+      analyst: [analyze, tax, financial, audit, compare, benchmark, forecast, budget, compliance]
+      reviewer: [review, check, proofread, quality, accuracy, approve]
+      orchestrator: [plan, help, think, prioritize, client, deadline, schedule]
+
+example_tasks:
+  - "Draft a client advisory letter about new tax regulations"
+  - "Summarize quarterly financial data into a client report"
+  - "Write a monthly newsletter on tax planning tips"
+  - "Analyze a client's expense categories for optimization"
+  - "Prepare a year-end tax checklist for small business clients"
+  - "Draft onboarding documents for new accounting clients"
+  - "Create a compliance deadline tracker summary"
+
+features:
+  review_pipeline: true
+  auto_memory: true
+  skills_v2: true
+
+llm:
+  default_model: claude-sonnet
+  routing:
+    simple: gemini-flash
+    content: claude-sonnet
+    analysis: claude-sonnet
+    complex: claude-opus
+
+channels:
+  - type: api
+    port: 8080

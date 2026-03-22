@@ -1,0 +1,59 @@
+# Setup wizard state
+.realize-setup.json
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# SQLite databases (operational, not tracked)
+*.db
+*.sqlite
+*.sqlite3
+
+# Node / Dashboard
+dashboard/node_modules/
+dashboard/dist/
+dashboard/.pnpm-store/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+
+# Docker
+docker-compose.override.yml
+
+# Logs
+*.log
+
+# Systems data (user-specific ventures)
+systems/

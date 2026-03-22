@@ -1,0 +1,85 @@
+# Architecture Review Workflow — v2 Skill
+# Triggers when the user needs an architecture doc or technical design.
+# Produces an architecture document following the template.
+
+name: architecture_review
+version: 2
+description: "Create or review a technical architecture document"
+
+triggers:
+  - "architecture"
+  - "tech design"
+  - "technical design"
+  - "system design"
+  - "design doc"
+  - "architecture review"
+  - "how should I build"
+
+steps:
+  - id: analyze_codebase
+    type: agent
+    agent: analyst
+    instructions: |
+      The user wants to create an architecture document.
+      
+      Analyze the relevant parts of the codebase:
+      1. Current file structure and module organization
+      2. Key interfaces, classes, and data flows
+      3. Existing patterns already in use
+      4. Dependencies and integration points
+      
+      Produce a structured analysis that covers:
+      - What exists today
+      - What needs to change
+      - Key technical constraints
+
+  - id: design_solution
+    type: agent
+    agent: orchestrator
+    inject_context:
+      - analyze_codebase
+    instructions: |
+      Based on the codebase analysis, create an architecture document:
+      
+      # [Feature/Module Name] — Architecture
+      
+      ## Problem
+      What specific problem are we solving?
+      
+      ## Solution
+      High-level approach.
+      
+      ## Architecture
+      Describe the key components and how they interact.
+      Use ASCII diagrams for component relationships.
+      
+      ## Key Decisions
+      List each decision with rationale.
+      Number them for easy reference.
+      
+      ## File Layout
+      Show the proposed file structure.
+      
+      ## Migration Plan
+      If changing existing code, describe backward compatibility strategy.
+
+  - id: confirm_design
+    type: human
+    prompt: |
+      Here's the proposed architecture:
+      
+      {design_solution}
+      
+      Should I save this architecture doc, or would you like changes?
+
+  - id: save_architecture
+    type: agent
+    agent: orchestrator
+    inject_context:
+      - design_solution
+    instructions: |
+      Save the architecture document to docs/dev-process/plans/ with a
+      descriptive filename: phase-N-architecture.md or feature-name-architecture.md.
+      
+      If this involves significant design decisions, also create an ADR
+      in docs/dev-process/decisions/ following the ADR template.

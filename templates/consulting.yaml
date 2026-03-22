@@ -1,0 +1,48 @@
+# RealizeOS Template: Consulting / Professional Services
+# For solo consultants, advisory firms, and professional service providers.
+
+name: "My Consulting Practice"
+
+systems:
+  - key: consulting
+    name: "Consulting Practice"
+    directory: systems/my-business-1
+
+    routing:
+      content: [writer, reviewer]
+      strategy: [analyst, orchestrator]
+      research: [analyst]
+      general: [orchestrator]
+
+    # Agent keywords for auto-routing
+    agent_routing:
+      writer: [write, draft, post, article, newsletter, blog, content, proposal, report]
+      analyst: [analyze, research, compare, evaluate, market, competitor, data, trend, strategy]
+      reviewer: [review, check, proofread, quality, feedback, approve]
+      orchestrator: [plan, help, think, advise, prioritize]
+
+example_tasks:
+  - "Draft a client proposal from meeting notes"
+  - "Research competitors for a new engagement"
+  - "Write weekly LinkedIn thought leadership posts"
+  - "Prepare a quarterly business review report"
+  - "Summarize market intelligence into a briefing"
+  - "Create a client onboarding email sequence"
+  - "Turn workshop notes into a structured framework document"
+
+features:
+  review_pipeline: true
+  auto_memory: true
+  skills_v2: true
+
+llm:
+  default_model: claude-sonnet
+  routing:
+    simple: gemini-flash
+    content: claude-sonnet
+    strategy: claude-sonnet
+    complex: claude-opus
+
+channels:
+  - type: api
+    port: 8080

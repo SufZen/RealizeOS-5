@@ -1,0 +1,21 @@
+sprint: 1
+started: YYYY-MM-DD
+status: active  # active | completed
+
+epics:
+  - name: "Epic Name"
+    stories:
+      - id: PREFIX-01
+        title: "Story title"
+        status: todo  # todo | in-progress | review | done | blocked
+        # completed: YYYY-MM-DD
+        # notes: ""
+
+      - id: PREFIX-02
+        title: "Story title"
+        status: todo
+
+retrospective:
+  went_well: []
+  improve: []
+  action_items: []

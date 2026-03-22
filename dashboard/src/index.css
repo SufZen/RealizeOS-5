@@ -1,0 +1,63 @@
+@import "tailwindcss";
+
+@theme {
+  /* RealizeOS brand colors */
+  --color-brand-50: #fff9e0;
+  --color-brand-100: #fff3c2;
+  --color-brand-200: #ffe685;
+  --color-brand-300: #ffda47;
+  --color-brand-400: #ffcc00;
+  --color-brand-500: #e6b800;
+  --color-brand-600: #cc9f00;
+  --color-brand-700: #997700;
+  --color-brand-800: #665000;
+  --color-brand-900: #332800;
+
+  --color-surface-50: #f8f9fa;
+  --color-surface-100: #f1f3f5;
+  --color-surface-200: #e9ecef;
+  --color-surface-700: #1a1b23;
+  --color-surface-800: #12131a;
+  --color-surface-900: #0a0a0f;
+  --color-surface-950: #060609;
+
+  /* shadcn/ui compatible CSS variables */
+  --color-background: var(--color-surface-900);
+  --color-foreground: #f3f4f6;
+  --color-card: var(--color-surface-800);
+  --color-card-foreground: #f3f4f6;
+  --color-popover: var(--color-surface-800);
+  --color-popover-foreground: #f3f4f6;
+  --color-primary: var(--color-brand-400);
+  --color-primary-foreground: var(--color-surface-900);
+  --color-secondary: var(--color-surface-700);
+  --color-secondary-foreground: #f3f4f6;
+  --color-muted: var(--color-surface-700);
+  --color-muted-foreground: #9ca3af;
+  --color-accent: var(--color-surface-700);
+  --color-accent-foreground: #f3f4f6;
+  --color-destructive: #ef4444;
+  --color-destructive-foreground: #f3f4f6;
+  --color-border: #2e303a;
+  --color-input: #2e303a;
+  --color-ring: var(--color-brand-400);
+
+  --radius-sm: 0.25rem;
+  --radius-md: 0.375rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.75rem;
+
+  --font-sans: "Poppins", system-ui, -apple-system, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Code", Consolas, monospace;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    margin: 0;
+  }
+}

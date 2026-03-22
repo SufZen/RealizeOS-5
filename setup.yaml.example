@@ -1,0 +1,28 @@
+# ─────────────────────────────────────────────────────────────
+# RealizeOS Setup Configuration
+# ─────────────────────────────────────────────────────────────
+# Fill in the values below, then run:
+#   python cli.py init --setup setup.yaml
+#
+# This will generate your .env, config, FABRIC structure, and
+# pre-populate your brand identity files.
+#
+# After init, customize your brand:
+#   systems/<your-business>/F-foundations/brand-identity.md
+# ─────────────────────────────────────────────────────────────
+
+# ─── Required: LLM API Keys (at least one) ───
+anthropic_api_key: ""
+google_ai_api_key: ""
+
+# ─── Required: Business Setup ───
+template: consulting
+business_name: "My Business"
+business_description: "A short description of what your business does."
+
+# ─── Optional: Additional Configuration ───
+# realize_port: 8080
+# realize_api_key: ""
+# openai_api_key: ""
+# telegram_bot_token: ""
+# brave_api_key: ""

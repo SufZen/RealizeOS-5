@@ -1,0 +1,49 @@
+# RealizeOS Template: E-Commerce / Retail
+# For online stores, D2C ventures, and retail businesses.
+
+name: "My Store"
+
+systems:
+  - key: store
+    name: "E-Commerce Store"
+    directory: systems/my-business-1
+
+    routing:
+      content: [writer, reviewer]
+      product: [writer]
+      marketing: [writer, reviewer]
+      analytics: [analyst]
+      general: [orchestrator]
+
+    agent_routing:
+      writer: [write, draft, description, product, listing, blog, email, campaign, ad, social, copy]
+      analyst: [analyze, sales, revenue, conversion, competitor, market, pricing, inventory, trend]
+      reviewer: [review, check, venture, quality, consistency, approve]
+      orchestrator: [plan, help, think, prioritize, operations, supplier, logistics]
+
+example_tasks:
+  - "Write 20 product descriptions in your venture voice"
+  - "Draft abandoned cart and post-purchase email flows"
+  - "Analyze sales data and surface key revenue trends"
+  - "Generate seasonal campaign copy across all channels"
+  - "Respond to customer reviews with venture-consistent replies"
+  - "Create a product launch announcement sequence"
+  - "Write SEO-optimized category page descriptions"
+
+features:
+  review_pipeline: true
+  auto_memory: true
+  skills_v2: true
+
+llm:
+  default_model: claude-sonnet
+  routing:
+    simple: gemini-flash
+    content: claude-sonnet
+    product: claude-sonnet
+    analytics: claude-sonnet
+    complex: claude-opus
+
+channels:
+  - type: api
+    port: 8080

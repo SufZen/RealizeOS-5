@@ -1,0 +1,189 @@
+# Provider Capability Registry
+# Maps providers and models to their supported modalities, tiers, and cost profiles.
+# Used by the routing engine to select the optimal model for each task.
+
+providers:
+
+  # ---- Claude (Anthropic) ----
+  claude:
+    models:
+      claude_sonnet:
+        display_name: "Claude 4 Sonnet"
+        modalities: [text, code, reasoning, vision, tool_use]
+        tier: 2
+        cost_per_1k_input: 0.003
+        cost_per_1k_output: 0.015
+        max_tokens: 200000
+        speed: fast
+        quality: high
+
+      claude_opus:
+        display_name: "Claude 4 Opus"
+        modalities: [text, code, reasoning, vision, tool_use]
+        tier: 3
+        cost_per_1k_input: 0.015
+        cost_per_1k_output: 0.075
+        max_tokens: 200000
+        speed: medium
+        quality: premium
+
+      claude_haiku:
+        display_name: "Claude 4 Haiku"
+        modalities: [text, code, vision]
+        tier: 1
+        cost_per_1k_input: 0.00025
+        cost_per_1k_output: 0.00125
+        max_tokens: 200000
+        speed: very_fast
+        quality: standard
+
+  # ---- Gemini (Google) ----
+  gemini:
+    models:
+      gemini_flash:
+        display_name: "Gemini 2.5 Flash"
+        modalities: [text, code, reasoning, vision, tool_use]
+        tier: 1
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        max_tokens: 1048576
+        speed: very_fast
+        quality: high
+
+      gemini_pro:
+        display_name: "Gemini 2.5 Pro"
+        modalities: [text, code, reasoning, vision, tool_use]
+        tier: 2
+        cost_per_1k_input: 0.00125
+        cost_per_1k_output: 0.005
+        max_tokens: 1048576
+        speed: fast
+        quality: premium
+
+  # ---- OpenAI ----
+  openai:
+    models:
+      gpt4o:
+        display_name: "GPT-4o"
+        modalities: [text, code, reasoning, vision, tool_use, image_gen]
+        tier: 2
+        cost_per_1k_input: 0.0025
+        cost_per_1k_output: 0.01
+        max_tokens: 128000
+        speed: fast
+        quality: high
+
+      gpt4o_mini:
+        display_name: "GPT-4o Mini"
+        modalities: [text, code, vision]
+        tier: 1
+        cost_per_1k_input: 0.00015
+        cost_per_1k_output: 0.0006
+        max_tokens: 128000
+        speed: very_fast
+        quality: standard
+
+      dall_e_3:
+        display_name: "DALL-E 3"
+        modalities: [image_gen]
+        tier: 2
+        cost_per_image: 0.04
+        speed: medium
+        quality: high
+
+  # ---- Google Specialized ----
+  google_media:
+    models:
+      imagen:
+        display_name: "Imagen 3"
+        modalities: [image_gen]
+        tier: 2
+        cost_per_image: 0.02
+        speed: fast
+        quality: premium
+
+      veo:
+        display_name: "Veo 2"
+        modalities: [video_gen]
+        tier: 3
+        cost_per_second: 0.05
+        speed: slow
+        quality: premium
+
+  # ---- Local (Ollama) ----
+  ollama:
+    models:
+      llama3:
+        display_name: "Llama 3.3 70B"
+        modalities: [text, code, reasoning]
+        tier: 1
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        max_tokens: 128000
+        speed: medium
+        quality: high
+
+      deepseek_coder:
+        display_name: "DeepSeek Coder"
+        modalities: [code]
+        tier: 1
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        max_tokens: 32000
+        speed: fast
+        quality: high
+
+# ---- Routing Strategies ----
+# Defines how the routing engine selects models
+
+strategies:
+  cost_optimized:
+    description: "Minimize cost while meeting quality threshold"
+    priority: [tier, cost_per_1k_input, speed]
+    prefer_local: true
+
+  quality_first:
+    description: "Best quality available, regardless of cost"
+    priority: [quality, tier_desc, speed]
+    prefer_local: false
+
+  balanced:
+    description: "Balance cost and quality (default)"
+    priority: [quality, cost_per_1k_input, speed]
+    prefer_local: false
+
+  speed_first:
+    description: "Fastest response time"
+    priority: [speed, cost_per_1k_input, quality]
+    prefer_local: true
+
+# ---- Default Routing Rules ----
+# Maps task types to preferred models
+
+defaults:
+  simple: gemini_flash
+  content: claude_sonnet
+  reasoning: claude_sonnet
+  financial: claude_sonnet
+  complex: claude_opus
+  code: claude_sonnet
+  image_gen: imagen
+  video_gen: veo
+  audio: null  # No default; requires explicit provider
+  spreadsheet: gemini_flash
+  vision: gemini_pro
+  google: claude_sonnet  # Needs tool_use
+  web_research: claude_sonnet  # Needs tool_use
+  web_action: claude_sonnet  # Needs tool_use
+
+# ---- Fallback Chains ----
+# If the preferred model is unavailable, try these in order
+
+fallbacks:
+  claude_sonnet: [gemini_pro, gpt4o, llama3]
+  claude_opus: [claude_sonnet, gemini_pro, gpt4o]
+  gemini_flash: [gpt4o_mini, claude_haiku, llama3]
+  gemini_pro: [claude_sonnet, gpt4o]
+  gpt4o: [claude_sonnet, gemini_pro]
+  imagen: [dall_e_3]
+  veo: []  # No fallback for video gen

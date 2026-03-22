@@ -1,0 +1,44 @@
+
+services:
+  api:
+    build: .
+    ports:
+      - "${REALIZE_PORT:-8080}:8080"
+    volumes:
+      - ./data:/app/data                         # SQLite persistence
+      - ./realize-os.yaml:/app/realize-os.yaml:ro  # Config file
+      - ./shared:/app/shared                     # Shared KB content
+      - ./systems:/app/systems                   # System-specific KB content
+      - ./.credentials:/app/.credentials         # Google OAuth (optional)
+    env_file:
+      - .env
+    environment:
+      - DATA_DIR=/app/data
+      - KB_PATH=/app
+      - REALIZE_HOST=0.0.0.0
+      - REALIZE_PORT=8080
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Optional: Telegram bot (uncomment to enable)
+  # telegram:
+  #   build: .
+  #   command: python cli.py bot
+  #   volumes:
+  #     - ./data:/app/data
+  #     - ./realize-os.yaml:/app/realize-os.yaml:ro
+  #     - ./shared:/app/shared
+  #     - ./systems:/app/systems
+  #     - ./.credentials:/app/.credentials
+  #   env_file:
+  #     - .env
+  #   environment:
+  #     - DATA_DIR=/app/data
+  #     - KB_PATH=/app
+  #   depends_on:
+  #     - api
+  #   restart: unless-stopped
