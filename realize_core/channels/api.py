@@ -5,6 +5,7 @@ Exposes the engine as a FastAPI-compatible endpoint. This is the primary
 channel for the web frontend and programmatic access.
 """
 import logging
+
 from realize_core.channels.base import BaseChannel, IncomingMessage, OutgoingMessage
 
 logger = logging.getLogger(__name__)

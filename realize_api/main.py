@@ -8,13 +8,26 @@ import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, Request as FastAPIRequest
+from fastapi import FastAPI
+from fastapi import Request as FastAPIRequest
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from realize_api.routes import chat, systems, health, activity, dashboard, ventures, approvals, evolution, settings, webhooks, setup
 from realize_api.middleware import APIKeyMiddleware
+from realize_api.routes import (
+    activity,
+    approvals,
+    chat,
+    dashboard,
+    evolution,
+    health,
+    settings,
+    setup,
+    systems,
+    ventures,
+    webhooks,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +38,7 @@ async def lifespan(app: FastAPI):
     # Startup
     logger.info("RealizeOS API starting up...")
 
-    from realize_core.config import load_config, build_systems_dict
+    from realize_core.config import build_systems_dict, load_config
     config = load_config()
     app.state.config = config
     app.state.systems = build_systems_dict(config)

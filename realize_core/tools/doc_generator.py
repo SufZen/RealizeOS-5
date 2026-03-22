@@ -29,9 +29,9 @@ def generate_pdf(
     """
     try:
         from reportlab.lib.pagesizes import A4
+        from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
         from reportlab.lib.units import cm
-        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
-        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer
     except ImportError:
         return {"error": "reportlab not installed. Run: pip install reportlab"}
 
@@ -98,7 +98,7 @@ def generate_docx(
     """
     try:
         from docx import Document
-        from docx.shared import Pt
+        from docx.shared import Pt  # noqa: F401
     except ImportError:
         return {"error": "python-docx not installed. Run: pip install python-docx"}
 
@@ -152,7 +152,7 @@ def generate_pptx(
     """
     try:
         from pptx import Presentation
-        from pptx.util import Inches, Pt
+        from pptx.util import Inches, Pt  # noqa: F401
     except ImportError:
         return {"error": "python-pptx not installed. Run: pip install python-pptx"}
 

@@ -15,9 +15,9 @@ Events are logged to the activity system and can trigger skills/workflows.
 import hashlib
 import hmac
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
-from fastapi import APIRouter, Request, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -56,7 +56,7 @@ async def receive_webhook(source: str, request: Request):
         "source": source,
         "event_type": _detect_event_type(source, body, request.headers),
         "payload": body,
-        "received_at": datetime.now(timezone.utc).isoformat(),
+        "received_at": datetime.now(UTC).isoformat(),
         "headers": {
             "content-type": request.headers.get("content-type", ""),
             "user-agent": request.headers.get("user-agent", ""),

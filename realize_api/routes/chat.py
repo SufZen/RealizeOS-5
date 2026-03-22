@@ -3,9 +3,8 @@ Chat API routes: POST /chat, GET /conversations.
 """
 import asyncio
 import logging
-from typing import Optional
 
-from fastapi import APIRouter, Request, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, field_validator
 
 router = APIRouter()
@@ -19,7 +18,7 @@ class ChatRequest(BaseModel):
     message: str
     system_key: str
     user_id: str = "api-user"
-    agent_key: Optional[str] = None
+    agent_key: str | None = None
     channel: str = "api"
 
     @field_validator("message")
@@ -76,7 +75,7 @@ async def chat(body: ChatRequest, request: Request):
             ),
             timeout=CHAT_TIMEOUT_SECONDS,
         )
-    except asyncio.TimeoutError:
+    except TimeoutError:
         logger.error(f"Chat timeout after {CHAT_TIMEOUT_SECONDS}s for {body.system_key}")
         raise HTTPException(status_code=504, detail=f"Request timed out after {CHAT_TIMEOUT_SECONDS}s")
     except Exception as e:

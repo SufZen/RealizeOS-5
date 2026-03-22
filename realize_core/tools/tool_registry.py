@@ -16,7 +16,6 @@ from realize_core.tools.base_tool import (
     BaseTool,
     ToolCategory,
     ToolResult,
-    ToolSchema,
 )
 
 logger = logging.getLogger(__name__)
@@ -232,7 +231,7 @@ class ToolRegistry:
             logger.warning("pyyaml not installed, cannot load tool config")
             return
 
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             config = yaml.safe_load(f) or {}
 
         for tool_name, tool_config in config.get("tools", {}).items():

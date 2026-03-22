@@ -8,7 +8,7 @@ Runs nightly (or on-demand) to:
 4. Optionally write summaries to KB files (insights/learning-log.md)
 """
 import logging
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -41,7 +41,7 @@ async def consolidate_memories(
         if not history:
             history = get_history_with_timestamps(system_key or "default", "dashboard-user")
 
-        cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+        cutoff = datetime.now(UTC) - timedelta(days=days)
         for msg in history:
             ts = msg.get("timestamp", "")
             if ts:

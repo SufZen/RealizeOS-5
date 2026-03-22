@@ -44,3 +44,11 @@ exclude_lines = [
     "logger\\.",
     "except ImportError",
 ]
+
+[tool.bandit]
+targets = ["realize_core", "realize_api"]
+exclude_dirs = ["tests", "realize_lite"]
+skips = [
+    "B101",  # assert used (acceptable in non-test code for invariants)
+    "B108",  # hardcoded tmp directory (used for test scaffolding)
+]

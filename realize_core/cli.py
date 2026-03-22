@@ -146,10 +146,10 @@ def cmd_init(path: str, tier: str, name: str) -> int:
         Always describe what you see in images when asked.
     """))
 
-    print(f"\n✅ Project scaffolded! Next steps:")
-    print(f"   1. cp .env.example .env    → Add your API keys")
-    print(f"   2. Edit config/workspace.yaml → Define your first system")
-    print(f"   3. realize run             → Start the engine")
+    print("\n✅ Project scaffolded! Next steps:")
+    print("   1. cp .env.example .env    → Add your API keys")
+    print("   2. Edit config/workspace.yaml → Define your first system")
+    print("   3. realize run             → Start the engine")
     return 0
 
 

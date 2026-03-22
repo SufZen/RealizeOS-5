@@ -7,7 +7,7 @@ All functions use asyncio.to_thread() to wrap the synchronous google-api-python-
 import asyncio
 import base64
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from email.mime.text import MIMEText
 
 logger = logging.getLogger(__name__)
@@ -18,8 +18,9 @@ logger = logging.getLogger(__name__)
 # =====================================================================
 
 def _gmail_service():
-    from realize_core.tools.google_auth import get_credentials
     from googleapiclient.discovery import build
+
+    from realize_core.tools.google_auth import get_credentials
     creds = get_credentials()
     if not creds:
         raise RuntimeError("Google credentials not available. See docs for OAuth setup.")
@@ -27,8 +28,9 @@ def _gmail_service():
 
 
 def _calendar_service():
-    from realize_core.tools.google_auth import get_credentials
     from googleapiclient.discovery import build
+
+    from realize_core.tools.google_auth import get_credentials
     creds = get_credentials()
     if not creds:
         raise RuntimeError("Google credentials not available. See docs for OAuth setup.")
@@ -36,8 +38,9 @@ def _calendar_service():
 
 
 def _drive_service():
-    from realize_core.tools.google_auth import get_credentials
     from googleapiclient.discovery import build
+
+    from realize_core.tools.google_auth import get_credentials
     creds = get_credentials()
     if not creds:
         raise RuntimeError("Google credentials not available. See docs for OAuth setup.")
@@ -142,7 +145,7 @@ def _calendar_list_events_sync(
     time_min: str = None, time_max: str = None, calendar_id: str = "primary", max_results: int = 10
 ) -> list[dict]:
     service = _calendar_service()
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     if not time_min:
         time_min = now.isoformat()
     if not time_max:
@@ -312,8 +315,9 @@ async def drive_read_content(file_id: str) -> dict:
 
 
 def _drive_create_doc_sync(title: str, content: str = "", folder_id: str = None) -> dict:
-    from realize_core.tools.google_auth import get_credentials
     from googleapiclient.discovery import build as _build
+
+    from realize_core.tools.google_auth import get_credentials
     service = _drive_service()
     file_metadata = {"name": title, "mimeType": "application/vnd.google-apps.document"}
     if folder_id:
@@ -334,8 +338,9 @@ async def drive_create_doc(title: str, content: str = "", folder_id: str = None)
 
 
 def _drive_append_doc_sync(file_id: str, content: str) -> dict:
-    from realize_core.tools.google_auth import get_credentials
     from googleapiclient.discovery import build as _build
+
+    from realize_core.tools.google_auth import get_credentials
     creds = get_credentials()
     docs_service = _build("docs", "v1", credentials=creds)
     doc = docs_service.documents().get(documentId=file_id).execute()

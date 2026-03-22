@@ -1,7 +1,7 @@
 """Tests for realize_core.tools.base_tool and tool_registry."""
-import pytest
 from typing import Any
 
+import pytest
 from realize_core.tools.base_tool import (
     BaseTool,
     ToolCategory,
@@ -9,7 +9,6 @@ from realize_core.tools.base_tool import (
     ToolSchema,
 )
 from realize_core.tools.tool_registry import ToolRegistry, get_tool_registry
-
 
 # ---------------------------------------------------------------------------
 # Test fixtures: concrete tool implementations

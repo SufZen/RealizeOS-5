@@ -8,12 +8,15 @@ Covers:
 - API endpoints for approvals
 """
 import pytest
+from realize_core.activity.bus import _recent_events, _subscribers
 from realize_core.db.schema import init_schema, set_db_path
 from realize_core.governance.gates import (
-    is_gated, create_approval_request, get_pending_approvals,
-    approve_request, reject_request,
+    approve_request,
+    create_approval_request,
+    get_pending_approvals,
+    is_gated,
+    reject_request,
 )
-from realize_core.activity.bus import _subscribers, _recent_events
 
 
 @pytest.fixture(autouse=True)

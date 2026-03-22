@@ -7,16 +7,16 @@ Covers:
 - Session summary output
 - Fallback behavior (no matching route → orchestrator)
 """
+from unittest.mock import patch
+
 import pytest
-from unittest.mock import patch, MagicMock
 from realize_core.pipeline.creative import (
+    _COMMON_PATTERNS,
     detect_task_type,
     get_pipeline,
     start_pipeline,
-    _COMMON_PATTERNS,
 )
 from realize_core.pipeline.session import CreativeSession
-
 
 # ---------------------------------------------------------------------------
 # Fixtures

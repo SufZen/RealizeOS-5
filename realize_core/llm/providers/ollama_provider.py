@@ -5,8 +5,12 @@ To activate: install Ollama, pull a model, and set OLLAMA_HOST if not localhost.
 No API key required — runs locally.
 """
 import logging
+
 from realize_core.llm.base_provider import (
-    BaseLLMProvider, ModelInfo, LLMResponse, Capability,
+    BaseLLMProvider,
+    Capability,
+    LLMResponse,
+    ModelInfo,
 )
 
 logger = logging.getLogger(__name__)
@@ -46,8 +50,9 @@ class OllamaProvider(BaseLLMProvider):
     def is_available(self) -> bool:
         """Check if Ollama is running locally."""
         try:
-            import httpx
             import os
+
+            import httpx
             host = os.getenv("OLLAMA_HOST", "http://localhost:11434")
             # Quick sync check — don't block on this
             resp = httpx.get(f"{host}/api/tags", timeout=2.0)

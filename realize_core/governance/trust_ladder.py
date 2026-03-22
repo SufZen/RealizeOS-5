@@ -146,8 +146,9 @@ def set_trust_level(config_path: str, level: int) -> bool:
     """Update the trust level in realize-os.yaml."""
     level = max(1, min(5, int(level)))
     try:
-        import yaml
         from pathlib import Path
+
+        import yaml
         path = Path(config_path)
         with open(path, encoding="utf-8") as f:
             config = yaml.safe_load(f)

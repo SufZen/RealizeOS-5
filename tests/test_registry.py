@@ -8,13 +8,16 @@ Covers:
 - Auto-registration (mocked)
 - Singleton lifecycle
 """
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock
 from realize_core.llm.base_provider import (
-    BaseLLMProvider, ModelInfo, LLMResponse, Capability,
+    BaseLLMProvider,
+    Capability,
+    LLMResponse,
+    ModelInfo,
 )
 from realize_core.llm.registry import ProviderRegistry, reset_registry
-
 
 # ---------------------------------------------------------------------------
 # Test provider stubs
@@ -233,19 +236,19 @@ class TestAutoRegister:
             "claude_opus": "claude-opus-test",
         }):
             # Mock provider imports to avoid SDK dependency
-            with patch("realize_core.llm.providers.claude_provider.ClaudeProvider") as MockClaude:
+            with patch("realize_core.llm.providers.claude_provider.ClaudeProvider") as mock_claude_cls:
                 mock_claude = MagicMock(spec=BaseLLMProvider)
                 mock_claude.name = "claude"
                 mock_claude.is_available.return_value = True
                 mock_claude.list_models.return_value = []
-                MockClaude.return_value = mock_claude
+                mock_claude_cls.return_value = mock_claude
 
-                with patch("realize_core.llm.providers.gemini_provider.GeminiProvider") as MockGemini:
+                with patch("realize_core.llm.providers.gemini_provider.GeminiProvider") as mock_gemini_cls:
                     mock_gemini = MagicMock(spec=BaseLLMProvider)
                     mock_gemini.name = "gemini"
                     mock_gemini.is_available.return_value = True
                     mock_gemini.list_models.return_value = []
-                    MockGemini.return_value = mock_gemini
+                    mock_gemini_cls.return_value = mock_gemini
 
                     reg.auto_register()
 
@@ -268,7 +271,7 @@ class TestSingleton:
             assert r1 is r2
 
     def test_reset_clears_singleton(self):
-        from realize_core.llm.registry import get_registry, reset_registry, _registry
+        from realize_core.llm.registry import get_registry, reset_registry
 
         with patch("realize_core.llm.registry.ProviderRegistry.auto_register"):
             r1 = get_registry()

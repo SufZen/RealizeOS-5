@@ -7,6 +7,7 @@ Endpoints:
 - POST /api/evolution/suggestions/{id}/dismiss — dismiss a suggestion
 """
 import logging
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 

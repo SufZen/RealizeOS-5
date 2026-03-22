@@ -10,13 +10,11 @@ Covers:
 - GET /api/ventures/{key}/skills — skill list
 - 404 for unknown ventures
 """
-import pytest
-from pathlib import Path
-from unittest.mock import MagicMock
-from fastapi.testclient import TestClient
 
-from realize_core.db.schema import init_schema, set_db_path
+import pytest
+from fastapi.testclient import TestClient
 from realize_core.activity.logger import log_event
+from realize_core.db.schema import init_schema, set_db_path
 
 
 @pytest.fixture(autouse=True)

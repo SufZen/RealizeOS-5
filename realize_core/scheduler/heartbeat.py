@@ -12,7 +12,7 @@ Each heartbeat:
 """
 import asyncio
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 logger = logging.getLogger(__name__)
 
@@ -22,10 +22,13 @@ _running = False
 
 async def _run_heartbeat(agent_key: str, venture_key: str, config: dict):
     """Execute a single agent heartbeat."""
-    from realize_core.scheduler.lifecycle import (
-        get_agent_status, mark_running, mark_idle, mark_error,
-    )
     from realize_core.activity.logger import log_event
+    from realize_core.scheduler.lifecycle import (
+        get_agent_status,
+        mark_error,
+        mark_idle,
+        mark_running,
+    )
 
     # Check if agent should run
     state = get_agent_status(agent_key, venture_key)
@@ -95,9 +98,10 @@ def _get_scheduled_agents(db_path=None) -> list[dict]:
 
 def _update_next_run(agent_key: str, venture_key: str, interval_sec: int, db_path=None):
     """Update the next_run_at timestamp for an interval-scheduled agent."""
-    from realize_core.db.schema import get_connection
     from datetime import timedelta
-    next_run = (datetime.now(timezone.utc) + timedelta(seconds=interval_sec)).strftime(
+
+    from realize_core.db.schema import get_connection
+    next_run = (datetime.now(UTC) + timedelta(seconds=interval_sec)).strftime(
         "%Y-%m-%dT%H:%M:%S.%fZ"
     )
     conn = get_connection(db_path)
@@ -126,8 +130,8 @@ async def start_scheduler(app_config: dict = None):
 
     try:
         from apscheduler.schedulers.asyncio import AsyncIOScheduler
-        from apscheduler.triggers.interval import IntervalTrigger
         from apscheduler.triggers.cron import CronTrigger
+        from apscheduler.triggers.interval import IntervalTrigger
 
         _scheduler = AsyncIOScheduler()
 
@@ -167,7 +171,7 @@ async def _polling_fallback(app_config: dict):
     while _running:
         try:
             await asyncio.sleep(60)
-            now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+            now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
             agents = _get_scheduled_agents()
 
             for agent in agents:
@@ -202,8 +206,8 @@ def reload_schedules(app_config: dict = None):
     if _scheduler:
         try:
             _scheduler.remove_all_jobs()
-            from apscheduler.triggers.interval import IntervalTrigger
             from apscheduler.triggers.cron import CronTrigger
+            from apscheduler.triggers.interval import IntervalTrigger
 
             for agent in _get_scheduled_agents():
                 job_id = f"heartbeat:{agent['agent_key']}@{agent['venture_key']}"

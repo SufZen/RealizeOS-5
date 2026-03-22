@@ -7,23 +7,21 @@ Covers:
 - Channel format selection
 - Agent-specific proactive instructions
 """
+
 import pytest
-from pathlib import Path
 from realize_core.prompt.builder import (
+    _build_agent_layer,
+    _build_brand_layer,
+    _build_identity_layer,
+    _build_memory_layer,
+    _build_proactive_instructions,
+    _build_routing_context,
+    _build_session_layer,
+    _read_kb_file,
     build_system_prompt,
     clear_cache,
     warm_cache,
-    _read_kb_file,
-    _build_identity_layer,
-    _build_brand_layer,
-    _build_agent_layer,
-    _build_routing_context,
-    _build_memory_layer,
-    _build_session_layer,
-    _build_proactive_instructions,
-    CHANNEL_FORMAT_INSTRUCTIONS,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fixtures (using conftest.py kb_root, system_config, shared_config)

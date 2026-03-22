@@ -6,12 +6,8 @@ Covers:
 - SetupState save/load/resume
 - Doctor diagnostics
 """
-import pytest
-import json
-from pathlib import Path
-from realize_core.init import initialize_project, get_available_templates
+from realize_core.init import get_available_templates, initialize_project
 from realize_core.setup_wizard import SetupState
-
 
 # ---------------------------------------------------------------------------
 # Template listing

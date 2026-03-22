@@ -11,9 +11,7 @@ Each step's result feeds into the next step's context.
 """
 import json
 import logging
-import re
 from datetime import date
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -112,8 +110,8 @@ async def _execute_v1_pipeline(
     kb_path, system_config, shared_config, channel,
 ) -> str:
     """Execute a v1 skill (trigger -> agent pipeline)."""
-    from realize_core.prompt.builder import build_system_prompt
     from realize_core.llm.claude_client import call_claude
+    from realize_core.prompt.builder import build_system_prompt
 
     pipeline = skill.get("pipeline", ["orchestrator"])
     results = []
@@ -213,8 +211,8 @@ async def _execute_v2_steps(
 
 async def _execute_agent_step(step, ctx, kb_path, system_config, shared_config, channel) -> str:
     """Execute an agent step: call an LLM agent with context injection."""
-    from realize_core.prompt.builder import build_system_prompt
     from realize_core.llm.claude_client import call_claude
+    from realize_core.prompt.builder import build_system_prompt
 
     agent_key = step.get("agent", "orchestrator")
     inject_context = step.get("inject_context", [])

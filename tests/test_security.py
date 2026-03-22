@@ -1,26 +1,20 @@
 """Tests for realize_core.security — RBAC, audit log, injection protection, vault."""
 import os
-import time
-import pytest
 import tempfile
-from pathlib import Path
 
 from realize_core.security import (
-    Permission,
-    Role,
     ROLES,
-    UserProfile,
-    UserManager,
-    AuditEntry,
     AuditLog,
+    Permission,
     SecretVault,
+    UserManager,
+    UserProfile,
     check_injection,
-    sanitize_input,
-    get_user_manager,
     get_audit_log,
+    get_user_manager,
     get_vault,
+    sanitize_input,
 )
-
 
 # ===========================================================================
 # Permission / Role tests

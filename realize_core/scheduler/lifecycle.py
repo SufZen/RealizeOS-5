@@ -8,7 +8,7 @@ Status model: idle → running → idle (normal flow)
 All transitions are persisted in the agent_states table and logged as activity events.
 """
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +45,7 @@ def set_agent_status(
         raise ValueError(f"Invalid status: {status}. Must be one of {VALID_STATUSES}")
 
     from realize_core.db.schema import get_connection
-    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+    now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
     conn = get_connection(db_path)
 
     try:

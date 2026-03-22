@@ -8,7 +8,7 @@ Supports:
 """
 import logging
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -69,7 +69,7 @@ async def extract_from_url(url: str, max_chars: int = 15000) -> dict:
         "content": content,
         "url": url,
         "char_count": len(content),
-        "extracted_at": datetime.now(timezone.utc).isoformat(),
+        "extracted_at": datetime.now(UTC).isoformat(),
     }
 
 
@@ -123,7 +123,7 @@ def extract_from_pdf(file_path: Path, max_chars: int = 30000) -> dict:
         "content": content,
         "pages": pages,
         "char_count": len(content),
-        "extracted_at": datetime.now(timezone.utc).isoformat(),
+        "extracted_at": datetime.now(UTC).isoformat(),
     }
 
 
@@ -201,7 +201,7 @@ def extract_from_text(text: str, title: str = "") -> dict:
         "title": title or "Saved Note",
         "content": text,
         "char_count": len(text),
-        "extracted_at": datetime.now(timezone.utc).isoformat(),
+        "extracted_at": datetime.now(UTC).isoformat(),
     }
 
 

@@ -11,7 +11,6 @@ import logging
 import os
 from dataclasses import dataclass, field
 from enum import Enum
-from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -169,8 +168,9 @@ async def transcribe_audio(
     api_key = os.environ.get("OPENAI_API_KEY", "")
     if api_key:
         try:
-            import httpx
             import io
+
+            import httpx
 
             # Determine file extension from mime type
             ext_map = {

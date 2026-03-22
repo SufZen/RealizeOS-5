@@ -4,8 +4,12 @@ Claude LLM Provider: Wraps the existing claude_client module behind BaseLLMProvi
 Supports text, vision, and tool use via Anthropic's Claude API.
 """
 import logging
+
 from realize_core.llm.base_provider import (
-    BaseLLMProvider, ModelInfo, LLMResponse, Capability,
+    BaseLLMProvider,
+    Capability,
+    LLMResponse,
+    ModelInfo,
 )
 
 logger = logging.getLogger(__name__)
@@ -56,6 +60,7 @@ class ClaudeProvider(BaseLLMProvider):
         """Check if anthropic SDK is installed and API key is configured."""
         try:
             import anthropic  # noqa: F401
+
             from realize_core.config import ANTHROPIC_API_KEY
             return bool(ANTHROPIC_API_KEY)
         except ImportError:
@@ -70,8 +75,9 @@ class ClaudeProvider(BaseLLMProvider):
         temperature: float = 0.7,
     ) -> LLMResponse:
         """Text completion via Claude API."""
-        from realize_core.llm.claude_client import call_claude, _log_usage
         import anthropic
+
+        from realize_core.llm.claude_client import _log_usage
 
         models = self._get_models_config()
         model = model or models.get("claude_sonnet")

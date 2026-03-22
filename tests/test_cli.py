@@ -1,10 +1,8 @@
 """Tests for realize_core.cli — CLI entry point."""
-import os
 import tempfile
-import pytest
 from pathlib import Path
 
-from realize_core.cli import main, cmd_init
+from realize_core.cli import cmd_init, main
 
 
 class TestCmdInit:

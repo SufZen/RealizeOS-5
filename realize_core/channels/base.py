@@ -8,7 +8,6 @@ own formatting, authentication, and transport — but delegates all intelligence
 import abc
 import logging
 from dataclasses import dataclass, field
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 

@@ -4,7 +4,6 @@ Web channel adapter for RealizeOS with WebSocket support.
 Extends APIChannel with real-time WebSocket streaming and connection management.
 This is the primary channel for the web frontend.
 """
-import asyncio
 import json
 import logging
 import time

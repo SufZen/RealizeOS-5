@@ -1,15 +1,28 @@
+# =============================================================================
+# RealizeOS 5 — Docker Compose Configuration
+# =============================================================================
+# Named volumes for persistent data, config, systems, and shared KB.
+# All user-editable content is volume-mounted — rebuild without data loss.
+# =============================================================================
 
 services:
   api:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        INSTALL_GWS: "${INSTALL_GWS:-false}"
+    container_name: realizeos-api
     ports:
       - "${REALIZE_PORT:-8080}:8080"
     volumes:
-      - ./data:/app/data                         # SQLite persistence
-      - ./realize-os.yaml:/app/realize-os.yaml:ro  # Config file
-      - ./shared:/app/shared                     # Shared KB content
-      - ./systems:/app/systems                   # System-specific KB content
-      - ./.credentials:/app/.credentials         # Google OAuth (optional)
+      # Named volumes for persistent storage
+      - realize-data:/app/data                           # SQLite database persistence
+      - realize-shared:/app/shared                       # Shared KB content across ventures
+      # Bind mounts for user-editable config
+      - ./realize-os.yaml:/app/realize-os.yaml:ro        # System configuration (read-only)
+      - ./systems:/app/systems                           # Venture-specific FABRIC directories
+      - ./.credentials:/app/.credentials:ro              # Google OAuth (optional, read-only)
     env_file:
       - .env
     environment:
@@ -19,26 +32,49 @@ services:
       - REALIZE_PORT=8080
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')"]
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 30s
       timeout: 10s
+      start-period: 15s
       retries: 3
 
+  # ---------------------------------------------------------------------------
   # Optional: Telegram bot (uncomment to enable)
+  # ---------------------------------------------------------------------------
   # telegram:
-  #   build: .
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile
+  #   container_name: realizeos-telegram
   #   command: python cli.py bot
   #   volumes:
-  #     - ./data:/app/data
+  #     - realize-data:/app/data
+  #     - realize-shared:/app/shared
   #     - ./realize-os.yaml:/app/realize-os.yaml:ro
-  #     - ./shared:/app/shared
   #     - ./systems:/app/systems
-  #     - ./.credentials:/app/.credentials
+  #     - ./.credentials:/app/.credentials:ro
   #   env_file:
   #     - .env
   #   environment:
   #     - DATA_DIR=/app/data
   #     - KB_PATH=/app
   #   depends_on:
-  #     - api
+  #     api:
+  #       condition: service_healthy
   #   restart: unless-stopped
+
+# =============================================================================
+# Named Volumes — Docker-managed persistent storage
+# =============================================================================
+volumes:
+  realize-data:
+    name: realizeos-data
+    driver: local
+    labels:
+      com.realizeos.description: "SQLite database and operational data"
+
+  realize-shared:
+    name: realizeos-shared
+    driver: local
+    labels:
+      com.realizeos.description: "Shared knowledge base content across ventures"

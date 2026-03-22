@@ -6,7 +6,7 @@ and produce summaries. They can be triggered by cron schedules or on-demand
 via the dashboard.
 """
 import logging
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -29,7 +29,7 @@ async def generate_morning_briefing(
     """
     features = features or {}
     sections = []
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     date_str = now.strftime("%A, %B %d, %Y")
 
     sections.append(f"# Morning Briefing — {date_str}\n")
@@ -52,7 +52,7 @@ async def generate_morning_briefing(
     # 2. Activity summary (last 24h)
     if features.get("activity_log"):
         try:
-            from realize_core.activity.store import query_events, count_events
+            from realize_core.activity.store import count_events
             yesterday = (now - timedelta(hours=24)).isoformat()
             total = count_events(since=yesterday)
             sections.append(f"## Activity (last 24h)\n{total} events recorded.")
@@ -114,7 +114,7 @@ async def generate_weekly_review(
     """
     features = features or {}
     sections = []
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     week_ago = (now - timedelta(days=7)).isoformat()
 
     sections.append(f"# Weekly Review — Week of {(now - timedelta(days=7)).strftime('%B %d')}\n")
@@ -122,7 +122,7 @@ async def generate_weekly_review(
     # Activity totals
     if features.get("activity_log"):
         try:
-            from realize_core.activity.store import query_events, count_events
+            from realize_core.activity.store import count_events, query_events
             total = count_events(since=week_ago)
             sections.append(f"## Activity Summary\n{total} total events this week.")
 
@@ -174,8 +174,8 @@ async def generate_daily_log(
     Returns a structured summary of all events from the past 24 hours.
     """
     features = features or {}
-    now = datetime.now(timezone.utc)
-    yesterday = (now - timedelta(hours=24)).isoformat()
+    now = datetime.now(UTC)
+    (now - timedelta(hours=24)).isoformat()
 
     sections = [f"# Daily Log — {now.strftime('%Y-%m-%d')}\n"]
 

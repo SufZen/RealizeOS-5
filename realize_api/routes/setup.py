@@ -10,7 +10,7 @@ import os
 import tempfile
 from pathlib import Path
 
-from fastapi import APIRouter, Request, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -234,7 +234,7 @@ async def update_connection(request: Request):
 
     # Reload system config
     try:
-        from realize_core.config import load_config, build_systems_dict
+        from realize_core.config import build_systems_dict, load_config
         new_config = load_config()
         request.app.state.config = new_config
         request.app.state.systems = build_systems_dict(new_config)

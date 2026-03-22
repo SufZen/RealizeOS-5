@@ -6,7 +6,7 @@ Thread-safe via a simple list + copy-on-iterate pattern.
 """
 import logging
 from collections import deque
-from typing import Callable
+from collections.abc import Callable
 
 logger = logging.getLogger(__name__)
 

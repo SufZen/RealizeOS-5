@@ -8,7 +8,6 @@ Covers:
 - Agent auto-discovery
 """
 import os
-import pytest
 from pathlib import Path
 
 
@@ -166,7 +165,7 @@ systems:
     name: "Beta"
     directory: systems/beta
 """)
-        from realize_core.config import load_config, build_systems_dict
+        from realize_core.config import build_systems_dict, load_config
         config = load_config(str(tmp_path / "realize-os.yaml"))
         systems = build_systems_dict(config)
         assert "alpha" in systems
@@ -182,7 +181,7 @@ systems:
     name: "Test"
     directory: systems/test
 """)
-        from realize_core.config import load_config, build_systems_dict
+        from realize_core.config import build_systems_dict, load_config
         config = load_config(str(tmp_path / "realize-os.yaml"))
         systems = build_systems_dict(config)
         test_sys = systems["test"]
@@ -207,7 +206,7 @@ systems:
     name: "Test"
     directory: systems/test
 """)
-        from realize_core.config import load_config, build_systems_dict
+        from realize_core.config import build_systems_dict, load_config
         config = load_config(str(tmp_path / "realize-os.yaml"))
         systems = build_systems_dict(config, kb_path=tmp_path)
         agents = systems["test"]["agents"]
@@ -228,7 +227,7 @@ systems:
     name: "Test"
     directory: systems/test
 """)
-        from realize_core.config import load_config, build_systems_dict
+        from realize_core.config import build_systems_dict, load_config
         config = load_config(str(tmp_path / "realize-os.yaml"))
         systems = build_systems_dict(config, kb_path=tmp_path)
         assert systems["test"]["agents"] == {}

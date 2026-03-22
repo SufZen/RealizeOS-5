@@ -8,7 +8,7 @@ Runs as a scheduled job to:
 4. Track performance trends over time
 """
 import logging
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime, timedelta
 
 logger = logging.getLogger(__name__)
 
@@ -29,8 +29,8 @@ async def run_nightly_evaluation(
         }
     """
     features = features or {}
-    now = datetime.now(timezone.utc)
-    yesterday = (now - timedelta(hours=24)).isoformat()
+    now = datetime.now(UTC)
+    (now - timedelta(hours=24)).isoformat()
     results = {
         "total_events": 0,
         "errors_found": 0,

@@ -4,8 +4,8 @@ Rate limiter for RealizeOS.
 Implements per-tenant rate limiting based on requests per minute
 and cost per hour thresholds.
 """
-import time
 import logging
+import time
 from collections import defaultdict
 
 logger = logging.getLogger(__name__)
@@ -85,7 +85,7 @@ def get_rate_limiter() -> RateLimiter:
     """Get or create the global rate limiter."""
     global _limiter
     if _limiter is None:
-        from realize_core.config import RATE_LIMIT_PER_MINUTE, COST_LIMIT_PER_HOUR_USD
+        from realize_core.config import COST_LIMIT_PER_HOUR_USD, RATE_LIMIT_PER_MINUTE
         _limiter = RateLimiter(
             requests_per_minute=RATE_LIMIT_PER_MINUTE,
             cost_per_hour_usd=COST_LIMIT_PER_HOUR_USD,

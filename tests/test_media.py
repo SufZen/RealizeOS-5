@@ -1,10 +1,9 @@
 """Tests for realize_core.media — media pipeline."""
 import pytest
-
 from realize_core.media import (
-    MediaType,
     MediaAttachment,
     MediaResult,
+    MediaType,
     detect_media_type,
 )
 

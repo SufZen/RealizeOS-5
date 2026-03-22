@@ -13,7 +13,7 @@ from typing import Any
 
 import yaml
 
-from realize_core.llm.classifier import Modality, TaskClassification
+from realize_core.llm.classifier import TaskClassification
 
 logger = logging.getLogger(__name__)
 
@@ -115,7 +115,7 @@ class RoutingEngine:
             logger.warning(f"Capabilities config not found: {path}")
             return
 
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             self._config = yaml.safe_load(f) or {}
 
         # Parse models
@@ -210,7 +210,7 @@ class RoutingEngine:
         preferred_tier: int,
     ) -> list[ModelCapability]:
         """Sort candidates by the given routing strategy."""
-        strategy_config = self._strategies.get(strategy, {})
+        self._strategies.get(strategy, {})
 
         if strategy == "cost_optimized":
             return sorted(candidates, key=lambda m: (

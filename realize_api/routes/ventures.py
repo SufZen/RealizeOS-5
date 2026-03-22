@@ -8,6 +8,7 @@ Endpoints:
 - GET /api/ventures/{key}/skills — skill list with execution stats
 """
 import logging
+from datetime import UTC
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request
@@ -226,8 +227,9 @@ async def set_agent_schedule(venture_key: str, agent_key: str, request: Request)
     if not cron and not interval:
         raise HTTPException(status_code=400, detail="Provide schedule_cron or schedule_interval_sec")
 
+    from datetime import datetime, timedelta
+
     from realize_core.db.schema import get_connection
-    from datetime import datetime, timezone, timedelta
 
     conn = get_connection()
     try:
@@ -237,10 +239,10 @@ async def set_agent_schedule(venture_key: str, agent_key: str, request: Request)
             (agent_key, venture_key),
         ).fetchone()
 
-        now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+        now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
         next_run = None
         if interval:
-            next_run = (datetime.now(timezone.utc) + timedelta(seconds=int(interval))).strftime(
+            next_run = (datetime.now(UTC) + timedelta(seconds=int(interval))).strftime(
                 "%Y-%m-%dT%H:%M:%S.%fZ"
             )
 
@@ -347,7 +349,7 @@ async def create_venture(request: Request):
         raise HTTPException(status_code=409, detail=result.get("error", "Venture already exists"))
 
     # Reload config to pick up the new venture
-    from realize_core.config import load_config, build_systems_dict
+    from realize_core.config import build_systems_dict, load_config
     config = load_config()
     request.app.state.config = config
     request.app.state.systems = build_systems_dict(config)
@@ -380,7 +382,7 @@ async def delete_venture(venture_key: str, request: Request):
         raise HTTPException(status_code=500, detail="Failed to delete venture")
 
     # Reload config
-    from realize_core.config import load_config, build_systems_dict
+    from realize_core.config import build_systems_dict, load_config
     config = load_config()
     request.app.state.config = config
     request.app.state.systems = build_systems_dict(config)
@@ -397,8 +399,9 @@ async def export_venture(venture_key: str, request: Request):
     if venture_key not in systems:
         raise HTTPException(status_code=404, detail=f"Venture '{venture_key}' not found")
 
-    from realize_core.plugins.venture_io import export_venture as _export
     import tempfile
+
+    from realize_core.plugins.venture_io import export_venture as _export
 
     export_dir = Path(tempfile.mkdtemp())
     zip_path = _export(kb_path, systems[venture_key], venture_key, export_dir)
@@ -406,8 +409,8 @@ async def export_venture(venture_key: str, request: Request):
     if not zip_path or not zip_path.exists():
         raise HTTPException(status_code=500, detail="Export failed")
 
-    from fastapi.responses import FileResponse as FR
-    return FR(
+    from fastapi.responses import FileResponse
+    return FileResponse(
         path=str(zip_path),
         filename=f"{venture_key}.zip",
         media_type="application/zip",
@@ -520,7 +523,7 @@ async def ingest_content(venture_key: str, request: Request):
     title = body.get("title", "").strip()
     category = body.get("category", "brain")
 
-    from realize_core.ingestion.extractor import extract_from_url, extract_from_text, save_to_kb
+    from realize_core.ingestion.extractor import extract_from_text, extract_from_url, save_to_kb
 
     if url:
         if not url.startswith(("http://", "https://")):
@@ -598,7 +601,7 @@ async def save_kb_file(venture_key: str, request: Request):
     # Reload config if this was an agent file (auto-discovery)
     if "/A-agents/" in path or "\\A-agents\\" in path:
         try:
-            from realize_core.config import load_config, build_systems_dict
+            from realize_core.config import build_systems_dict, load_config
             config = load_config()
             request.app.state.config = config
             request.app.state.systems = build_systems_dict(config)
@@ -642,7 +645,7 @@ async def create_kb_file(venture_key: str, request: Request):
     # Reload config if agent file
     if "/A-agents/" in path or "\\A-agents\\" in path:
         try:
-            from realize_core.config import load_config, build_systems_dict
+            from realize_core.config import build_systems_dict, load_config
             config = load_config()
             request.app.state.config = config
             request.app.state.systems = build_systems_dict(config)
@@ -681,7 +684,7 @@ async def delete_kb_file(venture_key: str, path: str, request: Request):
     # Reload config if agent file
     if "/A-agents/" in path or "\\A-agents\\" in path:
         try:
-            from realize_core.config import load_config, build_systems_dict
+            from realize_core.config import build_systems_dict, load_config
             config = load_config()
             request.app.state.config = config
             request.app.state.systems = build_systems_dict(config)

@@ -9,10 +9,11 @@ Supports:
 """
 import logging
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, Callable, Coroutine
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -182,7 +183,7 @@ def load_workflow(yaml_path: str | Path) -> WorkflowDefinition | None:
         logger.warning("pyyaml not installed")
         return None
 
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         data = yaml.safe_load(f) or {}
 
     nodes = []
@@ -335,7 +336,7 @@ class WorkflowRunner:
     async def _run_prompt(self, node: WorkflowNode, ctx: WorkflowContext) -> dict:
         """Execute a prompt node — send to LLM."""
         prompt = self._substitute(node.config.get("prompt", ""), ctx.variables)
-        model = node.config.get("model", "")
+        node.config.get("model", "")
 
         # Import and call LLM
         try:

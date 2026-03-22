@@ -147,7 +147,7 @@ class WebhookChannel(BaseChannel):
             logger.warning("pyyaml not installed, cannot load webhook config")
             return
 
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             config = yaml.safe_load(f) or {}
 
         for name, cfg in config.get("webhooks", {}).items():

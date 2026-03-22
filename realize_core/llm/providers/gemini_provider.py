@@ -4,8 +4,12 @@ Gemini LLM Provider: Wraps the existing gemini_client module behind BaseLLMProvi
 Supports text and vision via Google's Gemini API.
 """
 import logging
+
 from realize_core.llm.base_provider import (
-    BaseLLMProvider, ModelInfo, LLMResponse, Capability,
+    BaseLLMProvider,
+    Capability,
+    LLMResponse,
+    ModelInfo,
 )
 
 logger = logging.getLogger(__name__)
@@ -44,6 +48,7 @@ class GeminiProvider(BaseLLMProvider):
     def is_available(self) -> bool:
         try:
             from google import genai  # noqa: F401
+
             from realize_core.config import GOOGLE_AI_API_KEY
             return bool(GOOGLE_AI_API_KEY)
         except ImportError:
@@ -59,6 +64,7 @@ class GeminiProvider(BaseLLMProvider):
     ) -> LLMResponse:
         """Text completion via Gemini API."""
         from google import genai
+
         from realize_core.llm.gemini_client import _get_client
 
         models = self._get_models_config()

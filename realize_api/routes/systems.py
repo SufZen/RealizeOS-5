@@ -3,7 +3,7 @@ Systems API routes: CRUD for system configurations, agents, and skills.
 """
 import logging
 
-from fastapi import APIRouter, Request, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -98,7 +98,7 @@ async def get_session(system_key: str, user_id: str):
 @router.post("/systems/reload")
 async def reload_systems(request: Request):
     """Reload system configurations from YAML."""
-    from realize_core.config import load_config, build_systems_dict
+    from realize_core.config import build_systems_dict, load_config
     from realize_core.prompt.builder import clear_cache
 
     config = load_config()

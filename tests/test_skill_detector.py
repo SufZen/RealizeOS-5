@@ -6,9 +6,8 @@ Covers:
 - No skill match for unrelated messages
 - Edge cases: empty skills dir, malformed YAML, missing triggers
 """
-import pytest
-from pathlib import Path
 
+import pytest
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -151,7 +150,7 @@ class TestSkillDetectionHappyPath:
 class TestSkillDetectionEdgeCases:
     def test_empty_skills_directory(self, empty_skills_dir):
         """Loading from an empty directory should not crash."""
-        from realize_core.skills.detector import load_skills, detect_skill
+        from realize_core.skills.detector import detect_skill, load_skills
         _, skills_dir = empty_skills_dir
 
         # Should not raise — pass parent dir containing "empty/" subdir
@@ -213,7 +212,7 @@ class TestSkillDetectionEdgeCases:
 
     def test_no_triggers_skill(self, no_triggers_dir):
         """Skill without triggers should not match any message."""
-        from realize_core.skills.detector import load_skills, detect_skill
+        from realize_core.skills.detector import detect_skill, load_skills
         _, skills_dir = no_triggers_dir
 
         # Should not crash when loading skill without triggers

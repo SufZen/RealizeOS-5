@@ -1,0 +1,193 @@
+# Release Pipeline — RealizeOS 5
+# Triggers on version tags (v*.*.*)
+# Steps: multi-arch Docker build → push to GHCR → npm publish (CLI)
+
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: read
+  packages: write  # push to GHCR
+  id-token: write  # npm provenance
+
+env:
+  PYTHON_VERSION: "3.12"
+  NODE_VERSION: "20"
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  # ──────────────────────────────────────────────
+  # Job 1: Run full CI first (reuse ci.yml)
+  # ──────────────────────────────────────────────
+  ci:
+    name: CI Checks
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+      security-events: write
+
+  # ──────────────────────────────────────────────
+  # Job 2: Multi-arch Docker Build + Push to GHCR
+  # ──────────────────────────────────────────────
+  docker-release:
+    name: Docker Release (multi-arch)
+    runs-on: ubuntu-latest
+    needs: ci
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "major=$(echo $VERSION | cut -d. -f1)" >> "$GITHUB_OUTPUT"
+          echo "minor=$(echo $VERSION | cut -d. -f1-2)" >> "$GITHUB_OUTPUT"
+
+      - name: Set up QEMU (for multi-arch)
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=raw,value=latest
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            VERSION=${{ steps.version.outputs.version }}
+
+  # ──────────────────────────────────────────────
+  # Job 3: npm Publish (CLI package)
+  # ──────────────────────────────────────────────
+  npm-publish:
+    name: npm Publish (@realize-os/cli)
+    runs-on: ubuntu-latest
+    needs: ci
+    # Only publish if the CLI package exists
+    if: hashFiles('realize-os-cli/package.json') != ''
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          registry-url: https://registry.npmjs.org
+
+      - name: Install dependencies
+        working-directory: realize-os-cli
+        run: npm ci
+
+      - name: Build CLI
+        working-directory: realize-os-cli
+        run: npm run build
+
+      - name: Run tests
+        working-directory: realize-os-cli
+        run: npm test --if-present
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Set package version from tag
+        working-directory: realize-os-cli
+        run: npm version ${{ steps.version.outputs.version }} --no-git-tag-version --allow-same-version
+
+      - name: Publish to npm
+        working-directory: realize-os-cli
+        run: npm publish --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  # ──────────────────────────────────────────────
+  # Job 4: Create GitHub Release
+  # ──────────────────────────────────────────────
+  github-release:
+    name: GitHub Release
+    runs-on: ubuntu-latest
+    needs: [docker-release, npm-publish]
+    # Run even if npm-publish is skipped (CLI may not exist yet)
+    if: always() && needs.docker-release.result == 'success'
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Generate release notes
+        id: notes
+        run: |
+          # Get commits since last tag
+          PREV_TAG=$(git tag --sort=-version:refname | head -2 | tail -1 || echo "")
+          if [ -n "$PREV_TAG" ]; then
+            NOTES=$(git log --pretty=format:"- %s (%h)" "$PREV_TAG"..HEAD)
+          else
+            NOTES=$(git log --pretty=format:"- %s (%h)" -20)
+          fi
+          # Write to file for the release
+          {
+            echo "## RealizeOS ${{ steps.version.outputs.version }}"
+            echo ""
+            echo "### Docker"
+            echo '```bash'
+            echo "docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }}"
+            echo '```'
+            echo ""
+            echo "### npm CLI"
+            echo '```bash'
+            echo "npx @realize-os/cli@${{ steps.version.outputs.version }} init"
+            echo '```'
+            echo ""
+            echo "### Changes"
+            echo "$NOTES"
+          } > release-notes.md
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: RealizeOS ${{ steps.version.outputs.version }}
+          body_path: release-notes.md
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}

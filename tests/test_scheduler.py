@@ -6,12 +6,12 @@ Covers:
 - Heartbeat skip logic (paused/running agents)
 - Next run calculation
 """
+
 import pytest
-from pathlib import Path
-from realize_core.db.schema import init_schema, get_connection, set_db_path
-from realize_core.scheduler.lifecycle import set_agent_status, get_agent_status
+from realize_core.activity.bus import _recent_events, _subscribers
+from realize_core.db.schema import get_connection, init_schema, set_db_path
 from realize_core.scheduler.heartbeat import _get_scheduled_agents, _update_next_run
-from realize_core.activity.bus import _subscribers, _recent_events
+from realize_core.scheduler.lifecycle import get_agent_status, set_agent_status
 
 
 @pytest.fixture(autouse=True)

@@ -2,8 +2,9 @@
 Anthropic Claude API client wrapper.
 Supports multiple tiers: Sonnet (reasoning, content) and Opus (complex strategy).
 """
-import anthropic
 import logging
+
+import anthropic
 
 logger = logging.getLogger(__name__)
 
@@ -134,6 +135,7 @@ async def call_claude_vision(
     Supports images (jpeg, png, gif, webp) and PDFs.
     """
     import base64
+
     from realize_core.config import MODELS
 
     client = _get_client()
@@ -185,8 +187,8 @@ async def call_claude_vision(
 def _log_usage(model: str, usage):
     """Log Claude API usage for cost tracking."""
     try:
-        from realize_core.memory.store import log_llm_usage
         from realize_core.config import MODELS
+        from realize_core.memory.store import log_llm_usage
 
         input_tokens = getattr(usage, "input_tokens", 0)
         output_tokens = getattr(usage, "output_tokens", 0)

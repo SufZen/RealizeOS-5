@@ -10,22 +10,22 @@ Covers:
 - Incremental indexing (mtime-based skip)
 - Edge cases: empty KB, no match, binary data conversion
 """
-import pytest
 import struct
 from pathlib import Path
+
+import pytest
 from realize_core.kb.indexer import (
-    _init_index_db,
-    _get_conn,
-    _extract_title,
-    _detect_system,
-    _cosine_similarity,
-    _bytes_to_vec,
     _build_search_dirs,
+    _bytes_to_vec,
+    _cosine_similarity,
+    _detect_system,
+    _extract_title,
+    _get_conn,
+    _init_index_db,
     _merge_hybrid,
     index_kb_files,
     semantic_search,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fixtures

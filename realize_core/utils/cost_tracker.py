@@ -5,7 +5,6 @@ Tracks API calls, token counts, and costs per tenant and model.
 Used for billing, analytics, and rate limiting.
 """
 import logging
-from datetime import datetime
 
 logger = logging.getLogger(__name__)
 

@@ -10,7 +10,6 @@ import json
 import logging
 import os
 from contextlib import AsyncExitStack
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +27,7 @@ class MCPServerConnection:
         self.session = None
         self.tools: list[dict] = []
         self._raw_tools = []
-        self._exit_stack: Optional[AsyncExitStack] = None
+        self._exit_stack: AsyncExitStack | None = None
         self._connected = False
 
     @property
@@ -150,7 +149,7 @@ class MCPClientHub:
         if not path.exists():
             logger.info(f"MCP config not found at {config_path}")
             return
-        with open(path, "r") as f:
+        with open(path) as f:
             config = yaml.safe_load(f) or {}
         for name, cfg in config.get("servers", {}).items():
             self.servers[name] = MCPServerConnection(
@@ -171,7 +170,7 @@ class MCPClientHub:
     async def _connect_with_timeout(self, server: MCPServerConnection, timeout: int = 30) -> bool:
         try:
             return await asyncio.wait_for(server.connect(), timeout=timeout)
-        except (asyncio.TimeoutError, Exception) as e:
+        except (TimeoutError, Exception) as e:
             logger.error(f"MCP server '{server.name}' connection error: {e}")
             return False
 

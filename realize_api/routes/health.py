@@ -1,8 +1,8 @@
 """
 Health and status endpoints.
 """
-import os
 import logging
+import os
 
 from fastapi import APIRouter, Request
 

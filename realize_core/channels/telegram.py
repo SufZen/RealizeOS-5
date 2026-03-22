@@ -5,6 +5,7 @@ Wraps python-telegram-bot to receive and send messages via Telegram.
 This is an optional channel — requires TELEGRAM_BOT_TOKEN.
 """
 import logging
+
 from realize_core.channels.base import BaseChannel, IncomingMessage, OutgoingMessage
 
 logger = logging.getLogger(__name__)

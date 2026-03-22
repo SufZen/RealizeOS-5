@@ -1,16 +1,15 @@
 """Tests for realize_core.llm.routing_engine — advanced routing."""
-import pytest
 from pathlib import Path
 
+import pytest
 from realize_core.llm.classifier import Modality, TaskClassification
 from realize_core.llm.routing_engine import (
+    CostRecord,
     ModelCapability,
     RoutingDecision,
-    CostRecord,
     RoutingEngine,
     get_routing_engine,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fixtures

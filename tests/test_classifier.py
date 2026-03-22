@@ -1,5 +1,4 @@
 """Tests for realize_core.llm.classifier — advanced task classification."""
-import pytest
 
 from realize_core.llm.classifier import (
     Modality,

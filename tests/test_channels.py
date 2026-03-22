@@ -1,19 +1,18 @@
 """Tests for realize_core.channels — multi-channel gateway."""
 import json
-import pytest
 import time
 
-from realize_core.channels.base import BaseChannel, IncomingMessage, OutgoingMessage
-from realize_core.channels.whatsapp import WhatsAppChannel, _split_message
-from realize_core.channels.web import WebChannel, WebSocketClient
+import pytest
+from realize_core.channels.base import IncomingMessage, OutgoingMessage
 from realize_core.channels.scheduler import (
     CronScheduler,
     ScheduledJob,
-    parse_interval,
     get_scheduler,
+    parse_interval,
 )
+from realize_core.channels.web import WebChannel
 from realize_core.channels.webhooks import WebhookChannel, WebhookEndpoint
-
+from realize_core.channels.whatsapp import WhatsAppChannel, _split_message
 
 # ===========================================================================
 # Base Channel tests
@@ -347,7 +346,8 @@ class TestWebhookEndpoint:
         assert ep.verify_signature(b"body", "any-sig")
 
     def test_verify_signature_with_secret(self):
-        import hashlib, hmac as hmac_mod
+        import hashlib
+        import hmac as hmac_mod
         secret = "my-secret"
         body = b"test-body"
         expected = hmac_mod.new(secret.encode(), body, hashlib.sha256).hexdigest()
@@ -357,7 +357,8 @@ class TestWebhookEndpoint:
         assert not ep.verify_signature(body, "wrong-sig")
 
     def test_verify_signature_prefixed(self):
-        import hashlib, hmac as hmac_mod
+        import hashlib
+        import hmac as hmac_mod
         secret = "my-secret"
         body = b"test-body"
         expected = "sha256=" + hmac_mod.new(secret.encode(), body, hashlib.sha256).hexdigest()

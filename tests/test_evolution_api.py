@@ -7,8 +7,8 @@ Covers:
 - Not found / already decided errors
 """
 import pytest
+from realize_core.activity.bus import _recent_events, _subscribers
 from realize_core.db.schema import init_schema, set_db_path
-from realize_core.activity.bus import _subscribers, _recent_events
 
 
 @pytest.fixture(autouse=True)

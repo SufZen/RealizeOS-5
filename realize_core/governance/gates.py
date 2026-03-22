@@ -19,7 +19,7 @@ governance:
 import json
 import logging
 import uuid
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime, timedelta
 
 logger = logging.getLogger(__name__)
 
@@ -86,7 +86,7 @@ def create_approval_request(
     from realize_core.db.schema import get_connection
 
     approval_id = str(uuid.uuid4())
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     expires = now + timedelta(minutes=expires_minutes)
 
     conn = get_connection(db_path)
@@ -152,7 +152,7 @@ def approve_request(approval_id: str, decision_note: str = None, db_path=None) -
     """Approve a pending request. Returns the approval record or None if not found."""
     from realize_core.db.schema import get_connection
 
-    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+    now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
     conn = get_connection(db_path)
     try:
         row = conn.execute(
@@ -192,7 +192,7 @@ def reject_request(approval_id: str, decision_note: str = None, db_path=None) ->
     """Reject a pending request. Returns the approval record or None if not found."""
     from realize_core.db.schema import get_connection
 
-    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+    now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
     conn = get_connection(db_path)
     try:
         row = conn.execute(

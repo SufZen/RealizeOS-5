@@ -1,18 +1,16 @@
 """Tests for realize_core.workflows — workflow engine."""
 import pytest
-
 from realize_core.workflows import (
-    NodeType,
-    WorkflowStatus,
-    WorkflowNode,
-    WorkflowDefinition,
-    WorkflowContext,
     MethodRegistry,
+    NodeType,
+    WorkflowContext,
+    WorkflowDefinition,
+    WorkflowNode,
     WorkflowRunner,
+    WorkflowStatus,
     get_method_registry,
     get_workflow_runner,
 )
-
 
 # ===========================================================================
 # NodeType / WorkflowStatus tests

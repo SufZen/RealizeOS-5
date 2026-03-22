@@ -53,8 +53,8 @@ def get_credentials():
     global _credentials
 
     try:
-        from google.oauth2.credentials import Credentials
         from google.auth.transport.requests import Request
+        from google.oauth2.credentials import Credentials
     except ImportError:
         logger.debug("google-auth not installed, Google tools unavailable")
         return None

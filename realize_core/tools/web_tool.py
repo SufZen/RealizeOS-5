@@ -84,7 +84,7 @@ class WebTool(BaseTool):
         ]
 
     async def execute(self, action: str, params: dict[str, Any]) -> ToolResult:
-        from realize_core.tools.web import web_search, web_fetch
+        from realize_core.tools.web import web_fetch, web_search
 
         if action == "web_search":
             results = await web_search(
@@ -121,7 +121,6 @@ class WebTool(BaseTool):
         return ToolResult.fail(f"Unknown action: {action}")
 
     def is_available(self) -> bool:
-        import os
         # web_search requires Brave API key; web_fetch works without
         return True  # At minimum web_fetch always works
 

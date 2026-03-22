@@ -14,7 +14,7 @@ import logging
 from collections import Counter
 from datetime import datetime
 
-from realize_core.evolution.analytics import get_recent_interactions, _get_conn
+from realize_core.evolution.analytics import _get_conn, get_recent_interactions
 
 logger = logging.getLogger(__name__)
 

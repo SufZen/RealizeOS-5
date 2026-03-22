@@ -7,13 +7,13 @@ shared functions to process messages through the standard flow.
 """
 import logging
 
-from realize_core.prompt.builder import build_system_prompt
 from realize_core.llm.router import classify_task, route_to_llm
-from realize_core.memory.conversation import get_history, add_message
-from realize_core.pipeline.session import get_session, CreativeSession
+from realize_core.memory.conversation import add_message, get_history
 from realize_core.pipeline.creative import (
-    start_pipeline, execute_pipeline_step, detect_task_type, get_pipeline,
+    execute_pipeline_step,
 )
+from realize_core.pipeline.session import CreativeSession, get_session
+from realize_core.prompt.builder import build_system_prompt
 
 logger = logging.getLogger(__name__)
 

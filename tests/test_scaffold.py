@@ -7,14 +7,12 @@ Covers:
 - Idempotent re-runs
 - Stats tracking
 """
-import pytest
-from pathlib import Path
 from realize_core.scaffold import scaffold_dev_process
 
 
 class TestScaffold:
     def test_creates_directory_structure(self, tmp_path):
-        stats = scaffold_dev_process(tmp_path)
+        scaffold_dev_process(tmp_path)
 
         assert (tmp_path / "docs" / "dev-process").is_dir()
         assert (tmp_path / "docs" / "dev-process" / "active").is_dir()
@@ -46,7 +44,7 @@ class TestScaffold:
         assert stats["dirs_created"] > 0
 
     def test_idempotent_no_overwrite(self, tmp_path):
-        stats1 = scaffold_dev_process(tmp_path)
+        scaffold_dev_process(tmp_path)
         stats2 = scaffold_dev_process(tmp_path)
 
         # Second run should skip existing files
@@ -95,7 +93,7 @@ class TestScaffold:
         (tmp_path / "docs" / "dev-process" / "active").mkdir(parents=True)
         (tmp_path / "docs" / "dev-process" / "plans").mkdir(parents=True)
 
-        stats = scaffold_dev_process(tmp_path)
+        scaffold_dev_process(tmp_path)
         # Should still create the missing dirs
         assert (tmp_path / "docs" / "dev-process" / "decisions").is_dir()
         assert (tmp_path / "docs" / "dev-process" / "reference").is_dir()

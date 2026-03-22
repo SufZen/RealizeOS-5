@@ -50,8 +50,9 @@ async def make_call(
         return {"error": "Phone number must be in E.164 format (e.g., +1234567890)"}
 
     try:
-        import httpx
         from base64 import b64encode
+
+        import httpx
 
         auth = b64encode(f"{account_sid}:{auth_token}".encode()).decode()
         headers = {"Authorization": f"Basic {auth}"}

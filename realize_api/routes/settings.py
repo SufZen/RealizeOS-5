@@ -6,7 +6,7 @@ import os
 import sys
 from pathlib import Path
 
-from fastapi import APIRouter, Request, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -98,7 +98,7 @@ async def update_features(request: Request):
         config_path.write_text(new_text, encoding="utf-8")
 
         # Reload in-memory config
-        from realize_core.config import load_config, build_systems_dict
+        from realize_core.config import build_systems_dict, load_config
         new_config = load_config()
         request.app.state.config = new_config
         request.app.state.systems = build_systems_dict(new_config)
@@ -138,7 +138,7 @@ async def update_gates(request: Request):
             yaml.dump(config, f, default_flow_style=False, sort_keys=False)
 
         # Reload
-        from realize_core.config import load_config, build_systems_dict
+        from realize_core.config import build_systems_dict, load_config
         new_config = load_config()
         request.app.state.config = new_config
         request.app.state.systems = build_systems_dict(new_config)
@@ -357,7 +357,7 @@ async def update_trust_level(request: Request):
         raise HTTPException(status_code=500, detail="Failed to update trust level")
 
     # Reload config
-    from realize_core.config import load_config, build_systems_dict
+    from realize_core.config import build_systems_dict, load_config
     new_config = load_config()
     request.app.state.config = new_config
     request.app.state.systems = build_systems_dict(new_config)
@@ -387,7 +387,7 @@ async def run_security_scan(request: Request):
 @router.get("/skills/library")
 async def get_skill_library():
     """Get all available skill templates from the library."""
-    from realize_core.skills.library import get_library, get_categories
+    from realize_core.skills.library import get_categories, get_library
     return {"skills": get_library(), "categories": get_categories()}
 
 

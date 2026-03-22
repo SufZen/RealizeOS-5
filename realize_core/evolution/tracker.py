@@ -3,8 +3,8 @@ Lightweight interaction tracker — wraps analytics for use in handlers.
 
 Also detects satisfaction signals from user messages.
 """
-import time
 import logging
+import time
 
 from realize_core.evolution.analytics import log_interaction
 

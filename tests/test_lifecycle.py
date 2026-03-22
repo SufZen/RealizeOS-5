@@ -8,14 +8,14 @@ Covers:
 - Invalid status rejection
 """
 import pytest
-from realize_core.db.schema import init_schema, get_connection, set_db_path
+from realize_core.db.schema import init_schema, set_db_path
 from realize_core.scheduler.lifecycle import (
     get_agent_status,
-    set_agent_status,
-    mark_running,
-    mark_idle,
-    mark_error,
     is_paused,
+    mark_error,
+    mark_idle,
+    mark_running,
+    set_agent_status,
 )
 
 

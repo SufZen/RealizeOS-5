@@ -9,9 +9,10 @@ Supports:
 import asyncio
 import logging
 import time
+from collections.abc import Callable, Coroutine
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Coroutine
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -167,7 +168,7 @@ class CronScheduler:
             logger.warning("pyyaml not installed, cannot load schedules")
             return
 
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             config = yaml.safe_load(f) or {}
 
         for name, cfg in config.get("schedules", {}).items():

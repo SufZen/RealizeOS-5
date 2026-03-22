@@ -253,7 +253,7 @@ async def route_to_llm(
         logger.debug(f"Registry routing failed, falling back to direct calls: {e}")
 
     # Last resort: direct client import (backward compatibility)
-    from realize_core.llm.claude_client import call_claude_sonnet, call_claude_opus
+    from realize_core.llm.claude_client import call_claude_opus, call_claude_sonnet
     from realize_core.llm.gemini_client import call_gemini_flash
 
     if model_key == "gemini_flash":

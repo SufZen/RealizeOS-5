@@ -90,9 +90,14 @@ def _get_legacy_keywords():
     global _LEGACY_KEYWORD_SETS
     if _LEGACY_KEYWORD_SETS is None:
         from realize_core.llm.router import (
-            COMPLEX_KEYWORDS, FINANCIAL_KEYWORDS, REASONING_KEYWORDS,
-            CONTENT_KEYWORDS, SIMPLE_KEYWORDS, GOOGLE_KEYWORDS,
-            WEB_RESEARCH_KEYWORDS, WEB_ACTION_KEYWORDS,
+            COMPLEX_KEYWORDS,
+            CONTENT_KEYWORDS,
+            FINANCIAL_KEYWORDS,
+            GOOGLE_KEYWORDS,
+            REASONING_KEYWORDS,
+            SIMPLE_KEYWORDS,
+            WEB_ACTION_KEYWORDS,
+            WEB_RESEARCH_KEYWORDS,
         )
         _LEGACY_KEYWORD_SETS = {
             "complex": COMPLEX_KEYWORDS,

@@ -10,9 +10,10 @@ Covers:
 """
 import sys
 import types
-import pytest
-from unittest.mock import patch, AsyncMock, MagicMock
 from datetime import date
+from unittest.mock import AsyncMock, patch
+
+import pytest
 
 # Pre-register mock modules so patch() can target them even when
 # anthropic SDK is not installed.
@@ -23,12 +24,11 @@ if "realize_core.llm.claude_client" not in sys.modules:
 
 from realize_core.skills.executor import (
     SkillContext,
-    store_skill_resume_context,
-    pop_skill_resume_context,
-    execute_skill,
     _pending_skill_contexts,
+    execute_skill,
+    pop_skill_resume_context,
+    store_skill_resume_context,
 )
-
 
 # ---------------------------------------------------------------------------
 # SkillContext
@@ -248,7 +248,7 @@ class TestV2Steps:
 class TestConditionStep:
     @pytest.mark.asyncio
     async def test_condition_skip(self):
-        from realize_core.skills.executor import _execute_condition_step, SkillContext
+        from realize_core.skills.executor import SkillContext, _execute_condition_step
         step = {
             "type": "condition",
             "check": "{previous_result}",
@@ -264,7 +264,7 @@ class TestConditionStep:
 
     @pytest.mark.asyncio
     async def test_condition_stop(self):
-        from realize_core.skills.executor import _execute_condition_step, SkillContext
+        from realize_core.skills.executor import SkillContext, _execute_condition_step
         step = {
             "type": "condition",
             "check": "{check_val}",
@@ -279,7 +279,7 @@ class TestConditionStep:
 
     @pytest.mark.asyncio
     async def test_condition_default_continue(self):
-        from realize_core.skills.executor import _execute_condition_step, SkillContext
+        from realize_core.skills.executor import SkillContext, _execute_condition_step
         step = {
             "type": "condition",
             "check": "{val}",
@@ -301,7 +301,7 @@ class TestConditionStep:
 class TestHumanStep:
     @pytest.mark.asyncio
     async def test_human_step_returns_question(self):
-        from realize_core.skills.executor import _execute_human_step, SkillContext
+        from realize_core.skills.executor import SkillContext, _execute_human_step
         step = {
             "type": "human",
             "question": "Should I send this email?",
@@ -313,7 +313,7 @@ class TestHumanStep:
 
     @pytest.mark.asyncio
     async def test_human_step_injects_variables(self):
-        from realize_core.skills.executor import _execute_human_step, SkillContext
+        from realize_core.skills.executor import SkillContext, _execute_human_step
         step = {
             "type": "human",
             "question": "Send email about {user_message}?",
@@ -352,5 +352,5 @@ class TestExecuteSkill:
         skill = {"name": "test", "pipeline": ["writer"]}
         with patch("realize_core.skills.executor._execute_v1_pipeline", new_callable=AsyncMock) as mock:
             mock.return_value = "v1 default"
-            result = await execute_skill(skill, "msg", "sys", "u1")
+            await execute_skill(skill, "msg", "sys", "u1")
             mock.assert_called_once()

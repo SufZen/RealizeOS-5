@@ -13,8 +13,7 @@ as an additional context layer.
 """
 import logging
 from collections import Counter
-from datetime import datetime, timezone
-from pathlib import Path
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +41,7 @@ def analyze_preferences(system_key: str, user_id: str = "dashboard-user") -> dic
         return {}
 
     user_msgs = [m for m in history if m.get("role") == "user"]
-    assistant_msgs = [m for m in history if m.get("role") == "assistant"]
+    [m for m in history if m.get("role") == "assistant"]
 
     prefs = {}
 
@@ -166,8 +165,9 @@ def store_preferences(system_key: str, user_id: str = "dashboard-user"):
         return
 
     try:
-        from realize_core.memory.store import store_memory
         import json
+
+        from realize_core.memory.store import store_memory
         store_memory(
             system_key=system_key,
             category="user_preferences",

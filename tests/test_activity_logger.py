@@ -6,15 +6,19 @@ Covers:
 - Activity store query/filter/count
 - Integration with agent lifecycle
 """
+
 import pytest
-from pathlib import Path
-from realize_core.db.schema import init_schema, get_connection, set_db_path
-from realize_core.activity.logger import log_event
-from realize_core.activity.store import query_events, count_events
 from realize_core.activity.bus import (
-    publish_event, subscribe, unsubscribe, get_recent_events,
-    _subscribers, _recent_events,
+    _recent_events,
+    _subscribers,
+    get_recent_events,
+    publish_event,
+    subscribe,
+    unsubscribe,
 )
+from realize_core.activity.logger import log_event
+from realize_core.activity.store import count_events, query_events
+from realize_core.db.schema import get_connection, init_schema, set_db_path
 
 
 @pytest.fixture(autouse=True)
@@ -150,7 +154,8 @@ class TestEventBus:
 
     def test_unsubscribe(self):
         received = []
-        cb = lambda e: received.append(e)
+        def cb(e):
+            return received.append(e)
         subscribe(cb)
         publish_event({"action": "first"})
         unsubscribe(cb)

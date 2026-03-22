@@ -1,13 +1,11 @@
 """Tests for realize_core.evolution.engine — auto-evolution engine."""
-import pytest
-import time
 
 from realize_core.evolution.engine import (
-    EvolutionType,
-    RiskLevel,
-    ProposalStatus,
-    EvolutionProposal,
     EvolutionEngine,
+    EvolutionProposal,
+    EvolutionType,
+    ProposalStatus,
+    RiskLevel,
     get_evolution_engine,
 )
 

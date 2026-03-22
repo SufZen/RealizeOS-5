@@ -15,7 +15,7 @@ import platform
 import shutil
 import subprocess
 import sys
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 # The engine root (where cli.py, requirements.txt, templates/ live)
@@ -115,8 +115,8 @@ def phase_prerequisites() -> bool:
 
     # Verify key imports
     try:
-        import yaml  # noqa: F401
         import fastapi  # noqa: F401
+        import yaml  # noqa: F401
     except ImportError as e:
         _print("!!", f"Import check failed: {e}")
         return False
@@ -288,7 +288,7 @@ def phase_dashboard(state: SetupState) -> bool:
             _print("..", "Install manually: npm install -g pnpm")
             _print("--", "Skipping dashboard")
             return True
-    _print("OK", f"pnpm available")
+    _print("OK", "pnpm available")
 
     # Install dependencies
     _print("..", "Installing dashboard dependencies...")
@@ -299,7 +299,7 @@ def phase_dashboard(state: SetupState) -> bool:
     )
     if result.returncode != 0:
         _print("!!", "pnpm install failed")
-        _print("..", f"Try manually: cd dashboard && pnpm install")
+        _print("..", "Try manually: cd dashboard && pnpm install")
         return True  # Non-fatal
 
     # Build for production
@@ -353,7 +353,7 @@ def run_doctor(project_root: Path):
         has_anthropic = "ANTHROPIC_API_KEY=" in content and content.split("ANTHROPIC_API_KEY=")[1].split("\n")[0].strip()
         has_google = "GOOGLE_AI_API_KEY=" in content and content.split("GOOGLE_AI_API_KEY=")[1].split("\n")[0].strip()
         if has_anthropic or has_google:
-            _print("OK", f".env with API key(s)")
+            _print("OK", ".env with API key(s)")
         else:
             _print("!!", ".env exists but no API keys configured")
             issues += 1

@@ -5,8 +5,8 @@ Strips machine-generated marks from AI output to make it sound natural
 across different channels (chat, email, documents). Removes decorative
 symbols, excessive formatting, and AI-typical patterns.
 """
-import re
 import logging
+import re
 
 logger = logging.getLogger(__name__)
 

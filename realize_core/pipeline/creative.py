@@ -6,6 +6,7 @@ Pipelines are loaded from system config (not hardcoded) — each system
 defines its own agent sequences for different task types.
 """
 import logging
+
 from realize_core.pipeline.session import CreativeSession, create_session
 
 logger = logging.getLogger(__name__)
@@ -116,9 +117,9 @@ async def execute_pipeline_step(
 
     Builds a session-aware prompt and calls the appropriate LLM.
     """
-    from realize_core.prompt.builder import build_system_prompt
     from realize_core.llm.router import route_to_llm
     from realize_core.memory.conversation import add_message
+    from realize_core.prompt.builder import build_system_prompt
 
     system_key = session.system_key
     agent_key = session.active_agent

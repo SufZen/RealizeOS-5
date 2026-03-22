@@ -15,6 +15,7 @@ def _get_client(api_key: str = None):
     global _client
     if _client is None:
         from google import genai
+
         from realize_core.config import GOOGLE_AI_API_KEY
         key = api_key or GOOGLE_AI_API_KEY
         if not key:
@@ -44,6 +45,7 @@ async def call_gemini(
         The assistant's response text.
     """
     from google import genai
+
     from realize_core.config import MODELS
 
     client = _get_client()
@@ -99,6 +101,7 @@ async def call_gemini_vision(
 ) -> str:
     """Send a request to Gemini API with an image for vision analysis."""
     from google import genai
+
     from realize_core.config import MODELS
 
     client = _get_client()

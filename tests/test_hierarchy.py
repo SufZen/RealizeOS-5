@@ -6,10 +6,9 @@ Covers:
 - Org tree API endpoint
 - Delegate skill step type
 """
-import pytest
-from pathlib import Path
-from realize_core.scheduler.hierarchy import parse_agent_frontmatter, build_org_tree
 
+import pytest
+from realize_core.scheduler.hierarchy import build_org_tree, parse_agent_frontmatter
 
 # ---------------------------------------------------------------------------
 # Frontmatter parsing

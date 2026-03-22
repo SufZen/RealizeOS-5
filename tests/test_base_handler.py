@@ -6,9 +6,7 @@ Covers:
 - Custom default agent
 - Tie-breaking and highest-score-wins behavior
 """
-import pytest
 from realize_core.base_handler import select_agent
-
 
 # ---------------------------------------------------------------------------
 # Agent selection

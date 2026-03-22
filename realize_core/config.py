@@ -4,9 +4,9 @@ RealizeOS Configuration Loader.
 Loads system configuration from a YAML file (realize-os.yaml) instead of
 hardcoded dictionaries. Supports environment variable interpolation.
 """
+import logging
 import os
 import re
-import logging
 from pathlib import Path
 
 logger = logging.getLogger(__name__)

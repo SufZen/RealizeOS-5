@@ -2,6 +2,7 @@
 Activity Event Store: read/query layer for persisted activity events.
 """
 import logging
+
 from realize_core.db.schema import get_connection
 
 logger = logging.getLogger(__name__)

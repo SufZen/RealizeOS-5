@@ -8,16 +8,15 @@ Covers:
 - Migration system
 - Idempotent schema init
 """
-import pytest
 import uuid
-from pathlib import Path
+
+import pytest
+from realize_core.db.migrations import get_current_version, run_migrations
 from realize_core.db.schema import (
-    init_schema,
     get_connection,
+    init_schema,
     set_db_path,
-    get_db_path,
 )
-from realize_core.db.migrations import run_migrations, get_current_version
 
 
 @pytest.fixture

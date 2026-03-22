@@ -25,7 +25,7 @@ async def get_venture_activity(
     offset: int = Query(0, ge=0),
 ):
     """Get paginated activity events for a venture."""
-    from realize_core.activity.store import query_events, count_events
+    from realize_core.activity.store import count_events, query_events
 
     events = query_events(
         venture_key=venture_key,
@@ -47,7 +47,7 @@ async def get_venture_activity(
 @router.get("/activity/stream")
 async def activity_stream(request: Request):
     """SSE endpoint streaming real-time activity events."""
-    from realize_core.activity.bus import subscribe, unsubscribe, get_recent_events
+    from realize_core.activity.bus import get_recent_events, subscribe, unsubscribe
 
     async def event_generator():
         queue: asyncio.Queue = asyncio.Queue()
@@ -73,7 +73,7 @@ async def activity_stream(request: Request):
                     event = await asyncio.wait_for(queue.get(), timeout=30.0)
                     data = json.dumps(event, default=str)
                     yield f"data: {data}\n\n"
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     # Send keepalive ping
                     yield ": keepalive\n\n"
         finally:

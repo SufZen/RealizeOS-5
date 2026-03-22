@@ -4,8 +4,12 @@ OpenAI LLM Provider: Stub for future OpenAI/GPT integration.
 To activate: pip install openai, set OPENAI_API_KEY, and uncomment registration in registry.
 """
 import logging
+
 from realize_core.llm.base_provider import (
-    BaseLLMProvider, ModelInfo, LLMResponse, Capability,
+    BaseLLMProvider,
+    Capability,
+    LLMResponse,
+    ModelInfo,
 )
 
 logger = logging.getLogger(__name__)
@@ -44,8 +48,9 @@ class OpenAIProvider(BaseLLMProvider):
 
     def is_available(self) -> bool:
         try:
-            import openai  # noqa: F401
             import os
+
+            import openai  # noqa: F401
             return bool(os.getenv("OPENAI_API_KEY"))
         except ImportError:
             return False

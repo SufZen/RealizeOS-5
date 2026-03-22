@@ -6,7 +6,7 @@ All logging is non-blocking — failures are logged but never propagate to the c
 """
 import logging
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from realize_core.activity.bus import publish_event
 
@@ -29,7 +29,7 @@ def log_event(
     Never raises — all errors are swallowed and logged.
     """
     event_id = str(uuid.uuid4())
-    created_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+    created_at = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
 
     event = {
         "id": event_id,

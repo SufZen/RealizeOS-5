@@ -8,7 +8,6 @@ Provides:
 - Audit log: records all significant actions
 - Prompt injection protection: basic input sanitization
 """
-import hashlib
 import logging
 import os
 import time
@@ -190,7 +189,7 @@ class UserManager:
             logger.warning("pyyaml not installed")
             return
 
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             config = yaml.safe_load(f) or {}
 
         for uid, cfg in config.get("users", {}).items():
@@ -363,7 +362,7 @@ class SecretVault:
         if not path.exists():
             return
 
-        with open(path, "r") as f:
+        with open(path) as f:
             for line in f:
                 line = line.strip()
                 if not line or line.startswith("#"):

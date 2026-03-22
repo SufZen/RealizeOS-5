@@ -9,11 +9,10 @@ Covers:
 import pytest
 from realize_core.llm.base_provider import (
     BaseLLMProvider,
-    ModelInfo,
-    LLMResponse,
     Capability,
+    LLMResponse,
+    ModelInfo,
 )
-
 
 # ---------------------------------------------------------------------------
 # Dataclass tests

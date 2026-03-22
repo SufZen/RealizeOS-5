@@ -6,22 +6,21 @@ Covers:
 - Model selection mapping and default fallback
 - Self-tuning quality override mechanism
 """
-import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
+
 from realize_core.llm.router import (
+    COMPLEX_KEYWORDS,
+    CONTENT_KEYWORDS,
+    FINANCIAL_KEYWORDS,
+    GOOGLE_KEYWORDS,
+    REASONING_KEYWORDS,
+    SIMPLE_KEYWORDS,
+    WEB_ACTION_KEYWORDS,
+    WEB_RESEARCH_KEYWORDS,
+    _get_quality_override,
     classify_task,
     select_model,
-    _get_quality_override,
-    COMPLEX_KEYWORDS,
-    FINANCIAL_KEYWORDS,
-    REASONING_KEYWORDS,
-    CONTENT_KEYWORDS,
-    SIMPLE_KEYWORDS,
-    GOOGLE_KEYWORDS,
-    WEB_RESEARCH_KEYWORDS,
-    WEB_ACTION_KEYWORDS,
 )
-
 
 # ---------------------------------------------------------------------------
 # Task classification
