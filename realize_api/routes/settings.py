@@ -35,8 +35,8 @@ async def get_settings(request: Request):
                     "models": provider.list_models() if provider.is_available() else [],
                 }
             )
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("LLM registry lookup failed: %s", exc)
 
     # System info
     v = sys.version_info
@@ -46,15 +46,15 @@ async def get_settings(request: Request):
         db_file = data_path / "realize_ops.db"
         if db_file.exists():
             db_size = db_file.stat().st_size
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("DB size check failed: %s", exc)
 
     kb_path = getattr(request.app.state, "kb_path", Path("."))
     kb_file_count = 0
     try:
         kb_file_count = sum(1 for _ in kb_path.rglob("*.md") if _.is_file())
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("KB file count failed: %s", exc)
 
     return {
         "features": features,
@@ -116,8 +116,8 @@ async def update_features(request: Request):
         # Rollback on failure
         try:
             config_path.write_text(original_text, encoding="utf-8")
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Failed to rollback config: %s", exc)
         raise HTTPException(status_code=500, detail=f"Failed to save: {str(e)[:200]}")
 
 
@@ -225,8 +225,8 @@ async def get_tools(request: Request):
                     "actions": [s.name for s in tool.get_schemas()],
                 }
             )
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("Tool registry lookup failed: %s", exc)
 
     # Google Workspace status
     google_status = {"gmail": False, "calendar": False, "drive": False}
@@ -236,8 +236,8 @@ async def get_tools(request: Request):
         creds = get_credentials()
         if creds:
             google_status = {"gmail": True, "calendar": True, "drive": True}
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("Google auth check failed: %s", exc)
 
     # MCP status
     mcp_servers = []
@@ -253,8 +253,8 @@ async def get_tools(request: Request):
                     "tools_count": len(conn.tools) if hasattr(conn, "tools") else 0,
                 }
             )
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("MCP hub lookup failed: %s", exc)
 
     # Browser status
     browser_enabled = os.getenv("BROWSER_ENABLED", "false").lower() == "true"
@@ -313,8 +313,8 @@ async def get_llm_routing():
                     "models": provider.list_models() if avail else [],
                 }
             )
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("LLM provider lookup failed: %s", exc)
 
     return {"routing_rules": routing_rules, "providers": providers}
 

@@ -214,7 +214,20 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command "$ws = New-Object -ComObj
 echo       [OK] Shortcut created on Desktop.
 
 :: --------------------------------------------------------------------------
-:: 10. Completion
+:: 10. Write VERSION File
+:: --------------------------------------------------------------------------
+echo.
+echo Writing version info...
+if exist "!INSTALL_DIR!\VERSION" (
+    set /p INSTALLED_VER=<"!INSTALL_DIR!\VERSION"
+    echo       [OK] Version: !INSTALLED_VER!
+) else (
+    echo 5.0.0> "!INSTALL_DIR!\VERSION"
+    echo       [OK] Version: 5.0.0
+)
+
+:: --------------------------------------------------------------------------
+:: 11. Completion
 :: --------------------------------------------------------------------------
 echo.
 color 0A
@@ -227,6 +240,22 @@ echo   !INSTALL_DIR!
 echo.
 echo A shortcut "Start RealizeOS" is now on your Desktop.
 echo Double-click it anytime to launch the system.
+echo.
+echo Also included:
+echo   - Update-RealizeOS.bat   (check for and install updates)
+echo   - Migrate-RealizeOS.bat  (migrate data from another installation)
+echo   - Uninstall-RealizeOS.bat (cleanly remove the system)
+echo.
+
+:OPEN_GUIDE
+set "OPEN_GUIDE="
+set /p "OPEN_GUIDE=Would you like to open the User Guide? (Y/N): "
+if /I "!OPEN_GUIDE!"=="Y" (
+    if exist "!INSTALL_DIR!\docs\user-guide.html" (
+        start "" "!INSTALL_DIR!\docs\user-guide.html"
+    )
+)
+
 echo.
 echo Press any key to close this wizard and start RealizeOS...
 echo.

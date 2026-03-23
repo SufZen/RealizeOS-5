@@ -169,10 +169,21 @@ li{margin-bottom:6px;font-size:.9rem}
       <a class="nav-link" href="#se-injection">Injection Defense</a>
       <a class="nav-link" href="#se-audit">Audit Logging</a>
     </div>
+    <a class="nav-link" href="#devmode"><span class="icon">🛠️</span> Developer Mode</a>
+    <div class="nav-sub">
+      <a class="nav-link" href="#dm-protection">File Protection</a>
+      <a class="nav-link" href="#dm-tools">AI Tool Integration</a>
+      <a class="nav-link" href="#dm-safety">Git Safety Net</a>
+      <a class="nav-link" href="#dm-health">Health Check</a>
+    </div>
   </div>
   <div class="nav-section">
     <div class="nav-section-title">Reference</div>
     <a class="nav-link" href="#operations"><span class="icon">📊</span> Operations</a>
+    <div class="nav-sub">
+      <a class="nav-link" href="#op-update">Update & Migrate</a>
+      <a class="nav-link" href="#op-uninstall">Uninstall</a>
+    </div>
     <a class="nav-link" href="#deployment"><span class="icon">🐳</span> Deployment</a>
     <a class="nav-link" href="#best-practices"><span class="icon">⭐</span> Best Practices</a>
     <a class="nav-link" href="#troubleshooting"><span class="icon">🔍</span> Troubleshooting</a>
@@ -363,7 +374,14 @@ python cli.py index                          # Rebuild KB search index
 python cli.py venture create --key KEY       # Create new venture
 python cli.py venture delete --key KEY       # Delete venture
 python cli.py venture list                   # List all ventures
-python cli.py setup-google                   # Run Google OAuth flow</code></pre>
+python cli.py setup-google                   # Run Google OAuth flow
+python cli.py devmode setup [--tools ...]     # Generate AI tool context files
+python cli.py devmode check [--quick]         # Run post-modification health check
+python cli.py devmode scaffold --type TYPE    # Scaffold new extension
+python cli.py devmode snapshot [--label MSG]  # Create git safety snapshot
+python cli.py devmode rollback [--tag TAG]    # Rollback to a snapshot
+python cli.py devmode diff                   # Show changes since last snapshot
+python cli.py devmode status                  # Show Developer Mode status</code></pre>
 </section>
 <section id="processing">
 <h2><span class="icon">⚙️</span> Processing Engine</h2>
@@ -767,9 +785,145 @@ roles:
 </ul>
 <div class="alert alert-tip">💡 Audit logs are stored in SQLite and can be queried via the API or exported for compliance.</div>
 </section>
+
+<section id="devmode">
+<h2><span class="icon">🛠️</span> Developer Mode</h2>
+<p>Developer Mode enables safe integration of local AI coding clients for system development and extension authoring. When enabled, it generates context files for supported tools, classifies files by protection level, and provides snapshot/rollback safety via git.</p>
+
+<div class="alert alert-warn">⚠️ Developer Mode allows AI tools to modify system files. Before enabling, you must acknowledge the risks through a 3-step confirmation process.</div>
+
+<h3 id="dm-protection">File Protection System</h3>
+<p>All project files are classified into three tiers. The protection level (<code>strict</code>, <code>standard</code>, <code>relaxed</code>) controls which tiers apply:</p>
+<table>
+<tr><th>Tier</th><th>Label</th><th>Behaviour</th><th>Examples</th></tr>
+<tr><td>🔴</td><td><strong>PROTECTED</strong></td><td>AI tools warned not to modify. Always enforced.</td><td><code>.env</code>, <code>realize_core/security/</code>, <code>alembic/versions/</code></td></tr>
+<tr><td>🟡</td><td><strong>GUARDED</strong></td><td>AI tools should auto-backup before modifying</td><td><code>realize-os.yaml</code>, <code>requirements.txt</code>, <code>cli.py</code></td></tr>
+<tr><td>🟢</td><td><strong>OPEN</strong></td><td>AI tools may freely modify</td><td><code>extensions/</code>, <code>systems/</code>, <code>R-routines/skills/</code></td></tr>
+</table>
+
+<h4>Protection Levels</h4>
+<table>
+<tr><th>Level</th><th>Description</th></tr>
+<tr><td><code>strict</code></td><td>All core + config files are read-only to AI tools</td></tr>
+<tr><td><code>standard</code></td><td>Core engine protected, config editable with auto-backup (default)</td></tr>
+<tr><td><code>relaxed</code></td><td>Only security/DB files protected, everything else open</td></tr>
+</table>
+
+<h3 id="dm-tools">AI Tool Integration</h3>
+<p>Developer Mode generates context files for 9 AI coding tools. These files embed architecture overview, protection rules, and extension-first guidance so each tool understands the project:</p>
+<div class="card-grid">
+<div class="card"><div class="card-icon">🤖</div><h4>Claude Desktop / Code CLI</h4><p>Generates <code>CLAUDE.md</code> with system architecture, file protection rules, and extension patterns.</p></div>
+<div class="card"><div class="card-icon">♊</div><h4>Gemini CLI / Antigravity</h4><p>Generates <code>.gemini/GEMINI.md</code> with project context and guardrails.</p></div>
+<div class="card"><div class="card-icon">💻</div><h4>VS Code Copilot</h4><p>Generates <code>.github/copilot-instructions.md</code> with coding patterns and protection warnings.</p></div>
+<div class="card"><div class="card-icon">🎯</div><h4>Cursor / Windsurf</h4><p>Generates <code>.cursorrules</code> / <code>.windsurfrules</code> with project-specific instructions.</p></div>
+<div class="card"><div class="card-icon">📋</div><h4>Codex / Aider</h4><p>Generates <code>AGENTS.md</code> / <code>.aider.conf.yml</code> with tool-specific config.</p></div>
+</div>
+<pre><code># Generate context files for all AI tools
+python cli.py devmode setup
+
+# Generate for specific tools only
+python cli.py devmode setup --tools claude,gemini,cursor
+
+# Use a specific protection level
+python cli.py devmode setup --level strict</code></pre>
+
+<h3 id="dm-safety">Git Safety Net</h3>
+<p>Before using AI tools on the codebase, create a git snapshot to enable easy rollback:</p>
+<pre><code># Create a snapshot before your AI session
+python cli.py devmode snapshot --label "before claude session"
+
+# See what changed during the session
+python cli.py devmode diff
+
+# Rollback if something went wrong
+python cli.py devmode rollback
+
+# Rollback to a specific snapshot
+python cli.py devmode rollback --tag devmode/before-cli-20260323-143022</code></pre>
+
+<h3 id="dm-health">Health Check</h3>
+<p>After an AI tool modifies files, run a health check to verify system integrity:</p>
+<pre><code># Full health check
+python cli.py devmode check
+
+# Quick check (skip slow tests)
+python cli.py devmode check --quick</code></pre>
+<p>The health check validates:</p>
+<ul>
+<li><strong>Config validity</strong> — <code>realize-os.yaml</code> parses correctly</li>
+<li><strong>Import integrity</strong> — All Python modules import without errors</li>
+<li><strong>Test suite</strong> — Unit tests pass (full mode only)</li>
+<li><strong>Dashboard build</strong> — TypeScript compiles without errors (full mode only)</li>
+</ul>
+
+<h4>Dashboard Configuration</h4>
+<p>Developer Mode can also be configured from the dashboard under <strong>Settings → Advanced Developer Settings</strong>. The panel provides:</p>
+<ul>
+<li>Enable/disable toggle with acknowledgment modal</li>
+<li>Protection level selector</li>
+<li>Connected AI tools status grid</li>
+<li>One-click context file generation, health check, and snapshot creation</li>
+</ul>
+
+<h4>Configuration</h4>
+<pre><code># realize-os.yaml
+developer_mode:
+  enabled: false
+  tools: [claude_desktop, claude_code_cli, gemini_cli, antigravity, vscode, cursor, windsurf, codex, aider]
+  protection_level: standard   # strict | standard | relaxed
+  auto_snapshot: true
+  cost_optimization:
+    use_local_models: false
+    review_with: gemini-flash
+    cache_embeddings: true</code></pre>
+<div class="alert alert-info">ℹ️ The extension scaffolder (<code>python cli.py devmode scaffold --type tool --name my-feature</code>) generates boilerplate for new tools, hooks, or integrations, guiding AI tools toward the extension system rather than modifying core files.</div>
+</section>
 <section id="operations">
 <h2><span class="icon">📊</span> Operations</h2>
-<p>Monitor system health, track activity, and manage approval workflows.</p>
+<p>Monitor system health, track activity, manage approval workflows, and maintain your installation.</p>
+
+<h3 id="op-update">Update & Migrate</h3>
+<p>RealizeOS includes built-in scripts for version updates and data migration between installations:</p>
+
+<h4>Updating</h4>
+<pre><code># Run the update wizard (Windows)
+Update-RealizeOS.bat
+
+# Or manually
+git pull origin main
+pip install -r requirements.txt
+python cli.py index</code></pre>
+<p>The update script automatically:</p>
+<ul>
+<li>Checks GitHub Releases for the latest version</li>
+<li>Creates a backup of your data before updating</li>
+<li>Downloads and extracts the new version</li>
+<li>Restores your user data (FABRIC, config, databases, credentials)</li>
+<li>Rolls back on failure</li>
+</ul>
+
+<h4>Migration</h4>
+<pre><code># Migrate data from a previous installation
+Migrate-RealizeOS.bat</code></pre>
+<p>The migration wizard scans a source directory for:</p>
+<ul>
+<li><strong>FABRIC systems</strong> — Venture directories with agents, brain, routines</li>
+<li><strong>Configuration</strong> — <code>realize-os.yaml</code>, <code>.env</code></li>
+<li><strong>Databases</strong> — SQLite databases</li>
+<li><strong>Credentials</strong> — Google OAuth tokens, API keys</li>
+</ul>
+<p>Conflict resolution strategies: <strong>skip</strong> (keep existing), <strong>overwrite</strong> (replace), or <strong>ask</strong> (prompt per file).</p>
+
+<h3 id="op-uninstall">Uninstall</h3>
+<pre><code># Run the uninstaller (Windows)
+Uninstall-RealizeOS.bat</code></pre>
+<p>The uninstaller offers to preserve user data before removing:</p>
+<ul>
+<li>Desktop shortcut</li>
+<li>Installation directory</li>
+<li>Optionally preserves: FABRIC systems, <code>.env</code>, databases, credentials</li>
+</ul>
+<div class="alert alert-warn">⚠️ The uninstaller only removes RealizeOS files and shortcuts. It does not affect other software on your system.</div>
 
 <h3>Monitoring</h3>
 <pre><code># Health check
@@ -938,6 +1092,10 @@ tar czf realizeos-backup.tar.gz \
 <tr><td><strong>RAG</strong></td><td>Retrieval-Augmented Generation — finding relevant KB docs for each message.</td></tr>
 <tr><td><strong>RBAC</strong></td><td>Role-Based Access Control — permissions system based on user roles.</td></tr>
 <tr><td><strong>MCP</strong></td><td>Model Context Protocol — standard for connecting AI to external tools.</td></tr>
+<tr><td><strong>Developer Mode</strong></td><td>Advanced feature that enables integration with local AI coding tools (Claude Code, Gemini CLI, Cursor, etc.) for system development.</td></tr>
+<tr><td><strong>File Protection</strong></td><td>3-tier classification system (Protected / Guarded / Open) that controls which files AI tools may modify.</td></tr>
+<tr><td><strong>Snapshot</strong></td><td>A git tag created before an AI coding session to enable easy rollback if modifications cause issues.</td></tr>
+<tr><td><strong>Context File</strong></td><td>A generated file (e.g. CLAUDE.md, .cursorrules) that provides AI tools with project architecture and rules.</td></tr>
 </table>
 
 <div style="text-align:center;padding:40px 0;color:var(--text-muted)">

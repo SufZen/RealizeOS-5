@@ -129,8 +129,8 @@ async def get_agent_detail(venture_key: str, agent_key: str, request: Request):
     if agent_path.exists():
         try:
             definition = agent_path.read_text(encoding="utf-8")
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Failed to read agent definition %s: %s", agent_path, exc)
 
     # Get status from DB
     status_data = {"status": "idle", "last_run_at": None, "last_error": None}
@@ -147,8 +147,8 @@ async def get_agent_detail(venture_key: str, agent_key: str, request: Request):
                 "schedule_interval_sec": state.get("schedule_interval_sec"),
                 "next_run_at": state.get("next_run_at"),
             }
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("Agent status lookup failed for %s/%s: %s", agent_key, venture_key, exc)
 
     # Recent activity for this agent
     recent_activity = []
@@ -156,8 +156,8 @@ async def get_agent_detail(venture_key: str, agent_key: str, request: Request):
         from realize_core.activity.store import query_events
 
         recent_activity = query_events(venture_key=venture_key, actor_id=agent_key, limit=20)
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("Activity query failed for %s/%s: %s", venture_key, agent_key, exc)
 
     return {
         "key": agent_key,
@@ -193,10 +193,8 @@ async def pause_agent(venture_key: str, agent_key: str, request: Request):
             entity_type="agent",
             entity_id=agent_key,
         )
-    except Exception:
-        pass
-
-    return {"status": "paused", "agent_key": agent_key, "venture_key": venture_key}
+    except Exception as exc:
+        logger.debug("Activity log failed for agent_paused: %s", exc)
 
 
 @router.post("/ventures/{venture_key}/agents/{agent_key}/resume")
@@ -223,10 +221,8 @@ async def resume_agent(venture_key: str, agent_key: str, request: Request):
             entity_type="agent",
             entity_id=agent_key,
         )
-    except Exception:
-        pass
-
-    return {"status": "idle", "agent_key": agent_key, "venture_key": venture_key}
+    except Exception as exc:
+        logger.debug("Activity log failed for agent_resumed: %s", exc)
 
 
 @router.put("/ventures/{venture_key}/agents/{agent_key}/schedule")
@@ -285,8 +281,8 @@ async def set_agent_schedule(venture_key: str, agent_key: str, request: Request)
         from realize_core.scheduler.heartbeat import reload_schedules
 
         reload_schedules()
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("Scheduler reload failed: %s", exc)
 
     try:
         from realize_core.activity.logger import log_event
@@ -300,8 +296,8 @@ async def set_agent_schedule(venture_key: str, agent_key: str, request: Request)
             entity_id=agent_key,
             details=f'{{"cron": "{cron or ""}", "interval_sec": {interval or 0}}}',
         )
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("Activity log failed for schedule_updated: %s", exc)
 
     return {
         "agent_key": agent_key,
@@ -339,10 +335,8 @@ async def clear_agent_schedule(venture_key: str, agent_key: str, request: Reques
         from realize_core.scheduler.heartbeat import reload_schedules
 
         reload_schedules()
-    except Exception:
-        pass
-
-    return {"agent_key": agent_key, "venture_key": venture_key, "schedule": None}
+    except Exception as exc:
+        logger.debug("Scheduler reload failed: %s", exc)
 
 
 # ---------------------------------------------------------------------------
@@ -392,10 +386,8 @@ async def create_venture(request: Request):
             entity_type="venture",
             entity_id=key,
         )
-    except Exception:
-        pass
-
-    return {"status": "created", "key": key, "name": name}
+    except Exception as exc:
+        logger.debug("Activity log failed for venture_created: %s", exc)
 
 
 @router.delete("/ventures/{venture_key}")
@@ -526,7 +518,8 @@ async def read_kb_file(venture_key: str, path: str, request: Request):
 
     try:
         content = file_path.read_text(encoding="utf-8")
-    except Exception:
+    except Exception as exc:
+        logger.warning("Failed to read KB file %s: %s", file_path, exc)
         raise HTTPException(status_code=500, detail="Cannot read file")
 
     return {"path": path, "content": content, "size": file_path.stat().st_size}
@@ -600,8 +593,8 @@ async def ingest_content(venture_key: str, request: Request):
             entity_id=result["path"],
             details=f'{{"source": "{url or "text"}", "chars": {extracted["char_count"]}}}',
         )
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("Activity log failed for content_ingested: %s", exc)
 
     return {
         "status": "ingested",
@@ -650,10 +643,8 @@ async def save_kb_file(venture_key: str, request: Request):
             config = load_config()
             request.app.state.config = config
             request.app.state.systems = build_systems_dict(config)
-        except Exception:
-            pass
-
-    return {"status": "saved", "path": path, "size": file_path.stat().st_size}
+        except Exception as exc:
+            logger.debug("Config reload after agent edit failed: %s", exc)
 
 
 @router.post("/ventures/{venture_key}/kb/file")
@@ -695,10 +686,8 @@ async def create_kb_file(venture_key: str, request: Request):
             config = load_config()
             request.app.state.config = config
             request.app.state.systems = build_systems_dict(config)
-        except Exception:
-            pass
-
-    return {"status": "created", "path": path, "size": file_path.stat().st_size}
+        except Exception as exc:
+            logger.debug("Config reload after agent create failed: %s", exc)
 
 
 @router.delete("/ventures/{venture_key}/kb/file")
@@ -735,10 +724,8 @@ async def delete_kb_file(venture_key: str, path: str, request: Request):
             config = load_config()
             request.app.state.config = config
             request.app.state.systems = build_systems_dict(config)
-        except Exception:
-            pass
-
-    return {"status": "deleted", "path": path}
+        except Exception as exc:
+            logger.debug("Config reload after agent delete failed: %s", exc)
 
 
 # ---------------------------------------------------------------------------
@@ -872,8 +859,8 @@ def _get_agents_with_status(sys_conf: dict, venture_key: str) -> list[dict]:
                 agent_data["status"] = state["status"]
                 agent_data["last_run_at"] = state.get("last_run_at")
                 agent_data["last_error"] = state.get("last_error")
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Agent status lookup failed for %s/%s: %s", agent_key, venture_key, exc)
 
         agents.append(agent_data)
 
@@ -907,8 +894,8 @@ def _get_skills(kb_path: Path, sys_conf: dict) -> list[dict]:
                             "task_type": data.get("task_type", "general"),
                         }
                     )
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Failed to parse skill YAML %s: %s", yaml_file.name, exc)
     except ImportError:
         pass
 

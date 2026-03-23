@@ -40,6 +40,7 @@ const PipelineBuilderPage = lazy(() => import('@/pages/pipeline-builder'))
 const WorkflowEditorPage = lazy(() => import('@/pages/workflow-editor'))
 const RoutingPage = lazy(() => import('@/pages/routing-page'))
 const IntegrationsPage = lazy(() => import('@/pages/integrations-page'))
+const DocsPage = lazy(() => import('@/pages/docs-page'))
 
 import OnboardingWizard, { isOnboardingComplete } from '@/components/onboarding-wizard'
 
@@ -74,6 +75,7 @@ const navGroups = [
     items: [
       { to: '/tools', icon: Wrench, label: 'Tools' },
       { to: '/integrations', icon: Puzzle, label: 'Integrations' },
+      { to: '/docs', icon: BookOpen, label: 'Docs' },
       { to: '/setup', icon: Plug, label: 'Setup' },
       { to: '/settings', icon: Settings, label: 'Settings' },
     ],
@@ -269,6 +271,7 @@ export default function App() {
                   <Route path="/integrations" element={<IntegrationsPage />} />
                   <Route path="/setup" element={<SetupPage />} />
                   <Route path="/settings" element={<SettingsPage />} />
+                  <Route path="/docs" element={<DocsPage />} />
                 </Routes>
               </Suspense>
               </ErrorBoundaryWithLocation>

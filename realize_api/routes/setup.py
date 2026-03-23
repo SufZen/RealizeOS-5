@@ -218,7 +218,8 @@ def _write_env_value(key: str, value: str) -> None:
         if env_path.exists():
             env_path.unlink()
         Path(tmp_path).rename(env_path)
-    except Exception:
+    except Exception as exc:
+        logger.error("Failed to write .env key atomically: %s", exc)
         if not closed:
             try:
                 os.close(fd)

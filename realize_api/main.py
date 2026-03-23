@@ -12,14 +12,22 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi import Request as FastAPIRequest
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+from realize_api.error_handlers import mask_sensitive, register_error_handlers
 from realize_api.middleware import APIKeyMiddleware
+from realize_api.security_middleware import (
+    AuditMiddleware,
+    InjectionGuardMiddleware,
+    JWTAuthMiddleware,
+    RateLimitMiddleware,
+)
 from realize_api.routes import (
     activity,
     agents_v2,
     approvals,
+    auth,
     chat,
     dashboard,
     evolution,
@@ -27,8 +35,11 @@ from realize_api.routes import (
     health,
     integrations,
     routing,
+    security,
     settings,
     setup,
+    storage_settings,
+    devmode,
     systems,
     ventures,
     webhooks,
@@ -114,6 +125,53 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Heartbeat scheduler skipped: {e}")
 
+    # Run security scan at startup
+    try:
+        from realize_core.security.scanner import run_security_scan
+
+        scan = run_security_scan(Path("."))
+        if scan.get("critical", 0) > 0:
+            logger.error(
+                "SECURITY SCAN: %d critical issue(s) found at startup!",
+                scan["critical"],
+            )
+            for check in scan.get("checks", []):
+                if check["status"] == "critical":
+                    logger.error("  ✗ %s — %s", check["name"], check.get("detail", ""))
+        elif scan.get("warnings", 0) > 0:
+            logger.warning(
+                "SECURITY SCAN: %d warning(s) — %d passed",
+                scan["warnings"],
+                scan["passed"],
+            )
+        else:
+            logger.info("SECURITY SCAN: All %d checks passed ✓", scan["passed"])
+    except Exception as e:
+        logger.debug(f"Security scan skipped: {e}")
+
+    # Initialize RBAC with custom roles (if YAML exists)
+    try:
+        from realize_core.security.rbac import get_rbac_manager
+
+        rbac = get_rbac_manager()
+        roles_path = Path(config.get("kb_path", ".")) / "roles.yaml"
+        if roles_path.exists():
+            count = rbac.load_from_yaml(roles_path)
+            logger.info("Loaded %d custom RBAC roles", count)
+    except Exception as e:
+        logger.debug(f"RBAC initialization skipped: {e}")
+
+    # Initialize audit logger with persistent log directory
+    try:
+        from realize_core.security.audit import get_audit_logger
+
+        data_path = os.environ.get("DATA_PATH", "data")
+        os.environ.setdefault("REALIZE_AUDIT_LOG_DIR", str(Path(data_path) / "audit"))
+        audit = get_audit_logger()
+        logger.info("Audit logger initialized (log: %s)", audit.log_file or "memory-only")
+    except Exception as e:
+        logger.debug(f"Audit logger init skipped: {e}")
+
     logger.info(f"RealizeOS API ready — {len(app.state.systems)} system(s) loaded")
     yield
 
@@ -123,26 +181,26 @@ async def lifespan(app: FastAPI):
         from realize_core.scheduler.heartbeat import stop_scheduler
 
         await stop_scheduler()
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("Scheduler stop failed: %s", exc)
     try:
         from realize_core.tools.web import close_http_client
 
         await close_http_client()
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("HTTP client cleanup failed: %s", exc)
     try:
         from realize_core.tools.browser import cleanup_all_sessions
 
         await cleanup_all_sessions()
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("Browser session cleanup failed: %s", exc)
     try:
         from realize_core.tools.mcp import shutdown_mcp
 
         await shutdown_mcp()
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("MCP shutdown failed: %s", exc)
 
 
 def create_app() -> FastAPI:
@@ -164,22 +222,33 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    # Global exception handler — return JSON for all unhandled errors
-    @app.exception_handler(Exception)
-    async def global_exception_handler(request: FastAPIRequest, exc: Exception):
-        logger.error(f"Unhandled error: {exc}", exc_info=True)
-        return JSONResponse(
-            status_code=500,
-            content={"detail": "Internal server error", "type": "internal_error"},
-        )
+    # Register centralized error handlers
+    register_error_handlers(app)
 
-    # API key auth (skip if no key configured — development mode)
+    # --- Security middleware stack (order matters: outermost → innermost) ---
+
+    # 1. Audit logging — outermost so it captures everything
+    app.add_middleware(AuditMiddleware)
+
+    # 2. Rate limiting
+    app.add_middleware(RateLimitMiddleware)
+
+    # 3. Injection guard (scans POST/PUT/PATCH bodies)
+    app.add_middleware(InjectionGuardMiddleware)
+
+    # 4. JWT auth (opt-in via env var)
+    if os.environ.get("REALIZE_JWT_ENABLED", "").lower() in ("true", "1", "yes"):
+        app.add_middleware(JWTAuthMiddleware)
+        logger.info("JWT authentication middleware enabled")
+
+    # 5. API key auth (skip if no key configured — development mode)
     api_key = os.environ.get("REALIZE_API_KEY")
     if api_key:
         app.add_middleware(APIKeyMiddleware, api_key=api_key)
 
     # Routes
     app.include_router(chat.router, prefix="/api", tags=["Chat"])
+    app.include_router(auth.router, prefix="/api", tags=["Authentication"])
     app.include_router(systems.router, prefix="/api", tags=["Systems"])
     app.include_router(health.router, prefix="/api", tags=["Health"])
     app.include_router(activity.router, prefix="/api", tags=["Activity"])
@@ -196,6 +265,9 @@ def create_app() -> FastAPI:
     app.include_router(extensions.router, prefix="/api", tags=["Extensions"])
     app.include_router(routing.router, prefix="/api", tags=["Routing"])
     app.include_router(integrations.router, prefix="/api", tags=["Integrations"])
+    app.include_router(storage_settings.router, prefix="/api", tags=["Storage"])
+    app.include_router(devmode.router, prefix="/api", tags=["Developer Mode"])
+    app.include_router(security.router, prefix="/api", tags=["Security"])
 
     # Serve dashboard from static/ (only if built)
     static_dir = Path(__file__).parent.parent / "static"

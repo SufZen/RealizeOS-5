@@ -96,16 +96,16 @@ async def chat(body: ChatRequest, request: Request):
         session = get_session(body.system_key, body.user_id)
         if session:
             agent_used = session.active_agent
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("Session lookup failed: %s", exc)
 
     # Humanize output
     try:
         from realize_core.utils.humanizer import clean_output
 
         response = clean_output(response, channel=body.channel)
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("Humanizer clean_output failed: %s", exc)
 
     return ChatResponse(
         response=response,

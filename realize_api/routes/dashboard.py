@@ -60,8 +60,8 @@ async def get_dashboard_overview(request: Request):
             if row["status"] in agent_summary:
                 agent_summary[row["status"]] = row["c"]
         conn.close()
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("Agent status query failed: %s", exc)
 
     return {
         "ventures": ventures,

@@ -57,3 +57,21 @@ docker-compose.override.yml
 
 # Systems data (user-specific ventures)
 systems/
+
+# Test artifacts
+test_bat.bat
+test3.bat
+*.tmp
+
+# Agent / IDE brains
+.gemini/
+.claude/
+
+# Credentials (security-sensitive)
+.credentials/
+
+# Migration backups
+backups/
+
+# OS-specific
+desktop.ini

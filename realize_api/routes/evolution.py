@@ -99,8 +99,8 @@ async def approve_suggestion(suggestion_id: str):
             entity_id=suggestion_id,
             details=f'{{"title": "{proposal.title}", "type": "{proposal.evolution_type.value}"}}',
         )
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("Activity log failed for evolution_approved: %s", exc)
 
     return {
         "id": suggestion_id,
@@ -133,7 +133,7 @@ async def dismiss_suggestion(suggestion_id: str, body: DismissBody = None):
             entity_type="evolution",
             entity_id=suggestion_id,
         )
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("Activity log failed for evolution_dismissed: %s", exc)
 
     return {"id": suggestion_id, "status": "rejected"}

@@ -1,0 +1,109 @@
+# Developer Mode Configuration
+# Protection levels: strict | standard | relaxed
+
+protection_levels:
+  strict:
+    description: "All core + config files read-only to AI tools"
+    protected:
+      - realize_core/
+      - realize_api/
+      - realize-os.yaml
+      - .env
+      - .credentials/
+      - cli.py
+    guarded:
+      - dashboard/src/
+      - A-agents/
+      - R-routines/
+      - templates/
+    open:
+      - extensions/
+      - systems/
+      - docs/
+      - tests/
+
+  standard:
+    description: "Core engine protected, config editable with auto-backup"
+    protected:
+      - realize_core/prompt/
+      - realize_core/llm/
+      - realize_core/security/
+      - realize_core/db/
+      - realize_core/base_handler.py
+      - realize_core/config.py
+      - .env
+      - .credentials/
+    guarded:
+      - realize_core/
+      - realize_api/
+      - realize-os.yaml
+      - cli.py
+      - dashboard/src/
+      - A-agents/
+      - R-routines/
+    open:
+      - extensions/
+      - systems/
+      - docs/
+      - tests/
+      - templates/
+
+  relaxed:
+    description: "Only security/db files protected, everything else open"
+    protected:
+      - realize_core/security/
+      - realize_core/db/
+      - .env
+      - .credentials/
+    guarded:
+      - realize_core/prompt/
+      - realize_core/llm/
+      - realize_core/base_handler.py
+    open:
+      - realize_core/
+      - realize_api/
+      - dashboard/
+      - extensions/
+      - systems/
+      - docs/
+      - tests/
+      - templates/
+
+# Supported AI tools
+tools:
+  claude_desktop:
+    name: "Claude Desktop"
+    context_file: "CLAUDE.md"
+    permissions_file: ".claude/settings.local.json"
+  claude_code_cli:
+    name: "Claude Code CLI"
+    context_file: "CLAUDE.md"
+    permissions_file: ".claude/settings.local.json"
+  gemini_cli:
+    name: "Gemini CLI"
+    context_file: ".gemini/GEMINI.md"
+    permissions_file: ".gemini/settings.json"
+  antigravity:
+    name: "Google Antigravity"
+    context_file: ".gemini/GEMINI.md"
+    permissions_file: ".gemini/settings.json"
+  vscode:
+    name: "VS Code (Copilot)"
+    context_file: ".github/copilot-instructions.md"
+    permissions_file: null
+  cursor:
+    name: "Cursor"
+    context_file: ".cursorrules"
+    permissions_file: null
+  windsurf:
+    name: "Windsurf"
+    context_file: ".windsurfrules"
+    permissions_file: null
+  codex:
+    name: "Codex"
+    context_file: "AGENTS.md"
+    permissions_file: "codex.json"
+  aider:
+    name: "Aider"
+    context_file: ".aider.conf.yml"
+    permissions_file: null

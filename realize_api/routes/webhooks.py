@@ -49,7 +49,8 @@ async def receive_webhook(source: str, request: Request):
 
     try:
         body = await request.json()
-    except Exception:
+    except Exception as exc:
+        logger.debug("Webhook JSON parse failed, using raw body: %s", exc)
         body = {"raw": (await request.body()).decode("utf-8", errors="replace")[:2000]}
 
     # Build event record
@@ -82,8 +83,8 @@ async def receive_webhook(source: str, request: Request):
             entity_id=event["event_type"],
             details=str(body)[:500],
         )
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("Activity log failed for webhook_received: %s", exc)
 
     # Check for matching webhook triggers
     triggers = config.get("webhook_triggers", [])
@@ -110,8 +111,8 @@ async def receive_webhook(source: str, request: Request):
                     entity_type="skill",
                     entity_id=skill_name,
                 )
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Activity log failed for webhook_trigger_fired: %s", exc)
 
     return {
         "status": "received",

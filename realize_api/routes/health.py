@@ -43,7 +43,8 @@ async def status(request: Request):
             tools_status["google_workspace"] = "authenticated"
         else:
             tools_status["google_workspace"] = "not configured"
-    except Exception:
+    except Exception as exc:
+        logger.debug("Google workspace check failed: %s", exc)
         tools_status["google_workspace"] = "not available"
 
     # MCP status
@@ -54,8 +55,8 @@ async def status(request: Request):
         if hub.servers:
             connected = sum(1 for s in hub.servers.values() if s.connected)
             tools_status["mcp"] = f"{connected}/{len(hub.servers)} servers"
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("MCP status check failed: %s", exc)
 
     # Memory stats
     memory_status = {}
@@ -63,8 +64,8 @@ async def status(request: Request):
         from realize_core.utils.cost_tracker import get_usage_summary
 
         memory_status["llm_usage"] = get_usage_summary()
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("LLM usage stats failed: %s", exc)
 
     return {
         "status": "ok",

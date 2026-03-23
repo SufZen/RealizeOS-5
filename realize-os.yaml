@@ -71,6 +71,15 @@ llm:
     content: claude-sonnet
     strategy: claude-sonnet
     complex: claude-opus
+developer_mode:
+  enabled: false
+  tools: [claude_desktop, claude_code_cli, gemini_cli, antigravity, vscode, cursor, windsurf, codex, aider]
+  protection_level: standard   # strict | standard | relaxed
+  auto_snapshot: true
+  cost_optimization:
+    use_local_models: false
+    review_with: gemini-flash
+    cache_embeddings: true
 channels:
 - type: api
   port: 8080

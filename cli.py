@@ -363,6 +363,104 @@ def cmd_doctor(args):
     run_doctor(project_root)
 
 
+def cmd_devmode(args):
+    """Developer Mode — AI client integration tools."""
+    action = args.devmode_action
+    root = Path(args.directory or ".")
+
+    if action == "setup":
+        from realize_core.devmode.context_generator import generate_all
+
+        tools = args.tools.split(",") if args.tools else None
+        level = args.level or "standard"
+        generated = generate_all(root=root, level=level, tools=tools)
+        print(f"Generated {len(generated)} context file(s):")
+        for p in generated:
+            print(f"  ✓ {p.relative_to(root)}")
+        print(f"\nProtection level: {level}")
+        print("AI tools can now read these files for system context.")
+
+    elif action == "check":
+        from realize_core.devmode.health_check import format_results, run_health_check
+
+        quick = args.quick if hasattr(args, "quick") else False
+        results = run_health_check(root, quick=quick)
+        print(format_results(results))
+
+    elif action == "scaffold":
+        from realize_core.devmode.scaffolder import scaffold_extension
+
+        if not args.name:
+            print("Error: --name is required")
+            sys.exit(1)
+        ext_dir = scaffold_extension(
+            name=args.name,
+            ext_type=args.type or "tool",
+            root=root,
+            description=args.description or "",
+        )
+        print(f"Scaffolded extension at: {ext_dir}")
+        print(f"  extension.yaml, __init__.py, README.md, tests/")
+        print(f"\nNext: implement your logic in {ext_dir / '__init__.py'}")
+
+    elif action == "snapshot":
+        from realize_core.devmode.git_safety import GitSafety
+
+        git = GitSafety(root)
+        if not git.is_git_repo():
+            print("Error: Not a git repository")
+            sys.exit(1)
+        label = args.label or "Manual snapshot"
+        tag = git.create_snapshot(label=label, tool="cli")
+        print(f"Snapshot created: {tag}")
+
+    elif action == "rollback":
+        from realize_core.devmode.git_safety import GitSafety
+
+        git = GitSafety(root)
+        if not args.tag:
+            snapshots = git.list_snapshots()
+            if not snapshots:
+                print("No snapshots found.")
+                sys.exit(1)
+            print("Available snapshots:")
+            for s in snapshots[:10]:
+                print(f"  {s.tag}  ({s.timestamp})  {s.message}")
+            print("\nUse: python cli.py devmode rollback --tag <tag>")
+            return
+        backup = git.rollback_to(args.tag)
+        print(f"Rolled back to: {args.tag}")
+        print(f"Backup of previous state: {backup}")
+
+    elif action == "diff":
+        from realize_core.devmode.git_safety import GitSafety
+
+        git = GitSafety(root)
+        diff = git.diff_since(args.tag if hasattr(args, "tag") else None)
+        print(diff)
+
+    elif action == "status":
+        from realize_core.devmode.protection import FileProtection
+
+        fp = FileProtection(root=root)
+        tools = FileProtection.get_supported_tools()
+        levels = FileProtection.available_levels()
+
+        print("Developer Mode Status")
+        print("=" * 40)
+        print(f"Protection levels: {', '.join(levels)}")
+        print(f"Active level: {fp.level}")
+        print(f"\nSupported AI tools ({len(tools)}):")
+        for key, info in tools.items():
+            ctx = info.get("context_file", "")
+            exists = "✓" if (root / ctx).exists() else "✗"
+            print(f"  {exists} {info['name']:25s}  {ctx}")
+
+    else:
+        print("Usage: python cli.py devmode {setup|check|scaffold|snapshot|rollback|diff|status}")
+        sys.exit(1)
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="RealizeOS — AI Operations System",
@@ -411,6 +509,23 @@ def main():
     doctor_parser = subparsers.add_parser("doctor", help="Diagnose installation issues")
     doctor_parser.add_argument("--directory", "-d", default=".", help="Project root directory")
 
+    # devmode (developer mode)
+    devmode_parser = subparsers.add_parser("devmode", help="Developer Mode — AI client integration")
+    devmode_parser.add_argument(
+        "devmode_action",
+        choices=["setup", "check", "scaffold", "snapshot", "rollback", "diff", "status"],
+        help="Action: setup, check, scaffold, snapshot, rollback, diff, or status",
+    )
+    devmode_parser.add_argument("--tools", help="Comma-separated list of AI tools (e.g. claude,gemini,cursor)")
+    devmode_parser.add_argument("--level", help="Protection level: strict, standard, or relaxed")
+    devmode_parser.add_argument("--name", help="Extension name for scaffold")
+    devmode_parser.add_argument("--type", help="Extension type: tool, channel, integration, hook")
+    devmode_parser.add_argument("--description", help="Extension description")
+    devmode_parser.add_argument("--label", help="Snapshot label")
+    devmode_parser.add_argument("--tag", help="Snapshot tag for rollback")
+    devmode_parser.add_argument("--quick", action="store_true", help="Skip slow checks")
+    devmode_parser.add_argument("--directory", "-d", default=".", help="Project root directory")
+
     args = parser.parse_args()
 
     if not args.command:
@@ -426,6 +541,7 @@ def main():
         "venture": cmd_venture,
         "setup": cmd_setup,
         "doctor": cmd_doctor,
+        "devmode": cmd_devmode,
     }
 
     commands[args.command](args)

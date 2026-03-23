@@ -19,6 +19,57 @@ logger = logging.getLogger(__name__)
 MIGRATIONS: dict[int, callable] = {}
 
 
+# ---------------------------------------------------------------------------
+# Migration v2 — storage sync log + performance indexes
+# ---------------------------------------------------------------------------
+
+
+def _migration_v2(conn):
+    """
+    Add storage_sync_log table and extra performance indexes.
+
+    - storage_sync_log: tracks sync operations between storage providers
+    - Additional indexes on activity_events for dashboard queries
+    """
+    conn.executescript("""
+        -- Storage sync log (used by realize_core.storage.sync.SyncManager)
+        CREATE TABLE IF NOT EXISTS storage_sync_log (
+            id TEXT PRIMARY KEY,
+            sync_type TEXT NOT NULL,
+            source_backend TEXT NOT NULL,
+            target_backend TEXT NOT NULL,
+            file_key TEXT NOT NULL,
+            file_size_bytes INTEGER,
+            status TEXT NOT NULL DEFAULT 'pending'
+                CHECK(status IN ('pending', 'in_progress', 'completed', 'failed', 'skipped')),
+            error_message TEXT,
+            created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%f', 'now')),
+            completed_at TEXT
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_sync_log_status
+            ON storage_sync_log(status, created_at DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_sync_log_file_key
+            ON storage_sync_log(file_key);
+
+        -- Extra activity indexes for dashboard performance
+        CREATE INDEX IF NOT EXISTS idx_activity_created_at
+            ON activity_events(created_at DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_activity_entity
+            ON activity_events(entity_type, entity_id);
+
+        -- Approval queue: index for expiry lookups
+        CREATE INDEX IF NOT EXISTS idx_approval_expires
+            ON approval_queue(expires_at)
+            WHERE status = 'pending';
+    """)
+
+
+MIGRATIONS[2] = _migration_v2
+
+
 def get_current_version(conn: sqlite3.Connection) -> int:
     """Get the current schema version from the database."""
     try:

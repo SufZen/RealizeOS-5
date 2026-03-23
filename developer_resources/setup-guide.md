@@ -1,35 +1,104 @@
-# RealizeOS Lite — Setup Guide
+# RealizeOS V5 — Setup Guide
 
-> **Two tools, one workspace**: Use **Obsidian** to browse and edit your knowledge base visually. Use **Claude Code** (or Claude Desktop) to run AI operations. Both read from the same folder.
+> **Two ways to use RealizeOS V5**: Use the **Dashboard** (browser UI) for visual management. Use the **CLI** for power-user operations. Both connect to the same engine and knowledge base.
 
 > **Interactive version**: For a step-by-step checklist with copy-paste instructions, visit [realizeos.ai/setup](https://realizeos.ai/setup).
 
-Welcome to RealizeOS. This guide takes you from zero to a working AI operations team in about 15 minutes.
+Welcome to RealizeOS V5. This guide takes you from zero to a working AI operations team in about 15 minutes.
 
 ---
 
 ## What You Need
 
-- [ ] **Obsidian** (free) — [obsidian.md](https://obsidian.md)
-- [ ] **Claude Code** (CLI) or **Claude Pro** subscription
-- [ ] This vault — the folder you're reading this from
+- [ ] **Python** 3.11+ — [python.org](https://python.org)
+- [ ] **At least one LLM API key** — Anthropic (Claude) and/or Google (Gemini)
+- [ ] **This repository** — the folder you're reading this from
+- [ ] **Node.js** 20+ (optional) — only needed for dashboard development
 
 ---
 
-## Step 1: Open This Vault in Obsidian
+## Step 1: Install Dependencies
 
 > [!info] ~2 minutes
 
-1. Open Obsidian
-2. Click **Open folder as vault**
-3. Select the extracted RealizeOS folder (the one containing this file and the `systems/` directory)
-4. Confirm you can see `systems/`, `shared/`, `CLAUDE.md`, and `setup-guide.md` in the sidebar. Navigate into `systems/my-business-1/` to find your FABRIC folders: `F-foundations`, `A-agents`, `B-brain`, `R-routines`, `I-insights`, `C-creations`
+### Option A: Use the Installer (Windows)
 
-- [ ] Done — I can see the folder structure in the sidebar
+Double-click **`Install-RealizeOS.bat`**. It will:
+1. Install Python dependencies from `requirements.txt`
+2. Create the `.env` file from `.env.example`
+3. Build the dashboard (requires Node.js)
+4. Create a desktop shortcut
+5. Open the User Guide
+
+### Option B: Manual Install
+
+```bash
+# Clone the repository
+git clone https://github.com/SufZen/RealizeOS-5.git
+cd RealizeOS-5
+
+# Install Python dependencies
+pip install -r requirements.txt
+
+# Configure API keys
+cp .env.example .env
+# Edit .env — add ANTHROPIC_API_KEY and/or GOOGLE_AI_API_KEY
+```
+
+- [ ] Done — dependencies are installed
 
 ---
 
-## Step 2: Define Who You Are & Your Venture
+## Step 2: Configure API Keys
+
+> [!info] ~2 minutes
+
+Edit `.env` and add at least one API key:
+
+```bash
+ANTHROPIC_API_KEY=sk-ant-...        # Claude models
+GOOGLE_AI_API_KEY=AI...             # Gemini models
+```
+
+Optional keys for additional functionality:
+
+| Variable | Purpose |
+| --- | --- |
+| `REALIZE_API_KEY` | Protect the API with a bearer token |
+| `TELEGRAM_BOT_TOKEN` | Enable Telegram bot channel |
+| `BRAVE_API_KEY` | Enable web search tool |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google Workspace integration |
+
+- [ ] Done — at least one API key is set
+
+---
+
+## Step 3: Initialize from a Business Template
+
+> [!info] ~1 minute
+
+```bash
+python cli.py init --template consulting
+```
+
+**Available templates:**
+
+| Template | Best for |
+| --- | --- |
+| `consulting` | Solo consultants, advisory firms |
+| `agency` | Creative / marketing agencies |
+| `portfolio` | Multi-venture operators |
+| `saas` | SaaS founders, product teams |
+| `ecommerce` | Online stores, D2C ventures |
+| `accounting` | Accountants, bookkeepers |
+| `coaching` | Business/life coaches |
+| `freelance` | Developers, designers, writers |
+
+- [ ] Done — template initialized
+
+---
+
+## Step 4: Define Your Venture Identity
 
 > [!info] ~5-10 minutes | Choose ONE of the two options below
 
@@ -37,18 +106,13 @@ Welcome to RealizeOS. This guide takes you from zero to a working AI operations 
 
 1. Go to **[realizeos.ai/venture-worksheet](https://realizeos.ai/venture-worksheet)**
 2. Complete the guided form (4 steps)
-3. Download or copy the 3 generated files:
-   - `identity.md` → place in `shared/`
-   - `venture-identity.md` → place in `systems/my-business-1/F-foundations/`
-   - `venture-voice.md` → place in `systems/my-business-1/F-foundations/`
+3. Download or copy the generated files into `systems/my-business-1/F-foundations/`
 
-### Option B: Fill in the files directly in the vault
+### Option B: Fill in the files directly
 
 1. Open **`shared/identity.md`** and fill in your personal info
 2. Open **`shared/venture-worksheet.md`** — answer the guided questions
-3. Ask your AI: *"Read my completed venture worksheet at `shared/venture-worksheet.md` and generate `venture-identity.md` and `venture-voice.md` in `systems/my-business-1/F-foundations/`."*
-
-> [!warning] Choose ONE option, not both. The Venture Wizard and the venture worksheet produce the same files.
+3. Run: `python cli.py init` to generate the foundation files
 
 > [!tip] Most impactful thing you can do
 > Paste a real example of writing that sounds exactly like your venture into the **Good Example** section of `venture-voice.md`. This calibrates the AI better than anything else.
@@ -57,53 +121,14 @@ Welcome to RealizeOS. This guide takes you from zero to a working AI operations 
 
 ---
 
-## Step 3: Customize Your Agent Team (Optional)
-
-> [!info] ~3 minutes | Skip this on your first day — the defaults work well
-
-Browse **`systems/my-business-1/A-agents/`** — you have four agents out of the box:
-
-| Agent | What It Does |
-| --- | --- |
-| **Orchestrator** | General coordination, planning, multi-step tasks |
-| **Writer** | Content creation, copywriting, communications |
-| **Reviewer** | Quality gatekeeper, venture compliance |
-| **Analyst** | Research, data analysis, strategy |
-
-Each agent is a markdown file. Edit the personality, tone, or rules to fit your style. Add new agents as you discover gaps (6–10 agents is the sweet spot — see `A-agents/_README.md` for guidance).
-
-- [ ] Done (or skipped for now — that's fine)
-
----
-
-## Step 4: Add Domain Knowledge (Optional)
-
-> [!info] ~2 minutes | The more you add, the smarter the AI gets
-
-Open **`systems/my-business-1/B-brain/domain-knowledge.md`** and add:
-- Your industry overview
-- Key concepts in your field
-- Common client questions and your standard answers
-- Any frameworks or methods you use
-
-- [ ] Done (or skipped for now — add it gradually over time)
-
----
-
-## Step 5: Start Using It
-
-### With Claude Code (CLI)
+## Step 5: Start the System
 
 ```bash
-cd your-realizeos-folder
-claude
+# Start the API + Dashboard
+python cli.py serve
+
+# Dashboard opens at http://localhost:8080
 ```
-
-Claude Code automatically reads `CLAUDE.md` and understands the structure.
-
-### With Claude Desktop
-
-Point Claude Desktop to this vault directory. Claude will read `CLAUDE.md` and understand the structure.
 
 ### What to Try First
 
@@ -114,6 +139,53 @@ Point Claude Desktop to this vault directory. Claude will read `CLAUDE.md` and u
 "Help me plan [project]"                      → Orchestrator breaks it down
 "What are my current priorities?"             → Reads state map
 ```
+
+- [ ] Done — system is running
+
+---
+
+## Step 6: Configure Storage & Backup (Optional)
+
+> [!info] ~3 minutes
+
+By default, RealizeOS stores everything locally. To enable cloud backup:
+
+1. Open the Dashboard → **Settings** → **Storage & Backup**
+2. Select a cloud provider (AWS S3, MinIO, DigitalOcean Spaces, Backblaze B2, Cloudflare R2)
+3. Enter your credentials and test the connection
+4. Enable sync
+
+Or configure via `.env`:
+```bash
+STORAGE_PROVIDER=s3
+S3_BUCKET=my-realizeos-backup
+S3_REGION=us-east-1
+S3_ACCESS_KEY=...
+S3_SECRET_KEY=...
+```
+
+---
+
+## Step 7: Enable Developer Mode (Optional, Advanced)
+
+> [!warning] Only for users who want to use AI coding tools on the RealizeOS codebase itself.
+
+Developer Mode allows integration with local AI coding clients (Claude Code, Gemini CLI, VS Code Copilot, Cursor, etc.) for system development and extension authoring.
+
+```bash
+# Generate context files for your AI tools
+python cli.py devmode setup
+
+# Create a safety snapshot before modifying
+python cli.py devmode snapshot --label "before session"
+
+# Run health check after modifications
+python cli.py devmode check
+```
+
+You can also enable it from **Dashboard → Settings → Advanced Developer Settings**.
+
+> [!info] See the [User Guide](docs/user-guide.html#devmode) for full Developer Mode documentation including protection levels, supported tools, and safety workflows.
 
 ---
 
@@ -133,13 +205,13 @@ Add to `systems/my-business-1/B-brain/` as you learn things: market notes, clien
 
 ### Find Your Outputs
 
-All AI-generated content is saved in the active system's `C-creations/` with descriptive filenames (e.g., `systems/my-business-1/C-creations/`).
+All AI-generated content is saved in the active system's `C-creations/` with descriptive filenames.
 
 ---
 
 ## Running Multiple Ventures
 
-Your workspace comes with 3 venture slots out of the box (`systems/my-business-1/`, `my-business-2/`, `my-business-3/`). Each has its own FABRIC directory structure — completely isolated agents, venture voice, knowledge, and outputs.
+Your workspace comes with 3 venture slots out of the box. Each has its own FABRIC directory structure — completely isolated agents, venture voice, knowledge, and outputs.
 
 **To activate a new venture:**
 1. Rename the folder to match your venture (e.g., `systems/consulting-practice/`)
@@ -148,13 +220,52 @@ Your workspace comes with 3 venture slots out of the box (`systems/my-business-1
 
 **Or simply ask:** *"Create a new venture called [name]"* — the AI will set up the directory structure and config for you.
 
-**To remove a venture:** Ask *"Remove venture [name]"* — the AI will confirm before deleting, and won't touch other systems.
+**To remove a venture:** Ask *"Remove venture [name]"* — the AI will confirm before deleting.
+
+---
+
+## Updating & Maintenance
+
+```bash
+# Update to the latest version (Windows)
+Update-RealizeOS.bat
+
+# Migrate data from a previous installation
+Migrate-RealizeOS.bat
+
+# Uninstall cleanly (removes shortcut + installation directory)
+Uninstall-RealizeOS.bat
+```
+
+---
+
+## CLI Quick Reference
+
+```bash
+python cli.py serve [--port PORT]                # Start API + dashboard
+python cli.py init --template NAME               # Initialize from template
+python cli.py bot                                # Start Telegram bot
+python cli.py status                             # Show system status
+python cli.py index                              # Rebuild KB search index
+python cli.py venture create --key KEY           # Create new venture
+python cli.py venture delete --key KEY           # Delete venture
+python cli.py venture list                       # List ventures
+python cli.py setup-google                       # Google OAuth setup
+python cli.py devmode setup [--tools ...]        # Generate AI tool context files
+python cli.py devmode check [--quick]            # Run health check
+python cli.py devmode scaffold --type TYPE       # Scaffold new extension
+python cli.py devmode snapshot [--label MSG]     # Create git snapshot
+python cli.py devmode rollback [--tag TAG]       # Rollback to snapshot
+python cli.py devmode diff                       # Show changes since snapshot
+python cli.py devmode status                     # Developer Mode status
+```
 
 ---
 
 ## Need Help?
 
-- Read `systems/my-business-1/A-agents/_README.md` — routing guidance and how to add agents
-- Read `systems/my-business-1/R-routines/skills/` — available workflows
-- Ask Claude: *"How does this system work?"* — it can explain the whole structure
+- Browse the **Dashboard → Docs** page for in-app documentation
+- Open `docs/user-guide.html` for the comprehensive interactive guide
+- Read `self-hosting-guide.md` for Docker deployment
+- Ask your AI: *"How does this system work?"* — it understands the whole structure
 - Support: [realizeos@realization.co.il](mailto:realizeos@realization.co.il)

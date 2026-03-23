@@ -1,6 +1,8 @@
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { LayoutDashboard, Users, Briefcase, AlertCircle, Plug, ArrowRight } from 'lucide-react'
+import { LayoutDashboard, Users, Briefcase, AlertCircle, Plug, ArrowRight, ShieldCheck } from 'lucide-react'
 import { useApi } from '@/hooks/use-api'
+import { api } from '@/lib/api'
 import { VentureHealthCard } from '@/components/venture-health-card'
 import { ActivityFeed, type ActivityEvent } from '@/components/activity-feed'
 
@@ -100,6 +102,9 @@ export default function OverviewPage() {
         />
       </div>
 
+      {/* Security Posture */}
+      <SecurityPostureWidget />
+
       {/* Ventures */}
       <section>
         <h2 className="text-lg font-semibold text-foreground mb-3">Ventures</h2>
@@ -129,6 +134,42 @@ export default function OverviewPage() {
           <ActivityFeed events={data.recent_activity} maxItems={20} />
         </div>
       </section>
+    </div>
+  )
+}
+
+function SecurityPostureWidget() {
+  const [scan, setScan] = useState<{
+    passed: number; warnings: number; critical: number; total: number
+  } | null>(null)
+
+  useEffect(() => {
+    api.get<{ scan: typeof scan }>('/security/status')
+      .then(res => { if (res.scan) setScan(res.scan) })
+      .catch(() => {})
+  }, [])
+
+  if (!scan) return null
+
+  const score = scan.total > 0 ? Math.round((scan.passed / scan.total) * 100) : 0
+  const color = scan.critical > 0 ? 'text-red-400' : scan.warnings > 2 ? 'text-amber-400' : 'text-emerald-400'
+  const bgColor = scan.critical > 0 ? 'border-red-400/20' : scan.warnings > 2 ? 'border-amber-400/20' : 'border-emerald-400/20'
+
+  return (
+    <div className={`rounded-xl border ${bgColor} bg-card p-4`}>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <ShieldCheck className={`h-5 w-5 ${color}`} />
+          <span className="text-sm font-semibold text-foreground">Security Posture</span>
+        </div>
+        <span className={`text-2xl font-bold ${color}`}>{score}%</span>
+      </div>
+      <div className="flex gap-4 mt-2 text-xs text-muted-foreground">
+        <span><span className="text-emerald-400 font-medium">{scan.passed}</span> passed</span>
+        <span><span className="text-amber-400 font-medium">{scan.warnings}</span> warnings</span>
+        <span><span className="text-red-400 font-medium">{scan.critical}</span> critical</span>
+        <span className="ml-auto">of {scan.total} checks</span>
+      </div>
     </div>
   )
 }
