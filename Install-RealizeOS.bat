@@ -3,12 +3,12 @@ setlocal EnableDelayedExpansion
 title RealizeOS V5 - Interactive Setup Wizard
 
 :: --------------------------------------------------------------------------
-:: 1. Self-Elevate to Administrator (Needed to bypass execution policies cleanly)
+:: 1. Self-Elevate to Administrator
 :: --------------------------------------------------------------------------
-fsutil dirty query %systemdrive% >nul 2>&1
+net session >nul 2>&1
 if !errorlevel! neq 0 (
     echo Requesting Administrator privileges...
-    powershell -Command "Start-Process '%~f0' -Verb RunAs"
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process cmd.exe -ArgumentList '/c \"\"%~f0\"\"' -Verb RunAs"
     exit /b
 )
 
@@ -16,7 +16,7 @@ if !errorlevel! neq 0 (
 cd /d "%~dp0"
 
 :: --------------------------------------------------------------------------
-:: 2. Welcome Screen & App Explanation
+:: 2. Welcome Screen
 :: --------------------------------------------------------------------------
 cls
 color 0B
@@ -26,10 +26,11 @@ echo ===========================================================================
 echo.
 echo Welcome to the RealizeOS Setup Wizard!
 echo.
-echo RealizeOS is an advanced, self-evolving AI Operations System built for absolute 
-echo control, privacy, and performance. This installer will automatically:
-echo   - Download and install Python (if you don't have it)
-echo   - Download the latest RealizeOS secure package from GitHub
+echo RealizeOS is an advanced, self-evolving AI Operations System built for
+echo absolute control, privacy, and performance. This installer will:
+echo.
+echo   - Check and install Python (if you don't have it)
+echo   - Download the latest RealizeOS package from GitHub
 echo   - Install all necessary dependencies safely
 echo   - Create a desktop shortcut to launch your local dashboard
 echo.
@@ -40,14 +41,20 @@ echo.
 echo ------------------------------------------------------------------------------
 echo END-USER LICENSE AGREEMENT (EULA)
 echo ------------------------------------------------------------------------------
-echo By proceeding, you agree to use RealizeOS responsibly. RealizeOS is provided
-echo "AS IS" without warranty of any kind. You are responsible for your own API
-echo keys and token costs. 
+echo.
+echo By proceeding, you agree to use RealizeOS responsibly.
+echo RealizeOS is provided "AS IS" without warranty of any kind.
+echo You are responsible for your own API keys and token costs.
+echo.
+echo Core engine: MIT License
+echo.
 echo ------------------------------------------------------------------------------
 :EULA_PROMPT
+set "AGREE="
 set /p "AGREE=Do you accept these terms? (Y/N): "
 if /I "!AGREE!"=="N" (
-    echo Installation Cancelled by User.
+    echo.
+    echo Installation cancelled by user.
     pause
     exit /b
 )
@@ -63,131 +70,165 @@ echo.
 echo ------------------------------------------------------------------------------
 echo INSTALLATION DIRECTORY
 echo ------------------------------------------------------------------------------
-set "DEFAULT_DIR=%USERPROFILE%\RealizeOS"
+set "DEFAULT_DIR=!USERPROFILE!\RealizeOS"
 set "INSTALL_DIR="
-
-set /p "INSTALL_DIR=Enter installation path (Press ENTER for Default: !DEFAULT_DIR!): "
+set /p "INSTALL_DIR=Enter installation path (Press ENTER for default: !DEFAULT_DIR!): "
 if "!INSTALL_DIR!"=="" set "INSTALL_DIR=!DEFAULT_DIR!"
 
 echo.
-echo Setting up RealizeOS in: !INSTALL_DIR!
+echo Installing to: !INSTALL_DIR!
+echo.
+
 if not exist "!INSTALL_DIR!" (
-    mkdir "!INSTALL_DIR!"
-    if !errorlevel! neq 0 (
+    mkdir "!INSTALL_DIR!" 2>nul
+    if not exist "!INSTALL_DIR!" (
         echo [ERROR] Could not create directory: !INSTALL_DIR!
-        echo Please ensure you have permission and try again.
+        echo Please check the path and try again.
         pause
         exit /b 1
     )
 )
 
-:: Common PowerShell Command Prefix for maximum compatibility
-set "PS_CMD=powershell -NoProfile -ExecutionPolicy Bypass -Command"
-set "TLS_PATCH=[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12;"
+:: --------------------------------------------------------------------------
+:: 5. Check Python
+:: --------------------------------------------------------------------------
+echo [1/4] Checking for Python...
 
-:: --------------------------------------------------------------------------
-:: 5. Python Installation Check
-:: --------------------------------------------------------------------------
-echo.
-echo [1/4] Checking Python requirements...
-python --version >nul 2>&1
+where python >nul 2>&1
 if !errorlevel! equ 0 (
-    echo [OK] Python is already installed!
-) else (
-    echo [!] Python not found. Downloading Python 3.11...
-    set "PY_INSTALLER=%TEMP%\python_installer.exe"
-    !PS_CMD! "!TLS_PATCH! Invoke-WebRequest -Uri 'https://www.python.org/ftp/python/3.11.8/python-3.11.8-amd64.exe' -OutFile '!PY_INSTALLER!'"
-    
-    if not exist "!PY_INSTALLER!" (
-        echo [ERROR] Failed to download Python. Please check your internet connection or install manually.
-        pause
-        exit /b 1
-    )
-    
-    echo [!] Installing Python silently (this will take a minute or two)...
-    "!PY_INSTALLER!" /quiet InstallAllUsers=0 PrependPath=1 Include_test=0
-    
-    :: Refresh Environment Variables
-    set "PATH=%LOCALAPPDATA%\Programs\Python\Python311\Scripts;%LOCALAPPDATA%\Programs\Python\Python311;%PATH%"
-    echo [OK] Python installed successfully!
+    echo       [OK] Python is already installed.
+    goto :PYTHON_READY
 )
 
+echo       [!] Python not found. Downloading Python 3.11...
+set "PY_INSTALLER=!TEMP!\python_installer.exe"
+
+powershell -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri 'https://www.python.org/ftp/python/3.11.8/python-3.11.8-amd64.exe' -OutFile '!PY_INSTALLER!'"
+
+if not exist "!PY_INSTALLER!" (
+    echo       [ERROR] Failed to download Python.
+    echo       Please check your internet connection or install Python manually from python.org
+    pause
+    exit /b 1
+)
+
+echo       [!] Installing Python silently (this may take 1-2 minutes)...
+"!PY_INSTALLER!" /quiet InstallAllUsers=0 PrependPath=1 Include_test=0
+
+:: Refresh PATH for the current session
+set "PATH=!LOCALAPPDATA!\Programs\Python\Python311\Scripts;!LOCALAPPDATA!\Programs\Python\Python311;!PATH!"
+
+where python >nul 2>&1
+if !errorlevel! neq 0 (
+    echo       [ERROR] Python installation may have failed.
+    echo       Please install Python manually from https://python.org and re-run this installer.
+    pause
+    exit /b 1
+)
+
+echo       [OK] Python installed successfully!
+
+:PYTHON_READY
+
 :: --------------------------------------------------------------------------
-:: 6. Download RealizeOS Core
+:: 6. Download RealizeOS
 :: --------------------------------------------------------------------------
 echo.
-echo [2/4] Downloading RealizeOS Core Package from GitHub...
-set "ZIP_FILE=%TEMP%\RealizeOS-main.zip"
+echo [2/4] Downloading RealizeOS from GitHub...
+set "ZIP_FILE=!TEMP!\RealizeOS-main.zip"
 
-!PS_CMD! "!TLS_PATCH! Invoke-WebRequest -Uri 'https://github.com/SufZen/RealizeOS-5/archive/refs/heads/main.zip' -OutFile '!ZIP_FILE!'"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri 'https://github.com/SufZen/RealizeOS-5/archive/refs/heads/main.zip' -OutFile '!ZIP_FILE!'"
 
 if not exist "!ZIP_FILE!" (
-    echo [ERROR] Failed to download RealizeOS source code. 
-    echo Check your internet connection or GitHub availability.
+    echo       [ERROR] Failed to download RealizeOS source code.
+    echo       Please check your internet connection.
+    echo       If the repository is private, ensure you have access.
+    pause
+    exit /b 1
+)
+
+:: Quick check: is the file actually a valid zip (more than 1KB)?
+for %%A in ("!ZIP_FILE!") do set "ZIP_SIZE=%%~zA"
+if !ZIP_SIZE! LSS 1000 (
+    echo       [ERROR] Downloaded file is too small - download may have failed.
+    echo       The repository may be private. Please contact the developer for access.
+    del /f /q "!ZIP_FILE!" 2>nul
     pause
     exit /b 1
 )
 
 :: --------------------------------------------------------------------------
-:: 7. Extraction
+:: 7. Extract
 :: --------------------------------------------------------------------------
 echo.
 echo [3/4] Extracting system files...
-set "TEMP_EXTRACT=%TEMP%\RealizeOS_Temp"
+set "TEMP_EXTRACT=!TEMP!\RealizeOS_Temp"
 if exist "!TEMP_EXTRACT!" rmdir /s /q "!TEMP_EXTRACT!"
 
-!PS_CMD! "Expand-Archive -Path '!ZIP_FILE!' -DestinationPath '!TEMP_EXTRACT!' -Force"
-if !errorlevel! neq 0 (
-    echo [ERROR] Failed to extract the ZIP archive.
+powershell -NoProfile -ExecutionPolicy Bypass -Command "Expand-Archive -Path '!ZIP_FILE!' -DestinationPath '!TEMP_EXTRACT!' -Force"
+
+if not exist "!TEMP_EXTRACT!\RealizeOS-5-main" (
+    echo       [ERROR] Extraction failed. The archive may be corrupted.
     pause
     exit /b 1
 )
 
-:: Move core files to their permanent home
+:: Copy core files to chosen install directory
 xcopy /s /e /y /q "!TEMP_EXTRACT!\RealizeOS-5-main\*" "!INSTALL_DIR!\" >nul
-move /Y "!TEMP_EXTRACT!\RealizeOS-5-main\.gitattributes" "!INSTALL_DIR!\" >nul 2>&1
-move /Y "!TEMP_EXTRACT!\RealizeOS-5-main\.env.example" "!INSTALL_DIR!\" >nul 2>&1
+
+:: Copy hidden files that xcopy might skip
+if exist "!TEMP_EXTRACT!\RealizeOS-5-main\.env.example" (
+    copy /y "!TEMP_EXTRACT!\RealizeOS-5-main\.env.example" "!INSTALL_DIR!\" >nul 2>&1
+)
 
 :: Cleanup temp files
-rmdir /s /q "!TEMP_EXTRACT!"
-del /f /q "!ZIP_FILE!"
+rmdir /s /q "!TEMP_EXTRACT!" 2>nul
+del /f /q "!ZIP_FILE!" 2>nul
+echo       [OK] Files extracted to !INSTALL_DIR!
 
 :: --------------------------------------------------------------------------
-:: 8. Dependency Installation & Desktop Shortcut
+:: 8. Install Dependencies
 :: --------------------------------------------------------------------------
 echo.
-echo [4/4] Installing background AI dependencies...
+echo [4/4] Installing dependencies (this may take a few minutes)...
 cd /d "!INSTALL_DIR!"
 python -m pip install --upgrade pip >nul 2>&1
 python -m pip install -r requirements.txt
+
 if !errorlevel! neq 0 (
-    echo [WARNING] There was a minor issue installing some dependencies. The system will try to resolve this on launch.
+    echo       [WARNING] Some dependencies had issues. The system will try to resolve on launch.
 ) else (
-    echo [OK] Dependencies installed successfully!
+    echo       [OK] All dependencies installed successfully!
 )
 
+:: --------------------------------------------------------------------------
+:: 9. Create Desktop Shortcut
+:: --------------------------------------------------------------------------
 echo.
-echo Creating Desktop Shortcut...
-set "SHORTCUT_PATH=%USERPROFILE%\Desktop\Start RealizeOS.lnk"
+echo Creating Desktop shortcut...
+set "SHORTCUT_PATH=!USERPROFILE!\Desktop\Start RealizeOS.lnk"
 set "LAUNCHER_PATH=!INSTALL_DIR!\start-realizeos.bat"
 
-!PS_CMD! "$wshell = New-Object -ComObject WScript.Shell; $shortcut = $wshell.CreateShortcut('!SHORTCUT_PATH!'); $shortcut.TargetPath = '!LAUNCHER_PATH!'; $shortcut.WorkingDirectory = '!INSTALL_DIR!'; $shortcut.Description = 'Launch RealizeOS V5 AI Dashboard'; $shortcut.Save()"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$ws = New-Object -ComObject WScript.Shell; $sc = $ws.CreateShortcut('!SHORTCUT_PATH!'); $sc.TargetPath = '!LAUNCHER_PATH!'; $sc.WorkingDirectory = '!INSTALL_DIR!'; $sc.Description = 'Launch RealizeOS V5'; $sc.Save()"
+
+echo       [OK] Shortcut created on Desktop.
 
 :: --------------------------------------------------------------------------
-:: 9. Completion
+:: 10. Completion
 :: --------------------------------------------------------------------------
-cls
+echo.
 color 0A
 echo ==============================================================================
-echo                           INSTALLATION COMPLETE!
+echo                        INSTALLATION COMPLETE!
 echo ==============================================================================
 echo.
-echo RealizeOS has been successfully installed to:
-echo  !INSTALL_DIR!
+echo RealizeOS V5 has been installed to:
+echo   !INSTALL_DIR!
 echo.
-echo A shortcut named "Start RealizeOS" is now on your Desktop.
+echo A shortcut "Start RealizeOS" is now on your Desktop.
+echo Double-click it anytime to launch the system.
 echo.
-echo Press any key to close this wizard and start the system for the first time!
+echo Press any key to close this wizard and start RealizeOS...
 echo.
 pause >nul
 
