@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import { Settings, Shield, Cpu, Server, RefreshCw, Database, AlertCircle, Check, Brain, Search, Route, FileText, ShieldCheck, Loader2 } from 'lucide-react'
+import { Settings, Shield, Cpu, Server, RefreshCw, Database, AlertCircle, Check, Brain, Search, Route, FileText, ShieldCheck, Loader2, HelpCircle, RotateCcw } from 'lucide-react'
 import { useApi } from '@/hooks/use-api'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
+import { useTour } from '@/components/tour-provider'
 
 interface Provider {
   name: string
@@ -313,6 +314,9 @@ export default function SettingsPage() {
 
       {/* Memory */}
       <MemorySection />
+
+      {/* Help & Support */}
+      <HelpSection />
     </div>
   )
 }
@@ -616,6 +620,45 @@ function SecuritySection({ saving, setSaving, setStatus }: { saving: boolean; se
         {scanning ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
         {scanning ? 'Scanning...' : 'Run Security Scan'}
       </button>
+    </div>
+  )
+}
+
+function HelpSection() {
+  const { startTour } = useTour()
+
+  function resetOnboarding() {
+    try {
+      localStorage.removeItem('realizeos_onboarding_complete')
+      window.location.reload()
+    } catch {
+      // ignore
+    }
+  }
+
+  return (
+    <div className="rounded-xl border border-border bg-card p-6">
+      <div className="flex items-center gap-2 mb-4">
+        <HelpCircle className="h-5 w-5 text-brand-400" />
+        <h2 className="text-lg font-semibold text-foreground">Help & Support</h2>
+      </div>
+      <p className="text-xs text-muted-foreground mb-4">Re-run the guided tour or onboarding wizard to learn about RealizeOS features</p>
+      <div className="flex gap-3">
+        <button
+          onClick={startTour}
+          className="flex items-center gap-2 px-4 py-2 text-sm rounded-lg border border-border bg-surface-800 text-foreground hover:bg-surface-700 transition-colors"
+        >
+          <RotateCcw className="h-4 w-4" />
+          Restart Tour
+        </button>
+        <button
+          onClick={resetOnboarding}
+          className="flex items-center gap-2 px-4 py-2 text-sm rounded-lg border border-border bg-surface-800 text-foreground hover:bg-surface-700 transition-colors"
+        >
+          <RotateCcw className="h-4 w-4" />
+          Reset Onboarding
+        </button>
+      </div>
     </div>
   )
 }

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { BookOpen, Download, Check, AlertCircle, Loader2, Zap } from 'lucide-react'
 import { useApi } from '@/hooks/use-api'
 import { api } from '@/lib/api'
@@ -31,6 +31,13 @@ export default function SkillsPage() {
   const [installed, setInstalled] = useState<Set<string>>(new Set())
   const [selectedVenture, setSelectedVenture] = useState('')
   const [installError, setInstallError] = useState<string | null>(null)
+
+  // Auto-select when only one venture exists
+  useEffect(() => {
+    if (!selectedVenture && venturesData?.ventures.length === 1) {
+      setSelectedVenture(venturesData.ventures[0].key)
+    }
+  }, [venturesData, selectedVenture])
 
   async function handleInstall(skillId: string) {
     if (!selectedVenture) {

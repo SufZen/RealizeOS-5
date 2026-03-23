@@ -60,4 +60,35 @@
     @apply bg-background text-foreground antialiased;
     margin: 0;
   }
+
+  /* Light mode overrides */
+  .light {
+    --color-background: #f8f9fa;
+    --color-foreground: #111827;
+    --color-card: #ffffff;
+    --color-card-foreground: #111827;
+    --color-popover: #ffffff;
+    --color-popover-foreground: #111827;
+    --color-primary: #cc9f00;
+    --color-primary-foreground: #ffffff;
+    --color-secondary: #f1f3f5;
+    --color-secondary-foreground: #111827;
+    --color-muted: #f1f3f5;
+    --color-muted-foreground: #6b7280;
+    --color-accent: #f1f3f5;
+    --color-accent-foreground: #111827;
+    --color-destructive: #dc2626;
+    --color-destructive-foreground: #ffffff;
+    --color-border: #e5e7eb;
+    --color-input: #e5e7eb;
+    --color-ring: #cc9f00;
+
+    --color-surface-50: #f8f9fa;
+    --color-surface-100: #f1f3f5;
+    --color-surface-200: #e9ecef;
+    --color-surface-700: #f1f3f5;
+    --color-surface-800: #ffffff;
+    --color-surface-900: #f8f9fa;
+    --color-surface-950: #ffffff;
+  }
 }

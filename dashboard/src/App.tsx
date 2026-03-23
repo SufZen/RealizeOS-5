@@ -20,6 +20,9 @@ import {
   Puzzle,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { ThemeProvider } from '@/components/theme-provider'
+import { ThemeToggle } from '@/components/theme-toggle'
+import { TourProvider } from '@/components/tour-provider'
 
 const OverviewPage = lazy(() => import('@/pages/overview'))
 const ChatPage = lazy(() => import('@/pages/chat-page'))
@@ -40,44 +43,72 @@ const IntegrationsPage = lazy(() => import('@/pages/integrations-page'))
 
 import OnboardingWizard, { isOnboardingComplete } from '@/components/onboarding-wizard'
 
-const navItems = [
-  { to: '/', icon: LayoutDashboard, label: 'Overview' },
-  { to: '/chat', icon: MessageCircle, label: 'Chat' },
-  { to: '/ventures', icon: Briefcase, label: 'Ventures' },
-  { to: '/activity', icon: Activity, label: 'Activity' },
-  { to: '/evolution', icon: Sparkles, label: 'Evolution' },
-  { to: '/approvals', icon: ShieldCheck, label: 'Approvals' },
-  { to: '/skills', icon: BookOpen, label: 'Skills' },
-  { to: '/pipelines', icon: GitBranch, label: 'Pipelines' },
-  { to: '/workflows', icon: FileCode2, label: 'Workflows' },
-  { to: '/routing', icon: RouteIcon, label: 'Routing' },
-  { to: '/tools', icon: Wrench, label: 'Tools' },
-  { to: '/integrations', icon: Puzzle, label: 'Integrations' },
-  { to: '/setup', icon: Plug, label: 'Setup' },
-  { to: '/settings', icon: Settings, label: 'Settings' },
+const navGroups = [
+  {
+    label: 'Core',
+    items: [
+      { to: '/', icon: LayoutDashboard, label: 'Overview' },
+      { to: '/chat', icon: MessageCircle, label: 'Chat' },
+      { to: '/ventures', icon: Briefcase, label: 'Ventures' },
+    ],
+  },
+  {
+    label: 'Build',
+    items: [
+      { to: '/skills', icon: BookOpen, label: 'Skills' },
+      { to: '/pipelines', icon: GitBranch, label: 'Pipelines' },
+      { to: '/workflows', icon: FileCode2, label: 'Workflows' },
+    ],
+  },
+  {
+    label: 'Monitor',
+    items: [
+      { to: '/activity', icon: Activity, label: 'Activity' },
+      { to: '/approvals', icon: ShieldCheck, label: 'Approvals' },
+      { to: '/evolution', icon: Sparkles, label: 'Evolution' },
+      { to: '/routing', icon: RouteIcon, label: 'Routing' },
+    ],
+  },
+  {
+    label: 'Configure',
+    items: [
+      { to: '/tools', icon: Wrench, label: 'Tools' },
+      { to: '/integrations', icon: Puzzle, label: 'Integrations' },
+      { to: '/setup', icon: Plug, label: 'Setup' },
+      { to: '/settings', icon: Settings, label: 'Settings' },
+    ],
+  },
 ]
 
 function NavContent({ onNavigate }: { onNavigate?: () => void }) {
   return (
-    <nav className="flex flex-col gap-1">
-      {navItems.map(({ to, icon: Icon, label }) => (
-        <NavLink
-          key={to}
-          to={to}
-          end={to === '/'}
-          onClick={onNavigate}
-          className={({ isActive }) =>
-            cn(
-              'flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors',
-              isActive
-                ? 'bg-brand-400/10 text-brand-400 font-medium'
-                : 'text-muted-foreground hover:bg-surface-700 hover:text-foreground',
-            )
-          }
-        >
-          <Icon className="h-4 w-4" />
-          {label}
-        </NavLink>
+    <nav className="flex flex-col gap-1 flex-1" data-tour="sidebar">
+      {navGroups.map((group) => (
+        <div key={group.label} className="mb-3">
+          <span className="px-3 mb-1 block text-[10px] uppercase tracking-widest text-muted-foreground/60 font-semibold">
+            {group.label}
+          </span>
+          {group.items.map(({ to, icon: Icon, label }) => (
+            <NavLink
+              key={to}
+              to={to}
+              end={to === '/'}
+              onClick={onNavigate}
+              data-tour={`nav-${label.toLowerCase()}`}
+              className={({ isActive }) =>
+                cn(
+                  'flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors',
+                  isActive
+                    ? 'bg-brand-400/10 text-brand-400 font-medium'
+                    : 'text-muted-foreground hover:bg-surface-700 hover:text-foreground',
+                )
+              }
+            >
+              <Icon className="h-4 w-4" />
+              {label}
+            </NavLink>
+          ))}
+        </div>
       ))}
     </nav>
   )
@@ -97,6 +128,9 @@ function DesktopSidebar() {
     <aside className="hidden md:flex w-64 flex-col border-r border-border bg-surface-950 p-4">
       <Logo />
       <NavContent />
+      <div className="mt-auto pt-4 border-t border-border" data-tour="theme-toggle">
+        <ThemeToggle />
+      </div>
     </aside>
   )
 }
@@ -197,44 +231,52 @@ export default function App() {
   const [showOnboarding, setShowOnboarding] = useState(!isOnboardingComplete())
 
   if (showOnboarding) {
-    return <OnboardingWizard onComplete={() => setShowOnboarding(false)} />
+    return (
+      <ThemeProvider>
+        <OnboardingWizard onComplete={() => setShowOnboarding(false)} />
+      </ThemeProvider>
+    )
   }
 
   return (
-    <BrowserRouter>
-      <div className="flex h-screen bg-background">
-        <DesktopSidebar />
-        <div className="flex flex-1 flex-col overflow-hidden">
-          <MobileHeader onToggle={() => setMobileOpen(true)} />
-          <MobileSheet open={mobileOpen} onClose={() => setMobileOpen(false)} />
-          <main className="flex-1 overflow-y-auto p-6">
-            <ErrorBoundaryWithLocation>
-            <Suspense
-              fallback={<div className="flex items-center justify-center h-64 text-muted-foreground">Loading...</div>}
-            >
-              <Routes>
-                <Route path="/" element={<OverviewPage />} />
-                <Route path="/chat" element={<ChatPage />} />
-                <Route path="/ventures" element={<VenturesListPage />} />
-                <Route path="/ventures/:key" element={<VentureDetailPage />} />
-                <Route path="/ventures/:key/agents/:id" element={<AgentDetailPage />} />
-                <Route path="/activity" element={<ActivityPage />} />
-                <Route path="/evolution" element={<EvolutionPage />} />
-                <Route path="/approvals" element={<ApprovalsPage />} />
-                <Route path="/skills" element={<SkillsPage />} />
-                <Route path="/tools" element={<ToolsPage />} />
-                <Route path="/pipelines" element={<PipelineBuilderPage />} />
-                <Route path="/workflows" element={<WorkflowEditorPage />} />
-                <Route path="/routing" element={<RoutingPage />} />
-                <Route path="/integrations" element={<IntegrationsPage />} />
-                <Route path="/setup" element={<SetupPage />} />
-                <Route path="/settings" element={<SettingsPage />} />
-              </Routes>
-            </Suspense>
-            </ErrorBoundaryWithLocation>
-          </main>
+    <ThemeProvider>
+      <BrowserRouter>
+        <TourProvider>
+        <div className="flex h-screen bg-background">
+          <DesktopSidebar />
+          <div className="flex flex-1 flex-col overflow-hidden">
+            <MobileHeader onToggle={() => setMobileOpen(true)} />
+            <MobileSheet open={mobileOpen} onClose={() => setMobileOpen(false)} />
+            <main className="flex-1 overflow-y-auto p-6">
+              <ErrorBoundaryWithLocation>
+              <Suspense
+                fallback={<div className="flex items-center justify-center h-64 text-muted-foreground">Loading...</div>}
+              >
+                <Routes>
+                  <Route path="/" element={<OverviewPage />} />
+                  <Route path="/chat" element={<ChatPage />} />
+                  <Route path="/ventures" element={<VenturesListPage />} />
+                  <Route path="/ventures/:key" element={<VentureDetailPage />} />
+                  <Route path="/ventures/:key/agents/:id" element={<AgentDetailPage />} />
+                  <Route path="/activity" element={<ActivityPage />} />
+                  <Route path="/evolution" element={<EvolutionPage />} />
+                  <Route path="/approvals" element={<ApprovalsPage />} />
+                  <Route path="/skills" element={<SkillsPage />} />
+                  <Route path="/tools" element={<ToolsPage />} />
+                  <Route path="/pipelines" element={<PipelineBuilderPage />} />
+                  <Route path="/workflows" element={<WorkflowEditorPage />} />
+                  <Route path="/routing" element={<RoutingPage />} />
+                  <Route path="/integrations" element={<IntegrationsPage />} />
+                  <Route path="/setup" element={<SetupPage />} />
+                  <Route path="/settings" element={<SettingsPage />} />
+                </Routes>
+              </Suspense>
+              </ErrorBoundaryWithLocation>
+            </main>
+          </div>
         </div>
-      </div>
-    </BrowserRouter>
+        </TourProvider>
+      </BrowserRouter>
+    </ThemeProvider>
   )
 }

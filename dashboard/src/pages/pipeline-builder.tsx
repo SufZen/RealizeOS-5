@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import {
   GitBranch,
   Plus,
@@ -78,6 +78,13 @@ export default function PipelineBuilderPage() {
   const { data: venturesData } = useApi<VenturesData>('/ventures')
   const [selectedVenture, setSelectedVenture] = useState('')
   const [activeTab, setActiveTab] = useState<'builder' | 'library'>('builder')
+
+  // Auto-select when only one venture exists
+  useEffect(() => {
+    if (!selectedVenture && venturesData?.ventures.length === 1) {
+      setSelectedVenture(venturesData.ventures[0].key)
+    }
+  }, [venturesData, selectedVenture])
 
   // Local pipeline state
   const [pipeline, setPipeline] = useState<Pipeline>({
