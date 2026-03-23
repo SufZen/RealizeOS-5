@@ -77,7 +77,13 @@ For technical users who want the complete engine.
 #    Claude reads CLAUDE.md and becomes your AI team
 ```
 
-### Full Edition
+### Full Edition (Windows One-Click Installer)
+
+The easiest way to install and run RealizeOS on Windows is to use the automated wizard:
+1. Download the [`Install-RealizeOS.bat`](https://github.com/SufZen/RealizeOS-5/blob/main/Install-RealizeOS.bat) file natively.
+2. Double-click it. The wizard will securely install Python, set up the system, and place a shortcut on your Desktop!
+
+### Full Edition (Manual/Mac/Linux)
 
 ```bash
 # 1. Clone and install
