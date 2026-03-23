@@ -60,9 +60,22 @@ interface RoutingData {
 /* ------------------------------------------------------------------ */
 
 export default function RoutingPage() {
-  const { data, loading, error, refetch } = useApi<RoutingData>('/routing/analytics')
+  const { data: rawData, loading, error, refetch } = useApi<RoutingData>('/routing/analytics')
   const [timeRange, setTimeRange] = useState<'1h' | '24h' | '7d' | '30d'>('24h')
   const [agentFilter, setAgentFilter] = useState<string>('')
+
+  // Normalize data with safe defaults to prevent crashes
+  const data = useMemo<RoutingData | null>(() => {
+    if (!rawData) return null
+    return {
+      decisions: rawData.decisions ?? [],
+      agent_stats: rawData.agent_stats ?? [],
+      model_stats: rawData.model_stats ?? [],
+      total_decisions: rawData.total_decisions ?? 0,
+      avg_latency_ms: rawData.avg_latency_ms ?? 0,
+      avg_confidence: rawData.avg_confidence ?? 0,
+    }
+  }, [rawData])
 
   const filteredDecisions = useMemo(() => {
     if (!data?.decisions) return []

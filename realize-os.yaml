@@ -1,7 +1,7 @@
-name: Realization
+name: RealizeOS
 systems:
 - key: consulting
-  name: Realization
+  name: RealizeOS
   directory: systems/my-business-1
   routing:
     content:

@@ -25,6 +25,7 @@ from realize_api.routes import (
     evolution,
     extensions,
     health,
+    integrations,
     routing,
     settings,
     setup,
@@ -194,6 +195,7 @@ def create_app() -> FastAPI:
     app.include_router(workflows.router, prefix="/api", tags=["Workflows"])
     app.include_router(extensions.router, prefix="/api", tags=["Extensions"])
     app.include_router(routing.router, prefix="/api", tags=["Routing"])
+    app.include_router(integrations.router, prefix="/api", tags=["Integrations"])
 
     # Serve dashboard from static/ (only if built)
     static_dir = Path(__file__).parent.parent / "static"

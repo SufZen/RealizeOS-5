@@ -129,7 +129,7 @@ function ConnectionCard({
         {conn.configured ? (
           <span className="flex items-center gap-1 text-xs text-green-400 px-2 py-1 rounded-lg bg-green-400/10 shrink-0">
             <Check className="h-3.5 w-3.5" />
-            Connected
+            {conn.type === 'toggle' ? 'Enabled' : 'Connected'}
           </span>
         ) : (
           <span className="text-xs text-muted-foreground px-2 py-1 rounded-lg bg-surface-700 shrink-0">
@@ -141,7 +141,13 @@ function ConnectionCard({
       {/* Masked current value */}
       {conn.masked_value && conn.type !== 'toggle' && !editing && (
         <div className="text-xs text-muted-foreground font-mono mt-2">
-          {conn.env_key}={conn.masked_value}
+          {conn.type === 'secret'
+            ? `••••••••${conn.masked_value.split('...')[1] ?? ''}`
+            : conn.type === 'number' && conn.id === 'rate_limit'
+            ? `${conn.masked_value} requests/min`
+            : conn.type === 'number' && conn.id === 'cost_limit'
+            ? `$${conn.masked_value}/hour`
+            : conn.masked_value}
         </div>
       )}
 
