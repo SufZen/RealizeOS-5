@@ -14,6 +14,7 @@ The extension system supports four types:
 
 Extensions are auto-discovered from config and filesystem at startup.
 """
+
 from __future__ import annotations
 
 import logging
@@ -28,8 +29,10 @@ logger = logging.getLogger(__name__)
 # Enums
 # ---------------------------------------------------------------------------
 
+
 class ExtensionType(StrEnum):
     """Category of extension."""
+
     TOOL = "tool"
     CHANNEL = "channel"
     INTEGRATION = "integration"
@@ -38,6 +41,7 @@ class ExtensionType(StrEnum):
 
 class ExtensionStatus(StrEnum):
     """Runtime status of an extension."""
+
     DISCOVERED = "discovered"
     LOADED = "loaded"
     ACTIVE = "active"
@@ -49,12 +53,14 @@ class ExtensionStatus(StrEnum):
 # Dataclasses
 # ---------------------------------------------------------------------------
 
+
 @dataclass(frozen=True)
 class ExtensionManifest:
     """
     Static metadata for an extension, typically parsed from
     its ``extension.yaml`` or directory convention.
     """
+
     name: str
     version: str = "0.1.0"
     extension_type: ExtensionType = ExtensionType.TOOL
@@ -73,6 +79,7 @@ class ExtensionRegistration:
     Tracks the lifecycle state and resolved class reference
     for a discovered extension.
     """
+
     manifest: ExtensionManifest
     status: ExtensionStatus = ExtensionStatus.DISCOVERED
     instance: BaseExtension | None = None
@@ -90,6 +97,7 @@ class ExtensionRegistration:
 # ---------------------------------------------------------------------------
 # Protocol — runtime interface for extension implementations
 # ---------------------------------------------------------------------------
+
 
 @runtime_checkable
 class BaseExtension(Protocol):

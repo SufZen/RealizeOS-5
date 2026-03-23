@@ -8,6 +8,7 @@ Covers:
 - Cost calculation fallback
 - Error handling (API errors, import errors)
 """
+
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -16,6 +17,7 @@ from realize_core.llm.base_provider import Capability, LLMResponse
 # ---------------------------------------------------------------------------
 # We mock litellm at the module level since it may not be installed
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def mock_litellm():
@@ -32,6 +34,7 @@ def provider(mock_litellm):
     """Create a LiteLLMProvider with mocked litellm."""
     with patch.dict("sys.modules", {"litellm": mock_litellm}):
         from realize_core.llm.litellm_provider import LiteLLMProvider
+
         p = LiteLLMProvider(default_model="gpt-4o-mini")
         p._litellm = mock_litellm
         return p
@@ -40,6 +43,7 @@ def provider(mock_litellm):
 # ---------------------------------------------------------------------------
 # Interface compliance
 # ---------------------------------------------------------------------------
+
 
 class TestProviderInterface:
     """Test that LiteLLMProvider implements BaseLLMProvider correctly."""
@@ -77,6 +81,7 @@ class TestProviderInterface:
         """When enabled_models is set, only those models are listed."""
         with patch.dict("sys.modules", {"litellm": mock_litellm}):
             from realize_core.llm.litellm_provider import LiteLLMProvider
+
             p = LiteLLMProvider(enabled_models=["gpt-4o", "gpt-4o-mini"])
             models = p.list_models()
             assert len(models) == 2
@@ -91,6 +96,7 @@ class TestProviderInterface:
         """is_available returns False when litellm is not installed."""
         with patch.dict("sys.modules", {"litellm": None}):
             from realize_core.llm.litellm_provider import LiteLLMProvider
+
             p = LiteLLMProvider()
             assert p.is_available() is False
 
@@ -107,6 +113,7 @@ class TestProviderInterface:
 # ---------------------------------------------------------------------------
 # Text completion
 # ---------------------------------------------------------------------------
+
 
 class TestComplete:
     """Test text completion via LiteLLM."""
@@ -213,6 +220,7 @@ class TestComplete:
 # Tool-use completion
 # ---------------------------------------------------------------------------
 
+
 class TestCompleteWithTools:
     """Test tool-use completion via LiteLLM."""
 
@@ -226,14 +234,16 @@ class TestCompleteWithTools:
         mock_response.usage.completion_tokens = 100
         mock_litellm.acompletion.return_value = mock_response
 
-        tools = [{
-            "type": "function",
-            "function": {
-                "name": "search_web",
-                "description": "Search the web",
-                "parameters": {"type": "object", "properties": {}},
-            },
-        }]
+        tools = [
+            {
+                "type": "function",
+                "function": {
+                    "name": "search_web",
+                    "description": "Search the web",
+                    "parameters": {"type": "object", "properties": {}},
+                },
+            }
+        ]
 
         result = await provider.complete_with_tools(
             system_prompt="You can search the web.",
@@ -250,6 +260,7 @@ class TestCompleteWithTools:
 # ---------------------------------------------------------------------------
 # Vision completion
 # ---------------------------------------------------------------------------
+
 
 class TestCompleteWithVision:
     """Test vision completion via LiteLLM."""
@@ -280,15 +291,13 @@ class TestCompleteWithVision:
         # Last message should contain image_url
         last_msg = msgs[-1]
         assert isinstance(last_msg["content"], list)
-        assert any(
-            item.get("type") == "image_url"
-            for item in last_msg["content"]
-        )
+        assert any(item.get("type") == "image_url" for item in last_msg["content"])
 
 
 # ---------------------------------------------------------------------------
 # Cost calculation
 # ---------------------------------------------------------------------------
+
 
 class TestCostCalculation:
     """Test cost calculation logic."""
@@ -316,6 +325,7 @@ class TestCostCalculation:
 # ---------------------------------------------------------------------------
 # Default model catalog verification
 # ---------------------------------------------------------------------------
+
 
 class TestModelCatalog:
     """Verify the default model catalog is well-formed."""

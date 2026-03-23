@@ -12,6 +12,7 @@ Key features:
 - Graceful fallback to static defaults when offline
 - Feature-gated: only active when enabled in config
 """
+
 import json
 import logging
 import time
@@ -47,6 +48,7 @@ class ModelBenchmark:
         last_updated: Unix timestamp of when this data was last refreshed
         source: Where the benchmark data came from
     """
+
     model_id: str
     provider: str
     display_name: str = ""
@@ -68,6 +70,7 @@ class CostBenefitScore:
     The composite_score is what the router uses to rank models.
     Higher is better.
     """
+
     model_id: str
     provider: str
     composite_score: float
@@ -82,52 +85,100 @@ class CostBenefitScore:
 # Based on public benchmark data (MMLU, HumanEval, GSM8K, etc.).
 _STATIC_BENCHMARKS: list[dict[str, Any]] = [
     {
-        "model_id": "claude-sonnet-4-6-20260217", "provider": "claude",
+        "model_id": "claude-sonnet-4-6-20260217",
+        "provider": "claude",
         "display_name": "Claude 4 Sonnet",
-        "quality_score": 88, "coding_score": 90, "reasoning_score": 87, "speed_score": 75,
-        "input_cost_per_m": 3.0, "output_cost_per_m": 15.0, "context_window": 200000,
+        "quality_score": 88,
+        "coding_score": 90,
+        "reasoning_score": 87,
+        "speed_score": 75,
+        "input_cost_per_m": 3.0,
+        "output_cost_per_m": 15.0,
+        "context_window": 200000,
     },
     {
-        "model_id": "claude-opus-4-6-20260205", "provider": "claude",
+        "model_id": "claude-opus-4-6-20260205",
+        "provider": "claude",
         "display_name": "Claude 4 Opus",
-        "quality_score": 93, "coding_score": 94, "reasoning_score": 95, "speed_score": 50,
-        "input_cost_per_m": 15.0, "output_cost_per_m": 75.0, "context_window": 200000,
+        "quality_score": 93,
+        "coding_score": 94,
+        "reasoning_score": 95,
+        "speed_score": 50,
+        "input_cost_per_m": 15.0,
+        "output_cost_per_m": 75.0,
+        "context_window": 200000,
     },
     {
-        "model_id": "gemini-2.5-flash", "provider": "gemini",
+        "model_id": "gemini-2.5-flash",
+        "provider": "gemini",
         "display_name": "Gemini 2.5 Flash",
-        "quality_score": 82, "coding_score": 80, "reasoning_score": 78, "speed_score": 95,
-        "input_cost_per_m": 0.15, "output_cost_per_m": 0.60, "context_window": 1000000,
+        "quality_score": 82,
+        "coding_score": 80,
+        "reasoning_score": 78,
+        "speed_score": 95,
+        "input_cost_per_m": 0.15,
+        "output_cost_per_m": 0.60,
+        "context_window": 1000000,
     },
     {
-        "model_id": "gpt-4o", "provider": "litellm",
+        "model_id": "gpt-4o",
+        "provider": "litellm",
         "display_name": "GPT-4o",
-        "quality_score": 87, "coding_score": 88, "reasoning_score": 86, "speed_score": 80,
-        "input_cost_per_m": 2.50, "output_cost_per_m": 10.0, "context_window": 128000,
+        "quality_score": 87,
+        "coding_score": 88,
+        "reasoning_score": 86,
+        "speed_score": 80,
+        "input_cost_per_m": 2.50,
+        "output_cost_per_m": 10.0,
+        "context_window": 128000,
     },
     {
-        "model_id": "gpt-4o-mini", "provider": "litellm",
+        "model_id": "gpt-4o-mini",
+        "provider": "litellm",
         "display_name": "GPT-4o Mini",
-        "quality_score": 75, "coding_score": 73, "reasoning_score": 72, "speed_score": 90,
-        "input_cost_per_m": 0.15, "output_cost_per_m": 0.60, "context_window": 128000,
+        "quality_score": 75,
+        "coding_score": 73,
+        "reasoning_score": 72,
+        "speed_score": 90,
+        "input_cost_per_m": 0.15,
+        "output_cost_per_m": 0.60,
+        "context_window": 128000,
     },
     {
-        "model_id": "o3-mini", "provider": "litellm",
+        "model_id": "o3-mini",
+        "provider": "litellm",
         "display_name": "o3-mini",
-        "quality_score": 86, "coding_score": 92, "reasoning_score": 90, "speed_score": 70,
-        "input_cost_per_m": 1.10, "output_cost_per_m": 4.40, "context_window": 200000,
+        "quality_score": 86,
+        "coding_score": 92,
+        "reasoning_score": 90,
+        "speed_score": 70,
+        "input_cost_per_m": 1.10,
+        "output_cost_per_m": 4.40,
+        "context_window": 200000,
     },
     {
-        "model_id": "deepseek/deepseek-chat", "provider": "litellm",
+        "model_id": "deepseek/deepseek-chat",
+        "provider": "litellm",
         "display_name": "DeepSeek V3",
-        "quality_score": 80, "coding_score": 85, "reasoning_score": 78, "speed_score": 85,
-        "input_cost_per_m": 0.27, "output_cost_per_m": 1.10, "context_window": 128000,
+        "quality_score": 80,
+        "coding_score": 85,
+        "reasoning_score": 78,
+        "speed_score": 85,
+        "input_cost_per_m": 0.27,
+        "output_cost_per_m": 1.10,
+        "context_window": 128000,
     },
     {
-        "model_id": "mistral/mistral-large-latest", "provider": "litellm",
+        "model_id": "mistral/mistral-large-latest",
+        "provider": "litellm",
         "display_name": "Mistral Large",
-        "quality_score": 82, "coding_score": 80, "reasoning_score": 81, "speed_score": 78,
-        "input_cost_per_m": 2.0, "output_cost_per_m": 6.0, "context_window": 128000,
+        "quality_score": 82,
+        "coding_score": 80,
+        "reasoning_score": 81,
+        "speed_score": 78,
+        "input_cost_per_m": 2.0,
+        "output_cost_per_m": 6.0,
+        "context_window": 128000,
     },
 ]
 
@@ -167,7 +218,7 @@ _TASK_SCORE_MAP: dict[str, str] = {
     "financial": "reasoning_score",
     "complex": "reasoning_score",
     "code": "coding_score",
-    "google": "quality_score",    # tool use needs good general quality
+    "google": "quality_score",  # tool use needs good general quality
     "web_research": "quality_score",
     "web_action": "quality_score",
 }
@@ -386,10 +437,7 @@ class BenchmarkCache:
         task_score_key = _TASK_SCORE_MAP.get(task_type, "quality_score")
 
         # Find the max cost for normalization
-        all_costs = [
-            bm.input_cost_per_m + bm.output_cost_per_m
-            for bm in self._benchmarks.values()
-        ]
+        all_costs = [bm.input_cost_per_m + bm.output_cost_per_m for bm in self._benchmarks.values()]
         max_cost = max(all_costs) if all_costs else 1.0
 
         scores: list[CostBenefitScore] = []
@@ -419,21 +467,23 @@ class BenchmarkCache:
                 + weights["task_fit"] * task_fit
             )
 
-            scores.append(CostBenefitScore(
-                model_id=model_id,
-                provider=bm.provider,
-                composite_score=round(composite, 4),
-                quality_component=round(quality, 4),
-                cost_component=round(cost, 4),
-                speed_component=round(speed, 4),
-                task_fit_component=round(task_fit, 4),
-                details={
-                    "display_name": bm.display_name,
-                    "total_cost_per_m": round(total_cost, 2),
-                    "strategy": strategy,
-                    "task_type": task_type,
-                },
-            ))
+            scores.append(
+                CostBenefitScore(
+                    model_id=model_id,
+                    provider=bm.provider,
+                    composite_score=round(composite, 4),
+                    quality_component=round(quality, 4),
+                    cost_component=round(cost, 4),
+                    speed_component=round(speed, 4),
+                    task_fit_component=round(task_fit, 4),
+                    details={
+                        "display_name": bm.display_name,
+                        "total_cost_per_m": round(total_cost, 2),
+                        "strategy": strategy,
+                        "task_type": task_type,
+                    },
+                )
+            )
 
         # Sort by composite score descending
         scores.sort(key=lambda s: s.composite_score, reverse=True)

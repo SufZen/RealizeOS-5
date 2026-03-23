@@ -7,6 +7,7 @@ Provides:
 - Guardrail violation detection
 - Quality gate enforcement (strict vs advisory)
 """
+
 from __future__ import annotations
 
 import logging
@@ -24,8 +25,10 @@ logger = logging.getLogger(__name__)
 # Verdict parsing
 # ---------------------------------------------------------------------------
 
+
 class Verdict(StrEnum):
     """Quality gate verdict."""
+
     PASS = "pass"
     FAIL = "fail"
     UNKNOWN = "unknown"
@@ -42,6 +45,7 @@ class VerdictResult:
         feedback: Extracted feedback text.
         raw_match: The exact text that triggered the verdict.
     """
+
     verdict: Verdict
     confidence: float = 1.0
     feedback: str = ""
@@ -141,9 +145,11 @@ def _extract_feedback(text: str) -> str:
 # Guardrail evaluation
 # ---------------------------------------------------------------------------
 
+
 @dataclass(frozen=True)
 class GuardrailViolation:
     """A detected guardrail violation."""
+
     guardrail_name: str
     description: str
     enforcement: str  # "strict" or "advisory"

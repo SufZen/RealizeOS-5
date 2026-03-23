@@ -12,6 +12,7 @@ Tools:
 - browser_extract — Extract text/data from specific elements
 - browser_scroll — Scroll the page
 """
+
 import asyncio
 import base64
 import logging
@@ -41,16 +42,16 @@ class BrowserSession:
             return
         try:
             from playwright.async_api import async_playwright
+
             self._playwright = await async_playwright().start()
             self.browser = await self._playwright.chromium.launch(
                 headless=BROWSER_HEADLESS,
-                args=["--no-sandbox", "--disable-setuid-sandbox",
-                      "--disable-dev-shm-usage", "--disable-gpu"],
+                args=["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage", "--disable-gpu"],
             )
             self.context = await self.browser.new_context(
                 viewport={"width": 1280, "height": 720},
                 user_agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
-                           "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             )
             self.page = await self.context.new_page()
             self.page.set_default_timeout(BROWSER_TIMEOUT * 1000)
@@ -105,6 +106,7 @@ async def cleanup_all_sessions():
 # Tool Functions
 # ---------------------------------------------------------------------------
 
+
 async def browser_navigate(url: str, user_id: str = "0") -> dict:
     session = await _get_session(user_id)
     try:
@@ -122,8 +124,7 @@ async def browser_navigate(url: str, user_id: str = "0") -> dict:
     }""")
     screenshot_bytes = await session.page.screenshot(type="jpeg", quality=60)
     screenshot_b64 = base64.b64encode(screenshot_bytes).decode("utf-8")
-    return {"url": session.page.url, "title": title,
-            "text_content": text[:6000], "screenshot_b64": screenshot_b64}
+    return {"url": session.page.url, "title": title, "text_content": text[:6000], "screenshot_b64": screenshot_b64}
 
 
 async def browser_click(selector: str, user_id: str = "0") -> dict:
@@ -134,8 +135,7 @@ async def browser_click(selector: str, user_id: str = "0") -> dict:
         await session.page.wait_for_load_state("domcontentloaded", timeout=5000)
     except Exception as e:
         return {"clicked": False, "selector": selector, "error": str(e)[:200]}
-    return {"clicked": True, "selector": selector,
-            "new_url": session.page.url, "new_title": await session.page.title()}
+    return {"clicked": True, "selector": selector, "new_url": session.page.url, "new_title": await session.page.title()}
 
 
 async def browser_type(selector: str, text: str, press_enter: bool = False, user_id: str = "0") -> dict:
@@ -154,8 +154,11 @@ async def browser_type(selector: str, text: str, press_enter: bool = False, user
 async def browser_screenshot(user_id: str = "0") -> dict:
     session = await _get_session(user_id)
     screenshot_bytes = await session.page.screenshot(type="jpeg", quality=70, full_page=False)
-    return {"url": session.page.url, "title": await session.page.title(),
-            "screenshot_b64": base64.b64encode(screenshot_bytes).decode("utf-8")}
+    return {
+        "url": session.page.url,
+        "title": await session.page.title(),
+        "screenshot_b64": base64.b64encode(screenshot_bytes).decode("utf-8"),
+    }
 
 
 async def browser_extract(selector: str = "body", attribute: str = None, user_id: str = "0") -> dict:
@@ -187,40 +190,73 @@ async def browser_scroll(direction: str = "down", amount: int = 500, user_id: st
 # ---------------------------------------------------------------------------
 
 BROWSER_TOOL_SCHEMAS = [
-    {"name": "browser_navigate",
-     "description": "Navigate the browser to a URL. Returns page title and visible text content.",
-     "input_schema": {"type": "object", "properties": {
-         "url": {"type": "string", "description": "The URL to navigate to."}}, "required": ["url"]}},
-    {"name": "browser_click",
-     "description": "Click an element on the page using CSS or text selector.",
-     "input_schema": {"type": "object", "properties": {
-         "selector": {"type": "string", "description": "CSS or text selector (e.g., 'text=Submit')."}},
-         "required": ["selector"]}},
-    {"name": "browser_type",
-     "description": "Type text into a form field on the current page.",
-     "input_schema": {"type": "object", "properties": {
-         "selector": {"type": "string"}, "text": {"type": "string"},
-         "press_enter": {"type": "boolean", "default": False}}, "required": ["selector", "text"]}},
-    {"name": "browser_screenshot",
-     "description": "Take a screenshot of the current browser page.",
-     "input_schema": {"type": "object", "properties": {}}},
-    {"name": "browser_extract",
-     "description": "Extract text or attributes from elements matching a CSS selector.",
-     "input_schema": {"type": "object", "properties": {
-         "selector": {"type": "string", "default": "body"},
-         "attribute": {"type": "string"}}}},
-    {"name": "browser_scroll",
-     "description": "Scroll the current page up or down.",
-     "input_schema": {"type": "object", "properties": {
-         "direction": {"type": "string", "enum": ["up", "down"], "default": "down"},
-         "amount": {"type": "integer", "default": 500}}}},
+    {
+        "name": "browser_navigate",
+        "description": "Navigate the browser to a URL. Returns page title and visible text content.",
+        "input_schema": {
+            "type": "object",
+            "properties": {"url": {"type": "string", "description": "The URL to navigate to."}},
+            "required": ["url"],
+        },
+    },
+    {
+        "name": "browser_click",
+        "description": "Click an element on the page using CSS or text selector.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "selector": {"type": "string", "description": "CSS or text selector (e.g., 'text=Submit')."}
+            },
+            "required": ["selector"],
+        },
+    },
+    {
+        "name": "browser_type",
+        "description": "Type text into a form field on the current page.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "selector": {"type": "string"},
+                "text": {"type": "string"},
+                "press_enter": {"type": "boolean", "default": False},
+            },
+            "required": ["selector", "text"],
+        },
+    },
+    {
+        "name": "browser_screenshot",
+        "description": "Take a screenshot of the current browser page.",
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "browser_extract",
+        "description": "Extract text or attributes from elements matching a CSS selector.",
+        "input_schema": {
+            "type": "object",
+            "properties": {"selector": {"type": "string", "default": "body"}, "attribute": {"type": "string"}},
+        },
+    },
+    {
+        "name": "browser_scroll",
+        "description": "Scroll the current page up or down.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "direction": {"type": "string", "enum": ["up", "down"], "default": "down"},
+                "amount": {"type": "integer", "default": 500},
+            },
+        },
+    },
 ]
 
 BROWSER_WRITE_TOOLS = {"browser_click", "browser_type"}
 BROWSER_READ_TOOLS = {"browser_navigate", "browser_screenshot", "browser_extract", "browser_scroll"}
 
 TOOL_FUNCTIONS = {
-    "browser_navigate": browser_navigate, "browser_click": browser_click,
-    "browser_type": browser_type, "browser_screenshot": browser_screenshot,
-    "browser_extract": browser_extract, "browser_scroll": browser_scroll,
+    "browser_navigate": browser_navigate,
+    "browser_click": browser_click,
+    "browser_type": browser_type,
+    "browser_screenshot": browser_screenshot,
+    "browser_extract": browser_extract,
+    "browser_scroll": browser_scroll,
 }

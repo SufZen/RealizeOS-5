@@ -19,6 +19,7 @@ Configuration in realize-os.yaml:
       publish_content: {1: block, 2: approve, 3: approve, 4: approve, 5: auto}
       ...
 """
+
 import logging
 from enum import Enum
 
@@ -149,6 +150,7 @@ def set_trust_level(config_path: str, level: int) -> bool:
         from pathlib import Path
 
         import yaml
+
         path = Path(config_path)
         with open(path, encoding="utf-8") as f:
             config = yaml.safe_load(f)

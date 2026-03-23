@@ -8,6 +8,7 @@ Tests the Sprint 3 extension modules:
   4. HooksExtension — subscribe/unsubscribe, emit, priority, error isolation
   5. __init__ re-exports
 """
+
 import asyncio
 import tempfile
 from pathlib import Path
@@ -23,6 +24,7 @@ from realize_core.extensions.base import (
 # ---------------------------------------------------------------------------
 # Helpers: minimal extension implementation for testing
 # ---------------------------------------------------------------------------
+
 
 class _DummyExtension:
     """Minimal extension that satisfies the BaseExtension protocol."""
@@ -69,6 +71,7 @@ class _FailingExtension(_DummyExtension):
 # 1. ExtensionRegistry
 # =====================================================================
 
+
 class TestExtensionRegistry:
     """Tests for realize_core.extensions.registry."""
 
@@ -77,6 +80,7 @@ class TestExtensionRegistry:
 
     def test_register(self):
         from realize_core.extensions.registry import ExtensionRegistry
+
         reg = ExtensionRegistry()
         manifest = ExtensionManifest(name="test-ext", extension_type=ExtensionType.TOOL)
         result = reg.register(manifest)
@@ -86,6 +90,7 @@ class TestExtensionRegistry:
 
     def test_register_replaces(self):
         from realize_core.extensions.registry import ExtensionRegistry
+
         reg = ExtensionRegistry()
         m1 = ExtensionManifest(name="ext", version="1.0.0")
         m2 = ExtensionManifest(name="ext", version="2.0.0")
@@ -96,6 +101,7 @@ class TestExtensionRegistry:
 
     def test_register_instance(self):
         from realize_core.extensions.registry import ExtensionRegistry
+
         reg = ExtensionRegistry()
         ext = _DummyExtension("my-ext")
         result = reg.register_instance(ext)
@@ -104,6 +110,7 @@ class TestExtensionRegistry:
 
     def test_unregister(self):
         from realize_core.extensions.registry import ExtensionRegistry
+
         reg = ExtensionRegistry()
         reg.register(ExtensionManifest(name="ext"))
         assert reg.unregister("ext")
@@ -112,12 +119,14 @@ class TestExtensionRegistry:
 
     def test_load_unknown(self):
         from realize_core.extensions.registry import ExtensionRegistry
+
         reg = ExtensionRegistry()
         result = asyncio.run(reg.load_extension("nonexistent"))
         assert not result
 
     def test_load_instance(self):
         from realize_core.extensions.registry import ExtensionRegistry
+
         reg = ExtensionRegistry()
         ext = _DummyExtension("loadable")
         reg.register_instance(ext)
@@ -127,6 +136,7 @@ class TestExtensionRegistry:
 
     def test_load_failing(self):
         from realize_core.extensions.registry import ExtensionRegistry
+
         reg = ExtensionRegistry()
         ext = _FailingExtension("fails")
         reg.register_instance(ext)
@@ -137,6 +147,7 @@ class TestExtensionRegistry:
 
     def test_unload(self):
         from realize_core.extensions.registry import ExtensionRegistry
+
         reg = ExtensionRegistry()
         ext = _DummyExtension("ul")
         reg.register_instance(ext)
@@ -147,6 +158,7 @@ class TestExtensionRegistry:
 
     def test_reload(self):
         from realize_core.extensions.registry import ExtensionRegistry
+
         reg = ExtensionRegistry()
         ext = _DummyExtension("rl")
         reg.register_instance(ext)
@@ -156,6 +168,7 @@ class TestExtensionRegistry:
 
     def test_load_all(self):
         from realize_core.extensions.registry import ExtensionRegistry
+
         reg = ExtensionRegistry()
         for i in range(3):
             reg.register_instance(_DummyExtension(f"ext-{i}"))
@@ -165,6 +178,7 @@ class TestExtensionRegistry:
 
     def test_unload_all(self):
         from realize_core.extensions.registry import ExtensionRegistry
+
         reg = ExtensionRegistry()
         for i in range(3):
             reg.register_instance(_DummyExtension(f"ext-{i}"))
@@ -175,6 +189,7 @@ class TestExtensionRegistry:
 
     def test_disable(self):
         from realize_core.extensions.registry import ExtensionRegistry
+
         reg = ExtensionRegistry()
         ext = _DummyExtension("dis")
         reg.register_instance(ext)
@@ -184,6 +199,7 @@ class TestExtensionRegistry:
 
     def test_get_by_type(self):
         from realize_core.extensions.registry import ExtensionRegistry
+
         reg = ExtensionRegistry()
         reg.register(ExtensionManifest(name="t1", extension_type=ExtensionType.TOOL))
         reg.register(ExtensionManifest(name="h1", extension_type=ExtensionType.HOOK))
@@ -192,6 +208,7 @@ class TestExtensionRegistry:
 
     def test_names_and_count(self):
         from realize_core.extensions.registry import ExtensionRegistry
+
         reg = ExtensionRegistry()
         reg.register(ExtensionManifest(name="a"))
         reg.register(ExtensionManifest(name="b"))
@@ -200,6 +217,7 @@ class TestExtensionRegistry:
 
     def test_status_summary(self):
         from realize_core.extensions.registry import ExtensionRegistry
+
         reg = ExtensionRegistry()
         reg.register_instance(_DummyExtension("active-ext"))
         asyncio.run(reg.load_extension("active-ext"))
@@ -212,6 +230,7 @@ class TestExtensionRegistry:
         # Reset singleton for test isolation
         import realize_core.extensions.registry as mod
         from realize_core.extensions.registry import get_extension_registry
+
         mod._registry = None
         r1 = get_extension_registry()
         r2 = get_extension_registry()
@@ -220,6 +239,7 @@ class TestExtensionRegistry:
 
     def test_resolve_entry_point_invalid(self):
         from realize_core.extensions.registry import ExtensionRegistry
+
         assert ExtensionRegistry._resolve_entry_point("") is None
         assert ExtensionRegistry._resolve_entry_point("no_dot") is None
 
@@ -227,6 +247,7 @@ class TestExtensionRegistry:
 # =====================================================================
 # 2. ExtensionLoader
 # =====================================================================
+
 
 class TestExtensionLoader:
     """Tests for realize_core.extensions.loader."""
@@ -237,6 +258,7 @@ class TestExtensionLoader:
     def test_discover_empty_directory(self):
         from realize_core.extensions.loader import ExtensionLoader
         from realize_core.extensions.registry import ExtensionRegistry
+
         reg = ExtensionRegistry()
         loader = ExtensionLoader(registry=reg, base_dir=tempfile.gettempdir())
         result = loader.discover_from_directory("/nonexistent/path")
@@ -262,8 +284,10 @@ class TestExtensionLoader:
                 "description": "Test extension",
             }
             import yaml
+
             (ext_dir / "extension.yaml").write_text(
-                yaml.dump(manifest), encoding="utf-8",
+                yaml.dump(manifest),
+                encoding="utf-8",
             )
 
             reg = ExtensionRegistry()
@@ -299,6 +323,7 @@ class TestExtensionLoader:
             }
             config_path = Path(tmpdir) / "realize-os.yaml"
             import yaml
+
             config_path.write_text(yaml.dump(config), encoding="utf-8")
 
             reg = ExtensionRegistry()
@@ -324,6 +349,7 @@ class TestExtensionLoader:
                 "extensions": [{"name": "dupe", "type": "tool", "version": "2.0.0"}],
             }
             import yaml
+
             config_path = Path(tmpdir) / "realize-os.yaml"
             config_path.write_text(yaml.dump(config), encoding="utf-8")
 
@@ -360,6 +386,7 @@ class TestExtensionLoader:
 # 3. CronExtension
 # =====================================================================
 
+
 class TestCronExtension:
     """Tests for realize_core.extensions.cron."""
 
@@ -368,6 +395,7 @@ class TestCronExtension:
 
     def test_protocol_compliance(self):
         from realize_core.extensions.cron import CronExtension
+
         ext = CronExtension()
         assert ext.name == "cron"
         assert ext.extension_type == ExtensionType.INTEGRATION
@@ -375,6 +403,7 @@ class TestCronExtension:
 
     def test_manifest(self):
         from realize_core.extensions.cron import CronExtension
+
         ext = CronExtension()
         m = ext.manifest
         assert m.name == "cron"
@@ -382,6 +411,7 @@ class TestCronExtension:
 
     def test_on_load_and_unload(self):
         from realize_core.extensions.cron import CronExtension
+
         ext = CronExtension()
         asyncio.run(ext.on_load())
         assert ext._loaded
@@ -391,6 +421,7 @@ class TestCronExtension:
 
     def test_add_job(self):
         from realize_core.extensions.cron import CronExtension
+
         ext = CronExtension()
         asyncio.run(ext.on_load())
         result = ext.add_job("test-job", func=lambda: None, trigger="interval", seconds=60)
@@ -403,6 +434,7 @@ class TestCronExtension:
 
     def test_remove_job(self):
         from realize_core.extensions.cron import CronExtension
+
         ext = CronExtension()
         asyncio.run(ext.on_load())
         ext.add_job("rm-job", func=lambda: None)
@@ -412,18 +444,21 @@ class TestCronExtension:
 
     def test_add_job_before_load(self):
         from realize_core.extensions.cron import CronExtension
+
         ext = CronExtension()
         result = ext.add_job("early", func=lambda: None)
         assert not result
 
     def test_resolve_func_invalid(self):
         from realize_core.extensions.cron import CronExtension
+
         assert CronExtension._resolve_func("") is None
         assert CronExtension._resolve_func("no_dot") is None
         assert CronExtension._resolve_func("nonexistent.module.func") is None
 
     def test_noop_scheduler(self):
         from realize_core.extensions.cron import _NoOpScheduler
+
         sched = _NoOpScheduler()
         assert not sched.running
         sched.start()
@@ -438,6 +473,7 @@ class TestCronExtension:
 # 4. HooksExtension
 # =====================================================================
 
+
 class TestHooksExtension:
     """Tests for realize_core.extensions.hooks."""
 
@@ -446,6 +482,7 @@ class TestHooksExtension:
 
     def test_protocol_compliance(self):
         from realize_core.extensions.hooks import HooksExtension
+
         ext = HooksExtension()
         assert ext.name == "hooks"
         assert ext.extension_type == ExtensionType.HOOK
@@ -453,6 +490,7 @@ class TestHooksExtension:
 
     def test_event_type_enum(self):
         from realize_core.extensions.hooks import EventType
+
         assert EventType.ON_MESSAGE == "on_message"
         assert EventType.ON_VENTURE_CHANGE == "on_venture_change"
         assert EventType.ON_AGENT_COMPLETE == "on_agent_complete"
@@ -460,6 +498,7 @@ class TestHooksExtension:
 
     def test_subscribe_and_emit(self):
         from realize_core.extensions.hooks import HooksExtension
+
         ext = HooksExtension()
         asyncio.run(ext.on_load())
 
@@ -476,6 +515,7 @@ class TestHooksExtension:
 
     def test_subscribe_sync_handler(self):
         from realize_core.extensions.hooks import HooksExtension
+
         ext = HooksExtension()
         asyncio.run(ext.on_load())
 
@@ -491,6 +531,7 @@ class TestHooksExtension:
 
     def test_priority_ordering(self):
         from realize_core.extensions.hooks import HooksExtension
+
         ext = HooksExtension()
         asyncio.run(ext.on_load())
 
@@ -510,6 +551,7 @@ class TestHooksExtension:
 
     def test_unsubscribe(self):
         from realize_core.extensions.hooks import HooksExtension
+
         ext = HooksExtension()
         asyncio.run(ext.on_load())
 
@@ -524,6 +566,7 @@ class TestHooksExtension:
 
     def test_unsubscribe_all(self):
         from realize_core.extensions.hooks import HooksExtension
+
         ext = HooksExtension()
         asyncio.run(ext.on_load())
 
@@ -537,6 +580,7 @@ class TestHooksExtension:
 
     def test_emit_empty_event(self):
         from realize_core.extensions.hooks import HooksExtension
+
         ext = HooksExtension()
         asyncio.run(ext.on_load())
         results = asyncio.run(ext.emit("no_listeners"))
@@ -545,6 +589,7 @@ class TestHooksExtension:
 
     def test_error_isolation(self):
         from realize_core.extensions.hooks import HooksExtension
+
         ext = HooksExtension()
         asyncio.run(ext.on_load())
 
@@ -567,6 +612,7 @@ class TestHooksExtension:
 
     def test_fail_fast(self):
         from realize_core.extensions.hooks import HooksExtension
+
         ext = HooksExtension()
         asyncio.run(ext.on_load())
 
@@ -585,6 +631,7 @@ class TestHooksExtension:
 
     def test_get_events(self):
         from realize_core.extensions.hooks import HooksExtension
+
         ext = HooksExtension()
         ext.subscribe("a", lambda d: None)
         ext.subscribe("b", lambda d: None)
@@ -592,6 +639,7 @@ class TestHooksExtension:
 
     def test_emit_count(self):
         from realize_core.extensions.hooks import HooksExtension
+
         ext = HooksExtension()
         asyncio.run(ext.on_load())
         asyncio.run(ext.emit("e1"))
@@ -602,6 +650,7 @@ class TestHooksExtension:
 
     def test_status_summary(self):
         from realize_core.extensions.hooks import HooksExtension
+
         ext = HooksExtension()
         asyncio.run(ext.on_load())
         ext.subscribe("ev", lambda d: None)
@@ -613,6 +662,7 @@ class TestHooksExtension:
     def test_singleton(self):
         import realize_core.extensions.hooks as mod
         from realize_core.extensions.hooks import get_hooks
+
         mod._hooks = None
         h1 = get_hooks()
         h2 = get_hooks()
@@ -624,6 +674,7 @@ class TestHooksExtension:
 # 5. __init__ re-exports
 # =====================================================================
 
+
 class TestExtensionPackageExports:
     """Verify the __init__.py re-exports work."""
 
@@ -632,6 +683,7 @@ class TestExtensionPackageExports:
 
     def test_dunder_all(self):
         import realize_core.extensions as ext
+
         assert hasattr(ext, "__all__")
         assert "ExtensionRegistry" in ext.__all__
         assert "HooksExtension" in ext.__all__

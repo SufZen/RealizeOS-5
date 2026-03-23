@@ -5,6 +5,7 @@ When a user's message implies they want to save, update, or evolve the system,
 this handler coordinates the analysis, builds a confirmation preview,
 and executes the write after user approval.
 """
+
 import json
 import logging
 import re
@@ -13,31 +14,31 @@ logger = logging.getLogger(__name__)
 
 # Fast keyword-based pre-filter (avoid LLM call for every message)
 EVOLUTION_TRIGGERS = re.compile(
-    r'(?:'
-    r'save\s+(?:this|that|it)|'
-    r'write\s+(?:this|that|it)\s+(?:to|in|down)|'
-    r'add\s+(?:this|a\s+new|an?)\s+(?:sop|process|skill|note|rule|method)|'
-    r'create\s+(?:a\s+new|an?)\s+(?:sop|process|document|file|note|skill|template)|'
-    r'update\s+(?:the\s+)?(?:state\s*map|agent|skill|sop|process|definition)|'
-    r'(?:the\s+)?(?:agent|bot|system)\s+should\s+(?:also|now|start|stop|learn|know|handle)|'
-    r'remember\s+(?:this|that)\s+(?:as|for)|'
-    r'evolve|improve\s+the\s+(?:system|agent)|'
-    r'add\s+(?:this\s+)?(?:to|as)\s+(?:the\s+)?(?:kb|knowledge|brain|memory)|'
-    r'save\s+(?:to|in)\s+(?:the\s+)?(?:kb|knowledge|brain)|'
-    r'log\s+(?:this|that)\s+(?:decision|change|update)|'
-    r'document\s+this|'
-    r'make\s+(?:this|it)\s+(?:a\s+)?(?:standard|permanent|official|template)'
-    r')',
+    r"(?:"
+    r"save\s+(?:this|that|it)|"
+    r"write\s+(?:this|that|it)\s+(?:to|in|down)|"
+    r"add\s+(?:this|a\s+new|an?)\s+(?:sop|process|skill|note|rule|method)|"
+    r"create\s+(?:a\s+new|an?)\s+(?:sop|process|document|file|note|skill|template)|"
+    r"update\s+(?:the\s+)?(?:state\s*map|agent|skill|sop|process|definition)|"
+    r"(?:the\s+)?(?:agent|bot|system)\s+should\s+(?:also|now|start|stop|learn|know|handle)|"
+    r"remember\s+(?:this|that)\s+(?:as|for)|"
+    r"evolve|improve\s+the\s+(?:system|agent)|"
+    r"add\s+(?:this\s+)?(?:to|as)\s+(?:the\s+)?(?:kb|knowledge|brain|memory)|"
+    r"save\s+(?:to|in)\s+(?:the\s+)?(?:kb|knowledge|brain)|"
+    r"log\s+(?:this|that)\s+(?:decision|change|update)|"
+    r"document\s+this|"
+    r"make\s+(?:this|it)\s+(?:a\s+)?(?:standard|permanent|official|template)"
+    r")",
     re.IGNORECASE,
 )
 
 STRONG_SIGNALS = re.compile(
-    r'(?:'
-    r'save\s+(?:this|it)\s+(?:to|in|as)|'
-    r'create\s+(?:a\s+)?new\s+(?:sop|agent|skill)|'
-    r'update\s+the\s+(?:state\s*map|agent\s+definition)|'
-    r'add\s+(?:this\s+)?skill\s+to'
-    r')',
+    r"(?:"
+    r"save\s+(?:this|it)\s+(?:to|in|as)|"
+    r"create\s+(?:a\s+)?new\s+(?:sop|agent|skill)|"
+    r"update\s+the\s+(?:state\s*map|agent\s+definition)|"
+    r"add\s+(?:this\s+)?skill\s+to"
+    r")",
     re.IGNORECASE,
 )
 
@@ -117,13 +118,13 @@ def _parse_json_response(text: str) -> dict | None:
     """Extract JSON from an LLM response."""
     text = text.strip()
     if text.startswith("```"):
-        text = re.sub(r'^```(?:json)?\s*', '', text)
-        text = re.sub(r'\s*```$', '', text)
+        text = re.sub(r"^```(?:json)?\s*", "", text)
+        text = re.sub(r"\s*```$", "", text)
     try:
         return json.loads(text)
     except json.JSONDecodeError:
         pass
-    match = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', text, re.DOTALL)
+    match = re.search(r"\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}", text, re.DOTALL)
     if match:
         try:
             return json.loads(match.group())

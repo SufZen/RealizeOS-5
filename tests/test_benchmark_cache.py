@@ -9,6 +9,7 @@ Covers:
 - Staleness detection
 - Module-level singleton lifecycle
 """
+
 import json
 import time
 
@@ -28,6 +29,7 @@ from realize_core.llm.benchmark_cache import (
 # Fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 def cache(tmp_path):
     """Create a BenchmarkCache using a temp directory."""
@@ -45,6 +47,7 @@ def reset_singleton():
 # ---------------------------------------------------------------------------
 # Loading
 # ---------------------------------------------------------------------------
+
 
 class TestLoading:
     """Test loading benchmarks from different sources."""
@@ -100,6 +103,7 @@ class TestLoading:
 # Persistence
 # ---------------------------------------------------------------------------
 
+
 class TestPersistence:
     """Test save/load cycle."""
 
@@ -135,6 +139,7 @@ class TestPersistence:
 # ---------------------------------------------------------------------------
 # Updates
 # ---------------------------------------------------------------------------
+
 
 class TestUpdates:
     """Test benchmark update operations."""
@@ -187,6 +192,7 @@ class TestUpdates:
 # Staleness
 # ---------------------------------------------------------------------------
 
+
 class TestStaleness:
     """Test cache staleness detection."""
 
@@ -210,6 +216,7 @@ class TestStaleness:
 # ---------------------------------------------------------------------------
 # Cost-benefit scoring
 # ---------------------------------------------------------------------------
+
 
 class TestScoring:
     """Test the cost-benefit scoring algorithm."""
@@ -284,8 +291,15 @@ class TestScoring:
     def test_all_task_types_mapped(self):
         """All known task types have a score mapping."""
         expected_tasks = {
-            "simple", "content", "reasoning", "financial",
-            "complex", "code", "google", "web_research", "web_action",
+            "simple",
+            "content",
+            "reasoning",
+            "financial",
+            "complex",
+            "code",
+            "google",
+            "web_research",
+            "web_action",
         }
         assert expected_tasks.issubset(set(_TASK_SCORE_MAP.keys()))
 
@@ -299,6 +313,7 @@ class TestScoring:
 # ---------------------------------------------------------------------------
 # Convenience: get_best_model
 # ---------------------------------------------------------------------------
+
 
 class TestGetBestModel:
     """Test the get_best_model convenience method."""
@@ -329,6 +344,7 @@ class TestGetBestModel:
 # Singleton lifecycle
 # ---------------------------------------------------------------------------
 
+
 class TestSingleton:
     """Test the module-level singleton."""
 
@@ -356,6 +372,7 @@ class TestSingleton:
 # ModelBenchmark dataclass
 # ---------------------------------------------------------------------------
 
+
 class TestModelBenchmark:
     """Test ModelBenchmark dataclass."""
 
@@ -381,6 +398,7 @@ class TestModelBenchmark:
 # ---------------------------------------------------------------------------
 # Static benchmark data integrity
 # ---------------------------------------------------------------------------
+
 
 class TestStaticBenchmarkIntegrity:
     """Verify the static benchmark data is well-formed."""

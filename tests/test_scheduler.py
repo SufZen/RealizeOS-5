@@ -31,6 +31,7 @@ def setup_db(tmp_path):
 # Schedule configuration
 # ---------------------------------------------------------------------------
 
+
 class TestScheduleConfig:
     def test_set_interval_schedule(self, setup_db):
         set_agent_status("writer", "v1", "idle", db_path=setup_db)
@@ -100,6 +101,7 @@ class TestScheduleConfig:
 # Schedule API
 # ---------------------------------------------------------------------------
 
+
 class TestScheduleAPI:
     @pytest.fixture
     def client(self, setup_db, tmp_path):
@@ -115,9 +117,14 @@ class TestScheduleAPI:
         app.include_router(ventures.router, prefix="/api")
         app.state.systems = {
             "v1": {
-                "name": "Test", "agents": {"writer": "agents/writer.md"},
-                "agents_dir": "", "foundations": "", "brain_dir": "",
-                "routines_dir": "", "insights_dir": "", "creations_dir": "",
+                "name": "Test",
+                "agents": {"writer": "agents/writer.md"},
+                "agents_dir": "",
+                "foundations": "",
+                "brain_dir": "",
+                "routines_dir": "",
+                "insights_dir": "",
+                "creations_dir": "",
             },
         }
         app.state.kb_path = tmp_path

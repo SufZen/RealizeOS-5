@@ -9,6 +9,7 @@ Configure in .env:
   ELEVENLABS_API_KEY=...
   ELEVENLABS_VOICE_ID=... (optional, defaults to Rachel)
 """
+
 import logging
 import os
 from pathlib import Path
@@ -95,6 +96,7 @@ async def synthesize_speech(
 
     if not output_path:
         import tempfile
+
         output_path = Path(tempfile.mktemp(suffix=".mp3"))
 
     try:

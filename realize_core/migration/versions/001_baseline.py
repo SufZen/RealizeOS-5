@@ -11,6 +11,7 @@ Tables created:
 - ``approval_queue``   — pending human approval requests
 - ``schema_version``   — legacy version tracking (from original schema.py)
 """
+
 import sqlite3
 
 VERSION = 1

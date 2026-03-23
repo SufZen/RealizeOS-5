@@ -10,6 +10,7 @@ Provides:
 Uses HMAC-SHA256 (HS256) for signing. In production, consider
 RS256 with public/private key pairs for distributed verification.
 """
+
 import hashlib
 import hmac
 import json
@@ -22,8 +23,8 @@ from dataclasses import dataclass
 logger = logging.getLogger(__name__)
 
 # Default expiry durations
-DEFAULT_ACCESS_TOKEN_TTL = 3600      # 1 hour
-DEFAULT_REFRESH_TOKEN_TTL = 604800   # 7 days
+DEFAULT_ACCESS_TOKEN_TTL = 3600  # 1 hour
+DEFAULT_REFRESH_TOKEN_TTL = 604800  # 7 days
 
 # JWT algorithm header
 _JWT_HEADER = {"alg": "HS256", "typ": "JWT"}
@@ -33,17 +34,19 @@ _JWT_HEADER = {"alg": "HS256", "typ": "JWT"}
 # Types
 # ---------------------------------------------------------------------------
 
+
 @dataclass(frozen=True)
 class TokenClaims:
     """Decoded JWT claims."""
-    sub: str          # Subject (user_id)
-    role: str         # User role
-    iat: float        # Issued at (Unix timestamp)
-    exp: float        # Expiry (Unix timestamp)
-    iss: str          # Issuer
-    jti: str          # JWT ID (unique token identifier)
+
+    sub: str  # Subject (user_id)
+    role: str  # User role
+    iat: float  # Issued at (Unix timestamp)
+    exp: float  # Expiry (Unix timestamp)
+    iss: str  # Issuer
+    jti: str  # JWT ID (unique token identifier)
     scopes: list[str]  # Permission scopes
-    token_type: str   # "access" or "refresh"
+    token_type: str  # "access" or "refresh"
 
     @property
     def is_expired(self) -> bool:
@@ -65,6 +68,7 @@ class TokenClaims:
 @dataclass
 class TokenPair:
     """Access + refresh token pair."""
+
     access_token: str
     refresh_token: str
     expires_in: int
@@ -86,6 +90,7 @@ class InvalidTokenError(JWTError):
 # ---------------------------------------------------------------------------
 # Core JWT operations
 # ---------------------------------------------------------------------------
+
 
 def _get_secret() -> str:
     """Get the JWT signing secret from environment."""
@@ -125,14 +130,13 @@ def _sign(message: str, secret: str) -> str:
 
 def _generate_jti() -> str:
     """Generate a unique token ID."""
-    return hashlib.sha256(
-        f"{time.time()}-{os.urandom(16).hex()}".encode()
-    ).hexdigest()[:24]
+    return hashlib.sha256(f"{time.time()}-{os.urandom(16).hex()}".encode()).hexdigest()[:24]
 
 
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
+
 
 def create_token(
     user_id: str,
@@ -236,15 +240,11 @@ def verify_token(
 
     # Check expiry
     if claims.is_expired:
-        raise TokenExpiredError(
-            f"Token expired at {claims.exp} (now: {time.time():.0f})"
-        )
+        raise TokenExpiredError(f"Token expired at {claims.exp} (now: {time.time():.0f})")
 
     # Check token type
     if require_type and claims.token_type != require_type:
-        raise InvalidTokenError(
-            f"Expected '{require_type}' token, got '{claims.token_type}'"
-        )
+        raise InvalidTokenError(f"Expected '{require_type}' token, got '{claims.token_type}'")
 
     return claims
 

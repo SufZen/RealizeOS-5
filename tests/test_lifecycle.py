@@ -7,6 +7,7 @@ Covers:
 - is_paused check
 - Invalid status rejection
 """
+
 import pytest
 from realize_core.db.schema import init_schema, set_db_path
 from realize_core.scheduler.lifecycle import (
@@ -33,6 +34,7 @@ def setup_db(tmp_path):
 # Basic operations
 # ---------------------------------------------------------------------------
 
+
 class TestAgentStatusOperations:
     def test_set_creates_record(self, setup_db):
         set_agent_status("writer", "v1", "idle", db_path=setup_db)
@@ -57,6 +59,7 @@ class TestAgentStatusOperations:
 # ---------------------------------------------------------------------------
 # Status transitions
 # ---------------------------------------------------------------------------
+
 
 class TestStatusTransitions:
     def test_idle_to_running(self, setup_db):
@@ -99,6 +102,7 @@ class TestStatusTransitions:
 # Pause check
 # ---------------------------------------------------------------------------
 
+
 class TestIsPaused:
     def test_not_paused(self, setup_db):
         mark_idle("writer", "v1", db_path=setup_db)
@@ -115,6 +119,7 @@ class TestIsPaused:
 # ---------------------------------------------------------------------------
 # Multi-venture isolation
 # ---------------------------------------------------------------------------
+
 
 class TestMultiVenture:
     def test_same_agent_different_ventures(self, setup_db):

@@ -6,6 +6,7 @@ Supports:
 - PDF text extraction (PyPDF2 / pdfplumber, with fallback)
 - Plain text save
 """
+
 import logging
 import re
 from datetime import UTC, datetime
@@ -25,9 +26,7 @@ async def extract_from_url(url: str, max_chars: int = 15000) -> dict:
 
     try:
         async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
-            resp = await client.get(url, headers={
-                "User-Agent": "Mozilla/5.0 (RealizeOS Content Ingestion)"
-            })
+            resp = await client.get(url, headers={"User-Agent": "Mozilla/5.0 (RealizeOS Content Ingestion)"})
             resp.raise_for_status()
             html = resp.text
     except Exception as e:
@@ -38,6 +37,7 @@ async def extract_from_url(url: str, max_chars: int = 15000) -> dict:
     title = ""
     try:
         import trafilatura
+
         downloaded = trafilatura.fetch_url(url)
         if downloaded:
             content = trafilatura.extract(downloaded, include_links=False, include_tables=True)
@@ -45,6 +45,7 @@ async def extract_from_url(url: str, max_chars: int = 15000) -> dict:
             metadata = trafilatura.extract(downloaded, output_format="xml", include_links=False)
             if metadata:
                 import xml.etree.ElementTree as ET
+
                 try:
                     root = ET.fromstring(metadata)
                     title = root.get("title", "") or ""
@@ -86,6 +87,7 @@ def extract_from_pdf(file_path: Path, max_chars: int = 30000) -> dict:
     # Try pdfplumber first (better table handling)
     try:
         import pdfplumber
+
         with pdfplumber.open(file_path) as pdf:
             pages = len(pdf.pages)
             for page in pdf.pages:
@@ -101,6 +103,7 @@ def extract_from_pdf(file_path: Path, max_chars: int = 30000) -> dict:
     if not text_parts:
         try:
             from PyPDF2 import PdfReader
+
             reader = PdfReader(str(file_path))
             pages = len(reader.pages)
             for page in reader.pages:
@@ -163,8 +166,8 @@ def save_to_kb(
     target_dir.mkdir(parents=True, exist_ok=True)
 
     # Generate filename
-    safe_title = re.sub(r'[^\w\s-]', '', title.lower())
-    safe_title = re.sub(r'[-\s]+', '-', safe_title).strip('-')[:60]
+    safe_title = re.sub(r"[^\w\s-]", "", title.lower())
+    safe_title = re.sub(r"[-\s]+", "-", safe_title).strip("-")[:60]
     if not safe_title:
         safe_title = f"ingested-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
     filename = f"{safe_title}.md"
@@ -207,18 +210,19 @@ def extract_from_text(text: str, title: str = "") -> dict:
 
 def _html_to_text(html: str) -> str:
     """Simple HTML to text extraction."""
-    text = re.sub(r'<script[^>]*>.*?</script>', '', html, flags=re.DOTALL | re.IGNORECASE)
-    text = re.sub(r'<style[^>]*>.*?</style>', '', text, flags=re.DOTALL | re.IGNORECASE)
-    text = re.sub(r'<nav[^>]*>.*?</nav>', '', text, flags=re.DOTALL | re.IGNORECASE)
-    text = re.sub(r'<footer[^>]*>.*?</footer>', '', text, flags=re.DOTALL | re.IGNORECASE)
-    text = re.sub(r'<[^>]+>', ' ', text)
-    text = re.sub(r'\s+', ' ', text).strip()
+    text = re.sub(r"<script[^>]*>.*?</script>", "", html, flags=re.DOTALL | re.IGNORECASE)
+    text = re.sub(r"<style[^>]*>.*?</style>", "", text, flags=re.DOTALL | re.IGNORECASE)
+    text = re.sub(r"<nav[^>]*>.*?</nav>", "", text, flags=re.DOTALL | re.IGNORECASE)
+    text = re.sub(r"<footer[^>]*>.*?</footer>", "", text, flags=re.DOTALL | re.IGNORECASE)
+    text = re.sub(r"<[^>]+>", " ", text)
+    text = re.sub(r"\s+", " ", text).strip()
     return text
 
 
 def _url_to_title(url: str) -> str:
     """Generate a title from a URL."""
     from urllib.parse import urlparse
+
     parsed = urlparse(url)
     path = parsed.path.strip("/").split("/")[-1] if parsed.path.strip("/") else parsed.hostname
     return path.replace("-", " ").replace("_", " ").title()[:80]

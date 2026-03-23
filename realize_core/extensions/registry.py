@@ -15,6 +15,7 @@ Usage::
     await registry.load_extension("my-ext", config={"api_key": "..."})
     await registry.unload_extension("my-ext")
 """
+
 from __future__ import annotations
 
 import logging
@@ -62,20 +63,21 @@ class ExtensionRegistry:
             The created registration record.
         """
         if manifest.name in self._extensions:
-            logger.warning(
-                "Extension '%s' already registered, replacing", manifest.name
-            )
+            logger.warning("Extension '%s' already registered, replacing", manifest.name)
 
         reg = ExtensionRegistration(manifest=manifest)
         self._extensions[manifest.name] = reg
         logger.info(
             "Registered extension '%s' (type=%s, status=%s)",
-            manifest.name, manifest.extension_type, reg.status,
+            manifest.name,
+            manifest.extension_type,
+            reg.status,
         )
         return reg
 
     def register_instance(
-        self, extension: BaseExtension,
+        self,
+        extension: BaseExtension,
     ) -> ExtensionRegistration:
         """
         Register an already-instantiated extension.
@@ -97,7 +99,8 @@ class ExtensionRegistry:
         self._extensions[extension.name] = reg
         logger.info(
             "Registered pre-loaded extension '%s' (type=%s)",
-            extension.name, extension.extension_type,
+            extension.name,
+            extension.extension_type,
         )
         return reg
 
@@ -153,10 +156,7 @@ class ExtensionRegistry:
                 ext_class = self._resolve_entry_point(reg.manifest.entry_point)
                 if ext_class is None:
                     reg.status = ExtensionStatus.ERROR
-                    reg.error_message = (
-                        f"Could not resolve entry point: "
-                        f"{reg.manifest.entry_point}"
-                    )
+                    reg.error_message = f"Could not resolve entry point: {reg.manifest.entry_point}"
                     return False
                 reg.instance = ext_class()
 
@@ -171,7 +171,10 @@ class ExtensionRegistry:
             reg.status = ExtensionStatus.ERROR
             reg.error_message = str(e)[:500]
             logger.error(
-                "Failed to load extension '%s': %s", name, e, exc_info=True,
+                "Failed to load extension '%s': %s",
+                name,
+                e,
+                exc_info=True,
             )
             return False
 
@@ -191,7 +194,9 @@ class ExtensionRegistry:
                 await reg.instance.on_unload()
             except Exception as e:
                 logger.warning(
-                    "Error in on_unload for '%s': %s", name, e,
+                    "Error in on_unload for '%s': %s",
+                    name,
+                    e,
                 )
 
         reg.status = ExtensionStatus.DISCOVERED
@@ -201,7 +206,9 @@ class ExtensionRegistry:
         return True
 
     async def reload_extension(
-        self, name: str, config: dict[str, Any] | None = None,
+        self,
+        name: str,
+        config: dict[str, Any] | None = None,
     ) -> bool:
         """Unload then reload an extension (hot-reload)."""
         reg = self._extensions.get(name)
@@ -217,7 +224,8 @@ class ExtensionRegistry:
         return await self.load_extension(name, config)
 
     async def load_all(
-        self, configs: dict[str, dict[str, Any]] | None = None,
+        self,
+        configs: dict[str, dict[str, Any]] | None = None,
     ) -> int:
         """
         Load all registered extensions.
@@ -234,7 +242,9 @@ class ExtensionRegistry:
             if await self.load_extension(name, configs.get(name)):
                 loaded += 1
         logger.info(
-            "Loaded %d/%d extensions", loaded, len(self._extensions),
+            "Loaded %d/%d extensions",
+            loaded,
+            len(self._extensions),
         )
         return loaded
 
@@ -273,22 +283,18 @@ class ExtensionRegistry:
         return reg.instance if reg else None
 
     def get_by_type(
-        self, ext_type: ExtensionType,
+        self,
+        ext_type: ExtensionType,
     ) -> list[ExtensionRegistration]:
         """Get all registrations of a given type."""
-        return [
-            r for r in self._extensions.values()
-            if r.extension_type == ext_type
-        ]
+        return [r for r in self._extensions.values() if r.extension_type == ext_type]
 
     def get_by_status(
-        self, status: ExtensionStatus,
+        self,
+        status: ExtensionStatus,
     ) -> list[ExtensionRegistration]:
         """Get all registrations with a given status."""
-        return [
-            r for r in self._extensions.values()
-            if r.status == status
-        ]
+        return [r for r in self._extensions.values() if r.status == status]
 
     def get_active(self) -> list[ExtensionRegistration]:
         """Get all currently active extensions."""
@@ -320,9 +326,7 @@ class ExtensionRegistry:
 
         for reg in self._extensions.values():
             by_status[reg.status] = by_status.get(reg.status, 0) + 1
-            by_type[reg.extension_type] = (
-                by_type.get(reg.extension_type, 0) + 1
-            )
+            by_type[reg.extension_type] = by_type.get(reg.extension_type, 0) + 1
 
         return {
             "total": self.count,
@@ -369,12 +373,15 @@ class ExtensionRegistry:
             if cls is None:
                 logger.warning(
                     "Class '%s' not found in module '%s'",
-                    class_name, module_path,
+                    class_name,
+                    module_path,
                 )
             return cls
         except ImportError as e:
             logger.warning(
-                "Cannot import module '%s': %s", module_path, e,
+                "Cannot import module '%s': %s",
+                module_path,
+                e,
             )
             return None
 

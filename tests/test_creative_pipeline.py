@@ -7,6 +7,7 @@ Covers:
 - Session summary output
 - Fallback behavior (no matching route → orchestrator)
 """
+
 from unittest.mock import patch
 
 import pytest
@@ -21,6 +22,7 @@ from realize_core.pipeline.session import CreativeSession
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def routing_config():
@@ -69,6 +71,7 @@ def mock_session():
 # Task type detection
 # ---------------------------------------------------------------------------
 
+
 class TestDetectTaskType:
     def test_detect_content(self, routing_config):
         result = detect_task_type(routing_config, "write a blog post about AI")
@@ -105,6 +108,7 @@ class TestDetectTaskType:
 # Pipeline retrieval
 # ---------------------------------------------------------------------------
 
+
 class TestGetPipeline:
     def test_content_pipeline(self, routing_config):
         pipeline = get_pipeline(routing_config, "content")
@@ -134,6 +138,7 @@ class TestGetPipeline:
 # ---------------------------------------------------------------------------
 # Session lifecycle
 # ---------------------------------------------------------------------------
+
 
 class TestCreativeSession:
     def test_initial_state(self, mock_session):
@@ -219,6 +224,7 @@ class TestCreativeSession:
 # ---------------------------------------------------------------------------
 # Start pipeline (integration-ish)
 # ---------------------------------------------------------------------------
+
 
 class TestStartPipeline:
     def test_start_pipeline_auto_detects_type(self, routing_config):

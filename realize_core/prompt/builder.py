@@ -19,6 +19,7 @@ Token optimization features:
 - truncate_to_budget(): Smart per-layer budget with priority preservation
 - deduplicate_layers(): Detect and remove redundant content across layers
 """
+
 import logging
 from pathlib import Path
 
@@ -126,21 +127,21 @@ def estimate_tokens(text: str) -> int:
 # Layer priority: higher number = cut last (more important).
 # Uses layer heading patterns to identify each layer.
 _LAYER_PRIORITIES: dict[str, int] = {
-    "## Identity": 9,         # Core identity — never cut
-    "## Active Agent": 8,     # Agent definition — critical
-    "## Writing Style": 8,    # Channel format — critical
+    "## Identity": 9,  # Core identity — never cut
+    "## Active Agent": 8,  # Agent definition — critical
+    "## Writing Style": 8,  # Channel format — critical
     "## Response Format": 8,  # Channel format — critical
-    "## Collaboration": 7,    # Proactive instructions
-    "## Venture Identity": 6, # Brand context
+    "## Collaboration": 7,  # Proactive instructions
+    "## Venture Identity": 6,  # Brand context
     "## Venture Voice": 6,
-    "## Team Routing": 5,     # Routing table
+    "## Team Routing": 5,  # Routing table
     "## Active Creative": 5,  # Session context
     "## Relevant Knowledge": 4,  # RAG results — can trim
-    "## Loaded Context": 3,   # Extra files — can trim
+    "## Loaded Context": 3,  # Extra files — can trim
     "## Recent Learning": 3,  # Memory — can trim
-    "## Cross-System": 2,     # Cross-venture — lowest priority
-    "## User Preferences": 4, # Preferences
-    "## Push-Back": 6,        # Pushback protocol
+    "## Cross-System": 2,  # Cross-venture — lowest priority
+    "## User Preferences": 4,  # Preferences
+    "## Push-Back": 6,  # Pushback protocol
 }
 
 
@@ -184,15 +185,10 @@ def truncate_to_budget(
     if total_tokens <= token_budget:
         return layers
 
-    logger.info(
-        f"Token budget exceeded: {total_tokens} > {token_budget}, trimming..."
-    )
+    logger.info(f"Token budget exceeded: {total_tokens} > {token_budget}, trimming...")
 
     # Create (index, priority, tokens) tuples and sort by priority ascending
-    indexed = [
-        (i, _get_layer_priority(layer), estimate_tokens(layer), layer)
-        for i, layer in enumerate(layers)
-    ]
+    indexed = [(i, _get_layer_priority(layer), estimate_tokens(layer), layer) for i, layer in enumerate(layers)]
     indexed.sort(key=lambda x: x[1])  # Sort by priority (lowest first)
 
     tokens_to_cut = total_tokens - token_budget
@@ -283,9 +279,7 @@ def deduplicate_layers(layers: list[str], similarity_threshold: float = 0.7) -> 
                 pri_b = _get_layer_priority(layers[idx_b])
                 victim = idx_b if pri_a >= pri_b else idx_a
                 remove_indices.add(victim)
-                logger.debug(
-                    f"Deduplicated layer {victim} (overlap={len(overlap)}/{smaller} lines)"
-                )
+                logger.debug(f"Deduplicated layer {victim} (overlap={len(overlap)}/{smaller} lines)")
 
     return [layer for i, layer in enumerate(layers) if i not in remove_indices]
 
@@ -451,18 +445,18 @@ def _build_session_layer(session) -> str:
                 pipeline_display.append(f"[next] {agent}")
         parts.append(f"**Pipeline:** {' -> '.join(pipeline_display)}")
 
-    if hasattr(session, 'drafts') and session.drafts:
+    if hasattr(session, "drafts") and session.drafts:
         parts.append(f"**Drafts:** {len(session.drafts)} version(s)")
-        if hasattr(session, 'latest_draft'):
+        if hasattr(session, "latest_draft"):
             latest = session.latest_draft()
             if latest:
                 draft_preview = latest["content"][:2000]
                 parts.append(f"**Latest draft (v{latest['version']}, by {latest['agent']}):**\n{draft_preview}")
 
-    if hasattr(session, 'review') and session.review:
+    if hasattr(session, "review") and session.review:
         parts.append(f"**Last Review:** {session.review.get('verdict', 'pending')}")
 
-    if hasattr(session, 'context_files') and session.context_files:
+    if hasattr(session, "context_files") and session.context_files:
         parts.append(f"**User-loaded context files:** {', '.join(session.context_files)}")
 
     return "\n".join(parts)
@@ -492,9 +486,7 @@ def _build_proactive_instructions(agent_key: str, session=None) -> str:
                 "\n**Current stage: DRAFTING** — Create your best work. "
                 "After delivering, offer options: review, iterate, or advance."
             ),
-            "iterating": (
-                "\n**Current stage: ITERATING** — Incorporate feedback, explain changes."
-            ),
+            "iterating": ("\n**Current stage: ITERATING** — Incorporate feedback, explain changes."),
             "reviewing": (
                 "\n**Current stage: REVIEWING** — Review thoroughly: voice, accuracy, structure. "
                 "Give a clear verdict: APPROVED or REVISIONS NEEDED."
@@ -540,8 +532,7 @@ def _build_cross_system_context(
     if not all_systems or len(all_systems) <= 1:
         return ""
 
-    parts = ["## Cross-System Awareness\n"
-             "You have context across all ventures in this portfolio:"]
+    parts = ["## Cross-System Awareness\nYou have context across all ventures in this portfolio:"]
 
     for other_key, other_config in all_systems.items():
         if other_key == system_key:
@@ -639,9 +630,7 @@ def build_system_prompt(
                 layers.append(f"## Loaded Context: {ctx_file}\n{content}")
 
     # Layer 6: Dynamic KB context (RAG)
-    dynamic_kb = _build_dynamic_kb_context(
-        kb_path, system_key, user_message, extra_context_files
-    )
+    dynamic_kb = _build_dynamic_kb_context(kb_path, system_key, user_message, extra_context_files)
     if dynamic_kb:
         layers.append(dynamic_kb)
 
@@ -670,6 +659,7 @@ def build_system_prompt(
     # Layer 11: Learned user preferences
     try:
         from realize_core.memory.preference_learner import get_preference_prompt_layer
+
         pref_layer = get_preference_prompt_layer(system_key)
         if pref_layer:
             layers.append(pref_layer)

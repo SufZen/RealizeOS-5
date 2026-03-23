@@ -4,6 +4,7 @@ Provider Registry: Central registry for LLM providers.
 Maps model keys (e.g., "claude_sonnet") to provider instances.
 Auto-discovers available providers at startup based on installed SDKs and API keys.
 """
+
 import logging
 
 from realize_core.llm.base_provider import BaseLLMProvider, Capability, ModelInfo
@@ -40,8 +41,10 @@ class ProviderRegistry:
             for key, model_id in model_keys.items():
                 self._model_map[key] = provider.name
 
-        logger.info(f"Registered provider: {provider.name} "
-                     f"(available={provider.is_available()}, models={len(provider.list_models())})")
+        logger.info(
+            f"Registered provider: {provider.name} "
+            f"(available={provider.is_available()}, models={len(provider.list_models())})"
+        )
 
     def get_provider(self, model_key: str) -> BaseLLMProvider | None:
         """Get the provider for a given model key (e.g., 'claude_sonnet').
@@ -71,6 +74,7 @@ class ProviderRegistry:
             The provider's model ID string (e.g., "claude-sonnet-4-6-20260217")
         """
         from realize_core.config import MODELS
+
         return MODELS.get(model_key)
 
     def get_fallback(self, model_key: str) -> BaseLLMProvider | None:
@@ -114,10 +118,7 @@ class ProviderRegistry:
 
     def providers_with_capability(self, capability: Capability) -> list[BaseLLMProvider]:
         """Find all available providers that support a specific capability."""
-        return [
-            p for p in self._providers.values()
-            if p.is_available() and p.supports(capability)
-        ]
+        return [p for p in self._providers.values() if p.is_available() and p.supports(capability)]
 
     def auto_register(self):
         """Auto-discover and register all known providers.
@@ -130,57 +131,77 @@ class ProviderRegistry:
         # Claude
         try:
             from realize_core.llm.providers.claude_provider import ClaudeProvider
+
             claude = ClaudeProvider()
-            self.register(claude, {
-                "claude_sonnet": MODELS.get("claude_sonnet", "claude-sonnet-4-6-20260217"),
-                "claude_opus": MODELS.get("claude_opus", "claude-opus-4-6-20260205"),
-            })
+            self.register(
+                claude,
+                {
+                    "claude_sonnet": MODELS.get("claude_sonnet", "claude-sonnet-4-6-20260217"),
+                    "claude_opus": MODELS.get("claude_opus", "claude-opus-4-6-20260205"),
+                },
+            )
         except Exception as e:
             logger.debug(f"Claude provider not registered: {e}")
 
         # Gemini
         try:
             from realize_core.llm.providers.gemini_provider import GeminiProvider
+
             gemini = GeminiProvider()
-            self.register(gemini, {
-                "gemini_flash": MODELS.get("gemini_flash", "gemini-2.5-flash"),
-            })
+            self.register(
+                gemini,
+                {
+                    "gemini_flash": MODELS.get("gemini_flash", "gemini-2.5-flash"),
+                },
+            )
         except Exception as e:
             logger.debug(f"Gemini provider not registered: {e}")
 
         # OpenAI (stub — registers but is_available will return False without SDK/key)
         try:
             from realize_core.llm.providers.openai_provider import OpenAIProvider
+
             openai_p = OpenAIProvider()
-            self.register(openai_p, {
-                "gpt4o": "gpt-4o",
-                "gpt4o_mini": "gpt-4o-mini",
-            })
+            self.register(
+                openai_p,
+                {
+                    "gpt4o": "gpt-4o",
+                    "gpt4o_mini": "gpt-4o-mini",
+                },
+            )
         except Exception as e:
             logger.debug(f"OpenAI provider not registered: {e}")
 
         # Ollama (stub — registers but is_available depends on local server)
         try:
             from realize_core.llm.providers.ollama_provider import OllamaProvider
+
             ollama = OllamaProvider()
-            self.register(ollama, {
-                "llama": "llama3.1:8b",
-                "deepseek": "deepseek-coder-v2:16b",
-            })
+            self.register(
+                ollama,
+                {
+                    "llama": "llama3.1:8b",
+                    "deepseek": "deepseek-coder-v2:16b",
+                },
+            )
         except Exception as e:
             logger.debug(f"Ollama provider not registered: {e}")
 
         # LiteLLM (unified gateway to 50+ providers)
         try:
             from realize_core.llm.litellm_provider import LiteLLMProvider
+
             litellm_p = LiteLLMProvider()
-            self.register(litellm_p, {
-                "gpt4o": "gpt-4o",
-                "gpt4o_mini": "gpt-4o-mini",
-                "o3_mini": "o3-mini",
-                "mistral_large": "mistral/mistral-large-latest",
-                "deepseek_v3": "deepseek/deepseek-chat",
-            })
+            self.register(
+                litellm_p,
+                {
+                    "gpt4o": "gpt-4o",
+                    "gpt4o_mini": "gpt-4o-mini",
+                    "o3_mini": "o3-mini",
+                    "mistral_large": "mistral/mistral-large-latest",
+                    "deepseek_v3": "deepseek/deepseek-chat",
+                },
+            )
         except Exception as e:
             logger.debug(f"LiteLLM provider not registered: {e}")
 
@@ -188,8 +209,10 @@ class ProviderRegistry:
         self.set_fallback_chain(["claude", "gemini", "openai", "ollama", "litellm"])
 
         available = self.list_available()
-        logger.info(f"Provider registry ready: {len(self._providers)} registered, "
-                     f"{len(available)} available ({', '.join(available) or 'none'})")
+        logger.info(
+            f"Provider registry ready: {len(self._providers)} registered, "
+            f"{len(available)} available ({', '.join(available) or 'none'})"
+        )
 
 
 # --- Module-level singleton ---

@@ -10,6 +10,7 @@ Provides:
 - File-based persistence (data/experiments/)
 - Experiment listing, filtering, and history
 """
+
 from __future__ import annotations
 
 import json
@@ -39,6 +40,7 @@ class ExperimentRecord:
     """
     Complete record of an experiment: definition + results + metadata.
     """
+
     experiment: BaseExperiment
     results: list[ExperimentResult] = field(default_factory=list)
     git_commit: str | None = None
@@ -103,16 +105,18 @@ class ExperimentRecord:
 
         results = []
         for r_data in data.get("results", []):
-            results.append(ExperimentResult(
-                experiment_id=r_data.get("experiment_id", ""),
-                status=ExperimentStatus(r_data.get("status", "pending")),
-                target=target,
-                control_score=r_data.get("control_score", 0.0),
-                candidate_score=r_data.get("candidate_score", 0.0),
-                improvement_pct=r_data.get("improvement_pct", 0.0),
-                sample_size=r_data.get("sample_size", 0),
-                details=r_data.get("details", {}),
-            ))
+            results.append(
+                ExperimentResult(
+                    experiment_id=r_data.get("experiment_id", ""),
+                    status=ExperimentStatus(r_data.get("status", "pending")),
+                    target=target,
+                    control_score=r_data.get("control_score", 0.0),
+                    candidate_score=r_data.get("candidate_score", 0.0),
+                    improvement_pct=r_data.get("improvement_pct", 0.0),
+                    sample_size=r_data.get("sample_size", 0),
+                    details=r_data.get("details", {}),
+                )
+            )
 
         return ExperimentRecord(
             experiment=experiment,
@@ -169,9 +173,7 @@ class ExperimentTracker:
             "updated_at": datetime.now().isoformat(),
             "experiments": [r.to_dict() for r in self._records.values()],
         }
-        self._log_path.write_text(
-            json.dumps(data, indent=2, default=str), encoding="utf-8"
-        )
+        self._log_path.write_text(json.dumps(data, indent=2, default=str), encoding="utf-8")
 
     def register(self, experiment: BaseExperiment) -> ExperimentRecord:
         """
@@ -217,8 +219,7 @@ class ExperimentTracker:
 
         self._save()
         logger.info(
-            f"Recorded result for {result.experiment_id}: "
-            f"{result.status} (improvement: {result.improvement_pct:+.1f}%)"
+            f"Recorded result for {result.experiment_id}: {result.status} (improvement: {result.improvement_pct:+.1f}%)"
         )
         return record
 
@@ -287,9 +288,7 @@ class ExperimentTracker:
             "total": len(records),
             "by_status": status_counts,
             "total_results": sum(len(r.results) for r in records),
-            "domains": list(set(
-                str(r.experiment.target.domain) for r in records
-            )),
+            "domains": list(set(str(r.experiment.target.domain) for r in records)),
         }
 
     # ── Git integration ─────────────────────────────────────────────────
@@ -297,23 +296,24 @@ class ExperimentTracker:
     def _git_commit(self, result: ExperimentResult) -> str | None:
         """Create a git commit for an experiment result."""
         try:
-            msg = (
-                f"experiment({result.experiment_id}): "
-                f"{result.status} ({result.improvement_pct:+.1f}%)"
-            )
+            msg = f"experiment({result.experiment_id}): {result.status} ({result.improvement_pct:+.1f}%)"
             # Stage and commit the experiment log
             subprocess.run(
                 ["git", "add", str(self._log_path)],
-                capture_output=True, check=True,
+                capture_output=True,
+                check=True,
             )
             subprocess.run(
                 ["git", "commit", "-m", msg, "--allow-empty"],
-                capture_output=True, check=True,
+                capture_output=True,
+                check=True,
             )
             # Get the commit SHA
             sha_proc = subprocess.run(
                 ["git", "rev-parse", "HEAD"],
-                capture_output=True, check=True, text=True,
+                capture_output=True,
+                check=True,
+                text=True,
             )
             return sha_proc.stdout.strip()
         except Exception as e:

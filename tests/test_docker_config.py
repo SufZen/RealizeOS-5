@@ -9,6 +9,7 @@ RealizeOS V5 conventions:
 - Healthcheck configuration
 - Optional GWS CLI support
 """
+
 import re
 from pathlib import Path
 
@@ -23,6 +24,7 @@ COMPOSE_FILE = ROOT / "docker-compose.yml"
 # ---------------------------------------------------------------------------
 # Fixture: load files once
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture(scope="module")
 def dockerfile_content() -> str:
@@ -48,6 +50,7 @@ def compose_raw() -> str:
 # ---------------------------------------------------------------------------
 # Dockerfile Tests
 # ---------------------------------------------------------------------------
+
 
 class TestDockerfile:
     """Validate the multi-stage Dockerfile."""
@@ -84,9 +87,7 @@ class TestDockerfile:
 
     def test_non_root_user(self, dockerfile_content: str):
         """Dockerfile must create and switch to a non-root user."""
-        assert "useradd" in dockerfile_content or "adduser" in dockerfile_content, (
-            "Must create a non-root user"
-        )
+        assert "useradd" in dockerfile_content or "adduser" in dockerfile_content, "Must create a non-root user"
         assert re.search(
             r"^USER\s+\w+",
             dockerfile_content,
@@ -129,6 +130,7 @@ class TestDockerfile:
 # docker-compose.yml Tests
 # ---------------------------------------------------------------------------
 
+
 class TestDockerCompose:
     """Validate docker-compose.yml configuration."""
 
@@ -142,9 +144,7 @@ class TestDockerCompose:
         api = compose_config["services"]["api"]
         ports = api.get("ports", [])
         port_strings = [str(p) for p in ports]
-        assert any("8080" in p for p in port_strings), (
-            f"API service must map port 8080, got: {port_strings}"
-        )
+        assert any("8080" in p for p in port_strings), f"API service must map port 8080, got: {port_strings}"
 
     def test_healthcheck_configured(self, compose_config: dict):
         """API service must have a healthcheck."""
@@ -166,26 +166,20 @@ class TestDockerCompose:
         """docker-compose.yml must define named volumes."""
         assert "volumes" in compose_config, "Must define top-level 'volumes'"
         volumes = compose_config["volumes"]
-        assert len(volumes) >= 2, (
-            f"Expected at least 2 named volumes, found {len(volumes)}"
-        )
+        assert len(volumes) >= 2, f"Expected at least 2 named volumes, found {len(volumes)}"
 
     def test_data_volume_exists(self, compose_config: dict):
         """Must define a volume for /app/data persistence."""
         volumes = compose_config.get("volumes", {})
         # Check that at least one volume relates to data
         volume_names = list(volumes.keys())
-        assert any("data" in v for v in volume_names), (
-            f"Expected a 'data' named volume, got: {volume_names}"
-        )
+        assert any("data" in v for v in volume_names), f"Expected a 'data' named volume, got: {volume_names}"
 
     def test_shared_volume_exists(self, compose_config: dict):
         """Must define a volume for /app/shared KB content."""
         volumes = compose_config.get("volumes", {})
         volume_names = list(volumes.keys())
-        assert any("shared" in v for v in volume_names), (
-            f"Expected a 'shared' named volume, got: {volume_names}"
-        )
+        assert any("shared" in v for v in volume_names), f"Expected a 'shared' named volume, got: {volume_names}"
 
     def test_api_mounts_named_volumes(self, compose_config: dict):
         """API service must mount the named volumes."""
@@ -224,9 +218,7 @@ class TestDockerCompose:
         if isinstance(build, str):
             assert build in (".", "./"), f"Build context should be '.', got: {build}"
         else:
-            assert build.get("context") in (".", "./"), (
-                f"Build context should be '.', got: {build.get('context')}"
-            )
+            assert build.get("context") in (".", "./"), f"Build context should be '.', got: {build.get('context')}"
             assert build.get("dockerfile") == "Dockerfile", (
                 f"Dockerfile should be 'Dockerfile', got: {build.get('dockerfile')}"
             )
@@ -237,6 +229,4 @@ class TestDockerCompose:
         build = api.get("build", {})
         if isinstance(build, dict):
             args = build.get("args", {})
-            assert "INSTALL_GWS" in args, (
-                "Build args must include INSTALL_GWS for optional GWS CLI"
-            )
+            assert "INSTALL_GWS" in args, "Build args must include INSTALL_GWS for optional GWS CLI"

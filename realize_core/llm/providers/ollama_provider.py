@@ -4,6 +4,7 @@ Ollama LLM Provider: Stub for local/self-hosted LLM integration via Ollama.
 To activate: install Ollama, pull a model, and set OLLAMA_HOST if not localhost.
 No API key required — runs locally.
 """
+
 import logging
 
 from realize_core.llm.base_provider import (
@@ -53,6 +54,7 @@ class OllamaProvider(BaseLLMProvider):
             import os
 
             import httpx
+
             host = os.getenv("OLLAMA_HOST", "http://localhost:11434")
             # Quick sync check — don't block on this
             resp = httpx.get(f"{host}/api/tags", timeout=2.0)
@@ -72,7 +74,8 @@ class OllamaProvider(BaseLLMProvider):
         if not self.is_available():
             return LLMResponse(
                 text="Ollama not running. Start Ollama and pull a model first.",
-                model=model or "llama3.1:8b", provider=self.name,
+                model=model or "llama3.1:8b",
+                provider=self.name,
                 error="not_available",
             )
 
@@ -91,6 +94,7 @@ class OllamaProvider(BaseLLMProvider):
 
         return LLMResponse(
             text="Ollama provider not yet implemented.",
-            model=model or "llama3.1:8b", provider=self.name,
+            model=model or "llama3.1:8b",
+            provider=self.name,
             error="not_implemented",
         )

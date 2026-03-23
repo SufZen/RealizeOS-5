@@ -3,6 +3,7 @@ Google OAuth authentication for RealizeOS.
 
 Loads OAuth credentials from configurable paths and auto-refreshes tokens.
 """
+
 import json
 import logging
 import os

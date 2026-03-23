@@ -5,6 +5,7 @@ Endpoints:
 - GET  /api/setup/connections  — list all integrations with masked values
 - PUT  /api/setup/connection   — update a single connection's config
 """
+
 import logging
 import os
 import tempfile
@@ -18,66 +19,127 @@ logger = logging.getLogger(__name__)
 # All configurable connections with metadata
 CONNECTION_DEFINITIONS = [
     # LLM Providers
-    {"id": "anthropic", "name": "Claude (Anthropic)", "category": "llm",
-     "env_key": "ANTHROPIC_API_KEY", "type": "secret",
-     "description": "Primary AI provider — Claude Sonnet/Opus models",
-     "help": "Get your key at console.anthropic.com"},
-    {"id": "google_ai", "name": "Gemini (Google)", "category": "llm",
-     "env_key": "GOOGLE_AI_API_KEY", "type": "secret",
-     "description": "Google Gemini Flash/Pro models",
-     "help": "Get your key at aistudio.google.com"},
-    {"id": "openai", "name": "GPT-4 (OpenAI)", "category": "llm",
-     "env_key": "OPENAI_API_KEY", "type": "secret",
-     "description": "OpenAI GPT-4o models",
-     "help": "Get your key at platform.openai.com"},
-    {"id": "ollama", "name": "Ollama (Local)", "category": "llm",
-     "env_key": "OLLAMA_BASE_URL", "type": "url",
-     "description": "Local LLM via Ollama — no API key needed",
-     "help": "Install Ollama, then set URL (default: http://localhost:11434)"},
-
+    {
+        "id": "anthropic",
+        "name": "Claude (Anthropic)",
+        "category": "llm",
+        "env_key": "ANTHROPIC_API_KEY",
+        "type": "secret",
+        "description": "Primary AI provider — Claude Sonnet/Opus models",
+        "help": "Get your key at console.anthropic.com",
+    },
+    {
+        "id": "google_ai",
+        "name": "Gemini (Google)",
+        "category": "llm",
+        "env_key": "GOOGLE_AI_API_KEY",
+        "type": "secret",
+        "description": "Google Gemini Flash/Pro models",
+        "help": "Get your key at aistudio.google.com",
+    },
+    {
+        "id": "openai",
+        "name": "GPT-4 (OpenAI)",
+        "category": "llm",
+        "env_key": "OPENAI_API_KEY",
+        "type": "secret",
+        "description": "OpenAI GPT-4o models",
+        "help": "Get your key at platform.openai.com",
+    },
+    {
+        "id": "ollama",
+        "name": "Ollama (Local)",
+        "category": "llm",
+        "env_key": "OLLAMA_BASE_URL",
+        "type": "url",
+        "description": "Local LLM via Ollama — no API key needed",
+        "help": "Install Ollama, then set URL (default: http://localhost:11434)",
+    },
     # Search & Tools
-    {"id": "brave_search", "name": "Brave Search", "category": "tool",
-     "env_key": "BRAVE_API_KEY", "type": "secret",
-     "description": "Web search for research capabilities",
-     "help": "Get your key at brave.com/search/api"},
-    {"id": "browser", "name": "Browser Automation", "category": "tool",
-     "env_key": "BROWSER_ENABLED", "type": "toggle",
-     "description": "Navigate, click, extract data from web pages",
-     "help": "Requires Playwright installed (pip install playwright)"},
-    {"id": "mcp", "name": "MCP Servers", "category": "tool",
-     "env_key": "MCP_ENABLED", "type": "toggle",
-     "description": "Model Context Protocol — advanced tool integrations",
-     "help": "Configure servers in realize-os.yaml under 'mcp:' section"},
-
+    {
+        "id": "brave_search",
+        "name": "Brave Search",
+        "category": "tool",
+        "env_key": "BRAVE_API_KEY",
+        "type": "secret",
+        "description": "Web search for research capabilities",
+        "help": "Get your key at brave.com/search/api",
+    },
+    {
+        "id": "browser",
+        "name": "Browser Automation",
+        "category": "tool",
+        "env_key": "BROWSER_ENABLED",
+        "type": "toggle",
+        "description": "Navigate, click, extract data from web pages",
+        "help": "Requires Playwright installed (pip install playwright)",
+    },
+    {
+        "id": "mcp",
+        "name": "MCP Servers",
+        "category": "tool",
+        "env_key": "MCP_ENABLED",
+        "type": "toggle",
+        "description": "Model Context Protocol — advanced tool integrations",
+        "help": "Configure servers in realize-os.yaml under 'mcp:' section",
+    },
     # Integrations
-    {"id": "google_client_id", "name": "Google Workspace — Client ID", "category": "integration",
-     "env_key": "GOOGLE_CLIENT_ID", "type": "secret",
-     "description": "Gmail, Calendar, Drive integration",
-     "help": "Create OAuth credentials at console.cloud.google.com"},
-    {"id": "google_client_secret", "name": "Google Workspace — Client Secret", "category": "integration",
-     "env_key": "GOOGLE_CLIENT_SECRET", "type": "secret",
-     "description": "OAuth client secret for Google APIs",
-     "help": "Paired with Client ID from Google Cloud Console"},
-    {"id": "stripe", "name": "Stripe", "category": "integration",
-     "env_key": "STRIPE_API_KEY", "type": "secret",
-     "description": "Invoicing, payment links, subscriptions",
-     "help": "Get your key at dashboard.stripe.com/apikeys"},
-
+    {
+        "id": "google_client_id",
+        "name": "Google Workspace — Client ID",
+        "category": "integration",
+        "env_key": "GOOGLE_CLIENT_ID",
+        "type": "secret",
+        "description": "Gmail, Calendar, Drive integration",
+        "help": "Create OAuth credentials at console.cloud.google.com",
+    },
+    {
+        "id": "google_client_secret",
+        "name": "Google Workspace — Client Secret",
+        "category": "integration",
+        "env_key": "GOOGLE_CLIENT_SECRET",
+        "type": "secret",
+        "description": "OAuth client secret for Google APIs",
+        "help": "Paired with Client ID from Google Cloud Console",
+    },
+    {
+        "id": "stripe",
+        "name": "Stripe",
+        "category": "integration",
+        "env_key": "STRIPE_API_KEY",
+        "type": "secret",
+        "description": "Invoicing, payment links, subscriptions",
+        "help": "Get your key at dashboard.stripe.com/apikeys",
+    },
     # Channels
-    {"id": "telegram", "name": "Telegram Bot", "category": "channel",
-     "env_key": "TELEGRAM_BOT_TOKEN", "type": "secret",
-     "description": "Chat with your AI agents via Telegram",
-     "help": "Create a bot via @BotFather on Telegram"},
-
+    {
+        "id": "telegram",
+        "name": "Telegram Bot",
+        "category": "channel",
+        "env_key": "TELEGRAM_BOT_TOKEN",
+        "type": "secret",
+        "description": "Chat with your AI agents via Telegram",
+        "help": "Create a bot via @BotFather on Telegram",
+    },
     # System
-    {"id": "rate_limit", "name": "Rate Limit", "category": "system",
-     "env_key": "RATE_LIMIT_PER_MINUTE", "type": "number",
-     "description": "Max API requests per minute",
-     "help": "Default: 30"},
-    {"id": "cost_limit", "name": "Cost Limit", "category": "system",
-     "env_key": "COST_LIMIT_PER_HOUR_USD", "type": "number",
-     "description": "Max LLM spend per hour (USD)",
-     "help": "Default: $5.00"},
+    {
+        "id": "rate_limit",
+        "name": "Rate Limit",
+        "category": "system",
+        "env_key": "RATE_LIMIT_PER_MINUTE",
+        "type": "number",
+        "description": "Max API requests per minute",
+        "help": "Default: 30",
+    },
+    {
+        "id": "cost_limit",
+        "name": "Cost Limit",
+        "category": "system",
+        "env_key": "COST_LIMIT_PER_HOUR_USD",
+        "type": "number",
+        "description": "Max LLM spend per hour (USD)",
+        "help": "Default: $5.00",
+    },
 ]
 
 # Env vars that cannot be changed via the API
@@ -186,17 +248,19 @@ async def get_connections():
         else:
             configured = bool(raw_value.strip())
 
-        connections.append({
-            "id": defn["id"],
-            "name": defn["name"],
-            "category": defn["category"],
-            "env_key": env_key,
-            "type": conn_type,
-            "configured": configured,
-            "masked_value": _mask_value(raw_value, conn_type) if raw_value else None,
-            "description": defn["description"],
-            "help": defn.get("help", ""),
-        })
+        connections.append(
+            {
+                "id": defn["id"],
+                "name": defn["name"],
+                "category": defn["category"],
+                "env_key": env_key,
+                "type": conn_type,
+                "configured": configured,
+                "masked_value": _mask_value(raw_value, conn_type) if raw_value else None,
+                "description": defn["description"],
+                "help": defn.get("help", ""),
+            }
+        )
 
     # Categories in display order
     categories = ["llm", "tool", "integration", "channel", "system"]
@@ -235,6 +299,7 @@ async def update_connection(request: Request):
     # Reload system config
     try:
         from realize_core.config import build_systems_dict, load_config
+
         new_config = load_config()
         request.app.state.config = new_config
         request.app.state.systems = build_systems_dict(new_config)

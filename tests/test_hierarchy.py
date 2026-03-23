@@ -14,6 +14,7 @@ from realize_core.scheduler.hierarchy import build_org_tree, parse_agent_frontma
 # Frontmatter parsing
 # ---------------------------------------------------------------------------
 
+
 class TestFrontmatter:
     def test_parse_reports_to(self):
         content = "---\nreports_to: orchestrator\nrole: content creator\n---\n# Writer\nContent here."
@@ -36,15 +37,14 @@ class TestFrontmatter:
 # Org tree building
 # ---------------------------------------------------------------------------
 
+
 class TestOrgTree:
     @pytest.fixture
     def kb_with_hierarchy(self, tmp_path):
         agents_dir = tmp_path / "agents"
         agents_dir.mkdir()
 
-        (agents_dir / "orchestrator.md").write_text(
-            "---\nrole: coordinator\n---\n# Orchestrator", encoding="utf-8"
-        )
+        (agents_dir / "orchestrator.md").write_text("---\nrole: coordinator\n---\n# Orchestrator", encoding="utf-8")
         (agents_dir / "writer.md").write_text(
             "---\nreports_to: orchestrator\nrole: content\n---\n# Writer", encoding="utf-8"
         )
@@ -109,6 +109,7 @@ class TestOrgTree:
 # Org Tree API
 # ---------------------------------------------------------------------------
 
+
 class TestOrgTreeAPI:
     @pytest.fixture
     def client(self, tmp_path):
@@ -118,6 +119,7 @@ class TestOrgTreeAPI:
             pytest.skip("FastAPI not installed")
 
         from realize_core.db.schema import init_schema, set_db_path
+
         db_path = tmp_path / "test.db"
         set_db_path(db_path)
         init_schema(db_path)
@@ -134,12 +136,17 @@ class TestOrgTreeAPI:
         app.include_router(ventures.router, prefix="/api")
         app.state.systems = {
             "v1": {
-                "name": "Test", "agents": {
+                "name": "Test",
+                "agents": {
                     "orchestrator": "agents/orchestrator.md",
                     "writer": "agents/writer.md",
                 },
-                "agents_dir": "agents", "foundations": "", "brain_dir": "",
-                "routines_dir": "", "insights_dir": "", "creations_dir": "",
+                "agents_dir": "agents",
+                "foundations": "",
+                "brain_dir": "",
+                "routines_dir": "",
+                "insights_dir": "",
+                "creations_dir": "",
             },
         }
         app.state.kb_path = tmp_path

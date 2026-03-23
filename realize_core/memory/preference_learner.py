@@ -11,6 +11,7 @@ Tracks:
 Preferences are stored in memory DB and injected into the prompt builder
 as an additional context layer.
 """
+
 import logging
 from collections import Counter
 from datetime import datetime
@@ -33,6 +34,7 @@ def analyze_preferences(system_key: str, user_id: str = "dashboard-user") -> dic
 
     try:
         from realize_core.memory.conversation import get_history_with_timestamps
+
         history = get_history_with_timestamps(system_key, user_id)
     except Exception:
         history = []
@@ -60,10 +62,12 @@ def analyze_preferences(system_key: str, user_id: str = "dashboard-user") -> dic
     # 2. Tone detection
     if user_msgs:
         all_user_text = " ".join(m.get("content", "") for m in user_msgs[-20:]).lower()
-        formal_signals = sum(1 for w in ["please", "kindly", "would you", "could you", "regarding", "sincerely"]
-                           if w in all_user_text)
-        casual_signals = sum(1 for w in ["hey", "cool", "awesome", "thanks!", "yeah", "gonna", "wanna", "lol"]
-                           if w in all_user_text)
+        formal_signals = sum(
+            1 for w in ["please", "kindly", "would you", "could you", "regarding", "sincerely"] if w in all_user_text
+        )
+        casual_signals = sum(
+            1 for w in ["hey", "cool", "awesome", "thanks!", "yeah", "gonna", "wanna", "lol"] if w in all_user_text
+        )
         if formal_signals > casual_signals + 2:
             prefs["tone"] = "formal"
             prefs["tone_hint"] = "User prefers formal communication."
@@ -112,8 +116,9 @@ def analyze_preferences(system_key: str, user_id: str = "dashboard-user") -> dic
     # 5. Emoji usage
     if user_msgs:
         import re
+
         emoji_pattern = re.compile(
-            "[\U0001F600-\U0001F64F\U0001F300-\U0001F5FF\U0001F680-\U0001F6FF\U0001F900-\U0001F9FF]"
+            "[\U0001f600-\U0001f64f\U0001f300-\U0001f5ff\U0001f680-\U0001f6ff\U0001f900-\U0001f9ff]"
         )
         emoji_count = sum(len(emoji_pattern.findall(m.get("content", ""))) for m in user_msgs[-20:])
         if emoji_count > 5:
@@ -168,6 +173,7 @@ def store_preferences(system_key: str, user_id: str = "dashboard-user"):
         import json
 
         from realize_core.memory.store import store_memory
+
         store_memory(
             system_key=system_key,
             category="user_preferences",

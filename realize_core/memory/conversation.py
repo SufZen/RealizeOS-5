@@ -5,6 +5,7 @@ Maintains per-user, per-system conversation buffers with cross-system context sh
 Uses SQLite write-through with in-memory cache for persistence across restarts.
 Supports thread/topic scoping via optional topic_id parameter.
 """
+
 import logging
 from collections import defaultdict
 from datetime import datetime
@@ -24,6 +25,7 @@ _hydrated: set[tuple[str, str, str]] = set()
 def _db_ctx():
     """Get a SQLite connection context manager from memory store."""
     from realize_core.memory.store import db_connection
+
     return db_connection()
 
 
@@ -44,8 +46,7 @@ def _hydrate_if_needed(system_key: str, user_id: str, topic_id: str = ""):
 
         if rows:
             _conversations[key] = [
-                {"role": r["role"], "content": r["content"], "created_at": r["created_at"]}
-                for r in reversed(rows)
+                {"role": r["role"], "content": r["content"], "created_at": r["created_at"]} for r in reversed(rows)
             ]
             logger.info(f"Hydrated {len(rows)} messages for {system_key}:{user_id}:{topic_id}")
     except Exception as e:
@@ -151,10 +152,12 @@ def get_cross_system_context(
         if history:
             recent = history[-2:]
             for msg in recent:
-                cross_context.append({
-                    "role": msg["role"],
-                    "content": f"[From {sys_key}] {msg['content'][:500]}",
-                })
+                cross_context.append(
+                    {
+                        "role": msg["role"],
+                        "content": f"[From {sys_key}] {msg['content'][:500]}",
+                    }
+                )
     return cross_context
 
 

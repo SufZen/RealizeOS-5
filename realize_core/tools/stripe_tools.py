@@ -6,6 +6,7 @@ Configure in .env:
 
 All financial actions are governance-gated (trust ladder: financial_action).
 """
+
 import logging
 import os
 
@@ -41,6 +42,7 @@ async def create_invoice(
 
     try:
         import httpx
+
         headers = {"Authorization": f"Bearer {api_key}"}
         base = "https://api.stripe.com/v1"
 
@@ -131,6 +133,7 @@ async def create_payment_link(
 
     try:
         import httpx
+
         headers = {"Authorization": f"Bearer {api_key}"}
         base = "https://api.stripe.com/v1"
 
@@ -181,6 +184,7 @@ async def check_payment_status(invoice_id: str) -> dict:
 
     try:
         import httpx
+
         headers = {"Authorization": f"Bearer {api_key}"}
 
         async with httpx.AsyncClient(timeout=30) as client:

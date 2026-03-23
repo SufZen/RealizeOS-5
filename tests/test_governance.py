@@ -7,6 +7,7 @@ Covers:
 - Pending approval queries
 - API endpoints for approvals
 """
+
 import pytest
 from realize_core.activity.bus import _recent_events, _subscribers
 from realize_core.db.schema import init_schema, set_db_path
@@ -36,6 +37,7 @@ def setup_db(tmp_path):
 # Gate detection
 # ---------------------------------------------------------------------------
 
+
 class TestGateDetection:
     def test_gated_when_enabled(self):
         features = {"approval_gates": True, "governance": {"gates": {"send_email": True}}}
@@ -62,6 +64,7 @@ class TestGateDetection:
 # ---------------------------------------------------------------------------
 # Approval lifecycle
 # ---------------------------------------------------------------------------
+
 
 class TestApprovalLifecycle:
     def test_create_approval(self, setup_db):
@@ -111,6 +114,7 @@ class TestApprovalLifecycle:
 # ---------------------------------------------------------------------------
 # Approval API
 # ---------------------------------------------------------------------------
+
 
 class TestApprovalAPI:
     @pytest.fixture

@@ -1,4 +1,5 @@
 """Tests for realize_core.llm.routing_engine — advanced routing."""
+
 from pathlib import Path
 
 import pytest
@@ -33,32 +34,44 @@ def engine(yaml_path):
 @pytest.fixture
 def simple_task():
     return TaskClassification(
-        task_type="simple", modality=Modality.TEXT,
-        tier=1, confidence=0.8, requires_tools=False,
+        task_type="simple",
+        modality=Modality.TEXT,
+        tier=1,
+        confidence=0.8,
+        requires_tools=False,
     )
 
 
 @pytest.fixture
 def content_task():
     return TaskClassification(
-        task_type="content", modality=Modality.TEXT,
-        tier=2, confidence=0.9, requires_tools=False,
+        task_type="content",
+        modality=Modality.TEXT,
+        tier=2,
+        confidence=0.9,
+        requires_tools=False,
     )
 
 
 @pytest.fixture
 def image_task():
     return TaskClassification(
-        task_type="image_gen", modality=Modality.IMAGE_GEN,
-        tier=2, confidence=0.85, requires_tools=True,
+        task_type="image_gen",
+        modality=Modality.IMAGE_GEN,
+        tier=2,
+        confidence=0.85,
+        requires_tools=True,
     )
 
 
 @pytest.fixture
 def complex_task():
     return TaskClassification(
-        task_type="complex", modality=Modality.REASONING,
-        tier=3, confidence=0.95, requires_tools=False,
+        task_type="complex",
+        modality=Modality.REASONING,
+        tier=3,
+        confidence=0.95,
+        requires_tools=False,
     )
 
 
@@ -70,8 +83,11 @@ def complex_task():
 class TestModelCapability:
     def test_supports_modality(self):
         m = ModelCapability(
-            key="test", display_name="Test", provider="test",
-            modalities=["text", "code", "vision"], tier=2,
+            key="test",
+            display_name="Test",
+            provider="test",
+            modalities=["text", "code", "vision"],
+            tier=2,
         )
         assert m.supports_modality("text")
         assert m.supports_modality("code")
@@ -133,8 +149,11 @@ class TestRoutingEngine:
         e = RoutingEngine(config_path="/nonexistent.yaml")
         assert not e.loaded
         task = TaskClassification(
-            task_type="simple", modality=Modality.TEXT,
-            tier=1, confidence=0.5, requires_tools=False,
+            task_type="simple",
+            modality=Modality.TEXT,
+            tier=1,
+            confidence=0.5,
+            requires_tools=False,
         )
         decision = e.route(task)
         assert isinstance(decision, RoutingDecision)
@@ -190,6 +209,7 @@ class TestCostTracking:
 class TestSingleton:
     def test_get_routing_engine_returns_same_instance(self):
         import realize_core.llm.routing_engine as mod
+
         mod._engine = None
         e1 = get_routing_engine()
         e2 = get_routing_engine()

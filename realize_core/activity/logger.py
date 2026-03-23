@@ -4,6 +4,7 @@ Activity Event Logger: fire-and-forget event recording.
 Emits events to both SQLite (persistence) and an in-memory bus (for SSE streaming).
 All logging is non-blocking — failures are logged but never propagate to the caller.
 """
+
 import logging
 import uuid
 from datetime import UTC, datetime
@@ -46,13 +47,13 @@ def log_event(
     # Persist to SQLite
     try:
         from realize_core.db.schema import get_connection
+
         conn = get_connection()
         conn.execute(
             """INSERT INTO activity_events
                (id, venture_key, actor_type, actor_id, action, entity_type, entity_id, details, created_at)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (event_id, venture_key, actor_type, actor_id, action,
-             entity_type, entity_id, details, created_at),
+            (event_id, venture_key, actor_type, actor_id, action, entity_type, entity_id, details, created_at),
         )
         conn.commit()
         conn.close()

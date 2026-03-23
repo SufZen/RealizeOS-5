@@ -8,6 +8,7 @@ Configure in .env:
   TWILIO_AUTH_TOKEN=...
   TWILIO_PHONE_NUMBER=+1...
 """
+
 import logging
 import os
 
@@ -16,11 +17,13 @@ logger = logging.getLogger(__name__)
 
 def is_available() -> bool:
     """Check if telephony is configured."""
-    return all([
-        os.getenv("TWILIO_ACCOUNT_SID", ""),
-        os.getenv("TWILIO_AUTH_TOKEN", ""),
-        os.getenv("TWILIO_PHONE_NUMBER", ""),
-    ])
+    return all(
+        [
+            os.getenv("TWILIO_ACCOUNT_SID", ""),
+            os.getenv("TWILIO_AUTH_TOKEN", ""),
+            os.getenv("TWILIO_PHONE_NUMBER", ""),
+        ]
+    )
 
 
 async def make_call(

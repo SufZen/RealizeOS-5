@@ -8,6 +8,7 @@ Extends the base RBAC in `__init__.py` with:
 - Runtime role creation and modification
 - Integration with JWT claims
 """
+
 from __future__ import annotations
 
 import logging
@@ -25,9 +26,11 @@ logger = logging.getLogger(__name__)
 # Types
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class RBACRole:
     """A role definition with permissions and optional inheritance."""
+
     name: str
     description: str = ""
     permissions: set[str] = field(default_factory=set)
@@ -48,6 +51,7 @@ class RBACRole:
 @dataclass
 class AccessDecision:
     """Result of an access check."""
+
     allowed: bool
     role: str
     permission: str
@@ -117,11 +121,16 @@ _BUILTIN_ROLES: dict[str, RBACRole] = {
         name="operator",
         description="Operational access: execute, approve, manage agents",
         permissions={
-            "system:read", "system:write",
-            "agents:read", "agents:write", "agents:execute",
-            "tools:use", "tools:web",
+            "system:read",
+            "system:write",
+            "agents:read",
+            "agents:write",
+            "agents:execute",
+            "tools:use",
+            "tools:web",
             "content:generate",
-            "pipeline:execute", "pipeline:approve",
+            "pipeline:execute",
+            "pipeline:approve",
             "admin:schedules",
         },
     ),
@@ -129,9 +138,12 @@ _BUILTIN_ROLES: dict[str, RBACRole] = {
         name="user",
         description="Standard: read/write, use tools, generate content",
         permissions={
-            "system:read", "system:write",
-            "agents:read", "agents:execute",
-            "tools:use", "tools:web",
+            "system:read",
+            "system:write",
+            "agents:read",
+            "agents:execute",
+            "tools:use",
+            "tools:web",
             "content:generate",
         },
     ),
@@ -156,6 +168,7 @@ _BUILTIN_ROLES: dict[str, RBACRole] = {
 # ---------------------------------------------------------------------------
 # RBAC Manager
 # ---------------------------------------------------------------------------
+
 
 class RBACManager:
     """

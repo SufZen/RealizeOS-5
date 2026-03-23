@@ -24,6 +24,7 @@ Jobs can also be added dynamically::
 
     cron.add_job("my-job", func=my_coroutine, trigger="interval", minutes=30)
 """
+
 from __future__ import annotations
 
 import importlib
@@ -57,6 +58,7 @@ CRON_MANIFEST = ExtensionManifest(
 # Scheduler abstraction
 # ---------------------------------------------------------------------------
 
+
 class _NoOpScheduler:
     """Fallback when APScheduler is not installed."""
 
@@ -66,8 +68,7 @@ class _NoOpScheduler:
     def start(self) -> None:
         self._running = True
         logger.warning(
-            "APScheduler not installed — cron jobs will NOT execute. "
-            "Install with: pip install apscheduler",
+            "APScheduler not installed — cron jobs will NOT execute. Install with: pip install apscheduler",
         )
 
     def shutdown(self, wait: bool = True) -> None:
@@ -76,8 +77,8 @@ class _NoOpScheduler:
     def add_job(self, func: Any, **kwargs: Any) -> Any:
         job_id = kwargs.get("id", "unknown")
         logger.warning(
-            "NoOpScheduler: ignoring add_job('%s') — "
-            "install apscheduler for real scheduling", job_id,
+            "NoOpScheduler: ignoring add_job('%s') — install apscheduler for real scheduling",
+            job_id,
         )
         return None
 
@@ -96,6 +97,7 @@ def _create_scheduler() -> Any:
     """Create an APScheduler or fallback to NoOp."""
     try:
         from apscheduler.schedulers.asyncio import AsyncIOScheduler
+
         return AsyncIOScheduler()
     except ImportError:
         return _NoOpScheduler()
@@ -104,6 +106,7 @@ def _create_scheduler() -> Any:
 # ---------------------------------------------------------------------------
 # CronExtension
 # ---------------------------------------------------------------------------
+
 
 class CronExtension:
     """
@@ -166,7 +169,8 @@ class CronExtension:
             self._register_job_from_spec(job_spec)
 
         logger.info(
-            "CronExtension loaded with %d job(s)", len(self._jobs),
+            "CronExtension loaded with %d job(s)",
+            len(self._jobs),
         )
 
     async def on_unload(self) -> None:
@@ -239,10 +243,7 @@ class CronExtension:
 
     def list_jobs(self) -> list[dict[str, Any]]:
         """List all registered jobs."""
-        return [
-            {"id": job_id, **spec}
-            for job_id, spec in self._jobs.items()
-        ]
+        return [{"id": job_id, **spec} for job_id, spec in self._jobs.items()]
 
     @property
     def job_count(self) -> int:
@@ -268,15 +269,13 @@ class CronExtension:
         if func is None:
             logger.warning(
                 "Cannot resolve func '%s' for job '%s'",
-                func_path, job_id,
+                func_path,
+                job_id,
             )
             return
 
         trigger = spec.get("trigger", "interval")
-        trigger_args = {
-            k: v for k, v in spec.items()
-            if k not in ("id", "func", "trigger")
-        }
+        trigger_args = {k: v for k, v in spec.items() if k not in ("id", "func", "trigger")}
 
         self.add_job(job_id, func, trigger=trigger, **trigger_args)
 

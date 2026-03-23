@@ -2,6 +2,7 @@
 Anthropic Claude API client wrapper.
 Supports multiple tiers: Sonnet (reasoning, content) and Opus (complex strategy).
 """
+
 import logging
 
 import anthropic
@@ -17,6 +18,7 @@ def _get_client(api_key: str = None) -> anthropic.AsyncAnthropic:
     global _client
     if _client is None:
         from realize_core.config import ANTHROPIC_API_KEY
+
         key = api_key or ANTHROPIC_API_KEY
         if not key:
             raise RuntimeError("Anthropic API key not configured. Set ANTHROPIC_API_KEY.")
@@ -102,8 +104,10 @@ async def call_claude_with_tools(
             messages=messages,
             tools=tools,
         )
-        logger.info(f"Claude tool_use: model={model}, stop={response.stop_reason}, "
-                     f"usage={response.usage.input_tokens}in/{response.usage.output_tokens}out")
+        logger.info(
+            f"Claude tool_use: model={model}, stop={response.stop_reason}, "
+            f"usage={response.usage.input_tokens}in/{response.usage.output_tokens}out"
+        )
 
         _log_usage(model, response.usage)
         return response
@@ -147,15 +151,19 @@ async def call_claude_vision(
             if msg["role"] == "user" and msg is messages[-1]:
                 b64_data = base64.b64encode(image_data).decode("utf-8")
                 if media_type == "application/pdf":
-                    content_blocks = [{
-                        "type": "document",
-                        "source": {"type": "base64", "media_type": "application/pdf", "data": b64_data},
-                    }]
+                    content_blocks = [
+                        {
+                            "type": "document",
+                            "source": {"type": "base64", "media_type": "application/pdf", "data": b64_data},
+                        }
+                    ]
                 else:
-                    content_blocks = [{
-                        "type": "image",
-                        "source": {"type": "base64", "media_type": media_type, "data": b64_data},
-                    }]
+                    content_blocks = [
+                        {
+                            "type": "image",
+                            "source": {"type": "base64", "media_type": media_type, "data": b64_data},
+                        }
+                    ]
                 text = msg.get("content") or "Please analyze this image."
                 content_blocks.append({"type": "text", "text": text})
                 vision_messages.append({"role": "user", "content": content_blocks})
@@ -209,10 +217,12 @@ def _log_usage(model: str, usage):
 async def call_claude_sonnet(system_prompt: str, messages: list[dict], **kwargs) -> str:
     """Convenience wrapper for Claude Sonnet (tier 2: reasoning, content, tools)."""
     from realize_core.config import MODELS
+
     return await call_claude(system_prompt, messages, model=MODELS["claude_sonnet"], **kwargs)
 
 
 async def call_claude_opus(system_prompt: str, messages: list[dict], **kwargs) -> str:
     """Convenience wrapper for Claude Opus (tier 3: complex strategy)."""
     from realize_core.config import MODELS
+
     return await call_claude(system_prompt, messages, model=MODELS["claude_opus"], **kwargs)

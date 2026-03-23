@@ -8,6 +8,7 @@ Endpoints:
 - POST   /api/extensions/{ext_key}/disable — disable an extension
 - GET    /api/extensions/{ext_key}/status  — get extension runtime status
 """
+
 import logging
 
 from fastapi import APIRouter, HTTPException, Request
@@ -21,14 +22,17 @@ logger = logging.getLogger(__name__)
 # Request/Response models
 # ---------------------------------------------------------------------------
 
+
 class ExtensionToggleBody(BaseModel):
     """Optional body for enable/disable with config."""
+
     config: dict | None = None
 
 
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
+
 
 @router.get("/extensions")
 async def list_extensions(
@@ -43,6 +47,7 @@ async def list_extensions(
     """
     try:
         from realize_core.extensions.registry import list_extensions as _list_ext
+
         extensions = _list_ext()
     except ImportError:
         # Extensions module may not be implemented yet (Agent 4)
@@ -77,6 +82,7 @@ async def get_extension(ext_key: str, request: Request):
     """Get detailed info about a specific extension."""
     try:
         from realize_core.extensions.registry import get_extension as _get_ext
+
         ext = _get_ext(ext_key)
     except ImportError:
         raise HTTPException(status_code=501, detail="Extensions module not available")

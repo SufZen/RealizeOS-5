@@ -4,6 +4,7 @@ Venture Export/Import: portable venture packages (.zip).
 Export creates a sanitized zip of a venture's FABRIC structure.
 Import restores a venture from a zip package.
 """
+
 import json
 import logging
 import zipfile
@@ -13,9 +14,17 @@ logger = logging.getLogger(__name__)
 
 # Files/patterns to exclude from export (secrets, caches)
 EXCLUDE_PATTERNS = {
-    ".env", ".env.local", "credentials.json", "token.json",
-    "__pycache__", ".DS_Store", "Thumbs.db", "*.db", "*.sqlite",
-    "*.pyc", "node_modules",
+    ".env",
+    ".env.local",
+    "credentials.json",
+    "token.json",
+    "__pycache__",
+    ".DS_Store",
+    "Thumbs.db",
+    "*.db",
+    "*.sqlite",
+    "*.pyc",
+    "node_modules",
 }
 
 

@@ -31,33 +31,34 @@ def kb_root(tmp_path):
     # Foundations
     foundations = system_dir / "F-foundations"
     foundations.mkdir()
-    (foundations / "venture-identity.md").write_text(encoding="utf-8", data=
-        "# Venture Identity\nTest Brand Inc — AI-powered solutions for everyone."
+    (foundations / "venture-identity.md").write_text(
+        encoding="utf-8", data="# Venture Identity\nTest Brand Inc — AI-powered solutions for everyone."
     )
-    (foundations / "venture-voice.md").write_text(encoding="utf-8", data=
-        "# Venture Voice\nProfessional, direct, and friendly."
+    (foundations / "venture-voice.md").write_text(
+        encoding="utf-8", data="# Venture Voice\nProfessional, direct, and friendly."
     )
 
     # Agents
     agents = system_dir / "A-agents"
     agents.mkdir()
-    (agents / "_README.md").write_text(encoding="utf-8", data=
-        "# Agent Routing\n"
+    (agents / "_README.md").write_text(
+        encoding="utf-8",
+        data="# Agent Routing\n"
         "- Orchestrator: general queries, coordination\n"
-        "- Writer: content creation, blog posts, copy\n"
+        "- Writer: content creation, blog posts, copy\n",
     )
-    (agents / "orchestrator.md").write_text(encoding="utf-8", data=
-        "# Orchestrator\nYou coordinate the team and handle general queries."
+    (agents / "orchestrator.md").write_text(
+        encoding="utf-8", data="# Orchestrator\nYou coordinate the team and handle general queries."
     )
-    (agents / "writer.md").write_text(encoding="utf-8", data=
-        "# Writer\nYou create compelling content and persuasive copy."
+    (agents / "writer.md").write_text(
+        encoding="utf-8", data="# Writer\nYou create compelling content and persuasive copy."
     )
 
     # Insights / memory
     insights = system_dir / "I-insights"
     insights.mkdir()
-    (insights / "learning-log.md").write_text(encoding="utf-8", data=
-        "# Learning Log\n- User prefers short paragraphs\n- Always include CTA in posts"
+    (insights / "learning-log.md").write_text(
+        encoding="utf-8", data="# Learning Log\n- User prefers short paragraphs\n- Always include CTA in posts"
     )
 
     return tmp_path

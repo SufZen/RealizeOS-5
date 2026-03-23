@@ -12,6 +12,7 @@ Endpoints:
 - POST   /api/pipelines/execute           — execute a pipeline
 - GET    /api/pipelines/{pipeline_id}     — get pipeline execution state
 """
+
 import logging
 import uuid
 
@@ -36,8 +37,10 @@ _pipeline_states: dict = {}
 # Request/Response models
 # ---------------------------------------------------------------------------
 
+
 class CreateAgentBody(BaseModel):
     """Body for creating a new V2 agent."""
+
     name: str
     key: str
     description: str = ""
@@ -52,6 +55,7 @@ class CreateAgentBody(BaseModel):
 
 class UpdateAgentBody(BaseModel):
     """Body for updating an existing V2 agent."""
+
     name: str | None = None
     description: str | None = None
     scope: str | None = None
@@ -65,6 +69,7 @@ class UpdateAgentBody(BaseModel):
 
 class PipelineExecuteBody(BaseModel):
     """Body for executing a pipeline."""
+
     pipeline_id: str | None = None
     stages: list[dict] = Field(
         ...,
@@ -77,6 +82,7 @@ class PipelineExecuteBody(BaseModel):
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _get_registry(request: Request) -> AgentRegistry:
     """Get or initialize the agent registry from app state."""
@@ -130,8 +136,7 @@ def _agent_to_dict(agent: V1AgentDef | V2AgentDef) -> dict:
             for s in agent.pipeline_stages
         ],
         "guardrails": [
-            {"name": g.name, "description": g.description, "enforcement": g.enforcement}
-            for g in agent.guardrails
+            {"name": g.name, "description": g.description, "enforcement": g.enforcement} for g in agent.guardrails
         ],
         "success_metrics": agent.success_metrics,
         "file_path": agent.file_path,
@@ -141,6 +146,7 @@ def _agent_to_dict(agent: V1AgentDef | V2AgentDef) -> dict:
 # ---------------------------------------------------------------------------
 # Agent CRUD endpoints
 # ---------------------------------------------------------------------------
+
 
 @router.get("/agents")
 async def list_agents(
@@ -165,10 +171,7 @@ async def list_agents(
         agents = registry.all()
 
     if persona:
-        agents = [
-            a for a in agents
-            if isinstance(a, V2AgentDef) and a.persona == persona
-        ]
+        agents = [a for a in agents if isinstance(a, V2AgentDef) and a.persona == persona]
 
     return {
         "agents": [_agent_to_dict(a) for a in agents],
@@ -294,6 +297,7 @@ async def reload_agents(request: Request):
 # Pipeline management endpoints
 # ---------------------------------------------------------------------------
 
+
 @router.post("/pipelines/execute", status_code=202)
 async def execute_pipeline_endpoint(body: PipelineExecuteBody, request: Request):
     """
@@ -309,11 +313,13 @@ async def execute_pipeline_endpoint(body: PipelineExecuteBody, request: Request)
     stages = []
     for s in body.stages:
         ht = HandoffType(s.get("handoff_type", "standard"))
-        stages.append(PipelineStage(
-            name=s["name"],
-            agent_key=s["agent_key"],
-            handoff_type=ht,
-        ))
+        stages.append(
+            PipelineStage(
+                name=s["name"],
+                agent_key=s["agent_key"],
+                handoff_type=ht,
+            )
+        )
 
     if not stages:
         raise HTTPException(status_code=400, detail="Pipeline must have at least one stage")

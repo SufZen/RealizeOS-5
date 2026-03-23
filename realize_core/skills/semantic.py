@@ -25,6 +25,7 @@ Usage::
     if result and result.is_match:
         print(f"Matched: {result.skill_key} (score={result.score})")
 """
+
 from __future__ import annotations
 
 import json
@@ -71,6 +72,7 @@ Rules:
 # Core matching function
 # ---------------------------------------------------------------------------
 
+
 async def semantic_match(
     message: str,
     skill_summaries: list[dict[str, str]],
@@ -99,10 +101,7 @@ async def semantic_match(
         return None
 
     # Build the skills list for the prompt
-    skills_text = "\n".join(
-        f"- **{s['key']}**: {s.get('description', '(no description)')}"
-        for s in skill_summaries
-    )
+    skills_text = "\n".join(f"- **{s['key']}**: {s.get('description', '(no description)')}" for s in skill_summaries)
 
     prompt = _SEMANTIC_MATCH_PROMPT.format(
         skills_list=skills_text,
@@ -133,6 +132,7 @@ async def semantic_match(
 # ---------------------------------------------------------------------------
 # Batch matching
 # ---------------------------------------------------------------------------
+
 
 async def semantic_match_batch(
     message: str,
@@ -178,16 +178,19 @@ async def semantic_match_batch(
 # Default LLM resolution
 # ---------------------------------------------------------------------------
 
+
 def _get_default_llm() -> LLMCallable | None:
     """Attempt to import the default LLM client."""
     try:
         from realize_core.llm.claude_client import call_claude
+
         return call_claude
     except ImportError:
         pass
 
     try:
         from realize_core.llm.gemini_client import call_gemini
+
         return call_gemini
     except ImportError:
         pass
@@ -198,6 +201,7 @@ def _get_default_llm() -> LLMCallable | None:
 # ---------------------------------------------------------------------------
 # Response parsing
 # ---------------------------------------------------------------------------
+
 
 def _parse_semantic_response(
     response: str,
@@ -256,6 +260,7 @@ def _extract_json(text: str) -> str | None:
 
     # Try extracting from ```json ... ``` blocks
     import re
+
     code_block = re.search(r"```(?:json)?\s*\n?(.*?)\n?```", text, re.DOTALL)
     if code_block:
         return code_block.group(1).strip()
@@ -264,6 +269,6 @@ def _extract_json(text: str) -> str | None:
     brace_start = text.find("{")
     brace_end = text.rfind("}")
     if brace_start != -1 and brace_end > brace_start:
-        return text[brace_start:brace_end + 1]
+        return text[brace_start : brace_end + 1]
 
     return None

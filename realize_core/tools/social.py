@@ -6,6 +6,7 @@ Configure API tokens in .env:
   LINKEDIN_TOKEN=...
   TWITTER_BEARER_TOKEN=...
 """
+
 import logging
 import os
 
@@ -37,6 +38,7 @@ async def post_to_linkedin(content: str, title: str = "") -> dict:
 
     try:
         import httpx
+
         # LinkedIn API v2 - UGC Post
         headers = {
             "Authorization": f"Bearer {token}",
@@ -67,9 +69,7 @@ async def post_to_linkedin(content: str, title: str = "") -> dict:
                         "shareMediaCategory": "NONE",
                     }
                 },
-                "visibility": {
-                    "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC"
-                },
+                "visibility": {"com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC"},
             }
 
             resp = await client.post(
@@ -105,6 +105,7 @@ async def post_to_twitter(content: str) -> dict:
 
     try:
         import httpx
+
         headers = {
             "Authorization": f"Bearer {bearer}",
             "Content-Type": "application/json",

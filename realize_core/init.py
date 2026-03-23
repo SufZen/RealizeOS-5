@@ -3,6 +3,7 @@ Project initialization: shared logic for creating a RealizeOS project.
 
 Used by both `cli.py init --setup` and `cli.py setup` (the wizard).
 """
+
 import logging
 import shutil
 from pathlib import Path
@@ -118,12 +119,14 @@ def initialize_project(config: dict, target_dir: Path) -> dict:
             env_lines.append(f"BRAVE_API_KEY={brave_key}")
 
         # Add V5 feature flags
-        env_lines.extend([
-            "",
-            "# RealizeOS 5 Features",
-            "REALIZE_FEATURES_ACTIVITY_LOG=true",
-            "REALIZE_FEATURES_AGENT_LIFECYCLE=true",
-        ])
+        env_lines.extend(
+            [
+                "",
+                "# RealizeOS 5 Features",
+                "REALIZE_FEATURES_ACTIVITY_LOG=true",
+                "REALIZE_FEATURES_AGENT_LIFECYCLE=true",
+            ]
+        )
 
         env_dest.write_text("\n".join(env_lines) + "\n", encoding="utf-8")
         result["env_created"] = True

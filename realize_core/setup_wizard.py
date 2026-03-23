@@ -8,6 +8,7 @@ Usage:
     python cli.py setup              # Interactive wizard
     python cli.py setup --skip-dashboard  # Skip Node/dashboard phase
 """
+
 import getpass
 import json
 import os
@@ -25,6 +26,7 @@ ENGINE_ROOT = Path(__file__).parent.parent
 @dataclass
 class SetupState:
     """Tracks wizard progress for resume capability."""
+
     project_root: str = "."
     phases_done: list = field(default_factory=list)
     # Collected config
@@ -83,6 +85,7 @@ def _ask_secret(prompt: str) -> str:
 # Phase 1: Prerequisites (stdlib only)
 # ─────────────────────────────────────────────────────────────
 
+
 def phase_prerequisites() -> bool:
     """Check Python version and install pip dependencies."""
     print("\n[1/5] Checking prerequisites...")
@@ -104,7 +107,8 @@ def phase_prerequisites() -> bool:
     _print("..", "Installing Python dependencies...")
     result = subprocess.run(
         [sys.executable, "-m", "pip", "install", "-q", "-r", str(req_file)],
-        capture_output=True, text=True,
+        capture_output=True,
+        text=True,
     )
     if result.returncode != 0:
         _print("!!", "pip install failed:")
@@ -128,6 +132,7 @@ def phase_prerequisites() -> bool:
 # Phase 2: Configuration (interactive)
 # ─────────────────────────────────────────────────────────────
 
+
 def phase_configuration(state: SetupState) -> bool:
     """Collect configuration from user interactively."""
     print("\n[2/5] Configuration")
@@ -137,6 +142,7 @@ def phase_configuration(state: SetupState) -> bool:
 
     # Template selection
     from realize_core.init import get_available_templates
+
     templates = get_available_templates()
     if templates:
         print("\n  Available templates:")
@@ -178,6 +184,7 @@ def phase_configuration(state: SetupState) -> bool:
 # Phase 3: Initialization
 # ─────────────────────────────────────────────────────────────
 
+
 def phase_initialization(state: SetupState) -> bool:
     """Initialize the project using shared init logic."""
     print("\n[3/5] Initializing project...")
@@ -214,6 +221,7 @@ def phase_initialization(state: SetupState) -> bool:
 # Phase 4: Verification
 # ─────────────────────────────────────────────────────────────
 
+
 def phase_verification(state: SetupState) -> bool:
     """Verify the installation works."""
     print("\n[4/5] Verifying installation...")
@@ -230,6 +238,7 @@ def phase_verification(state: SetupState) -> bool:
     try:
         os.chdir(str(target))
         from realize_core.config import load_config
+
         config = load_config()
         systems = config.get("systems", [])
         _print("OK", f"Config loads ({len(systems)} system(s) configured)")
@@ -240,6 +249,7 @@ def phase_verification(state: SetupState) -> bool:
     # Check server module imports
     try:
         from realize_api.main import app  # noqa: F401
+
         _print("OK", "Server module imports successfully")
     except Exception as e:
         _print("!!", f"Server import error: {e}")
@@ -251,6 +261,7 @@ def phase_verification(state: SetupState) -> bool:
 # ─────────────────────────────────────────────────────────────
 # Phase 5: Dashboard (optional)
 # ─────────────────────────────────────────────────────────────
+
 
 def phase_dashboard(state: SetupState) -> bool:
     """Optionally install and build the React dashboard."""
@@ -295,7 +306,8 @@ def phase_dashboard(state: SetupState) -> bool:
     result = subprocess.run(
         [pnpm, "install"],
         cwd=str(dashboard_dir),
-        capture_output=True, text=True,
+        capture_output=True,
+        text=True,
     )
     if result.returncode != 0:
         _print("!!", "pnpm install failed")
@@ -307,7 +319,8 @@ def phase_dashboard(state: SetupState) -> bool:
     result = subprocess.run(
         [pnpm, "build"],
         cwd=str(dashboard_dir),
-        capture_output=True, text=True,
+        capture_output=True,
+        text=True,
     )
     if result.returncode != 0:
         _print("!!", "Dashboard build failed")
@@ -327,6 +340,7 @@ def phase_dashboard(state: SetupState) -> bool:
 # ─────────────────────────────────────────────────────────────
 # Doctor command
 # ─────────────────────────────────────────────────────────────
+
 
 def run_doctor(project_root: Path):
     """Diagnose an existing RealizeOS installation."""
@@ -350,7 +364,9 @@ def run_doctor(project_root: Path):
     env_path = project_root / ".env"
     if env_path.exists():
         content = env_path.read_text(encoding="utf-8")
-        has_anthropic = "ANTHROPIC_API_KEY=" in content and content.split("ANTHROPIC_API_KEY=")[1].split("\n")[0].strip()
+        has_anthropic = (
+            "ANTHROPIC_API_KEY=" in content and content.split("ANTHROPIC_API_KEY=")[1].split("\n")[0].strip()
+        )
         has_google = "GOOGLE_AI_API_KEY=" in content and content.split("GOOGLE_AI_API_KEY=")[1].split("\n")[0].strip()
         if has_anthropic or has_google:
             _print("OK", ".env with API key(s)")
@@ -384,7 +400,8 @@ def run_doctor(project_root: Path):
         # Check that server will serve these files
         try:
             from realize_api.main import app as _app
-            route_paths = [r.path for r in _app.routes if hasattr(r, 'path')]
+
+            route_paths = [r.path for r in _app.routes if hasattr(r, "path")]
             if "/{full_path:path}" in route_paths:
                 _print("OK", "Dashboard serving configured")
             else:
@@ -404,6 +421,7 @@ def run_doctor(project_root: Path):
     # Server import
     try:
         from realize_api.main import app  # noqa: F401
+
         _print("OK", f"Server module loads ({len(app.routes)} routes)")
     except Exception as e:
         _print("!!", f"Server import error: {e}")
@@ -419,6 +437,7 @@ def run_doctor(project_root: Path):
 # ─────────────────────────────────────────────────────────────
 # Main wizard entry point
 # ─────────────────────────────────────────────────────────────
+
 
 def run_wizard(project_root: Path, skip_dashboard: bool = False):
     """Run the interactive setup wizard."""

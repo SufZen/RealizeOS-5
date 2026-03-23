@@ -9,6 +9,7 @@ Provides direct Google Sheets API access for:
 All functions use asyncio.to_thread() to wrap the synchronous
 google-api-python-client, following the same pattern as google_workspace.py.
 """
+
 import asyncio
 import logging
 from typing import Any
@@ -20,16 +21,16 @@ logger = logging.getLogger(__name__)
 # Service builder
 # =====================================================================
 
+
 def _sheets_service():
     """Build and return a Google Sheets API v4 service client."""
     from googleapiclient.discovery import build
 
     from realize_core.tools.google_auth import get_credentials
+
     creds = get_credentials()
     if not creds:
-        raise RuntimeError(
-            "Google credentials not available. See docs for OAuth setup."
-        )
+        raise RuntimeError("Google credentials not available. See docs for OAuth setup.")
     return build("sheets", "v4", credentials=creds)
 
 
@@ -38,17 +39,17 @@ def _drive_service():
     from googleapiclient.discovery import build
 
     from realize_core.tools.google_auth import get_credentials
+
     creds = get_credentials()
     if not creds:
-        raise RuntimeError(
-            "Google credentials not available. See docs for OAuth setup."
-        )
+        raise RuntimeError("Google credentials not available. See docs for OAuth setup.")
     return build("drive", "v3", credentials=creds)
 
 
 # =====================================================================
 # Sheets Tools — Sync implementations
 # =====================================================================
+
 
 def _sheets_read_sync(
     spreadsheet_id: str,
@@ -164,13 +165,15 @@ def _sheets_create_sync(
     sheets = []
     if sheet_names:
         for idx, name in enumerate(sheet_names):
-            sheets.append({
-                "properties": {
-                    "sheetId": idx,
-                    "title": name,
-                    "index": idx,
+            sheets.append(
+                {
+                    "properties": {
+                        "sheetId": idx,
+                        "title": name,
+                        "index": idx,
+                    }
                 }
-            })
+            )
 
     body: dict[str, Any] = {
         "properties": {"title": title},
@@ -188,9 +191,7 @@ def _sheets_create_sync(
         try:
             drive = _drive_service()
             # Get current parents
-            file_info = drive.files().get(
-                fileId=spreadsheet_id, fields="parents"
-            ).execute()
+            file_info = drive.files().get(fileId=spreadsheet_id, fields="parents").execute()
             previous_parents = ",".join(file_info.get("parents", []))
             # Move to the target folder
             drive.files().update(
@@ -202,7 +203,8 @@ def _sheets_create_sync(
         except Exception as e:
             logger.warning(
                 "Created spreadsheet but failed to move to folder %s: %s",
-                folder_id, e,
+                folder_id,
+                e,
             )
 
     created_sheets = [
@@ -226,15 +228,14 @@ def _sheets_create_sync(
 # Async wrappers
 # =====================================================================
 
+
 async def sheets_read(
     spreadsheet_id: str,
     range: str = "Sheet1",
     value_render_option: str = "FORMATTED_VALUE",
 ) -> dict:
     """Read values from a Google Sheets range (async)."""
-    return await asyncio.to_thread(
-        _sheets_read_sync, spreadsheet_id, range, value_render_option
-    )
+    return await asyncio.to_thread(_sheets_read_sync, spreadsheet_id, range, value_render_option)
 
 
 async def sheets_append(
@@ -247,8 +248,11 @@ async def sheets_append(
     """Append rows to a Google Sheets spreadsheet (async)."""
     return await asyncio.to_thread(
         _sheets_append_sync,
-        spreadsheet_id, range, values,
-        value_input_option, insert_data_option,
+        spreadsheet_id,
+        range,
+        values,
+        value_input_option,
+        insert_data_option,
     )
 
 
@@ -258,9 +262,7 @@ async def sheets_create(
     folder_id: str | None = None,
 ) -> dict:
     """Create a new Google Spreadsheet (async)."""
-    return await asyncio.to_thread(
-        _sheets_create_sync, title, sheet_names, folder_id
-    )
+    return await asyncio.to_thread(_sheets_create_sync, title, sheet_names, folder_id)
 
 
 # =====================================================================
@@ -270,10 +272,7 @@ async def sheets_create(
 SHEETS_TOOL_SCHEMAS = [
     {
         "name": "sheets_read",
-        "description": (
-            "Read cell data from a Google Sheets spreadsheet. "
-            "Returns a 2D array of values."
-        ),
+        "description": ("Read cell data from a Google Sheets spreadsheet. Returns a 2D array of values."),
         "input_schema": {
             "type": "object",
             "properties": {
@@ -284,17 +283,13 @@ SHEETS_TOOL_SCHEMAS = [
                 "range": {
                     "type": "string",
                     "description": (
-                        "A1 notation range (e.g. 'Sheet1!A1:D10'). "
-                        "Default: 'Sheet1' (entire first sheet)."
+                        "A1 notation range (e.g. 'Sheet1!A1:D10'). Default: 'Sheet1' (entire first sheet)."
                     ),
                     "default": "Sheet1",
                 },
                 "value_render_option": {
                     "type": "string",
-                    "description": (
-                        "How to render values: "
-                        "FORMATTED_VALUE, UNFORMATTED_VALUE, or FORMULA."
-                    ),
+                    "description": ("How to render values: FORMATTED_VALUE, UNFORMATTED_VALUE, or FORMULA."),
                     "default": "FORMATTED_VALUE",
                 },
             },
@@ -303,10 +298,7 @@ SHEETS_TOOL_SCHEMAS = [
     },
     {
         "name": "sheets_append",
-        "description": (
-            "Append rows to a Google Sheets spreadsheet. "
-            "Write operation — requires confirmation."
-        ),
+        "description": ("Append rows to a Google Sheets spreadsheet. Write operation — requires confirmation."),
         "input_schema": {
             "type": "object",
             "properties": {
@@ -316,9 +308,7 @@ SHEETS_TOOL_SCHEMAS = [
                 },
                 "range": {
                     "type": "string",
-                    "description": (
-                        "Target sheet/range (e.g. 'Sheet1' or 'Sheet1!A:D')."
-                    ),
+                    "description": ("Target sheet/range (e.g. 'Sheet1' or 'Sheet1!A:D')."),
                     "default": "Sheet1",
                 },
                 "values": {
@@ -340,10 +330,7 @@ SHEETS_TOOL_SCHEMAS = [
     },
     {
         "name": "sheets_create",
-        "description": (
-            "Create a new Google Spreadsheet. "
-            "Write operation — requires confirmation."
-        ),
+        "description": ("Create a new Google Spreadsheet. Write operation — requires confirmation."),
         "input_schema": {
             "type": "object",
             "properties": {
@@ -354,17 +341,11 @@ SHEETS_TOOL_SCHEMAS = [
                 "sheet_names": {
                     "type": "array",
                     "items": {"type": "string"},
-                    "description": (
-                        "Optional list of sheet tab names to create. "
-                        "Default: one sheet named 'Sheet1'."
-                    ),
+                    "description": ("Optional list of sheet tab names to create. Default: one sheet named 'Sheet1'."),
                 },
                 "folder_id": {
                     "type": "string",
-                    "description": (
-                        "Optional Google Drive folder ID to place "
-                        "the spreadsheet in."
-                    ),
+                    "description": ("Optional Google Drive folder ID to place the spreadsheet in."),
                 },
             },
             "required": ["title"],

@@ -6,6 +6,7 @@ Supports:
 - Cron-expression-like scheduling (simplified)
 - Task routing through the channel system
 """
+
 import asyncio
 import logging
 import time
@@ -20,10 +21,11 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ScheduledJob:
     """A job scheduled to run at regular intervals."""
+
     name: str
     system_key: str
-    message: str               # The prompt/command to execute
-    interval_seconds: int      # How often to run
+    message: str  # The prompt/command to execute
+    interval_seconds: int  # How often to run
     enabled: bool = True
     last_run: float = 0.0
     run_count: int = 0
@@ -112,10 +114,7 @@ class CronScheduler:
     def add_job(self, job: ScheduledJob):
         """Add a scheduled job."""
         self._jobs[job.name] = job
-        logger.info(
-            f"Scheduled job '{job.name}': every {job.interval_seconds}s "
-            f"(enabled={job.enabled})"
-        )
+        logger.info(f"Scheduled job '{job.name}': every {job.interval_seconds}s (enabled={job.enabled})")
 
     def remove_job(self, name: str) -> bool:
         """Remove a scheduled job."""
@@ -173,15 +172,17 @@ class CronScheduler:
 
         for name, cfg in config.get("schedules", {}).items():
             interval_str = cfg.get("interval", "daily")
-            self.add_job(ScheduledJob(
-                name=name,
-                system_key=cfg.get("system_key", ""),
-                message=cfg.get("message", ""),
-                interval_seconds=parse_interval(interval_str),
-                enabled=cfg.get("enabled", True),
-                user_id=cfg.get("user_id", "scheduler"),
-                metadata=cfg.get("metadata", {}),
-            ))
+            self.add_job(
+                ScheduledJob(
+                    name=name,
+                    system_key=cfg.get("system_key", ""),
+                    message=cfg.get("message", ""),
+                    interval_seconds=parse_interval(interval_str),
+                    enabled=cfg.get("enabled", True),
+                    user_id=cfg.get("user_id", "scheduler"),
+                    metadata=cfg.get("metadata", {}),
+                )
+            )
 
     async def start(self):
         """Start the scheduler loop."""

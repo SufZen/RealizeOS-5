@@ -4,6 +4,7 @@ Rate limiter for RealizeOS.
 Implements per-tenant rate limiting based on requests per minute
 and cost per hour thresholds.
 """
+
 import logging
 import time
 from collections import defaultdict
@@ -31,14 +32,14 @@ class RateLimiter:
         window_start = now - 60  # 1-minute window
 
         # Clean old timestamps
-        self._request_timestamps[tenant_id] = [
-            ts for ts in self._request_timestamps[tenant_id] if ts > window_start
-        ]
+        self._request_timestamps[tenant_id] = [ts for ts in self._request_timestamps[tenant_id] if ts > window_start]
 
         # Check request count
         if len(self._request_timestamps[tenant_id]) >= self.requests_per_minute:
-            logger.warning(f"Rate limit exceeded for tenant {tenant_id}: "
-                          f"{len(self._request_timestamps[tenant_id])}/{self.requests_per_minute} per minute")
+            logger.warning(
+                f"Rate limit exceeded for tenant {tenant_id}: "
+                f"{len(self._request_timestamps[tenant_id])}/{self.requests_per_minute} per minute"
+            )
             return False
 
         return True
@@ -66,8 +67,9 @@ class RateLimiter:
         total_cost = sum(cost for _, cost in self._cost_accumulator[tenant_id])
 
         if total_cost >= self.cost_per_hour_usd:
-            logger.warning(f"Cost limit exceeded for tenant {tenant_id}: "
-                          f"${total_cost:.4f}/${self.cost_per_hour_usd} per hour")
+            logger.warning(
+                f"Cost limit exceeded for tenant {tenant_id}: ${total_cost:.4f}/${self.cost_per_hour_usd} per hour"
+            )
             return False
 
         return True
@@ -86,6 +88,7 @@ def get_rate_limiter() -> RateLimiter:
     global _limiter
     if _limiter is None:
         from realize_core.config import COST_LIMIT_PER_HOUR_USD, RATE_LIMIT_PER_MINUTE
+
         _limiter = RateLimiter(
             requests_per_minute=RATE_LIMIT_PER_MINUTE,
             cost_per_hour_usd=COST_LIMIT_PER_HOUR_USD,

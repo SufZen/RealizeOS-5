@@ -1,4 +1,5 @@
 """Tests for realize_core.workflows — workflow engine."""
+
 import pytest
 from realize_core.workflows import (
     MethodRegistry,
@@ -73,8 +74,10 @@ class TestWorkflowContext:
 class TestMethodRegistry:
     def test_register_and_get(self):
         reg = MethodRegistry()
+
         async def my_method(ctx, params):
             return "result"
+
         reg.register("test", my_method)
         assert reg.has("test")
         assert reg.get("test") is my_method
@@ -91,8 +94,13 @@ class TestMethodRegistry:
 
     def test_method_names(self):
         reg = MethodRegistry()
-        async def a(ctx, params): pass
-        async def b(ctx, params): pass
+
+        async def a(ctx, params):
+            pass
+
+        async def b(ctx, params):
+            pass
+
         reg.register("alpha", a)
         reg.register("beta", b)
         assert set(reg.method_names) == {"alpha", "beta"}
@@ -171,10 +179,8 @@ class TestWorkflowRunner:
                         "false": "fail",
                     },
                 ),
-                WorkflowNode(id="success", node_type=NodeType.TRANSFORM,
-                             config={"expression": "Passed!"}),
-                WorkflowNode(id="fail", node_type=NodeType.TRANSFORM,
-                             config={"expression": "Failed!"}),
+                WorkflowNode(id="success", node_type=NodeType.TRANSFORM, config={"expression": "Passed!"}),
+                WorkflowNode(id="fail", node_type=NodeType.TRANSFORM, config={"expression": "Failed!"}),
             ],
             entry_node="check",
         )
@@ -199,10 +205,8 @@ class TestWorkflowRunner:
                         "false": "fail",
                     },
                 ),
-                WorkflowNode(id="success", node_type=NodeType.TRANSFORM,
-                             config={"expression": "Passed!"}),
-                WorkflowNode(id="fail", node_type=NodeType.TRANSFORM,
-                             config={"expression": "Failed!"}),
+                WorkflowNode(id="success", node_type=NodeType.TRANSFORM, config={"expression": "Passed!"}),
+                WorkflowNode(id="fail", node_type=NodeType.TRANSFORM, config={"expression": "Failed!"}),
             ],
             entry_node="check",
         )
@@ -287,8 +291,7 @@ class TestWorkflowRunner:
         wf = WorkflowDefinition(
             name="test-duration",
             nodes=[
-                WorkflowNode(id="a", node_type=NodeType.TRANSFORM,
-                             config={"expression": "done"}),
+                WorkflowNode(id="a", node_type=NodeType.TRANSFORM, config={"expression": "done"}),
             ],
             entry_node="a",
         )
@@ -306,6 +309,7 @@ class TestWorkflowRunner:
 class TestSingletons:
     def test_method_registry_singleton(self):
         import realize_core.workflows as mod
+
         mod._method_registry = None
         r1 = get_method_registry()
         r2 = get_method_registry()
@@ -314,6 +318,7 @@ class TestSingletons:
 
     def test_runner_singleton(self):
         import realize_core.workflows as mod
+
         mod._runner = None
         mod._method_registry = None
         r1 = get_workflow_runner()

@@ -10,8 +10,15 @@ from realize_core.llm.classifier import (
 class TestModality:
     def test_all_modalities(self):
         expected = {
-            "text", "code", "image_gen", "video_gen",
-            "audio", "spreadsheet", "reasoning", "tool_use", "vision",
+            "text",
+            "code",
+            "image_gen",
+            "video_gen",
+            "audio",
+            "spreadsheet",
+            "reasoning",
+            "tool_use",
+            "vision",
         }
         assert {m.value for m in Modality} == expected
 
@@ -19,8 +26,11 @@ class TestModality:
 class TestTaskClassification:
     def test_dataclass_fields(self):
         tc = TaskClassification(
-            task_type="content", modality=Modality.TEXT,
-            tier=2, confidence=0.8, requires_tools=False,
+            task_type="content",
+            modality=Modality.TEXT,
+            tier=2,
+            confidence=0.8,
+            requires_tools=False,
         )
         assert tc.task_type == "content"
         assert tc.modality == Modality.TEXT
@@ -31,16 +41,22 @@ class TestTaskClassification:
 
     def test_multimodal_flag(self):
         tc = TaskClassification(
-            task_type="code", modality=Modality.CODE, tier=2,
-            confidence=0.7, requires_tools=False,
+            task_type="code",
+            modality=Modality.CODE,
+            tier=2,
+            confidence=0.7,
+            requires_tools=False,
             secondary_modality=Modality.TEXT,
         )
         assert tc.is_multimodal
 
     def test_not_multimodal_when_none(self):
         tc = TaskClassification(
-            task_type="simple", modality=Modality.TEXT,
-            tier=1, confidence=0.5, requires_tools=False,
+            task_type="simple",
+            modality=Modality.TEXT,
+            tier=1,
+            confidence=0.5,
+            requires_tools=False,
         )
         assert not tc.is_multimodal
 

@@ -7,6 +7,7 @@ Commands:
 - realize status       — Show system status
 - realize workflows    — List and manage workflows
 """
+
 import argparse
 import sys
 import textwrap
@@ -72,7 +73,8 @@ def cmd_init(path: str, tier: str, name: str) -> int:
     # Create workspace.yaml
     workspace_yaml = project_dir / "config" / "workspace.yaml"
     if not workspace_yaml.exists():
-        workspace_yaml.write_text(textwrap.dedent(f"""\
+        workspace_yaml.write_text(
+            textwrap.dedent(f"""\
             # RealizeOS Workspace Configuration
             project:
               name: {name}
@@ -97,12 +99,14 @@ def cmd_init(path: str, tier: str, name: str) -> int:
               #     role: owner
               #     channels:
               #       telegram: "123456789"
-        """))
+        """)
+        )
 
     # Create .env.example
     dotenv_example = project_dir / ".env.example"
     if not dotenv_example.exists():
-        dotenv_example.write_text(textwrap.dedent("""\
+        dotenv_example.write_text(
+            textwrap.dedent("""\
             # RealizeOS Environment Variables
             # Copy this to .env and fill in your values
 
@@ -118,17 +122,24 @@ def cmd_init(path: str, tier: str, name: str) -> int:
 
             # Tools (optional)
             BRAVE_API_KEY=
-        """))
+        """)
+        )
 
     # Create initial dev-process files
-    _write_if_missing(project_dir / "docs" / "dev-process" / "active" / "current-focus.md",
-        "# Current Focus\n\n> Project initialized. Begin by defining your first system.\n")
+    _write_if_missing(
+        project_dir / "docs" / "dev-process" / "active" / "current-focus.md",
+        "# Current Focus\n\n> Project initialized. Begin by defining your first system.\n",
+    )
 
-    _write_if_missing(project_dir / "docs" / "dev-process" / "active" / "session-log.md",
-        "# Session Log\n\n> Append each work session below.\n")
+    _write_if_missing(
+        project_dir / "docs" / "dev-process" / "active" / "session-log.md",
+        "# Session Log\n\n> Append each work session below.\n",
+    )
 
     # Create CLAUDE.md
-    _write_if_missing(project_dir / "CLAUDE.md", textwrap.dedent(f"""\
+    _write_if_missing(
+        project_dir / "CLAUDE.md",
+        textwrap.dedent(f"""\
         # CLAUDE.md — {name}
 
         ## Project Identity
@@ -144,7 +155,8 @@ def cmd_init(path: str, tier: str, name: str) -> int:
         When receiving images, use the vision-capable model to analyze them.
         When receiving audio/voice messages, transcribe them before processing.
         Always describe what you see in images when asked.
-    """))
+    """),
+    )
 
     print("\n✅ Project scaffolded! Next steps:")
     print("   1. cp .env.example .env    → Add your API keys")

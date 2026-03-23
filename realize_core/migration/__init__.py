@@ -11,6 +11,7 @@ Usage:
     engine.migrate_up()       # Apply all pending migrations
     engine.rollback(steps=1)  # Undo the last migration
 """
+
 from realize_core.migration.engine import MigrationEngine
 
 __all__ = ["MigrationEngine"]

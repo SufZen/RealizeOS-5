@@ -9,6 +9,7 @@ Provides:
 - Correlation IDs for request tracing
 - Integration points for injection events and RBAC decisions
 """
+
 import json
 import logging
 import os
@@ -24,21 +25,23 @@ logger = logging.getLogger(__name__)
 # Types
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class AuditEvent:
     """A structured audit log entry."""
+
     timestamp: float
     user_id: str
     action: str
-    outcome: str = "success"           # success, denied, error, blocked
-    channel: str = ""                  # dashboard, api, telegram, etc.
-    system_key: str = ""               # Which venture/system
-    resource_type: str = ""            # agent, pipeline, file, system, etc.
-    resource_id: str = ""              # Specific resource identifier
-    details: str = ""                  # Human-readable context
-    ip_address: str = ""               # Client IP (if available)
-    correlation_id: str = ""           # Request trace ID
-    severity: str = "info"             # info, warning, critical
+    outcome: str = "success"  # success, denied, error, blocked
+    channel: str = ""  # dashboard, api, telegram, etc.
+    system_key: str = ""  # Which venture/system
+    resource_type: str = ""  # agent, pipeline, file, system, etc.
+    resource_id: str = ""  # Specific resource identifier
+    details: str = ""  # Human-readable context
+    ip_address: str = ""  # Client IP (if available)
+    correlation_id: str = ""  # Request trace ID
+    severity: str = "info"  # info, warning, critical
     metadata: dict = field(default_factory=dict)
 
     def to_dict(self) -> dict:
@@ -53,6 +56,7 @@ class AuditEvent:
 # ---------------------------------------------------------------------------
 # Audit Logger
 # ---------------------------------------------------------------------------
+
 
 class AuditLogger:
     """
@@ -123,7 +127,7 @@ class AuditLogger:
 
             # Trim ring buffer
             if len(self._entries) > self._max_entries:
-                self._entries = self._entries[-self._max_entries:]
+                self._entries = self._entries[-self._max_entries :]
 
         # Persist to file (best-effort)
         if self._log_file:
@@ -137,12 +141,19 @@ class AuditLogger:
         if outcome in ("denied", "blocked"):
             logger.warning(
                 "AUDIT [%s] %s %s → %s (%s)",
-                severity.upper(), user_id, action, outcome, details,
+                severity.upper(),
+                user_id,
+                action,
+                outcome,
+                details,
             )
         elif severity == "critical":
             logger.error(
                 "AUDIT [CRITICAL] %s %s → %s (%s)",
-                user_id, action, outcome, details,
+                user_id,
+                action,
+                outcome,
+                details,
             )
 
         return event
@@ -253,10 +264,12 @@ class AuditLogger:
 
     def get_security_events(self, limit: int = 100) -> list[AuditEvent]:
         """Get recent security-relevant events (denied, blocked, critical)."""
-        return self.query(limit=limit, outcome="") or [
-            e for e in self.query(limit=limit * 2)
-            if e.outcome in ("denied", "blocked") or e.severity == "critical"
-        ][:limit]
+        return (
+            self.query(limit=limit, outcome="")
+            or [
+                e for e in self.query(limit=limit * 2) if e.outcome in ("denied", "blocked") or e.severity == "critical"
+            ][:limit]
+        )
 
     def get_stats(self) -> dict:
         """Get aggregate statistics."""

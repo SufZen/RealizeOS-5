@@ -8,6 +8,7 @@ Provides:
 - Audit log: records all significant actions
 - Prompt injection protection: basic input sanitization
 """
+
 import logging
 import os
 import time
@@ -26,6 +27,7 @@ logger = logging.getLogger(__name__)
 
 class Permission(Enum):
     """Granular permissions for RealizeOS actions."""
+
     # System access
     READ_SYSTEM = "read_system"
     WRITE_SYSTEM = "write_system"
@@ -33,9 +35,9 @@ class Permission(Enum):
 
     # Tool access
     USE_TOOLS = "use_tools"
-    USE_BROWSER = "use_browser"       # Browser automation (risky)
-    USE_GOOGLE = "use_google"         # Google Workspace access
-    USE_WEB = "use_web"               # Web search/fetch
+    USE_BROWSER = "use_browser"  # Browser automation (risky)
+    USE_GOOGLE = "use_google"  # Google Workspace access
+    USE_WEB = "use_web"  # Web search/fetch
 
     # Admin
     MANAGE_USERS = "manage_users"
@@ -51,6 +53,7 @@ class Permission(Enum):
 @dataclass
 class Role:
     """A named set of permissions."""
+
     name: str
     permissions: set[Permission]
     description: str = ""
@@ -70,20 +73,28 @@ ROLES = {
         name="admin",
         description="Full access except user management",
         permissions={
-            Permission.READ_SYSTEM, Permission.WRITE_SYSTEM,
-            Permission.MANAGE_SYSTEMS, Permission.USE_TOOLS,
-            Permission.USE_BROWSER, Permission.USE_GOOGLE,
-            Permission.USE_WEB, Permission.VIEW_AUDIT_LOG,
-            Permission.MANAGE_SCHEDULES, Permission.MANAGE_WEBHOOKS,
-            Permission.GENERATE_CONTENT, Permission.GENERATE_IMAGES,
+            Permission.READ_SYSTEM,
+            Permission.WRITE_SYSTEM,
+            Permission.MANAGE_SYSTEMS,
+            Permission.USE_TOOLS,
+            Permission.USE_BROWSER,
+            Permission.USE_GOOGLE,
+            Permission.USE_WEB,
+            Permission.VIEW_AUDIT_LOG,
+            Permission.MANAGE_SCHEDULES,
+            Permission.MANAGE_WEBHOOKS,
+            Permission.GENERATE_CONTENT,
+            Permission.GENERATE_IMAGES,
         },
     ),
     "user": Role(
         name="user",
         description="Standard access: read/write, use tools, generate content",
         permissions={
-            Permission.READ_SYSTEM, Permission.WRITE_SYSTEM,
-            Permission.USE_TOOLS, Permission.USE_WEB,
+            Permission.READ_SYSTEM,
+            Permission.WRITE_SYSTEM,
+            Permission.USE_TOOLS,
+            Permission.USE_WEB,
             Permission.GENERATE_CONTENT,
         },
     ),
@@ -105,6 +116,7 @@ ROLES = {
 @dataclass
 class UserProfile:
     """A registered user with role-based access."""
+
     user_id: str
     display_name: str
     role: str = "guest"
@@ -193,13 +205,15 @@ class UserManager:
             config = yaml.safe_load(f) or {}
 
         for uid, cfg in config.get("users", {}).items():
-            self.register_user(UserProfile(
-                user_id=uid,
-                display_name=cfg.get("display_name", uid),
-                role=cfg.get("role", "user"),
-                channel_ids=cfg.get("channels", {}),
-                metadata=cfg.get("metadata", {}),
-            ))
+            self.register_user(
+                UserProfile(
+                    user_id=uid,
+                    display_name=cfg.get("display_name", uid),
+                    role=cfg.get("role", "user"),
+                    channel_ids=cfg.get("channels", {}),
+                    metadata=cfg.get("metadata", {}),
+                )
+            )
 
     @property
     def user_count(self) -> int:
@@ -214,6 +228,7 @@ class UserManager:
 @dataclass
 class AuditEntry:
     """A single audit log entry."""
+
     timestamp: float
     user_id: str
     action: str
@@ -253,7 +268,7 @@ class AuditLog:
 
         # Trim if over limit
         if len(self._entries) > self._max_entries:
-            self._entries = self._entries[-self._max_entries:]
+            self._entries = self._entries[-self._max_entries :]
 
         if outcome == "denied":
             logger.warning(f"DENIED: {user_id} attempted {action} ({details})")
@@ -327,10 +342,7 @@ def sanitize_input(text: str, max_length: int = 50000) -> str:
         text = text[:max_length] + "\n\n[...message truncated at limit]"
 
     # Remove control characters except \n, \r, \t
-    cleaned = "".join(
-        c for c in text
-        if c in ("\n", "\r", "\t") or (ord(c) >= 32)
-    )
+    cleaned = "".join(c for c in text if c in ("\n", "\r", "\t") or (ord(c) >= 32))
     return cleaned
 
 

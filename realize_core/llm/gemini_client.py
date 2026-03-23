@@ -2,6 +2,7 @@
 Google Gemini API client wrapper.
 Uses Gemini Flash for routine tasks (cheap/free tier).
 """
+
 import logging
 
 logger = logging.getLogger(__name__)
@@ -17,6 +18,7 @@ def _get_client(api_key: str = None):
         from google import genai
 
         from realize_core.config import GOOGLE_AI_API_KEY
+
         key = api_key or GOOGLE_AI_API_KEY
         if not key:
             raise RuntimeError("Google AI API key not configured. Set GOOGLE_AI_API_KEY.")
@@ -55,12 +57,7 @@ async def call_gemini(
         contents = []
         for msg in messages:
             role = "user" if msg["role"] == "user" else "model"
-            contents.append(
-                genai.types.Content(
-                    role=role,
-                    parts=[genai.types.Part(text=msg["content"])]
-                )
-            )
+            contents.append(genai.types.Content(role=role, parts=[genai.types.Part(text=msg["content"])]))
 
         response = await client.aio.models.generate_content(
             model=model,
@@ -75,6 +72,7 @@ async def call_gemini(
         # Log usage for cost tracking
         try:
             from realize_core.memory.store import log_llm_usage
+
             usage_meta = getattr(response, "usage_metadata", None)
             input_tokens = getattr(usage_meta, "prompt_token_count", 0) if usage_meta else 0
             output_tokens = getattr(usage_meta, "candidates_token_count", 0) if usage_meta else 0
@@ -119,12 +117,7 @@ async def call_gemini_vision(
                 parts.append(genai.types.Part(text=text))
                 contents.append(genai.types.Content(role=role, parts=parts))
             else:
-                contents.append(
-                    genai.types.Content(
-                        role=role,
-                        parts=[genai.types.Part(text=msg["content"])]
-                    )
-                )
+                contents.append(genai.types.Content(role=role, parts=[genai.types.Part(text=msg["content"])]))
 
         response = await client.aio.models.generate_content(
             model=model,
@@ -145,4 +138,5 @@ async def call_gemini_vision(
 async def call_gemini_flash(system_prompt: str, messages: list[dict], **kwargs) -> str:
     """Convenience wrapper for Gemini Flash (tier 1: routine tasks, Q&A)."""
     from realize_core.config import MODELS
+
     return await call_gemini(system_prompt, messages, model=MODELS["gemini_flash"], **kwargs)

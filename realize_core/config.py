@@ -4,6 +4,7 @@ RealizeOS Configuration Loader.
 Loads system configuration from a YAML file (realize-os.yaml) instead of
 hardcoded dictionaries. Supports environment variable interpolation.
 """
+
 import logging
 import os
 import re
@@ -37,10 +38,12 @@ DATA_PATH = Path(os.getenv("DATA_PATH", "./data")).resolve()
 
 def _interpolate_env(value: str) -> str:
     """Replace ${ENV_VAR} placeholders with environment variable values."""
+
     def replacer(match):
         var_name = match.group(1)
         return os.getenv(var_name, "")
-    return re.sub(r'\$\{(\w+)\}', replacer, value)
+
+    return re.sub(r"\$\{(\w+)\}", replacer, value)
 
 
 def load_config(config_path: str | Path = None) -> dict:

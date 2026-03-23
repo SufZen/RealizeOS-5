@@ -8,6 +8,7 @@ to add:
 - Rollback capability for applied changes
 - Rate limiting to prevent runaway evolution
 """
+
 import logging
 import time
 from dataclasses import dataclass, field
@@ -19,22 +20,25 @@ logger = logging.getLogger(__name__)
 
 class EvolutionType(Enum):
     """Types of system evolution."""
-    NEW_SKILL = "new_skill"           # Add a new skill
-    REFINE_PROMPT = "refine_prompt"   # Improve an agent's prompt
-    ADD_TOOL = "add_tool"             # Register a new tool
-    CONFIG_CHANGE = "config_change"   # Change system configuration
-    WORKFLOW_ADD = "workflow_add"     # Add a new workflow
+
+    NEW_SKILL = "new_skill"  # Add a new skill
+    REFINE_PROMPT = "refine_prompt"  # Improve an agent's prompt
+    ADD_TOOL = "add_tool"  # Register a new tool
+    CONFIG_CHANGE = "config_change"  # Change system configuration
+    WORKFLOW_ADD = "workflow_add"  # Add a new workflow
 
 
 class RiskLevel(Enum):
     """Risk assessment of a proposed evolution."""
-    LOW = "low"         # Safe: new skill, minor prompt tweak
-    MEDIUM = "medium"   # Needs review: config change, tool addition
-    HIGH = "high"       # Dangerous: prompt replacement, workflow changes
+
+    LOW = "low"  # Safe: new skill, minor prompt tweak
+    MEDIUM = "medium"  # Needs review: config change, tool addition
+    HIGH = "high"  # Dangerous: prompt replacement, workflow changes
 
 
 class ProposalStatus(Enum):
     """Status of an evolution proposal."""
+
     PENDING = "pending"
     APPROVED = "approved"
     APPLIED = "applied"
@@ -45,16 +49,17 @@ class ProposalStatus(Enum):
 @dataclass
 class EvolutionProposal:
     """A proposed system evolution."""
+
     id: str
     evolution_type: EvolutionType
     title: str
     description: str
     risk_level: RiskLevel = RiskLevel.LOW
     status: ProposalStatus = ProposalStatus.PENDING
-    priority: float = 0.5                 # 0.0-1.0 priority score
+    priority: float = 0.5  # 0.0-1.0 priority score
     changes: dict[str, Any] = field(default_factory=dict)
     rollback_data: dict[str, Any] = field(default_factory=dict)
-    source: str = ""                      # What triggered this (gap_detector, user, etc.)
+    source: str = ""  # What triggered this (gap_detector, user, etc.)
     created_at: float = field(default_factory=time.time)
     applied_at: float = 0.0
     metadata: dict[str, Any] = field(default_factory=dict)
@@ -94,8 +99,7 @@ class EvolutionEngine:
         )
 
         # Auto-approve low-risk if enabled
-        if (self._auto_approve_low_risk
-                and proposal.risk_level == RiskLevel.LOW):
+        if self._auto_approve_low_risk and proposal.risk_level == RiskLevel.LOW:
             proposal.status = ProposalStatus.APPROVED
             logger.info(f"Auto-approved: {proposal.id}")
 
@@ -170,14 +174,12 @@ class EvolutionEngine:
 
     def get_pending(self) -> list[EvolutionProposal]:
         """Get all pending proposals, sorted by priority."""
-        pending = [p for p in self._proposals.values()
-                   if p.status == ProposalStatus.PENDING]
+        pending = [p for p in self._proposals.values() if p.status == ProposalStatus.PENDING]
         return sorted(pending, key=lambda p: -p.priority)
 
     def get_applied(self) -> list[EvolutionProposal]:
         """Get all applied proposals, newest first."""
-        applied = [p for p in self._proposals.values()
-                   if p.status == ProposalStatus.APPLIED]
+        applied = [p for p in self._proposals.values() if p.status == ProposalStatus.APPLIED]
         return sorted(applied, key=lambda p: -p.applied_at)
 
     @property

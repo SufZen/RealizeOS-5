@@ -12,6 +12,7 @@ You create compelling content...
 
 The hierarchy is derived at read-time from the filesystem — no DB storage needed.
 """
+
 import logging
 import re
 from pathlib import Path
@@ -21,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 def parse_agent_frontmatter(content: str) -> dict:
     """Extract YAML frontmatter from an agent .md file."""
-    match = re.match(r'^---\s*\n(.*?)\n---\s*\n', content, re.DOTALL)
+    match = re.match(r"^---\s*\n(.*?)\n---\s*\n", content, re.DOTALL)
     if not match:
         return {}
 

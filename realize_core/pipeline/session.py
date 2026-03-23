@@ -7,6 +7,7 @@ Uses SQLite write-through with in-memory cache for persistence across restarts.
 A session represents an ongoing creative task that persists across multiple messages
 and can involve multiple agents working in sequence.
 """
+
 import json
 import logging
 import uuid
@@ -19,12 +20,14 @@ logger = logging.getLogger(__name__)
 def _db_ctx():
     """Get a SQLite connection context manager from memory store."""
     from realize_core.memory.store import db_connection
+
     return db_connection()
 
 
 @dataclass
 class CreativeSession:
     """An active creative work session."""
+
     id: str
     system_key: str
     brief: str
@@ -59,12 +62,14 @@ class CreativeSession:
 
     def add_draft(self, content: str, agent: str):
         """Record a new draft version."""
-        self.drafts.append({
-            "version": len(self.drafts) + 1,
-            "content": content,
-            "agent": agent,
-            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
-        })
+        self.drafts.append(
+            {
+                "version": len(self.drafts) + 1,
+                "content": content,
+                "agent": agent,
+                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
+            }
+        )
         self.updated_at = datetime.now().strftime("%Y-%m-%d %H:%M")
         self.save()
 
@@ -83,11 +88,20 @@ class CreativeSession:
                     "pipeline, pipeline_index, context_files, drafts, review, created_at, updated_at) "
                     "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     (
-                        self.id, self.system_key, self.user_id, self.brief, self.task_type,
-                        self.active_agent, self.stage,
-                        json.dumps(self.pipeline), self.pipeline_index,
-                        json.dumps(self.context_files), json.dumps(self.drafts),
-                        json.dumps(self.review), self.created_at, now,
+                        self.id,
+                        self.system_key,
+                        self.user_id,
+                        self.brief,
+                        self.task_type,
+                        self.active_agent,
+                        self.stage,
+                        json.dumps(self.pipeline),
+                        self.pipeline_index,
+                        json.dumps(self.context_files),
+                        json.dumps(self.drafts),
+                        json.dumps(self.review),
+                        self.created_at,
+                        now,
                     ),
                 )
         except Exception as e:

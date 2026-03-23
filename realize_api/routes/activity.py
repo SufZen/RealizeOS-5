@@ -5,6 +5,7 @@ Endpoints:
 - GET /api/ventures/{key}/activity — paginated, filterable activity events
 - GET /api/activity/stream — SSE stream of real-time events
 """
+
 import asyncio
 import json
 import logging

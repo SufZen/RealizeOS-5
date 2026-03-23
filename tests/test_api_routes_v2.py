@@ -3,6 +3,7 @@ Tests for Sprint 3 API routes — Agents V2, Workflows, Extensions, Routing.
 
 Uses FastAPI's TestClient for endpoint testing.
 """
+
 import pytest
 from fastapi.testclient import TestClient
 from realize_api.main import create_app
@@ -10,6 +11,7 @@ from realize_api.main import create_app
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def client():
@@ -45,6 +47,7 @@ def client():
 # Agents V2 routes
 # ---------------------------------------------------------------------------
 
+
 class TestAgentsV2Routes:
     """Test the /api/agents endpoints."""
 
@@ -68,12 +71,15 @@ class TestAgentsV2Routes:
         assert "exec-assistant" in keys
 
     def test_create_agent(self, client):
-        resp = client.post("/api/agents", json={
-            "name": "Test Agent",
-            "key": "test_agent",
-            "description": "A test agent",
-            "persona": "writer",
-        })
+        resp = client.post(
+            "/api/agents",
+            json={
+                "name": "Test Agent",
+                "key": "test_agent",
+                "description": "A test agent",
+                "persona": "writer",
+            },
+        )
         assert resp.status_code == 201
         data = resp.json()
         assert data["key"] == "test_agent"
@@ -97,9 +103,12 @@ class TestAgentsV2Routes:
 
     def test_update_agent(self, client):
         client.post("/api/agents", json={"name": "Updatable", "key": "updatable"})
-        resp = client.put("/api/agents/updatable", json={
-            "description": "Updated description",
-        })
+        resp = client.put(
+            "/api/agents/updatable",
+            json={
+                "description": "Updated description",
+            },
+        )
         assert resp.status_code == 200
         assert resp.json()["description"] == "Updated description"
 
@@ -127,9 +136,14 @@ class TestAgentsV2Routes:
         assert resp.json()["status"] == "reloaded"
 
     def test_create_agent_invalid_persona_400(self, client):
-        resp = client.post("/api/agents", json={
-            "name": "Bad", "key": "bad", "persona": "nonexistent_persona",
-        })
+        resp = client.post(
+            "/api/agents",
+            json={
+                "name": "Bad",
+                "key": "bad",
+                "persona": "nonexistent_persona",
+            },
+        )
         assert resp.status_code == 400
 
     def test_filter_by_version(self, client):
@@ -144,16 +158,19 @@ class TestAgentsV2Routes:
 # Pipeline routes
 # ---------------------------------------------------------------------------
 
-class TestPipelineRoutes:
 
+class TestPipelineRoutes:
     def test_execute_pipeline(self, client):
-        resp = client.post("/api/pipelines/execute", json={
-            "stages": [
-                {"name": "draft", "agent_key": "writer"},
-                {"name": "review", "agent_key": "reviewer"},
-            ],
-            "input_text": "Write a blog post about AI",
-        })
+        resp = client.post(
+            "/api/pipelines/execute",
+            json={
+                "stages": [
+                    {"name": "draft", "agent_key": "writer"},
+                    {"name": "review", "agent_key": "reviewer"},
+                ],
+                "input_text": "Write a blog post about AI",
+            },
+        )
         assert resp.status_code == 202
         data = resp.json()
         assert "pipeline_id" in data
@@ -161,10 +178,13 @@ class TestPipelineRoutes:
 
     def test_get_pipeline_state(self, client):
         # Execute first
-        create_resp = client.post("/api/pipelines/execute", json={
-            "stages": [{"name": "step", "agent_key": "agent"}],
-            "input_text": "test",
-        })
+        create_resp = client.post(
+            "/api/pipelines/execute",
+            json={
+                "stages": [{"name": "step", "agent_key": "agent"}],
+                "input_text": "test",
+            },
+        )
         pid = create_resp.json()["pipeline_id"]
 
         # Then retrieve
@@ -179,10 +199,13 @@ class TestPipelineRoutes:
         assert resp.status_code == 404
 
     def test_pipeline_empty_stages_400(self, client):
-        resp = client.post("/api/pipelines/execute", json={
-            "stages": [],
-            "input_text": "test",
-        })
+        resp = client.post(
+            "/api/pipelines/execute",
+            json={
+                "stages": [],
+                "input_text": "test",
+            },
+        )
         assert resp.status_code == 400
 
 
@@ -190,8 +213,8 @@ class TestPipelineRoutes:
 # Routing routes
 # ---------------------------------------------------------------------------
 
-class TestRoutingRoutes:
 
+class TestRoutingRoutes:
     def test_get_routing_config_all(self, client):
         resp = client.get("/api/routing")
         assert resp.status_code == 200
@@ -211,28 +234,37 @@ class TestRoutingRoutes:
         assert resp.status_code == 404
 
     def test_update_routing(self, client):
-        resp = client.put("/api/routing", json={
-            "system_key": "test",
-            "agent_routing": {
-                "orchestrator": ["help", "general"],
-                "writer": ["write", "blog", "content"],
+        resp = client.put(
+            "/api/routing",
+            json={
+                "system_key": "test",
+                "agent_routing": {
+                    "orchestrator": ["help", "general"],
+                    "writer": ["write", "blog", "content"],
+                },
             },
-        })
+        )
         assert resp.status_code == 200
         assert "writer" in resp.json()["agents_configured"]
 
     def test_update_routing_missing_system_404(self, client):
-        resp = client.put("/api/routing", json={
-            "system_key": "nope",
-            "agent_routing": {"a": ["b"]},
-        })
+        resp = client.put(
+            "/api/routing",
+            json={
+                "system_key": "nope",
+                "agent_routing": {"a": ["b"]},
+            },
+        )
         assert resp.status_code == 404
 
     def test_test_routing(self, client):
-        resp = client.post("/api/routing/test", json={
-            "message": "help me with a question",
-            "system_key": "test",
-        })
+        resp = client.post(
+            "/api/routing/test",
+            json={
+                "message": "help me with a question",
+                "system_key": "test",
+            },
+        )
         assert resp.status_code == 200
         data = resp.json()
         assert "selected_agent" in data
@@ -240,9 +272,13 @@ class TestRoutingRoutes:
 
     def test_routing_analytics(self, client):
         # Generate some routing events first
-        client.post("/api/routing/test", json={
-            "message": "help", "system_key": "test",
-        })
+        client.post(
+            "/api/routing/test",
+            json={
+                "message": "help",
+                "system_key": "test",
+            },
+        )
         resp = client.get("/api/routing/analytics")
         assert resp.status_code == 200
         data = resp.json()
@@ -251,10 +287,13 @@ class TestRoutingRoutes:
 
     def test_agent_stats(self, client):
         # Route something to orchestrator
-        client.post("/api/routing/test", json={
-            "message": "help with general question",
-            "system_key": "test",
-        })
+        client.post(
+            "/api/routing/test",
+            json={
+                "message": "help with general question",
+                "system_key": "test",
+            },
+        )
         resp = client.get("/api/routing/agents/orchestrator/stats")
         assert resp.status_code == 200
         data = resp.json()
@@ -266,8 +305,8 @@ class TestRoutingRoutes:
 # Extensions routes (graceful degradation)
 # ---------------------------------------------------------------------------
 
-class TestExtensionRoutes:
 
+class TestExtensionRoutes:
     def test_list_extensions_empty(self, client):
         resp = client.get("/api/extensions")
         assert resp.status_code == 200
@@ -281,8 +320,8 @@ class TestExtensionRoutes:
 # Workflows routes (graceful degradation)
 # ---------------------------------------------------------------------------
 
-class TestWorkflowRoutes:
 
+class TestWorkflowRoutes:
     def test_list_workflows_(self, client):
         resp = client.get("/api/workflows")
         assert resp.status_code == 200

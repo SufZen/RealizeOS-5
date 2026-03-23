@@ -6,6 +6,7 @@ that wraps the `gws` CLI for Google Workspace operations.
 
 Used by Agent 4's Sprint 2 gws_cli_tool implementation.
 """
+
 from __future__ import annotations
 
 import logging
@@ -20,8 +21,10 @@ logger = logging.getLogger(__name__)
 # Enums
 # ---------------------------------------------------------------------------
 
+
 class GwsService(StrEnum):
     """Google Workspace services accessible via the gws CLI."""
+
     GMAIL = "gmail"
     CALENDAR = "calendar"
     DRIVE = "drive"
@@ -32,6 +35,7 @@ class GwsService(StrEnum):
 
 class GwsAuthMethod(StrEnum):
     """Authentication methods for gws CLI."""
+
     OAUTH = "oauth"
     SERVICE_ACCOUNT = "service_account"
     API_KEY = "api_key"
@@ -41,8 +45,10 @@ class GwsAuthMethod(StrEnum):
 # Pydantic config model
 # ---------------------------------------------------------------------------
 
+
 class GwsCommandConfig(BaseModel):
     """Configuration for a single gws CLI command mapping."""
+
     action: str = Field(description="The RealizeOS action name (e.g. 'sheets_read')")
     gws_command: str = Field(description="The gws CLI command template (e.g. 'gws sheets get {spreadsheet_id}')")
     description: str = ""
@@ -75,6 +81,7 @@ class GwsToolConfig(BaseModel):
                 optional_params: [range]
                 service: sheets
     """
+
     enabled: bool = True
     binary_path: str = Field(
         default="gws",

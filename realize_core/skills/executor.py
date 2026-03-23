@@ -12,6 +12,7 @@ detailed instructions for the LLM agent.
 
 Each step's result feeds into the next step's context.
 """
+
 import json
 import logging
 from datetime import date
@@ -29,8 +30,9 @@ def store_skill_resume_context(user_id: str, skill_name: str, ctx, remaining_ste
         "context": ctx,
         "remaining_steps": remaining_steps,
     }
-    logger.info(f"Stored skill resume context for user {user_id}, skill={skill_name}, "
-                f"{len(remaining_steps)} steps remaining")
+    logger.info(
+        f"Stored skill resume context for user {user_id}, skill={skill_name}, {len(remaining_steps)} steps remaining"
+    )
 
 
 def pop_skill_resume_context(user_id: str) -> dict | None:
@@ -92,25 +94,42 @@ async def execute_skill(
     version = skill.get("_version", 1)
     skill_format = skill.get("_format", "yaml")
 
-    logger.info(f"Executing skill: {skill_name} (v{version}, format={skill_format}) "
-                f"for system={system_key}")
+    logger.info(f"Executing skill: {skill_name} (v{version}, format={skill_format}) for system={system_key}")
 
     # V5: SKILL.md format — use markdown instructions
     if skill_format == "skill_md":
         return await _execute_skill_md(
-            skill, user_message, system_key, user_id,
-            kb_path, system_config, shared_config, channel,
+            skill,
+            user_message,
+            system_key,
+            user_id,
+            kb_path,
+            system_config,
+            shared_config,
+            channel,
         )
 
     if version == 1:
         return await _execute_v1_pipeline(
-            skill, user_message, system_key, user_id,
-            kb_path, system_config, shared_config, channel,
+            skill,
+            user_message,
+            system_key,
+            user_id,
+            kb_path,
+            system_config,
+            shared_config,
+            channel,
         )
     else:
         return await _execute_v2_steps(
-            skill, user_message, system_key, user_id,
-            kb_path, system_config, shared_config, channel,
+            skill,
+            user_message,
+            system_key,
+            user_id,
+            kb_path,
+            system_config,
+            shared_config,
+            channel,
         )
 
 
@@ -119,7 +138,10 @@ async def _execute_v1_pipeline(
     user_message: str,
     system_key: str,
     user_id: str,
-    kb_path, system_config, shared_config, channel,
+    kb_path,
+    system_config,
+    shared_config,
+    channel,
 ) -> str:
     """Execute a v1 skill (trigger -> agent pipeline)."""
     from realize_core.llm.claude_client import call_claude
@@ -154,7 +176,7 @@ async def _execute_v1_pipeline(
             messages=messages,
         )
         results.append(response)
-        logger.info(f"Pipeline step {i+1}/{len(pipeline)}: {agent_key} completed")
+        logger.info(f"Pipeline step {i + 1}/{len(pipeline)}: {agent_key} completed")
 
     return results[-1] if results else "No output from pipeline."
 
@@ -164,7 +186,10 @@ async def _execute_v2_steps(
     user_message: str,
     system_key: str,
     user_id: str,
-    kb_path, system_config, shared_config, channel,
+    kb_path,
+    system_config,
+    shared_config,
+    channel,
 ) -> str:
     """Execute a v2 skill (multi-step workflow)."""
     steps = skill.get("steps", [])
@@ -178,7 +203,7 @@ async def _execute_v2_steps(
         step_id = step.get("id", f"step_{i}")
         step_type = step.get("type", "agent")
 
-        logger.info(f"Executing step {i+1}/{len(steps)}: {step_id} ({step_type})")
+        logger.info(f"Executing step {i + 1}/{len(steps)}: {step_id} ({step_type})")
 
         # Check condition for conditional steps
         condition = step.get("condition")
@@ -190,7 +215,12 @@ async def _execute_v2_steps(
 
         if step_type == "agent":
             result = await _execute_agent_step(
-                step, ctx, kb_path, system_config, shared_config, channel,
+                step,
+                ctx,
+                kb_path,
+                system_config,
+                shared_config,
+                channel,
             )
         elif step_type == "tool":
             result = await _execute_tool_step(step, ctx)
@@ -202,13 +232,18 @@ async def _execute_v2_steps(
                 break
         elif step_type == "delegate":
             result = await _execute_delegate_step(
-                step, ctx, kb_path, system_config, shared_config, channel,
+                step,
+                ctx,
+                kb_path,
+                system_config,
+                shared_config,
+                channel,
             )
         elif step_type == "human":
             result = await _execute_human_step(step, ctx)
             if result.startswith("__HUMAN_INPUT_NEEDED__"):
                 # Store context for resumption
-                remaining = steps[i+1:]
+                remaining = steps[i + 1 :]
                 store_skill_resume_context(user_id, skill.get("name", ""), ctx, remaining)
                 return result.replace("__HUMAN_INPUT_NEEDED__\n", "")
         else:
@@ -216,7 +251,7 @@ async def _execute_v2_steps(
 
         ctx.step_results[step_id] = result
         outputs.append(result)
-        ctx.progress_messages.append(f"Step {i+1}/{len(steps)} ({step_id}): done")
+        ctx.progress_messages.append(f"Step {i + 1}/{len(steps)} ({step_id}): done")
 
     return outputs[-1] if outputs else "Skill completed with no output."
 
@@ -292,7 +327,12 @@ async def _execute_delegate_step(step, ctx, kb_path, system_config, shared_confi
         agent_step["prompt"] = ctx.inject(instructions)
 
     return await _execute_agent_step(
-        agent_step, ctx, kb_path, system_config, shared_config, channel,
+        agent_step,
+        ctx,
+        kb_path,
+        system_config,
+        shared_config,
+        channel,
     )
 
 
@@ -310,12 +350,14 @@ async def _execute_tool_step(step, ctx) -> str:
     # Try to find the tool function in registered tool modules
     try:
         from realize_core.tools.web import TOOL_FUNCTIONS as WEB_TOOLS
+
         all_funcs = dict(WEB_TOOLS)
     except ImportError:
         all_funcs = {}
 
     try:
         from realize_core.tools.google_workspace import TOOL_FUNCTIONS as GOOGLE_TOOLS
+
         all_funcs.update(GOOGLE_TOOLS)
     except ImportError:
         pass
@@ -370,12 +412,16 @@ async def _execute_human_step(step, ctx) -> str:
 # SKILL.md execution path (V5)
 # ---------------------------------------------------------------------------
 
+
 async def _execute_skill_md(
     skill: dict,
     user_message: str,
     system_key: str,
     user_id: str,
-    kb_path, system_config, shared_config, channel,
+    kb_path,
+    system_config,
+    shared_config,
+    channel,
 ) -> str:
     """
     Execute a SKILL.md format skill.

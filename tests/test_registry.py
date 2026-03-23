@@ -8,6 +8,7 @@ Covers:
 - Auto-registration (mocked)
 - Singleton lifecycle
 """
+
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -22,6 +23,7 @@ from realize_core.llm.registry import ProviderRegistry, reset_registry
 # ---------------------------------------------------------------------------
 # Test provider stubs
 # ---------------------------------------------------------------------------
+
 
 class FakeProviderA(BaseLLMProvider):
     _available = True
@@ -76,6 +78,7 @@ class UnavailableProvider(BaseLLMProvider):
 # Fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 def registry():
     return ProviderRegistry()
@@ -101,6 +104,7 @@ def reset_global_registry():
 # ---------------------------------------------------------------------------
 # Registration
 # ---------------------------------------------------------------------------
+
 
 class TestRegistration:
     def test_register_provider(self, registry):
@@ -137,6 +141,7 @@ class TestRegistration:
 # Availability
 # ---------------------------------------------------------------------------
 
+
 class TestAvailability:
     def test_list_available(self, populated_registry):
         available = populated_registry.list_available()
@@ -165,6 +170,7 @@ class TestAvailability:
 # ---------------------------------------------------------------------------
 # Fallback chain
 # ---------------------------------------------------------------------------
+
 
 class TestFallback:
     def test_fallback_returns_other_provider(self, populated_registry):
@@ -200,6 +206,7 @@ class TestFallback:
 # Capability queries
 # ---------------------------------------------------------------------------
 
+
 class TestCapabilityQuery:
     def test_providers_with_tools(self, populated_registry):
         providers = populated_registry.providers_with_capability(Capability.TOOLS)
@@ -226,15 +233,19 @@ class TestCapabilityQuery:
 # Auto-registration (mocked to avoid real imports)
 # ---------------------------------------------------------------------------
 
+
 class TestAutoRegister:
     def test_auto_register_sets_fallback_chain(self):
         """Auto-register should set the default fallback chain."""
         reg = ProviderRegistry()
-        with patch.dict("realize_core.config.MODELS", {
-            "gemini_flash": "gemini-2.5-flash",
-            "claude_sonnet": "claude-sonnet-test",
-            "claude_opus": "claude-opus-test",
-        }):
+        with patch.dict(
+            "realize_core.config.MODELS",
+            {
+                "gemini_flash": "gemini-2.5-flash",
+                "claude_sonnet": "claude-sonnet-test",
+                "claude_opus": "claude-opus-test",
+            },
+        ):
             # Mock provider imports to avoid SDK dependency
             with patch("realize_core.llm.providers.claude_provider.ClaudeProvider") as mock_claude_cls:
                 mock_claude = MagicMock(spec=BaseLLMProvider)
@@ -260,6 +271,7 @@ class TestAutoRegister:
 # ---------------------------------------------------------------------------
 # Singleton
 # ---------------------------------------------------------------------------
+
 
 class TestSingleton:
     def test_get_registry_returns_same(self):

@@ -5,6 +5,7 @@ Configure in .env:
   CLICKUP_API_KEY=pk_...
   CLICKUP_TEAM_ID=...
 """
+
 import logging
 import os
 
@@ -23,6 +24,7 @@ async def list_tasks(list_id: str, status: str = "") -> dict:
 
     try:
         import httpx
+
         headers = {"Authorization": api_key}
         params = {}
         if status:
@@ -64,6 +66,7 @@ async def create_task(list_id: str, name: str, description: str = "", priority: 
 
     try:
         import httpx
+
         headers = {"Authorization": api_key, "Content-Type": "application/json"}
 
         async with httpx.AsyncClient(timeout=30) as client:
@@ -93,6 +96,7 @@ async def update_task_status(task_id: str, status: str) -> dict:
 
     try:
         import httpx
+
         headers = {"Authorization": api_key, "Content-Type": "application/json"}
 
         async with httpx.AsyncClient(timeout=30) as client:

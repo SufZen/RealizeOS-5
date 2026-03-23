@@ -9,6 +9,7 @@ Endpoints:
 - DELETE /api/workflows/{skill_name}      — delete a workflow/skill
 - POST   /api/workflows/{skill_name}/test — dry-run a workflow with test input
 """
+
 import logging
 
 from fastapi import APIRouter, HTTPException, Request
@@ -22,8 +23,10 @@ logger = logging.getLogger(__name__)
 # Request/Response models
 # ---------------------------------------------------------------------------
 
+
 class CreateWorkflowBody(BaseModel):
     """Body for creating a new workflow/skill."""
+
     name: str
     description: str = ""
     system_key: str = ""
@@ -34,6 +37,7 @@ class CreateWorkflowBody(BaseModel):
 
 class UpdateWorkflowBody(BaseModel):
     """Body for updating a workflow/skill."""
+
     description: str | None = None
     triggers: list[str] | None = None
     steps: list[dict] | None = None
@@ -42,6 +46,7 @@ class UpdateWorkflowBody(BaseModel):
 
 class TestWorkflowBody(BaseModel):
     """Body for testing a workflow with sample input."""
+
     input_text: str
     system_key: str = "test"
     user_id: str = "test-user"
@@ -50,6 +55,7 @@ class TestWorkflowBody(BaseModel):
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
+
 
 @router.get("/workflows")
 async def list_workflows(
@@ -64,6 +70,7 @@ async def list_workflows(
     """
     try:
         from realize_core.skills.detector import get_all_skills
+
         all_skills = get_all_skills()
     except ImportError:
         all_skills = []
@@ -74,9 +81,9 @@ async def list_workflows(
     # Filter by system_key if provided
     if system_key:
         all_skills = [
-            s for s in all_skills
-            if s.get("system_key", "") == system_key
-            or not s.get("system_key")  # global skills match any
+            s
+            for s in all_skills
+            if s.get("system_key", "") == system_key or not s.get("system_key")  # global skills match any
         ]
 
     return {
@@ -101,6 +108,7 @@ async def get_workflow(skill_name: str, request: Request):
     """Get detailed info about a specific workflow/skill."""
     try:
         from realize_core.skills.detector import get_skill_by_name
+
         skill = get_skill_by_name(skill_name)
     except ImportError:
         raise HTTPException(status_code=501, detail="Skills module not available")

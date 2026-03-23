@@ -7,6 +7,7 @@ Runs nightly (or on-demand) to:
 3. Store as permanent memories in the memory DB
 4. Optionally write summaries to KB files (insights/learning-log.md)
 """
+
 import logging
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -76,6 +77,7 @@ async def consolidate_memories(
     stored = 0
     try:
         from realize_core.memory.store import store_memory
+
         for fact in facts:
             store_memory(
                 system_key=system_key or "shared",
@@ -117,6 +119,7 @@ Return ONLY a JSON array, no other text."""
 
     try:
         from realize_core.llm.router import route_to_llm
+
         response = await route_to_llm(
             system_prompt="You are a fact extraction assistant. Return only valid JSON.",
             messages=[{"role": "user", "content": prompt}],
@@ -125,6 +128,7 @@ Return ONLY a JSON array, no other text."""
         )
 
         import json
+
         # Try to parse JSON from response
         text = response.strip()
         if text.startswith("```"):

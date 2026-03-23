@@ -7,6 +7,7 @@ Covers:
 - Self-tuning quality override mechanism
 - Benchmark-based model selection (V5)
 """
+
 from unittest.mock import patch
 
 from realize_core.llm.router import (
@@ -27,6 +28,7 @@ from realize_core.llm.router import (
 # ---------------------------------------------------------------------------
 # Task classification
 # ---------------------------------------------------------------------------
+
 
 class TestClassifyTask:
     """Test task classification for all supported types."""
@@ -159,6 +161,7 @@ class TestClassifyTask:
 # Model selection
 # ---------------------------------------------------------------------------
 
+
 class TestSelectModel:
     """Test model selection from task type."""
 
@@ -203,8 +206,14 @@ class TestSelectModel:
     def test_all_valid_types_return_string(self):
         """Every valid task type returns a non-empty string."""
         valid_types = [
-            "simple", "content", "reasoning", "financial",
-            "complex", "google", "web_research", "web_action",
+            "simple",
+            "content",
+            "reasoning",
+            "financial",
+            "complex",
+            "google",
+            "web_research",
+            "web_action",
         ]
         for task_type in valid_types:
             model = select_model(task_type)
@@ -216,10 +225,12 @@ class TestSelectModel:
 # Quality override (self-tuning)
 # ---------------------------------------------------------------------------
 
+
 class TestQualityOverride:
     def test_no_signals_returns_none(self):
         """When no feedback signals exist, no override."""
         import sys
+
         with patch.dict(sys.modules, {"realize_core.memory.store": None}):
             result = _get_quality_override("simple")
             assert result is None
@@ -235,6 +246,7 @@ class TestQualityOverride:
 # ---------------------------------------------------------------------------
 # Keyword sets are non-empty
 # ---------------------------------------------------------------------------
+
 
 class TestKeywordSetsIntegrity:
     """Ensure keyword sets haven't been accidentally emptied."""
@@ -267,6 +279,7 @@ class TestKeywordSetsIntegrity:
 # ---------------------------------------------------------------------------
 # Benchmark-based model selection (V5)
 # ---------------------------------------------------------------------------
+
 
 class TestBenchmarkSelection:
     """Test benchmark-based model selection."""

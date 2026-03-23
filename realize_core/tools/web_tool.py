@@ -3,6 +3,7 @@ Web Tool: Reference BaseTool implementation wrapping the existing web.py functio
 
 Demonstrates how to wrap existing tool functions into the BaseTool interface.
 """
+
 import logging
 from typing import Any
 
@@ -95,10 +96,7 @@ class WebTool(BaseTool):
             if results and "error" in results[0]:
                 return ToolResult.fail(results[0]["error"])
             return ToolResult.ok(
-                output="\n".join(
-                    f"- [{r['title']}]({r['url']}): {r['description']}"
-                    for r in results
-                ),
+                output="\n".join(f"- [{r['title']}]({r['url']}): {r['description']}" for r in results),
                 data=results,
                 result_count=len(results),
             )

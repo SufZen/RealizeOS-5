@@ -5,6 +5,7 @@ Default storage backend that persists objects to the local filesystem.
 Keys map directly to file paths relative to a configurable root directory.
 Metadata is stored as sidecar JSON files.
 """
+
 from __future__ import annotations
 
 import json
@@ -76,9 +77,7 @@ class LocalStorageProvider(BaseStorageProvider):
         try:
             resolved.relative_to(self._root)
         except ValueError:
-            raise ValueError(
-                f"Key '{key}' resolves outside root directory"
-            )
+            raise ValueError(f"Key '{key}' resolves outside root directory")
 
         return resolved
 
@@ -236,9 +235,7 @@ class LocalStorageProvider(BaseStorageProvider):
                     key=key,
                     size_bytes=stat.st_size,
                     content_type=ct,
-                    last_modified=datetime.fromtimestamp(
-                        stat.st_mtime, tz=UTC
-                    ),
+                    last_modified=datetime.fromtimestamp(stat.st_mtime, tz=UTC),
                     metadata=meta,
                 )
             )

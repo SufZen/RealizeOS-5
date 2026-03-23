@@ -6,12 +6,14 @@ Covers:
 - SetupState save/load/resume
 - Doctor diagnostics
 """
+
 from realize_core.init import get_available_templates, initialize_project
 from realize_core.setup_wizard import SetupState
 
 # ---------------------------------------------------------------------------
 # Template listing
 # ---------------------------------------------------------------------------
+
 
 class TestTemplates:
     def test_lists_available_templates(self):
@@ -34,32 +36,42 @@ class TestTemplates:
 # Project initialization (shared logic)
 # ---------------------------------------------------------------------------
 
+
 class TestInitializeProject:
     def test_creates_env_file(self, tmp_path):
-        result = initialize_project({
-            "anthropic_api_key": "sk-test-123",
-            "template": "consulting",
-            "business_name": "Test Biz",
-        }, tmp_path)
+        result = initialize_project(
+            {
+                "anthropic_api_key": "sk-test-123",
+                "template": "consulting",
+                "business_name": "Test Biz",
+            },
+            tmp_path,
+        )
 
         assert result["env_created"] is True
         env = (tmp_path / ".env").read_text(encoding="utf-8")
         assert "sk-test-123" in env
 
     def test_creates_config_file(self, tmp_path):
-        result = initialize_project({
-            "template": "consulting",
-            "business_name": "Acme Corp",
-        }, tmp_path)
+        result = initialize_project(
+            {
+                "template": "consulting",
+                "business_name": "Acme Corp",
+            },
+            tmp_path,
+        )
 
         assert result["config_created"] is True
         config = (tmp_path / "realize-os.yaml").read_text(encoding="utf-8")
         assert "Acme Corp" in config
 
     def test_copies_fabric_structure(self, tmp_path):
-        result = initialize_project({
-            "template": "consulting",
-        }, tmp_path)
+        result = initialize_project(
+            {
+                "template": "consulting",
+            },
+            tmp_path,
+        )
 
         assert result["files_copied"] > 0
 
@@ -68,9 +80,12 @@ class TestInitializeProject:
         assert (tmp_path / ".gitignore").exists()
 
     def test_invalid_template_returns_error(self, tmp_path):
-        result = initialize_project({
-            "template": "nonexistent_template",
-        }, tmp_path)
+        result = initialize_project(
+            {
+                "template": "nonexistent_template",
+            },
+            tmp_path,
+        )
         assert len(result["errors"]) > 0
 
     def test_idempotent_no_overwrite(self, tmp_path):
@@ -84,11 +99,14 @@ class TestInitializeProject:
         assert "key1" in env  # Original key preserved
 
     def test_business_description_in_identity(self, tmp_path):
-        initialize_project({
-            "template": "consulting",
-            "business_name": "TestCo",
-            "business_description": "We do amazing things",
-        }, tmp_path)
+        initialize_project(
+            {
+                "template": "consulting",
+                "business_name": "TestCo",
+                "business_description": "We do amazing things",
+            },
+            tmp_path,
+        )
 
         # Check if any venture-identity.md got the description
         identity_files = list(tmp_path.rglob("venture-identity.md"))
@@ -100,6 +118,7 @@ class TestInitializeProject:
 # ---------------------------------------------------------------------------
 # SetupState persistence
 # ---------------------------------------------------------------------------
+
 
 class TestSetupState:
     def test_save_and_load(self, tmp_path):

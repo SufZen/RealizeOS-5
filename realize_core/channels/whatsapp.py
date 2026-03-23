@@ -4,6 +4,7 @@ WhatsApp channel adapter for RealizeOS.
 Uses the WhatsApp Cloud API (Meta Business Platform) to receive and send messages.
 Requires WHATSAPP_PHONE_NUMBER_ID and WHATSAPP_ACCESS_TOKEN.
 """
+
 import hashlib
 import hmac
 import logging
@@ -50,9 +51,7 @@ class WhatsAppChannel(BaseChannel):
     async def start(self):
         """WhatsApp channel is webhook-driven, start just validates config."""
         if not self.phone_number_id or not self.access_token:
-            self.logger.warning(
-                "WhatsApp not configured: set WHATSAPP_PHONE_NUMBER_ID and WHATSAPP_ACCESS_TOKEN"
-            )
+            self.logger.warning("WhatsApp not configured: set WHATSAPP_PHONE_NUMBER_ID and WHATSAPP_ACCESS_TOKEN")
             return
         self.logger.info("WhatsApp channel ready (webhook mode)")
 
@@ -131,9 +130,7 @@ class WhatsAppChannel(BaseChannel):
         if not self.app_secret:
             return True  # Skip verification if secret not configured
 
-        expected = "sha256=" + hmac.new(
-            self.app_secret.encode(), body, hashlib.sha256
-        ).hexdigest()
+        expected = "sha256=" + hmac.new(self.app_secret.encode(), body, hashlib.sha256).hexdigest()
         return hmac.compare_digest(expected, signature)
 
     def parse_webhook(self, payload: dict[str, Any]) -> list[IncomingMessage]:
@@ -151,45 +148,46 @@ class WhatsAppChannel(BaseChannel):
                 if "messages" not in value:
                     continue
 
-                contacts = {
-                    c["wa_id"]: c.get("profile", {}).get("name", "")
-                    for c in value.get("contacts", [])
-                }
+                contacts = {c["wa_id"]: c.get("profile", {}).get("name", "") for c in value.get("contacts", [])}
 
                 for msg in value.get("messages", []):
                     msg_type = msg.get("type", "")
                     wa_id = msg.get("from", "")
 
                     if msg_type == "text":
-                        messages.append(IncomingMessage(
-                            user_id=wa_id,
-                            text=msg.get("text", {}).get("body", ""),
-                            system_key=self.system_key,
-                            channel="whatsapp",
-                            metadata={
-                                "wa_id": wa_id,
-                                "message_id": msg.get("id", ""),
-                                "timestamp": msg.get("timestamp", ""),
-                                "contact_name": contacts.get(wa_id, ""),
-                            },
-                        ))
+                        messages.append(
+                            IncomingMessage(
+                                user_id=wa_id,
+                                text=msg.get("text", {}).get("body", ""),
+                                system_key=self.system_key,
+                                channel="whatsapp",
+                                metadata={
+                                    "wa_id": wa_id,
+                                    "message_id": msg.get("id", ""),
+                                    "timestamp": msg.get("timestamp", ""),
+                                    "contact_name": contacts.get(wa_id, ""),
+                                },
+                            )
+                        )
                     elif msg_type == "image":
                         # Image messages — store media ID for later download
                         image_info = msg.get("image", {})
                         caption = image_info.get("caption", "")
-                        messages.append(IncomingMessage(
-                            user_id=wa_id,
-                            text=caption or "[Image received]",
-                            system_key=self.system_key,
-                            channel="whatsapp",
-                            image_media_type=image_info.get("mime_type", "image/jpeg"),
-                            metadata={
-                                "wa_id": wa_id,
-                                "message_id": msg.get("id", ""),
-                                "media_id": image_info.get("id", ""),
-                                "contact_name": contacts.get(wa_id, ""),
-                            },
-                        ))
+                        messages.append(
+                            IncomingMessage(
+                                user_id=wa_id,
+                                text=caption or "[Image received]",
+                                system_key=self.system_key,
+                                channel="whatsapp",
+                                image_media_type=image_info.get("mime_type", "image/jpeg"),
+                                metadata={
+                                    "wa_id": wa_id,
+                                    "message_id": msg.get("id", ""),
+                                    "media_id": image_info.get("id", ""),
+                                    "contact_name": contacts.get(wa_id, ""),
+                                },
+                            )
+                        )
                     # Other types (audio, document, etc.) can be added later
 
         return messages

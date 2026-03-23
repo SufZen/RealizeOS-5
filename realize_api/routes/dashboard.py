@@ -4,6 +4,7 @@ Dashboard API routes — overview endpoint for the main dashboard page.
 Endpoints:
 - GET /api/dashboard — ventures, agent counts, skill counts, recent activity
 """
+
 import logging
 from pathlib import Path
 
@@ -30,17 +31,20 @@ async def get_dashboard_overview(request: Request):
     for key, sys_conf in systems.items():
         agent_count = len(sys_conf.get("agents", {}))
         skill_count = _count_skills(kb_path, sys_conf)
-        ventures.append({
-            "key": key,
-            "name": sys_conf.get("name", key),
-            "agent_count": agent_count,
-            "skill_count": skill_count,
-        })
+        ventures.append(
+            {
+                "key": key,
+                "name": sys_conf.get("name", key),
+                "agent_count": agent_count,
+                "skill_count": skill_count,
+            }
+        )
 
     # Recent activity (last 20 across all ventures)
     recent_activity = []
     try:
         from realize_core.activity.store import query_events
+
         recent_activity = query_events(limit=20)
     except Exception as e:
         logger.debug(f"Activity query failed: {e}")
@@ -49,10 +53,9 @@ async def get_dashboard_overview(request: Request):
     agent_summary = {"idle": 0, "running": 0, "paused": 0, "error": 0}
     try:
         from realize_core.db.schema import get_connection
+
         conn = get_connection()
-        rows = conn.execute(
-            "SELECT status, COUNT(*) as c FROM agent_states GROUP BY status"
-        ).fetchall()
+        rows = conn.execute("SELECT status, COUNT(*) as c FROM agent_states GROUP BY status").fetchall()
         for row in rows:
             if row["status"] in agent_summary:
                 agent_summary[row["status"]] = row["c"]

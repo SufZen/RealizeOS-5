@@ -3,6 +3,7 @@ Claude LLM Provider: Wraps the existing claude_client module behind BaseLLMProvi
 
 Supports text, vision, and tool use via Anthropic's Claude API.
 """
+
 import logging
 
 from realize_core.llm.base_provider import (
@@ -28,6 +29,7 @@ class ClaudeProvider(BaseLLMProvider):
         """Load model IDs from config (lazy, avoids circular import)."""
         if self._MODELS is None:
             from realize_core.config import MODELS
+
             ClaudeProvider._MODELS = MODELS
         return self._MODELS
 
@@ -62,6 +64,7 @@ class ClaudeProvider(BaseLLMProvider):
             import anthropic  # noqa: F401
 
             from realize_core.config import ANTHROPIC_API_KEY
+
             return bool(ANTHROPIC_API_KEY)
         except ImportError:
             return False
@@ -84,6 +87,7 @@ class ClaudeProvider(BaseLLMProvider):
 
         try:
             from realize_core.llm.claude_client import _get_client
+
             client = _get_client()
 
             response = await client.messages.create(
@@ -114,7 +118,8 @@ class ClaudeProvider(BaseLLMProvider):
             logger.warning("Claude rate limit hit.")
             return LLMResponse(
                 text="Rate limit hit. Please try again in a moment.",
-                model=model, provider=self.name,
+                model=model,
+                provider=self.name,
                 error="rate_limit",
             )
 
@@ -122,7 +127,8 @@ class ClaudeProvider(BaseLLMProvider):
             logger.error(f"Claude API error: {e}")
             return LLMResponse(
                 text="An error occurred processing your request. Please try again.",
-                model=model, provider=self.name,
+                model=model,
+                provider=self.name,
                 error=str(e),
             )
 
@@ -130,7 +136,8 @@ class ClaudeProvider(BaseLLMProvider):
             logger.error(f"Unexpected error calling Claude: {e}", exc_info=True)
             return LLMResponse(
                 text="An error occurred processing your request. Please try again.",
-                model=model, provider=self.name,
+                model=model,
+                provider=self.name,
                 error=str(e),
             )
 
@@ -175,7 +182,8 @@ class ClaudeProvider(BaseLLMProvider):
         except RuntimeError as e:
             return LLMResponse(
                 text=str(e),
-                model=model, provider=self.name,
+                model=model,
+                provider=self.name,
                 error=str(e),
             )
 

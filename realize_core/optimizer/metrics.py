@@ -9,6 +9,7 @@ Provides a framework for defining, computing, and comparing metrics:
 Metrics can measure anything: response quality, latency, cost, token usage,
 user satisfaction, etc. They are consumed by the ExperimentEngine.
 """
+
 from __future__ import annotations
 
 import logging
@@ -26,14 +27,17 @@ logger = logging.getLogger(__name__)
 # Enums
 # ---------------------------------------------------------------------------
 
+
 class MetricDirection(StrEnum):
     """Whether higher or lower is better for a metric."""
+
     HIGHER_IS_BETTER = "higher_is_better"
     LOWER_IS_BETTER = "lower_is_better"
 
 
 class SignificanceLevel(StrEnum):
     """Statistical significance of a comparison."""
+
     SIGNIFICANT = "significant"
     MARGINAL = "marginal"
     NOT_SIGNIFICANT = "not_significant"
@@ -42,6 +46,7 @@ class SignificanceLevel(StrEnum):
 # ---------------------------------------------------------------------------
 # Core dataclasses
 # ---------------------------------------------------------------------------
+
 
 @dataclass(frozen=True)
 class MetricDefinition:
@@ -53,6 +58,7 @@ class MetricDefinition:
         MetricDefinition("token_cost", direction=LOWER_IS_BETTER, unit="tokens")
         MetricDefinition("latency_ms", direction=LOWER_IS_BETTER, threshold=500)
     """
+
     name: str
     direction: MetricDirection = MetricDirection.HIGHER_IS_BETTER
     weight: float = 1.0  # relative importance in composite scoring
@@ -73,6 +79,7 @@ class MetricDefinition:
 @dataclass
 class MetricResult:
     """A single observation of a metric."""
+
     metric_name: str
     value: float
     sample_id: str = ""
@@ -84,6 +91,7 @@ class MetricComparison:
     """
     Statistical comparison between control and candidate for one metric.
     """
+
     metric_name: str
     control_mean: float
     candidate_mean: float
@@ -175,6 +183,7 @@ BUILTIN_METRICS: dict[str, MetricDefinition] = {
 # Metric computation helpers
 # ---------------------------------------------------------------------------
 
+
 def compute_metric(
     definition: MetricDefinition,
     data: dict[str, Any],
@@ -226,9 +235,7 @@ def compare_groups(
             improvement_pct = raw_pct
 
     # Simple significance check based on effect size + sample size
-    pooled_std = math.sqrt(
-        (ctrl_std ** 2 + cand_std ** 2) / 2
-    ) if (ctrl_std > 0 or cand_std > 0) else 0.0
+    pooled_std = math.sqrt((ctrl_std**2 + cand_std**2) / 2) if (ctrl_std > 0 or cand_std > 0) else 0.0
 
     if pooled_std > 0:
         effect_size = abs(cand_mean - ctrl_mean) / pooled_std

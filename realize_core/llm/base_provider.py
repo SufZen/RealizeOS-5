@@ -4,6 +4,7 @@ Base LLM Provider: Abstract interface for all LLM providers.
 All providers (Claude, Gemini, OpenAI, Ollama, etc.) implement this interface,
 enabling provider-agnostic routing and easy addition of new models.
 """
+
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum
@@ -12,6 +13,7 @@ from typing import Any
 
 class Capability(Enum):
     """Features a provider may support."""
+
     TEXT = "text"
     VISION = "vision"
     TOOLS = "tools"
@@ -33,6 +35,7 @@ class ModelInfo:
         max_tokens: Maximum output tokens
         context_window: Maximum context window size
     """
+
     model_id: str
     display_name: str = ""
     tier: int = 2
@@ -57,6 +60,7 @@ class LLMResponse:
         raw: The raw provider-specific response object (for tool_use, etc.)
         error: Error message if the call failed (text will contain a user-friendly fallback)
     """
+
     text: str
     model: str = ""
     provider: str = ""

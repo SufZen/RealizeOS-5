@@ -8,6 +8,7 @@ Covers:
 - Migration system
 - Idempotent schema init
 """
+
 import uuid
 
 import pytest
@@ -41,11 +42,10 @@ def conn(db_path):
 # Schema creation
 # ---------------------------------------------------------------------------
 
+
 class TestSchema:
     def test_tables_exist(self, conn):
-        tables = conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
-        ).fetchall()
+        tables = conn.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name").fetchall()
         table_names = {row["name"] for row in tables}
         assert "activity_events" in table_names
         assert "agent_states" in table_names
@@ -70,6 +70,7 @@ class TestSchema:
 # Activity events
 # ---------------------------------------------------------------------------
 
+
 class TestActivityEvents:
     def test_insert_and_query(self, conn):
         event_id = str(uuid.uuid4())
@@ -77,14 +78,11 @@ class TestActivityEvents:
             """INSERT INTO activity_events
                (id, venture_key, actor_type, actor_id, action, entity_type, entity_id, details)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-            (event_id, "venture1", "agent", "writer", "skill_executed",
-             "skill", "content_pipeline", '{"tokens": 150}'),
+            (event_id, "venture1", "agent", "writer", "skill_executed", "skill", "content_pipeline", '{"tokens": 150}'),
         )
         conn.commit()
 
-        row = conn.execute(
-            "SELECT * FROM activity_events WHERE id = ?", (event_id,)
-        ).fetchone()
+        row = conn.execute("SELECT * FROM activity_events WHERE id = ?", (event_id,)).fetchone()
         assert row is not None
         assert row["venture_key"] == "venture1"
         assert row["actor_type"] == "agent"
@@ -107,9 +105,7 @@ class TestActivityEvents:
         )
         conn.commit()
 
-        v1_rows = conn.execute(
-            "SELECT * FROM activity_events WHERE venture_key = ?", ("v1",)
-        ).fetchall()
+        v1_rows = conn.execute("SELECT * FROM activity_events WHERE venture_key = ?", ("v1",)).fetchall()
         assert len(v1_rows) == 5
 
     def test_invalid_actor_type_rejected(self, conn):
@@ -125,6 +121,7 @@ class TestActivityEvents:
 # ---------------------------------------------------------------------------
 # Agent states
 # ---------------------------------------------------------------------------
+
 
 class TestAgentStates:
     def test_insert_and_query(self, conn):
@@ -190,6 +187,7 @@ class TestAgentStates:
 # Approval queue
 # ---------------------------------------------------------------------------
 
+
 class TestApprovalQueue:
     def test_insert_and_query(self, conn):
         approval_id = str(uuid.uuid4())
@@ -197,14 +195,11 @@ class TestApprovalQueue:
             """INSERT INTO approval_queue
                (id, venture_key, agent_key, action_type, payload, status)
                VALUES (?, ?, ?, ?, ?, ?)""",
-            (approval_id, "v1", "writer", "send_email",
-             '{"to": "user@test.com"}', "pending"),
+            (approval_id, "v1", "writer", "send_email", '{"to": "user@test.com"}', "pending"),
         )
         conn.commit()
 
-        row = conn.execute(
-            "SELECT * FROM approval_queue WHERE id = ?", (approval_id,)
-        ).fetchone()
+        row = conn.execute("SELECT * FROM approval_queue WHERE id = ?", (approval_id,)).fetchone()
         assert row["status"] == "pending"
         assert row["action_type"] == "send_email"
 
@@ -244,6 +239,7 @@ class TestApprovalQueue:
 # ---------------------------------------------------------------------------
 # Migrations
 # ---------------------------------------------------------------------------
+
 
 class TestMigrations:
     def test_run_migrations_idempotent(self, db_path):

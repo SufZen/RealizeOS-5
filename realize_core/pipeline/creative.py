@@ -5,6 +5,7 @@ Defines multi-agent workflows and manages pipeline execution.
 Pipelines are loaded from system config (not hardcoded) — each system
 defines its own agent sequences for different task types.
 """
+
 import logging
 
 from realize_core.pipeline.session import CreativeSession, create_session
@@ -146,6 +147,7 @@ async def execute_pipeline_step(
 
     # Get conversation history
     from realize_core.memory.conversation import get_history
+
     history = get_history(system_key, str(user_id))
     messages = history + [{"role": "user", "content": message}]
 

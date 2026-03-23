@@ -1,6 +1,7 @@
 """
 Chat API routes: POST /chat, GET /conversations.
 """
+
 import asyncio
 import logging
 
@@ -44,10 +45,14 @@ async def chat(body: ChatRequest, request: Request):
     """Send a message and get an AI response."""
     systems = getattr(request.app.state, "systems", {})
     kb_path = getattr(request.app.state, "kb_path", None)
-    shared_config = getattr(request.app.state, "shared_config", {
-        "identity": "shared/identity.md",
-        "preferences": "shared/user-preferences.md",
-    })
+    shared_config = getattr(
+        request.app.state,
+        "shared_config",
+        {
+            "identity": "shared/identity.md",
+            "preferences": "shared/user-preferences.md",
+        },
+    )
 
     if not systems:
         raise HTTPException(status_code=503, detail="No systems configured. Run setup first.")
@@ -62,6 +67,7 @@ async def chat(body: ChatRequest, request: Request):
     system_config = systems[body.system_key]
 
     from realize_core.base_handler import process_message
+
     try:
         response = await asyncio.wait_for(
             process_message(
@@ -86,6 +92,7 @@ async def chat(body: ChatRequest, request: Request):
     agent_used = body.agent_key or "orchestrator"
     try:
         from realize_core.pipeline.session import get_session
+
         session = get_session(body.system_key, body.user_id)
         if session:
             agent_used = session.active_agent
@@ -95,6 +102,7 @@ async def chat(body: ChatRequest, request: Request):
     # Humanize output
     try:
         from realize_core.utils.humanizer import clean_output
+
         response = clean_output(response, channel=body.channel)
     except Exception:
         pass
@@ -112,6 +120,7 @@ async def get_conversations(system_key: str, user_id: str, limit: int = 50):
     """Get conversation history for a user in a system."""
     try:
         from realize_core.memory.conversation import get_history
+
         history = get_history(system_key, user_id, limit=min(limit, 200))
         return {"system_key": system_key, "user_id": user_id, "messages": history}
     except Exception as e:
@@ -124,6 +133,7 @@ async def clear_conversations(system_key: str, user_id: str):
     """Clear conversation history for a user."""
     try:
         from realize_core.memory.conversation import clear_history
+
         clear_history(system_key, user_id)
         return {"status": "cleared", "system_key": system_key, "user_id": user_id}
     except Exception as e:

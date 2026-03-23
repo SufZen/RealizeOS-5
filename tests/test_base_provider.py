@@ -6,6 +6,7 @@ Covers:
 - BaseLLMProvider ABC contract enforcement
 - Default method behaviors (supports, is_available, tool/vision not implemented)
 """
+
 import pytest
 from realize_core.llm.base_provider import (
     BaseLLMProvider,
@@ -17,6 +18,7 @@ from realize_core.llm.base_provider import (
 # ---------------------------------------------------------------------------
 # Dataclass tests
 # ---------------------------------------------------------------------------
+
 
 class TestModelInfo:
     def test_defaults(self):
@@ -91,6 +93,7 @@ class TestCapability:
 # ---------------------------------------------------------------------------
 # BaseLLMProvider contract
 # ---------------------------------------------------------------------------
+
 
 class ConcreteTestProvider(BaseLLMProvider):
     """Minimal concrete implementation for testing ABC."""

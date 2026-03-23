@@ -14,6 +14,7 @@ Threat categories:
 - encoding_bypass: Uses encoding tricks to evade detection
 - delimiter_injection: Injects fake message boundaries
 """
+
 import logging
 import re
 from dataclasses import dataclass, field
@@ -26,8 +27,10 @@ logger = logging.getLogger(__name__)
 # Types
 # ---------------------------------------------------------------------------
 
+
 class ThreatCategory(StrEnum):
     """Categories of prompt injection attacks."""
+
     INSTRUCTION_OVERRIDE = "instruction_override"
     ROLE_MANIPULATION = "role_manipulation"
     CONTEXT_LEAKAGE = "context_leakage"
@@ -37,6 +40,7 @@ class ThreatCategory(StrEnum):
 
 class Severity(StrEnum):
     """Severity levels for injection threats."""
+
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
@@ -46,6 +50,7 @@ class Severity(StrEnum):
 @dataclass(frozen=True)
 class ThreatPattern:
     """A single detection pattern."""
+
     pattern: str
     category: ThreatCategory
     severity: Severity
@@ -57,6 +62,7 @@ class ThreatPattern:
 @dataclass
 class InjectionResult:
     """Result of an injection scan."""
+
     is_suspicious: bool
     risk_score: float  # 0.0 - 1.0
     threats: list[dict] = field(default_factory=list)
@@ -117,7 +123,6 @@ _THREAT_PATTERNS: list[ThreatPattern] = [
         "Explicit override attempt",
         weight=2.0,
     ),
-
     # --- role_manipulation (HIGH) ---
     ThreatPattern(
         r"you\s+are\s+now\s+(a|an|the)\s+",
@@ -154,7 +159,6 @@ _THREAT_PATTERNS: list[ThreatPattern] = [
         "Persistent behavioral override attempt",
         weight=1.5,
     ),
-
     # --- context_leakage (MEDIUM-HIGH) ---
     ThreatPattern(
         r"(print|show|display|reveal|output|repeat)\s+(\w+\s+)?(the\s+)?(system\s+prompt|initial\s+instructions|hidden\s+instructions|your\s+instructions)",
@@ -177,7 +181,6 @@ _THREAT_PATTERNS: list[ThreatPattern] = [
         "Capability enumeration",
         weight=0.5,
     ),
-
     # --- delimiter_injection (HIGH) ---
     ThreatPattern(
         r"<\s*/?system\s*>",
@@ -207,7 +210,6 @@ _THREAT_PATTERNS: list[ThreatPattern] = [
         "Message role delimiter injection",
         weight=1.0,
     ),
-
     # --- encoding_bypass (MEDIUM) ---
     ThreatPattern(
         r"(?:base64|rot13|hex)\s*(?:decode|encoded|encoding)",
@@ -227,14 +229,14 @@ _THREAT_PATTERNS: list[ThreatPattern] = [
 
 # Pre-compile patterns
 _COMPILED_PATTERNS: list[tuple[re.Pattern, ThreatPattern]] = [
-    (re.compile(tp.pattern, re.IGNORECASE), tp)
-    for tp in _THREAT_PATTERNS
+    (re.compile(tp.pattern, re.IGNORECASE), tp) for tp in _THREAT_PATTERNS
 ]
 
 
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
+
 
 def scan_injection(text: str, sensitivity: float = 0.5) -> InjectionResult:
     """
@@ -271,12 +273,14 @@ def scan_injection(text: str, sensitivity: float = 0.5) -> InjectionResult:
             if _severity_rank(tp.severity) > _severity_rank(max_sev):
                 max_sev = tp.severity
 
-            threats.append({
-                "category": tp.category.value,
-                "severity": tp.severity.value,
-                "description": tp.description,
-                "match_count": len(matches),
-            })
+            threats.append(
+                {
+                    "category": tp.category.value,
+                    "severity": tp.severity.value,
+                    "description": tp.description,
+                    "match_count": len(matches),
+                }
+            )
 
     # Calculate risk score (0.0-1.0)
     # Normalize: weight of 5.0+ = max risk
@@ -298,8 +302,7 @@ def scan_injection(text: str, sensitivity: float = 0.5) -> InjectionResult:
         categories=categories,
         max_severity=max_sev.value,
         sanitized_text=sanitized,
-        details=f"{len(threats)} threat(s) detected across {len(categories)} category(ies)"
-        if threats else "Clean",
+        details=f"{len(threats)} threat(s) detected across {len(categories)} category(ies)" if threats else "Clean",
     )
 
 

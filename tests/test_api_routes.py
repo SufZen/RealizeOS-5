@@ -94,6 +94,7 @@ def client(setup_test_env):
 # Activity API (ROS5-07)
 # ---------------------------------------------------------------------------
 
+
 class TestActivityAPI:
     def test_get_venture_activity(self, client):
         log_event(venture_key="testbiz", actor_type="agent", actor_id="writer", action="llm_called")
@@ -158,6 +159,7 @@ class TestActivityAPI:
 # Dashboard API (ROS5-04)
 # ---------------------------------------------------------------------------
 
+
 class TestDashboardAPI:
     def test_dashboard_overview(self, client):
         res = client.get("/api/dashboard")
@@ -185,6 +187,7 @@ class TestDashboardAPI:
 # ---------------------------------------------------------------------------
 # Venture API (ROS5-10)
 # ---------------------------------------------------------------------------
+
 
 class TestVentureAPI:
     def test_list_ventures(self, client):
@@ -222,6 +225,7 @@ class TestVentureAPI:
 
     def test_venture_agents_include_status(self, client):
         from realize_core.scheduler.lifecycle import set_agent_status
+
         set_agent_status("writer", "testbiz", "running")
 
         res = client.get("/api/ventures/testbiz/agents")
@@ -251,6 +255,7 @@ class TestVentureAPI:
 # ---------------------------------------------------------------------------
 # Agent Detail + Pause/Resume API (ROS5-12, ROS5-13)
 # ---------------------------------------------------------------------------
+
 
 class TestAgentManagement:
     def test_agent_detail(self, client):

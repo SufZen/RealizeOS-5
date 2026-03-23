@@ -9,6 +9,7 @@ Tests that every shared interface module:
   5. Enums have the expected members
   6. Pydantic models validate correctly
 """
+
 from datetime import datetime
 
 import pytest
@@ -16,6 +17,7 @@ import pytest
 # =====================================================================
 # 1. realize_core.agents.base
 # =====================================================================
+
 
 class TestAgentBase:
     """Tests for realize_core.agents.base — shared agent interfaces."""
@@ -25,6 +27,7 @@ class TestAgentBase:
 
     def test_handoff_type_enum(self):
         from realize_core.agents.base import HandoffType
+
         assert HandoffType.STANDARD == "standard"
         assert HandoffType.QA_PASS == "qa_pass"
         assert HandoffType.QA_FAIL == "qa_fail"
@@ -36,6 +39,7 @@ class TestAgentBase:
 
     def test_agent_status_enum(self):
         from realize_core.agents.base import AgentStatus
+
         assert AgentStatus.IDLE == "idle"
         assert AgentStatus.RUNNING == "running"
         assert AgentStatus.PAUSED == "paused"
@@ -44,6 +48,7 @@ class TestAgentBase:
 
     def test_handoff_data_creation(self):
         from realize_core.agents.base import HandoffData, HandoffType
+
         hd = HandoffData(
             source_agent="writer",
             target_agent="reviewer",
@@ -58,6 +63,7 @@ class TestAgentBase:
 
     def test_handoff_data_retry(self):
         from realize_core.agents.base import HandoffData, HandoffType
+
         hd = HandoffData(
             source_agent="writer",
             target_agent="reviewer",
@@ -75,8 +81,10 @@ class TestAgentBase:
 
     def test_handoff_data_is_frozen(self):
         from realize_core.agents.base import HandoffData, HandoffType
+
         hd = HandoffData(
-            source_agent="a", target_agent="b",
+            source_agent="a",
+            target_agent="b",
             handoff_type=HandoffType.STANDARD,
         )
         with pytest.raises(AttributeError):
@@ -84,6 +92,7 @@ class TestAgentBase:
 
     def test_pipeline_stage(self):
         from realize_core.agents.base import HandoffType, PipelineStage
+
         stage = PipelineStage(
             name="drafting",
             agent_key="writer",
@@ -100,6 +109,7 @@ class TestAgentBase:
 
     def test_agent_config_minimal(self):
         from realize_core.agents.base import AgentConfig
+
         cfg = AgentConfig(name="Writer", key="writer")
         assert cfg.name == "Writer"
         assert cfg.key == "writer"
@@ -110,6 +120,7 @@ class TestAgentBase:
 
     def test_agent_config_full(self):
         from realize_core.agents.base import AgentConfig, GuardrailConfig
+
         cfg = AgentConfig(
             name="PM Agent",
             key="pm",
@@ -139,8 +150,10 @@ class TestAgentBase:
 
     def test_agent_config_extra_fields_allowed(self):
         from realize_core.agents.base import AgentConfig
+
         cfg = AgentConfig(
-            name="Test", key="test",
+            name="Test",
+            key="test",
             custom_field="custom_value",
         )
         assert cfg.model_extra.get("custom_field") == "custom_value"
@@ -149,6 +162,7 @@ class TestAgentBase:
         import typing
 
         from realize_core.agents.base import BaseAgent
+
         assert typing.runtime_checkable  # sanity
         assert hasattr(BaseAgent, "__protocol_attrs__") or hasattr(BaseAgent, "__abstractmethods__") or True
         # Runtime-checkable protocol should be usable with isinstance
@@ -159,6 +173,7 @@ class TestAgentBase:
 # 2. realize_core.skills.base
 # =====================================================================
 
+
 class TestSkillBase:
     """Tests for realize_core.skills.base — shared skill interfaces."""
 
@@ -167,12 +182,14 @@ class TestSkillBase:
 
     def test_skill_format_enum(self):
         from realize_core.skills.base import SkillFormat
+
         assert SkillFormat.YAML == "yaml"
         assert SkillFormat.SKILL_MD == "skill_md"
         assert len(SkillFormat) == 2
 
     def test_trigger_method_enum(self):
         from realize_core.skills.base import TriggerMethod
+
         assert TriggerMethod.KEYWORD == "keyword"
         assert TriggerMethod.SEMANTIC == "semantic"
         assert TriggerMethod.EXPLICIT == "explicit"
@@ -181,6 +198,7 @@ class TestSkillBase:
 
     def test_skill_trigger_result(self):
         from realize_core.skills.base import SkillTriggerResult, TriggerMethod
+
         result = SkillTriggerResult(
             skill_key="email-triage",
             score=0.85,
@@ -193,6 +211,7 @@ class TestSkillBase:
 
     def test_skill_trigger_result_low_score(self):
         from realize_core.skills.base import SkillTriggerResult, TriggerMethod
+
         result = SkillTriggerResult(
             skill_key="unknown",
             score=0.3,
@@ -203,8 +222,10 @@ class TestSkillBase:
 
     def test_skill_trigger_result_frozen(self):
         from realize_core.skills.base import SkillTriggerResult, TriggerMethod
+
         result = SkillTriggerResult(
-            skill_key="test", score=0.5,
+            skill_key="test",
+            score=0.5,
             trigger_method=TriggerMethod.KEYWORD,
         )
         with pytest.raises(AttributeError):
@@ -212,6 +233,7 @@ class TestSkillBase:
 
     def test_skill_metadata(self):
         from realize_core.skills.base import SkillFormat, SkillMetadata
+
         meta = SkillMetadata(
             key="email-triage",
             name="Email Triage",
@@ -229,6 +251,7 @@ class TestSkillBase:
 # 3. realize_core.storage.base
 # =====================================================================
 
+
 class TestStorageBase:
     """Tests for realize_core.storage.base — storage provider interfaces."""
 
@@ -237,6 +260,7 @@ class TestStorageBase:
 
     def test_storage_backend_enum(self):
         from realize_core.storage.base import StorageBackend
+
         assert StorageBackend.LOCAL == "local"
         assert StorageBackend.S3 == "s3"
         assert StorageBackend.GCS == "gcs"
@@ -245,6 +269,7 @@ class TestStorageBase:
 
     def test_storage_object(self):
         from realize_core.storage.base import StorageObject
+
         obj = StorageObject(
             key="ventures/my-biz/agents/writer.md",
             size_bytes=1234,
@@ -257,17 +282,20 @@ class TestStorageBase:
 
     def test_storage_object_no_extension(self):
         from realize_core.storage.base import StorageObject
+
         obj = StorageObject(key="README")
         assert obj.extension == ""
 
     def test_storage_object_frozen(self):
         from realize_core.storage.base import StorageObject
+
         obj = StorageObject(key="test.txt")
         with pytest.raises(AttributeError):
             obj.key = "other.txt"  # type: ignore[misc]
 
     def test_base_storage_provider_is_abstract(self):
         from realize_core.storage.base import BaseStorageProvider
+
         with pytest.raises(TypeError):
             BaseStorageProvider()  # type: ignore[abstract]
 
@@ -275,6 +303,7 @@ class TestStorageBase:
 # =====================================================================
 # 4. realize_core.extensions.base
 # =====================================================================
+
 
 class TestExtensionBase:
     """Tests for realize_core.extensions.base — extension interfaces."""
@@ -284,6 +313,7 @@ class TestExtensionBase:
 
     def test_extension_type_enum(self):
         from realize_core.extensions.base import ExtensionType
+
         assert ExtensionType.TOOL == "tool"
         assert ExtensionType.CHANNEL == "channel"
         assert ExtensionType.INTEGRATION == "integration"
@@ -292,6 +322,7 @@ class TestExtensionBase:
 
     def test_extension_status_enum(self):
         from realize_core.extensions.base import ExtensionStatus
+
         assert ExtensionStatus.DISCOVERED == "discovered"
         assert ExtensionStatus.LOADED == "loaded"
         assert ExtensionStatus.ACTIVE == "active"
@@ -301,6 +332,7 @@ class TestExtensionBase:
 
     def test_extension_manifest(self):
         from realize_core.extensions.base import ExtensionManifest, ExtensionType
+
         manifest = ExtensionManifest(
             name="stripe-billing",
             version="1.0.0",
@@ -318,6 +350,7 @@ class TestExtensionBase:
             ExtensionStatus,
             ExtensionType,
         )
+
         manifest = ExtensionManifest(
             name="test-ext",
             extension_type=ExtensionType.HOOK,
@@ -330,12 +363,14 @@ class TestExtensionBase:
 
     def test_base_extension_is_protocol(self):
         from realize_core.extensions.base import BaseExtension
+
         assert isinstance(BaseExtension, type)
 
 
 # =====================================================================
 # 5. realize_core.optimizer.base
 # =====================================================================
+
 
 class TestOptimizerBase:
     """Tests for realize_core.optimizer.base — experiment/optimization interfaces."""
@@ -345,6 +380,7 @@ class TestOptimizerBase:
 
     def test_experiment_status_enum(self):
         from realize_core.optimizer.base import ExperimentStatus
+
         assert ExperimentStatus.PENDING == "pending"
         assert ExperimentStatus.RUNNING == "running"
         assert ExperimentStatus.IMPROVED == "improved"
@@ -355,6 +391,7 @@ class TestOptimizerBase:
 
     def test_optimization_domain_enum(self):
         from realize_core.optimizer.base import OptimizationDomain
+
         assert OptimizationDomain.PROMPT == "prompt"
         assert OptimizationDomain.MODEL_SELECTION == "model_selection"
         assert OptimizationDomain.PARAMETER == "parameter"
@@ -363,6 +400,7 @@ class TestOptimizerBase:
 
     def test_optimization_target(self):
         from realize_core.optimizer.base import OptimizationDomain, OptimizationTarget
+
         target = OptimizationTarget(
             domain=OptimizationDomain.PROMPT,
             key="system_prompt_layer_3",
@@ -380,6 +418,7 @@ class TestOptimizerBase:
             OptimizationDomain,
             OptimizationTarget,
         )
+
         target = OptimizationTarget(
             domain=OptimizationDomain.PROMPT,
             key="test",
@@ -405,6 +444,7 @@ class TestOptimizerBase:
             OptimizationDomain,
             OptimizationTarget,
         )
+
         target = OptimizationTarget(
             domain=OptimizationDomain.PARAMETER,
             key="temperature",
@@ -424,6 +464,7 @@ class TestOptimizerBase:
             OptimizationDomain,
             OptimizationTarget,
         )
+
         target = OptimizationTarget(
             domain=OptimizationDomain.MODEL_SELECTION,
             key="complex_router",
@@ -448,6 +489,7 @@ class TestOptimizerBase:
 # 6. realize_core.tools.gws_base
 # =====================================================================
 
+
 class TestGwsBase:
     """Tests for realize_core.tools.gws_base — GWS CLI tool config."""
 
@@ -456,6 +498,7 @@ class TestGwsBase:
 
     def test_gws_service_enum(self):
         from realize_core.tools.gws_base import GwsService
+
         assert GwsService.GMAIL == "gmail"
         assert GwsService.SHEETS == "sheets"
         assert GwsService.DOCS == "docs"
@@ -463,6 +506,7 @@ class TestGwsBase:
 
     def test_gws_auth_method_enum(self):
         from realize_core.tools.gws_base import GwsAuthMethod
+
         assert GwsAuthMethod.OAUTH == "oauth"
         assert GwsAuthMethod.SERVICE_ACCOUNT == "service_account"
         assert GwsAuthMethod.API_KEY == "api_key"
@@ -470,6 +514,7 @@ class TestGwsBase:
 
     def test_gws_command_config(self):
         from realize_core.tools.gws_base import GwsCommandConfig, GwsService
+
         cmd = GwsCommandConfig(
             action="sheets_read",
             gws_command="gws sheets get {spreadsheet_id} --range {range}",
@@ -483,6 +528,7 @@ class TestGwsBase:
 
     def test_gws_tool_config_defaults(self):
         from realize_core.tools.gws_base import GwsToolConfig
+
         cfg = GwsToolConfig()
         assert cfg.enabled is True
         assert cfg.binary_path == "gws"
@@ -491,6 +537,7 @@ class TestGwsBase:
 
     def test_gws_tool_config_with_commands(self):
         from realize_core.tools.gws_base import GwsCommandConfig, GwsService, GwsToolConfig
+
         cfg = GwsToolConfig(
             binary_path="/usr/local/bin/gws",
             default_timeout=60,
@@ -516,6 +563,7 @@ class TestGwsBase:
 
     def test_gws_tool_config_extra_allowed(self):
         from realize_core.tools.gws_base import GwsToolConfig
+
         cfg = GwsToolConfig(custom_setting="hello")
         assert cfg.model_extra.get("custom_setting") == "hello"
 
@@ -523,6 +571,7 @@ class TestGwsBase:
 # =====================================================================
 # Cross-cutting: all modules importable from top-level packages
 # =====================================================================
+
 
 class TestPackageImports:
     """Verify that all new packages are importable."""

@@ -13,6 +13,7 @@ Implements the 7 handoff types defined in HandoffType:
 Each handler is a pure function that transforms a HandoffData payload,
 applying type-specific logic (retry counting, escalation triggers, etc.).
 """
+
 from __future__ import annotations
 
 import logging
@@ -25,6 +26,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Handoff result
 # ---------------------------------------------------------------------------
+
 
 class HandoffResult:
     """
@@ -62,6 +64,7 @@ class HandoffResult:
 # ---------------------------------------------------------------------------
 # Per-type handlers
 # ---------------------------------------------------------------------------
+
 
 def handle_standard(handoff: HandoffData) -> HandoffResult:
     """Standard sequential handoff — just pass through."""
@@ -117,10 +120,7 @@ def handle_qa_fail(handoff: HandoffData) -> HandoffResult:
         return HandoffResult(
             handoff=escalated,
             action="escalate",
-            message=(
-                f"QA failed after {handoff.retry_count} retries — "
-                f"escalating from {handoff.source_agent}"
-            ),
+            message=(f"QA failed after {handoff.retry_count} retries — escalating from {handoff.source_agent}"),
         )
 
     retried = handoff.with_retry()
@@ -133,9 +133,7 @@ def handle_qa_fail(handoff: HandoffData) -> HandoffResult:
     return HandoffResult(
         handoff=retried,
         action="retry",
-        message=(
-            f"QA failed — retrying ({retried.retry_count}/{retried.max_retries})"
-        ),
+        message=(f"QA failed — retrying ({retried.retry_count}/{retried.max_retries})"),
     )
 
 
@@ -150,10 +148,7 @@ def handle_escalation(handoff: HandoffData) -> HandoffResult:
     return HandoffResult(
         handoff=handoff,
         action="halt",
-        message=(
-            f"Escalated from {handoff.source_agent}: "
-            f"{handoff.context.get('escalation_reason', 'unknown')}"
-        ),
+        message=(f"Escalated from {handoff.source_agent}: {handoff.context.get('escalation_reason', 'unknown')}"),
     )
 
 
@@ -167,10 +162,7 @@ def handle_phase_gate(handoff: HandoffData) -> HandoffResult:
     return HandoffResult(
         handoff=handoff,
         action="await_approval",
-        message=(
-            f"Phase gate: awaiting human approval before "
-            f"{handoff.target_agent} can proceed"
-        ),
+        message=(f"Phase gate: awaiting human approval before {handoff.target_agent} can proceed"),
     )
 
 
@@ -197,10 +189,7 @@ def handle_incident(handoff: HandoffData) -> HandoffResult:
     return HandoffResult(
         handoff=handoff,
         action="halt",
-        message=(
-            f"Incident triggered by {handoff.source_agent}: "
-            f"{handoff.context.get('error', 'unknown error')}"
-        ),
+        message=(f"Incident triggered by {handoff.source_agent}: {handoff.context.get('error', 'unknown error')}"),
     )
 
 

@@ -4,6 +4,7 @@ Simple migration system for RealizeOS operational database.
 Migrations are functions registered in MIGRATIONS dict, keyed by version number.
 On startup, any unapplied migrations are run in order.
 """
+
 import logging
 import sqlite3
 from pathlib import Path
@@ -21,9 +22,7 @@ MIGRATIONS: dict[int, callable] = {}
 def get_current_version(conn: sqlite3.Connection) -> int:
     """Get the current schema version from the database."""
     try:
-        row = conn.execute(
-            "SELECT MAX(version) as v FROM schema_version"
-        ).fetchone()
+        row = conn.execute("SELECT MAX(version) as v FROM schema_version").fetchone()
         return row["v"] if row and row["v"] else 0
     except sqlite3.OperationalError:
         return 0

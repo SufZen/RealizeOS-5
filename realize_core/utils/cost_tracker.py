@@ -4,6 +4,7 @@ LLM usage and cost tracking for RealizeOS.
 Tracks API calls, token counts, and costs per tenant and model.
 Used for billing, analytics, and rate limiting.
 """
+
 import logging
 
 logger = logging.getLogger(__name__)
@@ -32,6 +33,7 @@ def log_usage(
     """
     try:
         from realize_core.memory.store import log_llm_usage
+
         log_llm_usage(
             model=model,
             input_tokens=input_tokens,
@@ -52,6 +54,7 @@ def get_usage_summary(tenant_id: str = "default", days: int = 30) -> dict:
     """
     try:
         from realize_core.memory.store import get_usage_stats
+
         return get_usage_stats(tenant_id=tenant_id, days=days)
     except Exception:
         return {

@@ -10,6 +10,7 @@ Covers:
 - Incremental indexing (mtime-based skip)
 - Edge cases: empty KB, no match, binary data conversion
 """
+
 import struct
 from pathlib import Path
 
@@ -31,6 +32,7 @@ from realize_core.kb.indexer import (
 # Fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 def index_db(tmp_path):
     """Create an initialized index database."""
@@ -45,18 +47,12 @@ def kb_with_files(tmp_path):
     # System files
     sys_dir = tmp_path / "systems" / "venture1" / "F-foundations"
     sys_dir.mkdir(parents=True)
-    (sys_dir / "venture-identity.md").write_text(
-        "# Venture Identity\nWe are a tech company focused on AI solutions."
-    )
-    (sys_dir / "venture-voice.md").write_text(
-        "# Venture Voice\nProfessional, concise, and innovative."
-    )
+    (sys_dir / "venture-identity.md").write_text("# Venture Identity\nWe are a tech company focused on AI solutions.")
+    (sys_dir / "venture-voice.md").write_text("# Venture Voice\nProfessional, concise, and innovative.")
 
     agents_dir = tmp_path / "systems" / "venture1" / "A-agents"
     agents_dir.mkdir(parents=True)
-    (agents_dir / "orchestrator.md").write_text(
-        "# Orchestrator\nCoordinates all agent activities."
-    )
+    (agents_dir / "orchestrator.md").write_text("# Orchestrator\nCoordinates all agent activities.")
 
     insights_dir = tmp_path / "systems" / "venture1" / "I-insights"
     insights_dir.mkdir(parents=True)
@@ -67,9 +63,7 @@ def kb_with_files(tmp_path):
     # Shared files
     shared_dir = tmp_path / "shared"
     shared_dir.mkdir()
-    (shared_dir / "identity.md").write_text(
-        "# Identity\nI am a business owner managing multiple ventures."
-    )
+    (shared_dir / "identity.md").write_text("# Identity\nI am a business owner managing multiple ventures.")
 
     return tmp_path
 
@@ -78,13 +72,12 @@ def kb_with_files(tmp_path):
 # Database and schema
 # ---------------------------------------------------------------------------
 
+
 class TestDatabase:
     def test_init_creates_tables(self, index_db):
         """Database should have kb_files and kb_fts tables after init."""
         conn = _get_conn(index_db)
-        tables = conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table'"
-        ).fetchall()
+        tables = conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
         table_names = {row["name"] for row in tables}
         assert "kb_files" in table_names
         assert "kb_fts" in table_names
@@ -100,6 +93,7 @@ class TestDatabase:
 # ---------------------------------------------------------------------------
 # Title extraction
 # ---------------------------------------------------------------------------
+
 
 class TestExtractTitle:
     def test_heading_extraction(self):
@@ -128,6 +122,7 @@ class TestExtractTitle:
 # System detection
 # ---------------------------------------------------------------------------
 
+
 class TestDetectSystem:
     def test_detects_from_path_structure(self):
         assert _detect_system("systems/venture1/F-foundations/venture.md") == "venture1"
@@ -154,6 +149,7 @@ class TestDetectSystem:
 # ---------------------------------------------------------------------------
 # Cosine similarity
 # ---------------------------------------------------------------------------
+
 
 class TestCosineSimilarity:
     def test_identical_vectors(self):
@@ -185,6 +181,7 @@ class TestCosineSimilarity:
 # Vector byte conversion
 # ---------------------------------------------------------------------------
 
+
 class TestBytesConversion:
     def test_roundtrip(self):
         original = [1.0, 2.5, -3.7, 0.0]
@@ -202,6 +199,7 @@ class TestBytesConversion:
 # ---------------------------------------------------------------------------
 # Directory discovery
 # ---------------------------------------------------------------------------
+
 
 class TestBuildSearchDirs:
     def test_discovers_fabric_dirs(self, kb_with_files):
@@ -224,6 +222,7 @@ class TestBuildSearchDirs:
 # ---------------------------------------------------------------------------
 # File indexing
 # ---------------------------------------------------------------------------
+
 
 class TestIndexKBFiles:
     def test_indexes_markdown_files(self, kb_with_files):
@@ -273,6 +272,7 @@ class TestIndexKBFiles:
 # Search
 # ---------------------------------------------------------------------------
 
+
 class TestSearch:
     def test_search_with_system_filter(self, kb_with_files):
         db_path = kb_with_files / "test_index.db"
@@ -313,6 +313,7 @@ class TestSearch:
 # ---------------------------------------------------------------------------
 # Hybrid merge
 # ---------------------------------------------------------------------------
+
 
 class TestHybridMerge:
     def test_merge_combines_scores(self):

@@ -8,6 +8,7 @@ Validates:
 - DB integrity
 - Stale browser sessions cleaned up
 """
+
 import logging
 import os
 from pathlib import Path
@@ -42,14 +43,16 @@ def run_security_scan(project_root: Path = None, config: dict = None) -> dict:
     # 1. API keys configured
     anthropic_key = os.getenv("ANTHROPIC_API_KEY", "")
     google_key = os.getenv("GOOGLE_AI_API_KEY", "")
-    check("API key configured", bool(anthropic_key or google_key),
-          "At least one LLM API key" if (anthropic_key or google_key) else "No API keys found")
+    check(
+        "API key configured",
+        bool(anthropic_key or google_key),
+        "At least one LLM API key" if (anthropic_key or google_key) else "No API keys found",
+    )
 
     # 2. API keys not default/placeholder
     if anthropic_key:
         is_real = anthropic_key.startswith("sk-ant-") and len(anthropic_key) > 20
-        check("Anthropic key valid format", is_real,
-              "Looks valid" if is_real else "May be a placeholder")
+        check("Anthropic key valid format", is_real, "Looks valid" if is_real else "May be a placeholder")
 
     # 3. .env file exists and not tracked by git
     env_path = project_root / ".env"
@@ -64,22 +67,21 @@ def run_security_scan(project_root: Path = None, config: dict = None) -> dict:
     creds_dir = project_root / ".credentials"
     if creds_dir.exists():
         check("Credentials directory exists", True)
-        check(".credentials in .gitignore",
-              ".credentials" in (gitignore_content if gitignore_path.exists() else ""))
+        check(".credentials in .gitignore", ".credentials" in (gitignore_content if gitignore_path.exists() else ""))
     else:
         check("No credentials directory", True, "Not needed if not using Google OAuth")
 
     # 5. Realize API key configured (for production)
     api_key = os.getenv("REALIZE_API_KEY", "")
-    check("API authentication",
-          bool(api_key),
-          "REALIZE_API_KEY set" if api_key else "No API key — dashboard is publicly accessible")
+    check(
+        "API authentication",
+        bool(api_key),
+        "REALIZE_API_KEY set" if api_key else "No API key — dashboard is publicly accessible",
+    )
 
     # 6. CORS not wildcard in production
     cors = os.getenv("CORS_ORIGINS", "*")
-    check("CORS origins",
-          cors != "*",
-          f"Restricted to: {cors}" if cors != "*" else "Wildcard (*) — OK for development")
+    check("CORS origins", cors != "*", f"Restricted to: {cors}" if cors != "*" else "Wildcard (*) — OK for development")
 
     # 7. Rate limiting configured
     rate_limit = int(os.getenv("RATE_LIMIT_PER_MINUTE", "30"))
@@ -96,13 +98,12 @@ def run_security_scan(project_root: Path = None, config: dict = None) -> dict:
     config_path = project_root / "realize-os.yaml"
     if config_path.exists():
         config_text = config_path.read_text(encoding="utf-8")
-        has_hardcoded_key = any(
-            pattern in config_text
-            for pattern in ["sk-ant-", "AIza", "sk-proj-"]
+        has_hardcoded_key = any(pattern in config_text for pattern in ["sk-ant-", "AIza", "sk-proj-"])
+        critical_check(
+            "No hardcoded secrets in config",
+            not has_hardcoded_key,
+            "Config file clean" if not has_hardcoded_key else "Found hardcoded API key in realize-os.yaml!",
         )
-        critical_check("No hardcoded secrets in config",
-                       not has_hardcoded_key,
-                       "Config file clean" if not has_hardcoded_key else "Found hardcoded API key in realize-os.yaml!")
 
     # 10. Browser sessions limit
     browser_enabled = os.getenv("BROWSER_ENABLED", "false").lower() == "true"

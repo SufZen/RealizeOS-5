@@ -27,6 +27,7 @@ from realize_core.prompt.builder import (
 # Fixtures (using conftest.py kb_root, system_config, shared_config)
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture(autouse=True)
 def reset_cache():
     """Clear cache before each test to avoid cross-test pollution."""
@@ -39,59 +40,75 @@ def reset_cache():
 # Happy-path tests (original tests, refactored to use conftest fixtures)
 # ---------------------------------------------------------------------------
 
+
 class TestBuildSystemPromptHappyPath:
     def test_includes_identity(self, kb_root, system_config, shared_config):
         prompt = build_system_prompt(
-            kb_path=kb_root, system_config=system_config,
-            system_key="test", agent_key="orchestrator",
+            kb_path=kb_root,
+            system_config=system_config,
+            system_key="test",
+            agent_key="orchestrator",
             shared_config=shared_config,
         )
         assert "test user" in prompt.lower()
 
     def test_includes_venture(self, kb_root, system_config, shared_config):
         prompt = build_system_prompt(
-            kb_path=kb_root, system_config=system_config,
-            system_key="test", agent_key="orchestrator",
+            kb_path=kb_root,
+            system_config=system_config,
+            system_key="test",
+            agent_key="orchestrator",
             shared_config=shared_config,
         )
         assert "Test Brand" in prompt
 
     def test_includes_agent(self, kb_root, system_config, shared_config):
         prompt = build_system_prompt(
-            kb_path=kb_root, system_config=system_config,
-            system_key="test", agent_key="writer",
+            kb_path=kb_root,
+            system_config=system_config,
+            system_key="test",
+            agent_key="writer",
             shared_config=shared_config,
         )
         assert "compelling content" in prompt
 
     def test_includes_format_instructions_telegram(self, kb_root, system_config, shared_config):
         prompt = build_system_prompt(
-            kb_path=kb_root, system_config=system_config,
-            system_key="test", agent_key="orchestrator",
-            shared_config=shared_config, channel="telegram",
+            kb_path=kb_root,
+            system_config=system_config,
+            system_key="test",
+            agent_key="orchestrator",
+            shared_config=shared_config,
+            channel="telegram",
         )
         assert "Telegram" in prompt
 
     def test_includes_proactive_instructions(self, kb_root, system_config, shared_config):
         prompt = build_system_prompt(
-            kb_path=kb_root, system_config=system_config,
-            system_key="test", agent_key="orchestrator",
+            kb_path=kb_root,
+            system_config=system_config,
+            system_key="test",
+            agent_key="orchestrator",
             shared_config=shared_config,
         )
         assert "proactive" in prompt.lower() or "collaboration" in prompt.lower()
 
     def test_includes_routing_context(self, kb_root, system_config, shared_config):
         prompt = build_system_prompt(
-            kb_path=kb_root, system_config=system_config,
-            system_key="test", agent_key="orchestrator",
+            kb_path=kb_root,
+            system_config=system_config,
+            system_key="test",
+            agent_key="orchestrator",
             shared_config=shared_config,
         )
         assert "Routing" in prompt or "routing" in prompt
 
     def test_includes_memory_layer(self, kb_root, system_config, shared_config):
         prompt = build_system_prompt(
-            kb_path=kb_root, system_config=system_config,
-            system_key="test", agent_key="orchestrator",
+            kb_path=kb_root,
+            system_config=system_config,
+            system_key="test",
+            agent_key="orchestrator",
             shared_config=shared_config,
         )
         assert "Learning" in prompt or "CTA" in prompt
@@ -101,6 +118,7 @@ class TestBuildSystemPromptHappyPath:
 # Edge cases: Missing files
 # ---------------------------------------------------------------------------
 
+
 class TestMissingFiles:
     def test_missing_identity_file_still_builds(self, kb_root, system_config):
         """Prompt builds even if shared identity files don't exist."""
@@ -109,8 +127,10 @@ class TestMissingFiles:
             "preferences": "nonexistent/prefs.md",
         }
         prompt = build_system_prompt(
-            kb_path=kb_root, system_config=system_config,
-            system_key="test", agent_key="orchestrator",
+            kb_path=kb_root,
+            system_config=system_config,
+            system_key="test",
+            agent_key="orchestrator",
             shared_config=shared_config,
         )
         # Should still have venture, agent, proactive, format layers
@@ -127,8 +147,10 @@ class TestMissingFiles:
             "agents": {"orchestrator": "nonexistent/agent.md"},
         }
         prompt = build_system_prompt(
-            kb_path=kb_root, system_config=config,
-            system_key="test", agent_key="orchestrator",
+            kb_path=kb_root,
+            system_config=config,
+            system_key="test",
+            agent_key="orchestrator",
             shared_config=shared_config,
         )
         # Should still have identity and proactive layers
@@ -138,8 +160,10 @@ class TestMissingFiles:
     def test_agent_not_found_no_crash(self, kb_root, system_config, shared_config):
         """Requesting a non-existent agent doesn't crash."""
         prompt = build_system_prompt(
-            kb_path=kb_root, system_config=system_config,
-            system_key="test", agent_key="nonexistent_agent",
+            kb_path=kb_root,
+            system_config=system_config,
+            system_key="test",
+            agent_key="nonexistent_agent",
             shared_config=shared_config,
         )
         assert len(prompt) > 0
@@ -149,8 +173,10 @@ class TestMissingFiles:
     def test_empty_system_config(self, kb_root, empty_system_config, shared_config):
         """Minimal system config with no files still produces a prompt."""
         prompt = build_system_prompt(
-            kb_path=kb_root, system_config=empty_system_config,
-            system_key="test", agent_key="orchestrator",
+            kb_path=kb_root,
+            system_config=empty_system_config,
+            system_key="test",
+            agent_key="orchestrator",
             shared_config=shared_config,
         )
         assert len(prompt) > 0
@@ -159,6 +185,7 @@ class TestMissingFiles:
 # ---------------------------------------------------------------------------
 # Cache behavior
 # ---------------------------------------------------------------------------
+
 
 class TestCaching:
     def test_cache_hit_returns_same_content(self, kb_root):
@@ -195,6 +222,7 @@ class TestCaching:
 # Truncation
 # ---------------------------------------------------------------------------
 
+
 class TestTruncation:
     def test_file_exceeding_max_chars_is_truncated(self, kb_root):
         """Files longer than max_chars get a truncation marker."""
@@ -216,38 +244,51 @@ class TestTruncation:
 # Channel format instructions
 # ---------------------------------------------------------------------------
 
+
 class TestChannelFormat:
     def test_telegram_format(self, kb_root, system_config, shared_config):
         prompt = build_system_prompt(
-            kb_path=kb_root, system_config=system_config,
-            system_key="test", agent_key="orchestrator",
-            shared_config=shared_config, channel="telegram",
+            kb_path=kb_root,
+            system_config=system_config,
+            system_key="test",
+            agent_key="orchestrator",
+            shared_config=shared_config,
+            channel="telegram",
         )
         assert "Telegram" in prompt
         assert "Under 300 words" in prompt
 
     def test_api_format(self, kb_root, system_config, shared_config):
         prompt = build_system_prompt(
-            kb_path=kb_root, system_config=system_config,
-            system_key="test", agent_key="orchestrator",
-            shared_config=shared_config, channel="api",
+            kb_path=kb_root,
+            system_config=system_config,
+            system_key="test",
+            agent_key="orchestrator",
+            shared_config=shared_config,
+            channel="api",
         )
         assert "markdown" in prompt.lower()
 
     def test_slack_format(self, kb_root, system_config, shared_config):
         prompt = build_system_prompt(
-            kb_path=kb_root, system_config=system_config,
-            system_key="test", agent_key="orchestrator",
-            shared_config=shared_config, channel="slack",
+            kb_path=kb_root,
+            system_config=system_config,
+            system_key="test",
+            agent_key="orchestrator",
+            shared_config=shared_config,
+            channel="slack",
         )
         assert "Slack" in prompt
 
     def test_unknown_channel_defaults_to_api(self, kb_root, system_config, shared_config):
         """Unknown channels fall back to API format instructions."""
         prompt = build_system_prompt(
-            kb_path=kb_root, system_config=system_config,
-            system_key="test", agent_key="orchestrator",
-            shared_config=shared_config, channel="whatsapp",
+            kb_path=kb_root,
+            system_config=system_config,
+            system_key="test",
+            agent_key="orchestrator",
+            shared_config=shared_config,
+            channel="whatsapp",
         )
         # Should use API format as default
         assert "Response Format" in prompt
@@ -257,11 +298,13 @@ class TestChannelFormat:
 # Session layer
 # ---------------------------------------------------------------------------
 
+
 class MockSession:
     """Mock session object for testing."""
 
-    def __init__(self, task_type="content", stage="drafting",
-                 brief="Write a blog post", pipeline=None, pipeline_index=0):
+    def __init__(
+        self, task_type="content", stage="drafting", brief="Write a blog post", pipeline=None, pipeline_index=0
+    ):
         self.task_type = task_type
         self.stage = stage
         self.brief = brief
@@ -273,9 +316,12 @@ class TestSessionLayer:
     def test_session_layer_included_in_prompt(self, kb_root, system_config, shared_config):
         session = MockSession()
         prompt = build_system_prompt(
-            kb_path=kb_root, system_config=system_config,
-            system_key="test", agent_key="writer",
-            shared_config=shared_config, session=session,
+            kb_path=kb_root,
+            system_config=system_config,
+            system_key="test",
+            agent_key="writer",
+            shared_config=shared_config,
+            session=session,
         )
         assert "Creative Session" in prompt
         assert "content" in prompt
@@ -301,6 +347,7 @@ class TestSessionLayer:
 # ---------------------------------------------------------------------------
 # Proactive instructions
 # ---------------------------------------------------------------------------
+
 
 class TestProactiveInstructions:
     def test_includes_collaboration_instructions(self):
@@ -338,6 +385,7 @@ class TestProactiveInstructions:
 # Individual layer builders
 # ---------------------------------------------------------------------------
 
+
 class TestLayerBuilders:
     def test_identity_layer_both_files(self, kb_root, shared_config):
         result = _build_identity_layer(kb_root, shared_config)
@@ -374,14 +422,17 @@ class TestLayerBuilders:
 # Extra context files
 # ---------------------------------------------------------------------------
 
+
 class TestExtraContext:
     def test_extra_context_files_loaded(self, kb_root, system_config, shared_config):
         # Create an extra file
         (kb_root / "shared" / "extra.md").write_text("# Extra\nAdditional context for the task.", encoding="utf-8")
 
         prompt = build_system_prompt(
-            kb_path=kb_root, system_config=system_config,
-            system_key="test", agent_key="orchestrator",
+            kb_path=kb_root,
+            system_config=system_config,
+            system_key="test",
+            agent_key="orchestrator",
             shared_config=shared_config,
             extra_context_files=["shared/extra.md"],
         )
@@ -390,8 +441,10 @@ class TestExtraContext:
     def test_missing_extra_context_ignored(self, kb_root, system_config, shared_config):
         """Missing extra context files don't crash the builder."""
         prompt = build_system_prompt(
-            kb_path=kb_root, system_config=system_config,
-            system_key="test", agent_key="orchestrator",
+            kb_path=kb_root,
+            system_config=system_config,
+            system_key="test",
+            agent_key="orchestrator",
             shared_config=shared_config,
             extra_context_files=["nonexistent/file.md"],
         )

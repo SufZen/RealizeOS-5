@@ -6,6 +6,7 @@ Tables:
 - agent_states: current status of each agent (idle/running/paused/error)
 - approval_queue: pending human approval requests
 """
+
 import logging
 import sqlite3
 from pathlib import Path
@@ -40,6 +41,7 @@ def get_connection(db_path: Path = None, retries: int = 3) -> sqlite3.Connection
     Retries on SQLITE_BUSY with exponential backoff.
     """
     import time
+
     path = db_path or get_db_path()
     path.parent.mkdir(parents=True, exist_ok=True)
 

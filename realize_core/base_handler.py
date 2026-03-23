@@ -5,6 +5,7 @@ Provides composable building blocks for handling incoming messages across
 any channel (API, Telegram, Slack, etc.). Each channel adapter calls these
 shared functions to process messages through the standard flow.
 """
+
 import logging
 
 from realize_core.llm.router import classify_task, route_to_llm
@@ -19,8 +20,16 @@ logger = logging.getLogger(__name__)
 
 # Knowledge-question prefixes (skip skill detection for these)
 INFO_PREFIXES = (
-    "summarize", "explain", "what is", "what are", "describe",
-    "tell me about", "how does", "how do", "overview of", "define",
+    "summarize",
+    "explain",
+    "what is",
+    "what are",
+    "describe",
+    "tell me about",
+    "how does",
+    "how do",
+    "overview of",
+    "define",
 )
 
 
@@ -202,14 +211,16 @@ async def handle_review(
         channel=channel,
     )
 
-    review_messages = [{
-        "role": "user",
-        "content": (
-            f"Please review this output for {review_criteria}:\n\n"
-            f"---\n{content_to_review}\n---\n\n"
-            f"Provide: (1) Verdict: APPROVED or REVISIONS NEEDED, (2) Specific feedback."
-        ),
-    }]
+    review_messages = [
+        {
+            "role": "user",
+            "content": (
+                f"Please review this output for {review_criteria}:\n\n"
+                f"---\n{content_to_review}\n---\n\n"
+                f"Provide: (1) Verdict: APPROVED or REVISIONS NEEDED, (2) Specific feedback."
+            ),
+        }
+    ]
 
     response = await call_claude(system_prompt=system_prompt, messages=review_messages)
 
@@ -252,9 +263,13 @@ async def process_message(
     if features.get("activity_log"):
         try:
             from realize_core.activity.logger import log_event
+
             log_event(
-                venture_key=system_key, actor_type="user", actor_id=user_id,
-                action="message_received", entity_type="message",
+                venture_key=system_key,
+                actor_type="user",
+                actor_id=user_id,
+                action="message_received",
+                entity_type="message",
                 details=f'{{"channel": "{channel}", "length": {len(message)}}}',
             )
         except Exception:
@@ -264,24 +279,35 @@ async def process_message(
     session = get_session(system_key, user_id)
     if session and session.stage not in ("completed", "approved"):
         return await handle_session_message(
-            session=session, user_id=user_id, message=message,
-            kb_path=kb_path, system_config=system_config,
-            shared_config=shared_config, channel=channel,
+            session=session,
+            user_id=user_id,
+            message=message,
+            kb_path=kb_path,
+            system_config=system_config,
+            shared_config=shared_config,
+            channel=channel,
         )
 
     # Step 2: Skill trigger?
     handled, result = await check_and_execute_skill(
-        system_key=system_key, user_id=user_id, message=message,
-        kb_path=kb_path, system_config=system_config,
-        shared_config=shared_config, channel=channel,
+        system_key=system_key,
+        user_id=user_id,
+        message=message,
+        kb_path=kb_path,
+        system_config=system_config,
+        shared_config=shared_config,
+        channel=channel,
     )
     if handled:
         if features.get("activity_log"):
             try:
                 from realize_core.activity.logger import log_event
+
                 log_event(
-                    venture_key=system_key, actor_type="system",
-                    actor_id="skill_executor", action="skill_executed",
+                    venture_key=system_key,
+                    actor_type="system",
+                    actor_id="skill_executor",
+                    action="skill_executed",
                     entity_type="skill",
                 )
             except Exception:
@@ -312,6 +338,7 @@ async def process_message(
     if features.get("agent_lifecycle"):
         try:
             from realize_core.scheduler.lifecycle import is_paused
+
             if is_paused(agent_key, system_key):
                 logger.info(f"Agent {agent_key} is paused, falling back to orchestrator")
                 agent_key = "orchestrator"
@@ -323,9 +350,14 @@ async def process_message(
     if features.get("activity_log"):
         try:
             from realize_core.activity.logger import log_event
+
             log_event(
-                venture_key=system_key, actor_type="system", actor_id="router",
-                action="agent_routed", entity_type="agent", entity_id=agent_key,
+                venture_key=system_key,
+                actor_type="system",
+                actor_id="router",
+                action="agent_routed",
+                entity_type="agent",
+                entity_id=agent_key,
             )
         except Exception:
             pass
@@ -334,27 +366,37 @@ async def process_message(
     if features.get("agent_lifecycle"):
         try:
             from realize_core.scheduler.lifecycle import mark_running
+
             mark_running(agent_key, system_key)
         except Exception:
             pass
 
     try:
         response = await standard_llm_handling(
-            system_key=system_key, agent_key=agent_key,
-            user_id=user_id, message=message,
-            kb_path=kb_path, system_config=system_config,
-            shared_config=shared_config, channel=channel,
-            features=features, all_systems=all_systems,
+            system_key=system_key,
+            agent_key=agent_key,
+            user_id=user_id,
+            message=message,
+            kb_path=kb_path,
+            system_config=system_config,
+            shared_config=shared_config,
+            channel=channel,
+            features=features,
+            all_systems=all_systems,
         )
 
         # --- Activity: log LLM call ---
         if features.get("activity_log"):
             try:
                 from realize_core.activity.logger import log_event
+
                 task_class = classify_task(message, system_key=system_key)
                 log_event(
-                    venture_key=system_key, actor_type="agent", actor_id=agent_key,
-                    action="llm_called", entity_type="task",
+                    venture_key=system_key,
+                    actor_type="agent",
+                    actor_id=agent_key,
+                    action="llm_called",
+                    entity_type="task",
                     details=f'{{"task_type": "{task_class}", "response_length": {len(response)}}}',
                 )
             except Exception:
@@ -364,6 +406,7 @@ async def process_message(
         if features.get("agent_lifecycle"):
             try:
                 from realize_core.scheduler.lifecycle import mark_idle
+
                 mark_idle(agent_key, system_key)
             except Exception:
                 pass
@@ -375,6 +418,7 @@ async def process_message(
         if features.get("agent_lifecycle"):
             try:
                 from realize_core.scheduler.lifecycle import mark_error
+
                 mark_error(agent_key, system_key, str(e)[:500])
             except Exception:
                 pass

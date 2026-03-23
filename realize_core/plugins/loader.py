@@ -15,6 +15,7 @@ Manifest schema (plugin.yaml):
     description: "What this plugin does"
     keywords: ["search", "web"]  # For tool plugins: trigger keywords
 """
+
 import importlib
 import importlib.util
 import logging

@@ -8,6 +8,7 @@ Defines the abstract contract for storage backends:
 The default implementation uses local filesystem / SQLite.
 Cloud implementations (S3, GCS, Azure Blob) can be added as plugins.
 """
+
 from __future__ import annotations
 
 import logging
@@ -23,8 +24,10 @@ logger = logging.getLogger(__name__)
 # Enums
 # ---------------------------------------------------------------------------
 
+
 class StorageBackend(StrEnum):
     """Supported storage backend types."""
+
     LOCAL = "local"
     S3 = "s3"
     GCS = "gcs"
@@ -35,6 +38,7 @@ class StorageBackend(StrEnum):
 # Dataclasses
 # ---------------------------------------------------------------------------
 
+
 @dataclass(frozen=True)
 class StorageObject:
     """
@@ -43,6 +47,7 @@ class StorageObject:
     Returned by list() and exists() operations without
     loading the full object content.
     """
+
     key: str
     size_bytes: int = 0
     content_type: str = ""
@@ -60,6 +65,7 @@ class StorageObject:
 # ---------------------------------------------------------------------------
 # Abstract base — storage provider contract
 # ---------------------------------------------------------------------------
+
 
 class BaseStorageProvider(ABC):
     """

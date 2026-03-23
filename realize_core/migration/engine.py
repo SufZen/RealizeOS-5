@@ -17,6 +17,7 @@ Every version module must export:
 - ``up(conn: sqlite3.Connection) -> None`` — forward migration
 - ``down(conn: sqlite3.Connection) -> None`` — reverse migration
 """
+
 from __future__ import annotations
 
 import importlib
@@ -34,9 +35,11 @@ logger = logging.getLogger(__name__)
 # Data structures
 # ---------------------------------------------------------------------------
 
+
 @dataclass(frozen=True)
 class MigrationVersion:
     """Metadata for a discovered migration module."""
+
     version: int
     description: str
     module_name: str
@@ -49,10 +52,11 @@ class MigrationVersion:
 @dataclass(frozen=True)
 class MigrationRecord:
     """A row from the migration history table."""
+
     version: int
     description: str
-    direction: str          # 'up' or 'down'
-    applied_at: str         # ISO-8601 timestamp
+    direction: str  # 'up' or 'down'
+    applied_at: str  # ISO-8601 timestamp
 
 
 # ---------------------------------------------------------------------------
@@ -76,6 +80,7 @@ CREATE INDEX IF NOT EXISTS idx_migration_history_version
 # ---------------------------------------------------------------------------
 # Engine
 # ---------------------------------------------------------------------------
+
 
 class MigrationEngine:
     """
@@ -110,6 +115,7 @@ class MigrationEngine:
         else:
             # Fall back to the shared DB helper
             from realize_core.db.schema import get_connection
+
             conn = get_connection()
             return conn
 
@@ -143,8 +149,7 @@ class MigrationEngine:
         try:
             pkg = importlib.import_module(self._versions_package)
         except ImportError as exc:
-            logger.error("Failed to import versions package %s: %s",
-                         self._versions_package, exc)
+            logger.error("Failed to import versions package %s: %s", self._versions_package, exc)
             return versions
 
         for finder, name, _ in pkgutil.iter_modules(pkg.__path__):
@@ -156,11 +161,13 @@ class MigrationEngine:
                 if ver is None:
                     logger.warning("Module %s missing VERSION — skipping", full_name)
                     continue
-                versions.append(MigrationVersion(
-                    version=int(ver),
-                    description=desc,
-                    module_name=full_name,
-                ))
+                versions.append(
+                    MigrationVersion(
+                        version=int(ver),
+                        description=desc,
+                        module_name=full_name,
+                    )
+                )
             except Exception as exc:
                 logger.error("Failed to inspect module %s: %s", full_name, exc)
 
@@ -181,9 +188,7 @@ class MigrationEngine:
         """
         conn = self._get_connection()
         try:
-            rows = conn.execute(
-                "SELECT version, direction FROM migration_history ORDER BY id"
-            ).fetchall()
+            rows = conn.execute("SELECT version, direction FROM migration_history ORDER BY id").fetchall()
         finally:
             conn.close()
 
@@ -202,9 +207,7 @@ class MigrationEngine:
         """Return the set of currently-applied version numbers."""
         conn = self._get_connection()
         try:
-            rows = conn.execute(
-                "SELECT version, direction FROM migration_history ORDER BY id"
-            ).fetchall()
+            rows = conn.execute("SELECT version, direction FROM migration_history ORDER BY id").fetchall()
         finally:
             conn.close()
 
@@ -224,8 +227,7 @@ class MigrationEngine:
         conn = self._get_connection()
         try:
             rows = conn.execute(
-                "SELECT version, description, direction, applied_at "
-                "FROM migration_history ORDER BY id"
+                "SELECT version, description, direction, applied_at FROM migration_history ORDER BY id"
             ).fetchall()
         finally:
             conn.close()
@@ -265,12 +267,10 @@ class MigrationEngine:
             target_version = available[-1].version
 
         applied = self.get_applied_versions()
-        pending = [v for v in available
-                   if v.version not in applied and v.version <= target_version]
+        pending = [v for v in available if v.version not in applied and v.version <= target_version]
 
         if not pending:
-            logger.debug("No pending migrations (current=%d, target=%d)",
-                         self.get_current_version(), target_version)
+            logger.debug("No pending migrations (current=%d, target=%d)", self.get_current_version(), target_version)
             return []
 
         applied_versions: list[int] = []
@@ -279,18 +279,14 @@ class MigrationEngine:
             mod = migration.load()
             up_fn = getattr(mod, "up", None)
             if up_fn is None:
-                raise RuntimeError(
-                    f"Migration {migration.module_name} missing up() function"
-                )
+                raise RuntimeError(f"Migration {migration.module_name} missing up() function")
 
             conn = self._get_connection()
             try:
-                logger.info("Applying migration v%d (%s)...",
-                            migration.version, migration.description)
+                logger.info("Applying migration v%d (%s)...", migration.version, migration.description)
                 up_fn(conn)
                 conn.execute(
-                    "INSERT INTO migration_history "
-                    "(version, description, direction) VALUES (?, ?, 'up')",
+                    "INSERT INTO migration_history (version, description, direction) VALUES (?, ?, 'up')",
                     (migration.version, migration.description),
                 )
                 conn.commit()
@@ -298,11 +294,8 @@ class MigrationEngine:
                 logger.info("Migration v%d applied successfully", migration.version)
             except Exception as exc:
                 conn.rollback()
-                logger.error("Migration v%d FAILED — rolled back: %s",
-                             migration.version, exc)
-                raise RuntimeError(
-                    f"Migration v{migration.version} failed: {exc}"
-                ) from exc
+                logger.error("Migration v%d FAILED — rolled back: %s", migration.version, exc)
+                raise RuntimeError(f"Migration v{migration.version} failed: {exc}") from exc
             finally:
                 conn.close()
 
@@ -331,8 +324,7 @@ class MigrationEngine:
         """
         current = self.get_current_version()
         if target_version >= current:
-            logger.debug("Target version %d >= current %d — nothing to roll back",
-                         target_version, current)
+            logger.debug("Target version %d >= current %d — nothing to roll back", target_version, current)
             return []
 
         available = {v.version: v for v in self.discover_versions()}
@@ -349,25 +341,19 @@ class MigrationEngine:
         for ver in to_rollback:
             migration = available.get(ver)
             if migration is None:
-                raise RuntimeError(
-                    f"Cannot roll back version {ver}: migration module not found"
-                )
+                raise RuntimeError(f"Cannot roll back version {ver}: migration module not found")
 
             mod = migration.load()
             down_fn = getattr(mod, "down", None)
             if down_fn is None:
-                raise RuntimeError(
-                    f"Migration {migration.module_name} missing down() function"
-                )
+                raise RuntimeError(f"Migration {migration.module_name} missing down() function")
 
             conn = self._get_connection()
             try:
-                logger.info("Rolling back migration v%d (%s)...",
-                            ver, migration.description)
+                logger.info("Rolling back migration v%d (%s)...", ver, migration.description)
                 down_fn(conn)
                 conn.execute(
-                    "INSERT INTO migration_history "
-                    "(version, description, direction) VALUES (?, ?, 'down')",
+                    "INSERT INTO migration_history (version, description, direction) VALUES (?, ?, 'down')",
                     (ver, migration.description),
                 )
                 conn.commit()
@@ -376,9 +362,7 @@ class MigrationEngine:
             except Exception as exc:
                 conn.rollback()
                 logger.error("Rollback of v%d FAILED: %s", ver, exc)
-                raise RuntimeError(
-                    f"Rollback of v{ver} failed: {exc}"
-                ) from exc
+                raise RuntimeError(f"Rollback of v{ver} failed: {exc}") from exc
             finally:
                 conn.close()
 

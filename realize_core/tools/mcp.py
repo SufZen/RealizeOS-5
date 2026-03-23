@@ -5,6 +5,7 @@ Uses the official MCP Python SDK to manage connections to stdio-based
 MCP servers. Each server runs as a subprocess and exposes tools
 that get auto-discovered and converted to Claude tool_use schemas.
 """
+
 import asyncio
 import json
 import logging
@@ -17,8 +18,9 @@ logger = logging.getLogger(__name__)
 class MCPServerConnection:
     """Manages a connection to a single MCP server."""
 
-    def __init__(self, name: str, command: str, args: list[str],
-                 env: dict[str, str] | None = None, enabled: bool = True):
+    def __init__(
+        self, name: str, command: str, args: list[str], env: dict[str, str] | None = None, enabled: bool = True
+    ):
         self.name = name
         self.command = command
         self.args = args
@@ -52,7 +54,9 @@ class MCPServerConnection:
                 resolved_env[key] = value
 
         server_params = StdioServerParameters(
-            command=self.command, args=self.args, env=resolved_env,
+            command=self.command,
+            args=self.args,
+            env=resolved_env,
         )
         try:
             self._exit_stack = AsyncExitStack()
@@ -61,7 +65,7 @@ class MCPServerConnection:
             self.session = await self._exit_stack.enter_async_context(ClientSession(read, write))
             await self.session.initialize()
             tools_result = await self.session.list_tools()
-            self._raw_tools = tools_result.tools if hasattr(tools_result, 'tools') else []
+            self._raw_tools = tools_result.tools if hasattr(tools_result, "tools") else []
             self.tools = [self._mcp_to_claude_schema(t) for t in self._raw_tools]
             self._connected = True
             logger.info(f"MCP server '{self.name}' connected: {len(self.tools)} tools")
@@ -95,12 +99,12 @@ class MCPServerConnection:
             return f"Error: server '{self.name}' is not connected"
         try:
             result = await self.session.call_tool(tool_name, arguments=arguments)
-            if hasattr(result, 'content') and result.content:
+            if hasattr(result, "content") and result.content:
                 parts = []
                 for block in result.content:
-                    if hasattr(block, 'text'):
+                    if hasattr(block, "text"):
                         parts.append(block.text)
-                    elif hasattr(block, 'data'):
+                    elif hasattr(block, "data"):
                         parts.append(f"[binary data: {len(block.data)} bytes]")
                     else:
                         parts.append(str(block))
@@ -113,8 +117,8 @@ class MCPServerConnection:
     def _mcp_to_claude_schema(self, mcp_tool) -> dict:
         return {
             "name": f"mcp__{self.name}__{mcp_tool.name}",
-            "description": getattr(mcp_tool, 'description', '') or f"Tool from {self.name}",
-            "input_schema": getattr(mcp_tool, 'inputSchema', {"type": "object", "properties": {}}),
+            "description": getattr(mcp_tool, "description", "") or f"Tool from {self.name}",
+            "input_schema": getattr(mcp_tool, "inputSchema", {"type": "object", "properties": {}}),
         }
 
     def get_tool_names(self) -> list[str]:
@@ -122,9 +126,12 @@ class MCPServerConnection:
 
     def status_dict(self) -> dict:
         return {
-            "name": self.name, "enabled": self.enabled, "connected": self.connected,
+            "name": self.name,
+            "enabled": self.enabled,
+            "connected": self.connected,
             "command": f"{self.command} {' '.join(self.args[:2])}",
-            "tools_count": len(self.tools), "tool_names": self.get_tool_names(),
+            "tools_count": len(self.tools),
+            "tool_names": self.get_tool_names(),
         }
 
 
@@ -138,6 +145,7 @@ class MCPClientHub:
     async def load_from_config(self, config_path: str | None = None):
         if config_path is None:
             from pathlib import Path
+
             config_path = str(Path(__file__).parent.parent / "mcp-servers.yaml")
         try:
             import yaml
@@ -145,6 +153,7 @@ class MCPClientHub:
             logger.warning("pyyaml not installed, cannot load MCP config")
             return
         from pathlib import Path
+
         path = Path(config_path)
         if not path.exists():
             logger.info(f"MCP config not found at {config_path}")
@@ -153,8 +162,10 @@ class MCPClientHub:
             config = yaml.safe_load(f) or {}
         for name, cfg in config.get("servers", {}).items():
             self.servers[name] = MCPServerConnection(
-                name=name, command=cfg.get("command", ""),
-                args=cfg.get("args", []), env=cfg.get("env", {}),
+                name=name,
+                command=cfg.get("command", ""),
+                args=cfg.get("args", []),
+                env=cfg.get("env", {}),
                 enabled=cfg.get("enabled", True),
             )
         logger.info(f"Loaded {len(self.servers)} MCP server configs")

@@ -31,6 +31,7 @@ The loader:
 - Returns a ``SkillMdDefinition`` dataclass
 - Supports scanning directories for ``SKILL.md`` or ``*.skill.md`` files
 """
+
 from __future__ import annotations
 
 import logging
@@ -52,6 +53,7 @@ _FRONTMATTER_RE = re.compile(
 # Data structures
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class SkillMdDefinition:
     """
@@ -68,6 +70,7 @@ class SkillMdDefinition:
         frontmatter: Raw frontmatter dict (for any extra fields).
         file_path: Absolute path to the source ``.md`` file.
     """
+
     name: str
     description: str = ""
     triggers: list[str] = field(default_factory=list)
@@ -107,6 +110,7 @@ class SkillMdDefinition:
 # Parsing
 # ---------------------------------------------------------------------------
 
+
 def parse_skill_md(content: str, file_path: str = "") -> SkillMdDefinition | None:
     """
     Parse a SKILL.md string into a ``SkillMdDefinition``.
@@ -129,13 +133,13 @@ def parse_skill_md(content: str, file_path: str = "") -> SkillMdDefinition | Non
 
     try:
         import yaml
+
         frontmatter = yaml.safe_load(frontmatter_raw)
     except ImportError:
         logger.warning("PyYAML not installed — cannot parse SKILL.md frontmatter")
         return None
     except Exception as exc:
-        logger.warning("Failed to parse YAML frontmatter in %s: %s",
-                        file_path or "<string>", exc)
+        logger.warning("Failed to parse YAML frontmatter in %s: %s", file_path or "<string>", exc)
         return None
 
     if not isinstance(frontmatter, dict):
@@ -144,8 +148,7 @@ def parse_skill_md(content: str, file_path: str = "") -> SkillMdDefinition | Non
 
     name = frontmatter.get("name")
     if not name:
-        logger.warning("SKILL.md missing 'name' in frontmatter: %s",
-                        file_path or "<string>")
+        logger.warning("SKILL.md missing 'name' in frontmatter: %s", file_path or "<string>")
         return None
 
     # Normalise triggers — accept string or list
@@ -193,6 +196,7 @@ def load_skill_md_file(path: Path) -> SkillMdDefinition | None:
 # Directory scanning
 # ---------------------------------------------------------------------------
 
+
 def scan_skill_md_files(
     directory: Path,
     recursive: bool = True,
@@ -225,15 +229,13 @@ def scan_skill_md_files(
 
         # Skip files that are clearly not skills (READMEs, changelogs, etc.)
         name_lower = md_file.name.lower()
-        if name_lower in ("readme.md", "changelog.md", "contributing.md",
-                           "license.md", "_readme.md"):
+        if name_lower in ("readme.md", "changelog.md", "contributing.md", "license.md", "_readme.md"):
             continue
 
         definition = load_skill_md_file(md_file)
         if definition is not None:
             results.append(definition)
-            logger.debug("Loaded SKILL.md: %s from %s",
-                         definition.name, md_file)
+            logger.debug("Loaded SKILL.md: %s from %s", definition.name, md_file)
 
     logger.info("Scanned %s: found %d SKILL.md definitions", directory, len(results))
     return results

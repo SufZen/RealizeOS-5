@@ -8,6 +8,7 @@ Covers:
 - Condition step branching
 - Human-in-the-loop pausing
 """
+
 import sys
 import types
 from datetime import date
@@ -33,6 +34,7 @@ from realize_core.skills.executor import (
 # ---------------------------------------------------------------------------
 # SkillContext
 # ---------------------------------------------------------------------------
+
 
 class TestSkillContext:
     def test_init(self):
@@ -92,6 +94,7 @@ class TestSkillContext:
 # Resume context storage
 # ---------------------------------------------------------------------------
 
+
 class TestResumeContext:
     def setup_method(self):
         _pending_skill_contexts.clear()
@@ -131,6 +134,7 @@ class TestResumeContext:
 # v1 pipeline execution (mocked)
 # ---------------------------------------------------------------------------
 
+
 class TestV1Pipeline:
     @pytest.mark.asyncio
     async def test_v1_single_agent(self):
@@ -147,9 +151,16 @@ class TestV1Pipeline:
             with patch("realize_core.prompt.builder.build_system_prompt", return_value="system prompt"):
                 # Import the private function for direct testing
                 from realize_core.skills.executor import _execute_v1_pipeline
+
                 result = await _execute_v1_pipeline(
-                    skill, "write a blog post", "test", "user1",
-                    None, None, None, "api",
+                    skill,
+                    "write a blog post",
+                    "test",
+                    "user1",
+                    None,
+                    None,
+                    None,
+                    "api",
                 )
                 assert "Generated blog post" in result
 
@@ -173,9 +184,16 @@ class TestV1Pipeline:
         with patch("realize_core.llm.claude_client.call_claude", side_effect=mock_claude):
             with patch("realize_core.prompt.builder.build_system_prompt", return_value="prompt"):
                 from realize_core.skills.executor import _execute_v1_pipeline
+
                 result = await _execute_v1_pipeline(
-                    skill, "write about AI", "test", "user1",
-                    None, None, None, "api",
+                    skill,
+                    "write about AI",
+                    "test",
+                    "user1",
+                    None,
+                    None,
+                    None,
+                    "api",
                 )
                 assert call_count == 2
                 assert "APPROVED" in result
@@ -192,9 +210,16 @@ class TestV1Pipeline:
             mock_llm.return_value = "Response"
             with patch("realize_core.prompt.builder.build_system_prompt", return_value="prompt"):
                 from realize_core.skills.executor import _execute_v1_pipeline
+
                 result = await _execute_v1_pipeline(
-                    skill, "hello", "test", "user1",
-                    None, None, None, "api",
+                    skill,
+                    "hello",
+                    "test",
+                    "user1",
+                    None,
+                    None,
+                    None,
+                    "api",
                 )
                 # Empty pipeline should return the fallback message
                 assert result == "No output from pipeline."
@@ -203,6 +228,7 @@ class TestV1Pipeline:
 # ---------------------------------------------------------------------------
 # v2 step execution (mocked)
 # ---------------------------------------------------------------------------
+
 
 class TestV2Steps:
     @pytest.mark.asyncio
@@ -214,9 +240,16 @@ class TestV2Steps:
             "steps": [],
         }
         from realize_core.skills.executor import _execute_v2_steps
+
         result = await _execute_v2_steps(
-            skill, "hello", "test", "user1",
-            None, None, None, "api",
+            skill,
+            "hello",
+            "test",
+            "user1",
+            None,
+            None,
+            None,
+            "api",
         )
         assert "no steps" in result.lower() or "no output" in result.lower()
 
@@ -234,9 +267,16 @@ class TestV2Steps:
             mock_llm.return_value = "Drafted content"
             with patch("realize_core.prompt.builder.build_system_prompt", return_value="prompt"):
                 from realize_core.skills.executor import _execute_v2_steps
+
                 result = await _execute_v2_steps(
-                    skill, "write article", "test", "user1",
-                    None, None, None, "api",
+                    skill,
+                    "write article",
+                    "test",
+                    "user1",
+                    None,
+                    None,
+                    None,
+                    "api",
                 )
                 assert result == "Drafted content"
 
@@ -245,10 +285,12 @@ class TestV2Steps:
 # Condition steps
 # ---------------------------------------------------------------------------
 
+
 class TestConditionStep:
     @pytest.mark.asyncio
     async def test_condition_skip(self):
         from realize_core.skills.executor import SkillContext, _execute_condition_step
+
         step = {
             "type": "condition",
             "check": "{previous_result}",
@@ -265,6 +307,7 @@ class TestConditionStep:
     @pytest.mark.asyncio
     async def test_condition_stop(self):
         from realize_core.skills.executor import SkillContext, _execute_condition_step
+
         step = {
             "type": "condition",
             "check": "{check_val}",
@@ -280,6 +323,7 @@ class TestConditionStep:
     @pytest.mark.asyncio
     async def test_condition_default_continue(self):
         from realize_core.skills.executor import SkillContext, _execute_condition_step
+
         step = {
             "type": "condition",
             "check": "{val}",
@@ -298,10 +342,12 @@ class TestConditionStep:
 # Human-in-the-loop steps
 # ---------------------------------------------------------------------------
 
+
 class TestHumanStep:
     @pytest.mark.asyncio
     async def test_human_step_returns_question(self):
         from realize_core.skills.executor import SkillContext, _execute_human_step
+
         step = {
             "type": "human",
             "question": "Should I send this email?",
@@ -314,6 +360,7 @@ class TestHumanStep:
     @pytest.mark.asyncio
     async def test_human_step_injects_variables(self):
         from realize_core.skills.executor import SkillContext, _execute_human_step
+
         step = {
             "type": "human",
             "question": "Send email about {user_message}?",
@@ -326,6 +373,7 @@ class TestHumanStep:
 # ---------------------------------------------------------------------------
 # execute_skill dispatcher
 # ---------------------------------------------------------------------------
+
 
 class TestExecuteSkill:
     @pytest.mark.asyncio

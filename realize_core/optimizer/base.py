@@ -9,6 +9,7 @@ Defines the shared contracts for A/B experiments and prompt optimization:
 
 Used by Agent 3's Sprint 4 optimizer implementations.
 """
+
 from __future__ import annotations
 
 import logging
@@ -24,8 +25,10 @@ logger = logging.getLogger(__name__)
 # Enums
 # ---------------------------------------------------------------------------
 
+
 class ExperimentStatus(StrEnum):
     """Lifecycle status of an experiment."""
+
     PENDING = "pending"
     RUNNING = "running"
     IMPROVED = "improved"
@@ -36,6 +39,7 @@ class ExperimentStatus(StrEnum):
 
 class OptimizationDomain(StrEnum):
     """What domain the optimization targets."""
+
     PROMPT = "prompt"
     MODEL_SELECTION = "model_selection"
     PARAMETER = "parameter"
@@ -45,6 +49,7 @@ class OptimizationDomain(StrEnum):
 # ---------------------------------------------------------------------------
 # Dataclasses
 # ---------------------------------------------------------------------------
+
 
 @dataclass(frozen=True)
 class OptimizationTarget:
@@ -56,6 +61,7 @@ class OptimizationTarget:
         - domain=MODEL_SELECTION, key="complex_task_provider"
         - domain=PARAMETER, key="temperature"
     """
+
     domain: OptimizationDomain
     key: str
     description: str = ""
@@ -72,6 +78,7 @@ class ExperimentResult:
     Captures the metrics comparison between control and candidate,
     the verdict (improved / regressed / neutral), and timing.
     """
+
     experiment_id: str
     status: ExperimentStatus
     target: OptimizationTarget
@@ -104,6 +111,7 @@ class BaseExperiment:
     Concrete experiment runners extend this with domain-specific
     evaluation logic (e.g. prompt A/B test, model benchmark).
     """
+
     id: str
     name: str
     target: OptimizationTarget

@@ -13,6 +13,7 @@ Usage:
     python cli.py venture delete               Delete a venture
     python cli.py venture list                 List all ventures
 """
+
 import argparse
 import logging
 import os
@@ -23,6 +24,7 @@ from pathlib import Path
 # Load .env automatically for non-Docker users
 try:
     from dotenv import load_dotenv
+
     load_dotenv()
 except ImportError:
     pass
@@ -75,6 +77,7 @@ def _init_from_setup_file(setup_path: Path, target_dir: Path):
         sys.exit(1)
 
     from realize_core.init import initialize_project
+
     result = initialize_project(setup, target_dir)
 
     if result.get("errors"):
@@ -167,10 +170,10 @@ def cmd_init(args):
     print(f"Initialized RealizeOS with '{template_name}' template at {target_dir.resolve()}")
     print()
     print("Next steps:")
-    print(f"  1. Edit .env and add your API keys")
+    print("  1. Edit .env and add your API keys")
     print(f"  2. Edit {config_dest} to configure your system")
-    print(f"  3. Fill in your venture identity and agent definitions")
-    print(f"  4. Run: python cli.py serve")
+    print("  3. Fill in your venture identity and agent definitions")
+    print("  4. Run: python cli.py serve")
 
 
 def cmd_serve(args):
@@ -200,6 +203,7 @@ def cmd_bot(args):
 
     async def run_bot():
         from realize_core.config import load_config
+
         config = load_config()
 
         channels = config.get("channels", [])
@@ -223,6 +227,7 @@ def cmd_bot(args):
             sys.exit(1)
 
         from realize_core.channels.telegram import TelegramChannel
+
         channel = TelegramChannel(bot_token=token, config=config)
         print("Starting Telegram bot...")
         await channel.start()
@@ -232,7 +237,7 @@ def cmd_bot(args):
 
 def cmd_status(args):
     """Show system status."""
-    from realize_core.config import load_config, build_systems_dict
+    from realize_core.config import build_systems_dict, load_config
 
     try:
         config = load_config()
@@ -255,7 +260,7 @@ def cmd_status(args):
             print(f"    Pipelines: {', '.join(routing.keys())}")
 
     # Check API keys
-    print(f"\nLLM Providers:")
+    print("\nLLM Providers:")
     if os.environ.get("ANTHROPIC_API_KEY"):
         print("  Anthropic: configured")
     else:
@@ -266,7 +271,7 @@ def cmd_status(args):
         print("  Google AI: NOT configured")
 
     # Check tools
-    print(f"\nTools:")
+    print("\nTools:")
     print(f"  Web Search: {'configured' if os.environ.get('BRAVE_API_KEY') else 'not configured'}")
     print(f"  Browser: {'enabled' if os.environ.get('BROWSER_ENABLED') else 'disabled'}")
 
@@ -274,17 +279,19 @@ def cmd_status(args):
 def cmd_index(args):
     """Rebuild the KB search index."""
     from realize_core.config import load_config
+
     config = load_config()
     kb_path = config.get("kb_path", ".")
 
     from realize_core.kb.indexer import index_kb_files
+
     count = index_kb_files(kb_path, force_reindex=True)
     print(f"Indexed {count} files from {kb_path}")
 
 
 def cmd_venture(args):
     """Manage ventures (create, delete, list)."""
-    from realize_core.scaffold import scaffold_venture, delete_venture, list_ventures
+    from realize_core.scaffold import delete_venture, list_ventures, scaffold_venture
 
     project_root = Path(args.directory or ".")
 
@@ -301,7 +308,7 @@ def cmd_venture(args):
             )
             print(f"Created venture '{args.key}' at systems/{args.key}/")
             print(f"  {stats['dirs_created']} directories, {stats['files_created']} files")
-            print(f"\nThe venture has been added to realize-os.yaml.")
+            print("\nThe venture has been added to realize-os.yaml.")
             print(f"Next: customize systems/{args.key}/F-foundations/venture-identity.md")
         except FileExistsError as e:
             print(f"Error: {e}")
@@ -343,6 +350,7 @@ def cmd_venture(args):
 def cmd_setup(args):
     """Run the interactive setup wizard."""
     from realize_core.setup_wizard import run_wizard
+
     target_dir = Path(args.directory or ".")
     run_wizard(target_dir, skip_dashboard=args.skip_dashboard)
 
@@ -350,6 +358,7 @@ def cmd_setup(args):
 def cmd_doctor(args):
     """Diagnose installation issues."""
     from realize_core.setup_wizard import run_doctor
+
     project_root = Path(args.directory or ".")
     run_doctor(project_root)
 
@@ -364,8 +373,7 @@ def main():
     # init
     init_parser = subparsers.add_parser("init", help="Initialize a new system")
     init_parser.add_argument("--template", "-t", default="consulting", help="Template name")
-    init_parser.add_argument("--setup", "-s", default=None,
-                             help="Path to setup.yaml for one-command init")
+    init_parser.add_argument("--setup", "-s", default=None, help="Path to setup.yaml for one-command init")
     init_parser.add_argument("--directory", "-d", default=".", help="Target directory")
 
     # serve
@@ -385,8 +393,9 @@ def main():
 
     # venture
     venture_parser = subparsers.add_parser("venture", help="Manage ventures")
-    venture_parser.add_argument("venture_action", choices=["create", "delete", "list"],
-                                help="Action: create, delete, or list")
+    venture_parser.add_argument(
+        "venture_action", choices=["create", "delete", "list"], help="Action: create, delete, or list"
+    )
     venture_parser.add_argument("--key", "-k", help="Venture key (directory name)")
     venture_parser.add_argument("--name", "-n", help="Display name")
     venture_parser.add_argument("--description", help="Venture description")

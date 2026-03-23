@@ -12,6 +12,7 @@ The pipeline does NOT call LLMs directly — it delegates to a
 ``stage_executor`` callback that the caller provides.  This keeps
 the pipeline logic pure and testable.
 """
+
 from __future__ import annotations
 
 import logging
@@ -37,8 +38,10 @@ logger = logging.getLogger(__name__)
 # Pipeline state
 # ---------------------------------------------------------------------------
 
+
 class PipelineStatus(StrEnum):
     """Overall pipeline status."""
+
     PENDING = "pending"
     RUNNING = "running"
     COMPLETED = "completed"
@@ -50,6 +53,7 @@ class PipelineStatus(StrEnum):
 @dataclass
 class StageResult:
     """Result of executing a single pipeline stage."""
+
     stage_name: str
     agent_key: str
     output: str = ""
@@ -67,6 +71,7 @@ class PipelineState:
 
     Mutable — updated as stages execute.
     """
+
     pipeline_id: str
     stages: list[PipelineStage]
     status: PipelineStatus = PipelineStatus.PENDING
@@ -113,13 +118,14 @@ class PipelineState:
 # Type alias for the stage executor callback
 StageExecutor = Callable[
     [PipelineStage, str, dict[str, Any]],  # stage, input_text, context
-    Awaitable[str],                         # output text
+    Awaitable[str],  # output text
 ]
 
 
 # ---------------------------------------------------------------------------
 # Pipeline executor
 # ---------------------------------------------------------------------------
+
 
 async def execute_pipeline(
     pipeline_id: str,
@@ -184,13 +190,15 @@ async def execute_pipeline(
                     stage.name,
                     exc,
                 )
-                state.results.append(StageResult(
-                    stage_name=stage.name,
-                    agent_key=stage.agent_key,
-                    error=str(exc),
-                    duration_ms=(time.time() - start_time) * 1000,
-                    retry_count=retry_count,
-                ))
+                state.results.append(
+                    StageResult(
+                        stage_name=stage.name,
+                        agent_key=stage.agent_key,
+                        error=str(exc),
+                        duration_ms=(time.time() - start_time) * 1000,
+                        retry_count=retry_count,
+                    )
+                )
 
                 # Create incident handoff
                 incident = HandoffData(
@@ -218,15 +226,17 @@ async def execute_pipeline(
                     pipeline_id,
                     stage.name,
                 )
-                state.results.append(StageResult(
-                    stage_name=stage.name,
-                    agent_key=stage.agent_key,
-                    output=output,
-                    verdict=Verdict.FAIL,
-                    duration_ms=duration_ms,
-                    retry_count=retry_count,
-                    metadata={"violations": [v.guardrail_name for v in violations]},
-                ))
+                state.results.append(
+                    StageResult(
+                        stage_name=stage.name,
+                        agent_key=stage.agent_key,
+                        output=output,
+                        verdict=Verdict.FAIL,
+                        duration_ms=duration_ms,
+                        retry_count=retry_count,
+                        metadata={"violations": [v.guardrail_name for v in violations]},
+                    )
+                )
                 state.status = PipelineStatus.FAILED
                 state.error = f"Guardrail violation: {violations[0].guardrail_name}"
                 state.completed_at = time.time()
@@ -268,14 +278,16 @@ async def execute_pipeline(
             state.handoff_history.append(handoff_result)
 
             # Record stage result
-            state.results.append(StageResult(
-                stage_name=stage.name,
-                agent_key=stage.agent_key,
-                output=output,
-                verdict=verdict,
-                duration_ms=duration_ms,
-                retry_count=retry_count,
-            ))
+            state.results.append(
+                StageResult(
+                    stage_name=stage.name,
+                    agent_key=stage.agent_key,
+                    output=output,
+                    verdict=verdict,
+                    duration_ms=duration_ms,
+                    retry_count=retry_count,
+                )
+            )
 
             # Act on handoff result
             if handoff_result.action == "continue":

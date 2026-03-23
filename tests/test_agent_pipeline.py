@@ -13,6 +13,7 @@ from realize_core.agents.pipeline import (
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_stage(
     name: str,
     agent_key: str,
@@ -55,6 +56,7 @@ async def _error_executor(stage: PipelineStage, input_text: str, context: dict) 
 # Basic pipeline execution
 # ---------------------------------------------------------------------------
 
+
 class TestBasicPipeline:
     """Test standard sequential pipeline execution."""
 
@@ -62,7 +64,10 @@ class TestBasicPipeline:
     async def test_single_stage(self):
         stages = [_make_stage("draft", "writer")]
         state = await execute_pipeline(
-            "p-1", stages, "Write a blog post", _echo_executor,
+            "p-1",
+            stages,
+            "Write a blog post",
+            _echo_executor,
         )
         assert state.status == PipelineStatus.COMPLETED
         assert len(state.results) == 1
@@ -76,7 +81,10 @@ class TestBasicPipeline:
             _make_stage("review", "reviewer"),
         ]
         state = await execute_pipeline(
-            "p-2", stages, "Create a proposal", _echo_executor,
+            "p-2",
+            stages,
+            "Create a proposal",
+            _echo_executor,
         )
         assert state.status == PipelineStatus.COMPLETED
         assert len(state.results) == 3
@@ -88,7 +96,10 @@ class TestBasicPipeline:
             _make_stage("step2", "b"),
         ]
         state = await execute_pipeline(
-            "p-3", stages, "input", _echo_executor,
+            "p-3",
+            stages,
+            "input",
+            _echo_executor,
         )
         # Step 2 should receive step 1's output
         assert "[step1]" in state.results[1].output
@@ -111,8 +122,8 @@ class TestBasicPipeline:
 # Error handling
 # ---------------------------------------------------------------------------
 
-class TestPipelineErrors:
 
+class TestPipelineErrors:
     @pytest.mark.asyncio
     async def test_stage_error_halts_pipeline(self):
         stages = [
@@ -121,7 +132,10 @@ class TestPipelineErrors:
             _make_stage("never", "reviewer"),
         ]
         state = await execute_pipeline(
-            "p-err", stages, "go", _error_executor,
+            "p-err",
+            stages,
+            "go",
+            _error_executor,
         )
         assert state.status == PipelineStatus.FAILED
         assert "crashed" in state.error.lower()
@@ -138,8 +152,8 @@ class TestPipelineErrors:
 # QA Pass pipeline
 # ---------------------------------------------------------------------------
 
-class TestQAPassPipeline:
 
+class TestQAPassPipeline:
     @pytest.mark.asyncio
     async def test_qa_pass_continues(self):
         stages = [
@@ -147,7 +161,10 @@ class TestQAPassPipeline:
             _make_stage("qa", "reviewer", HandoffType.QA_PASS),
         ]
         state = await execute_pipeline(
-            "p-qa", stages, "Write something", _qa_pass_executor,
+            "p-qa",
+            stages,
+            "Write something",
+            _qa_pass_executor,
         )
         assert state.status == PipelineStatus.COMPLETED
         assert len(state.results) == 2
@@ -157,8 +174,8 @@ class TestQAPassPipeline:
 # QA Fail → Retry → Escalation
 # ---------------------------------------------------------------------------
 
-class TestQARetryEscalation:
 
+class TestQARetryEscalation:
     @pytest.mark.asyncio
     async def test_qa_fail_triggers_retries(self):
         """QA fail with retries remaining should retry."""
@@ -178,7 +195,11 @@ class TestQARetryEscalation:
             _make_stage("qa", "reviewer", HandoffType.QA_PASS),
         ]
         state = await execute_pipeline(
-            "p-retry", stages, "input", counting_executor, max_retries=3,
+            "p-retry",
+            stages,
+            "input",
+            counting_executor,
+            max_retries=3,
         )
         # Should eventually pass after retries
         assert state.status == PipelineStatus.COMPLETED
@@ -191,7 +212,11 @@ class TestQARetryEscalation:
             _make_stage("qa", "reviewer", HandoffType.QA_PASS),
         ]
         state = await execute_pipeline(
-            "p-esc", stages, "input", _qa_fail_executor, max_retries=3,
+            "p-esc",
+            stages,
+            "input",
+            _qa_fail_executor,
+            max_retries=3,
         )
         assert state.status == PipelineStatus.ESCALATED
         assert "escalat" in state.error.lower()
@@ -201,8 +226,8 @@ class TestQARetryEscalation:
 # Phase gate
 # ---------------------------------------------------------------------------
 
-class TestPhaseGate:
 
+class TestPhaseGate:
     @pytest.mark.asyncio
     async def test_phase_gate_pauses_pipeline(self):
         stages = [
@@ -210,7 +235,10 @@ class TestPhaseGate:
             _make_stage("approval", "human", HandoffType.PHASE_GATE),
         ]
         state = await execute_pipeline(
-            "p-gate", stages, "input", _echo_executor,
+            "p-gate",
+            stages,
+            "input",
+            _echo_executor,
         )
         assert state.status == PipelineStatus.AWAITING_APPROVAL
 
@@ -219,8 +247,8 @@ class TestPhaseGate:
 # Pipeline state properties
 # ---------------------------------------------------------------------------
 
-class TestPipelineState:
 
+class TestPipelineState:
     @pytest.mark.asyncio
     async def test_last_output(self):
         stages = [_make_stage("s1", "a"), _make_stage("s2", "b")]

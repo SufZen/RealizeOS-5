@@ -1,6 +1,7 @@
 """
 Tests for the agent handoff system — 7 handoff types.
 """
+
 import pytest
 from realize_core.agents.base import HandoffData, HandoffType
 from realize_core.agents.handoff import (
@@ -18,6 +19,7 @@ from realize_core.agents.handoff import (
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 def _make_handoff(
     handoff_type: HandoffType = HandoffType.STANDARD,
@@ -42,6 +44,7 @@ def _make_handoff(
 # Standard handoff
 # ---------------------------------------------------------------------------
 
+
 class TestStandardHandoff:
     def test_action_is_continue(self):
         result = handle_standard(_make_handoff())
@@ -57,6 +60,7 @@ class TestStandardHandoff:
 # QA Pass
 # ---------------------------------------------------------------------------
 
+
 class TestQAPass:
     def test_action_is_continue(self):
         result = handle_qa_pass(_make_handoff(HandoffType.QA_PASS))
@@ -66,6 +70,7 @@ class TestQAPass:
 # ---------------------------------------------------------------------------
 # QA Fail
 # ---------------------------------------------------------------------------
+
 
 class TestQAFail:
     def test_retry_when_budget_remains(self):
@@ -95,6 +100,7 @@ class TestQAFail:
 # Escalation
 # ---------------------------------------------------------------------------
 
+
 class TestEscalation:
     def test_action_is_halt(self):
         handoff = _make_handoff(
@@ -109,6 +115,7 @@ class TestEscalation:
 # Phase Gate
 # ---------------------------------------------------------------------------
 
+
 class TestPhaseGate:
     def test_action_is_await_approval(self):
         result = handle_phase_gate(_make_handoff(HandoffType.PHASE_GATE))
@@ -119,6 +126,7 @@ class TestPhaseGate:
 # Sprint
 # ---------------------------------------------------------------------------
 
+
 class TestSprint:
     def test_action_is_checkpoint(self):
         result = handle_sprint(_make_handoff(HandoffType.SPRINT))
@@ -128,6 +136,7 @@ class TestSprint:
 # ---------------------------------------------------------------------------
 # Incident
 # ---------------------------------------------------------------------------
+
 
 class TestIncident:
     def test_action_is_halt(self):
@@ -142,6 +151,7 @@ class TestIncident:
 # ---------------------------------------------------------------------------
 # Dispatcher
 # ---------------------------------------------------------------------------
+
 
 class TestProcessHandoff:
     def test_dispatches_all_types(self):
@@ -163,6 +173,7 @@ class TestProcessHandoff:
 # ---------------------------------------------------------------------------
 # Dev-QA retry escalation sequence
 # ---------------------------------------------------------------------------
+
 
 class TestDevQARetrySequence:
     """Simulate a full Dev-QA retry → escalation sequence."""

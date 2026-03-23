@@ -11,6 +11,7 @@ Adds new tables required by RealizeOS V5 features:
 These tables support the V5 Skills System, Pipeline Builder,
 Routing Analytics, and Storage Sync features (Sprints 2–4).
 """
+
 import sqlite3
 
 VERSION = 2

@@ -11,59 +11,152 @@ V5 additions:
 - LiteLLM fallback: 50+ providers available when primary providers fail
 - Routing strategies: balanced, cost_optimized, quality_first, speed_first
 """
+
 import logging
 
 logger = logging.getLogger(__name__)
 
 # Keywords that signal each task complexity level
 COMPLEX_KEYWORDS = {
-    "cross-system", "multi-system", "strategic analysis",
-    "portfolio review", "ecosystem", "all ventures", "all systems",
+    "cross-system",
+    "multi-system",
+    "strategic analysis",
+    "portfolio review",
+    "ecosystem",
+    "all ventures",
+    "all systems",
 }
 
 FINANCIAL_KEYWORDS = {
-    "deal", "roi", "irr", "investment", "financial", "budget", "capex",
-    "revenue", "break-even", "cash flow", "modeling", "underwriting",
-    "valuation", "invoice", "payment", "accounting", "vat", "tax", "variance",
+    "deal",
+    "roi",
+    "irr",
+    "investment",
+    "financial",
+    "budget",
+    "capex",
+    "revenue",
+    "break-even",
+    "cash flow",
+    "modeling",
+    "underwriting",
+    "valuation",
+    "invoice",
+    "payment",
+    "accounting",
+    "vat",
+    "tax",
+    "variance",
 }
 
 REASONING_KEYWORDS = {
-    "analyze", "evaluate", "compare", "assess", "contract", "draft",
-    "legal", "compliance", "licensing", "permit", "strategy",
-    "architecture", "sprint plan", "design", "sop",
+    "analyze",
+    "evaluate",
+    "compare",
+    "assess",
+    "contract",
+    "draft",
+    "legal",
+    "compliance",
+    "licensing",
+    "permit",
+    "strategy",
+    "architecture",
+    "sprint plan",
+    "design",
+    "sop",
 }
 
 CONTENT_KEYWORDS = {
-    "write", "blog", "post", "linkedin", "newsletter", "article",
-    "content", "copy", "draft", "headline", "caption", "thread",
+    "write",
+    "blog",
+    "post",
+    "linkedin",
+    "newsletter",
+    "article",
+    "content",
+    "copy",
+    "draft",
+    "headline",
+    "caption",
+    "thread",
 }
 
 SIMPLE_KEYWORDS = {
-    "what is", "tell me", "explain", "summary", "summarize",
-    "list", "show", "status", "help", "how does", "define",
-    "remind", "remember", "feedback",
+    "what is",
+    "tell me",
+    "explain",
+    "summary",
+    "summarize",
+    "list",
+    "show",
+    "status",
+    "help",
+    "how does",
+    "define",
+    "remind",
+    "remember",
+    "feedback",
 }
 
 GOOGLE_KEYWORDS = {
-    "email", "emails", "gmail", "send email", "draft email", "inbox",
-    "mail", "unread", "send to my email", "email me",
-    "calendar", "schedule", "meeting", "event", "appointment", "free time",
-    "drive", "google drive", "google doc", "create doc", "save to drive",
+    "email",
+    "emails",
+    "gmail",
+    "send email",
+    "draft email",
+    "inbox",
+    "mail",
+    "unread",
+    "send to my email",
+    "email me",
+    "calendar",
+    "schedule",
+    "meeting",
+    "event",
+    "appointment",
+    "free time",
+    "drive",
+    "google drive",
+    "google doc",
+    "create doc",
+    "save to drive",
     "create document",
 }
 
 WEB_RESEARCH_KEYWORDS = {
-    "search", "find online", "look up", "lookup", "research",
-    "latest news", "check online", "find me", "browse",
-    "website", "web page", "url", "competitor", "market data",
-    "search the web", "find information",
+    "search",
+    "find online",
+    "look up",
+    "lookup",
+    "research",
+    "latest news",
+    "check online",
+    "find me",
+    "browse",
+    "website",
+    "web page",
+    "url",
+    "competitor",
+    "market data",
+    "search the web",
+    "find information",
 }
 
 WEB_ACTION_KEYWORDS = {
-    "post on linkedin", "publish online", "submit form", "fill out",
-    "sign up on", "register on", "book online",
-    "log in to", "navigate to", "go to the site",
-    "open the page", "fill the form", "download from",
+    "post on linkedin",
+    "publish online",
+    "submit form",
+    "fill out",
+    "sign up on",
+    "register on",
+    "book online",
+    "log in to",
+    "navigate to",
+    "go to the site",
+    "open the page",
+    "fill the form",
+    "download from",
 }
 
 
@@ -170,7 +263,7 @@ def select_model(task_type: str) -> str:
         "reasoning": "claude_sonnet",
         "financial": "claude_sonnet",
         "complex": "claude_opus",
-        "google": "claude_sonnet",       # Tool use requires Claude
+        "google": "claude_sonnet",  # Tool use requires Claude
         "web_research": "claude_sonnet",
         "web_action": "claude_sonnet",
     }

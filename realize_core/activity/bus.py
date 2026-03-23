@@ -4,6 +4,7 @@ In-memory event bus for real-time activity streaming (SSE).
 Subscribers register a callback; new events are pushed to all subscribers.
 Thread-safe via a simple list + copy-on-iterate pattern.
 """
+
 import logging
 from collections import deque
 from collections.abc import Callable

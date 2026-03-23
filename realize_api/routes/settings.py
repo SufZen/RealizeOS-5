@@ -1,6 +1,7 @@
 """
 Settings API routes — feature flags, governance gates, system info, maintenance.
 """
+
 import logging
 import os
 import sys
@@ -24,13 +25,16 @@ async def get_settings(request: Request):
     providers = []
     try:
         from realize_core.llm.registry import get_registry
+
         registry = get_registry()
         for name, provider in registry._providers.items():
-            providers.append({
-                "name": name,
-                "available": provider.is_available(),
-                "models": provider.list_models() if provider.is_available() else [],
-            })
+            providers.append(
+                {
+                    "name": name,
+                    "available": provider.is_available(),
+                    "models": provider.list_models() if provider.is_available() else [],
+                }
+            )
     except Exception:
         pass
 
@@ -81,6 +85,7 @@ async def update_features(request: Request):
 
     try:
         import yaml
+
         # Read existing
         original_text = config_path.read_text(encoding="utf-8")
         config = yaml.safe_load(original_text)
@@ -99,6 +104,7 @@ async def update_features(request: Request):
 
         # Reload in-memory config
         from realize_core.config import build_systems_dict, load_config
+
         new_config = load_config()
         request.app.state.config = new_config
         request.app.state.systems = build_systems_dict(new_config)
@@ -125,6 +131,7 @@ async def update_gates(request: Request):
 
     try:
         import yaml
+
         with open(config_path, encoding="utf-8") as f:
             config = yaml.safe_load(f)
 
@@ -139,6 +146,7 @@ async def update_gates(request: Request):
 
         # Reload
         from realize_core.config import build_systems_dict, load_config
+
         new_config = load_config()
         request.app.state.config = new_config
         request.app.state.systems = build_systems_dict(new_config)
@@ -154,6 +162,7 @@ async def reindex_kb(request: Request):
     kb_path = getattr(request.app.state, "kb_path", Path("."))
     try:
         from realize_core.kb.indexer import index_kb_files
+
         count = index_kb_files(str(kb_path), force=True)
         return {"status": "reindexed", "files_indexed": count}
     except Exception as e:
@@ -164,6 +173,7 @@ async def reindex_kb(request: Request):
 # Scheduled Reports (on-demand trigger)
 # ---------------------------------------------------------------------------
 
+
 @router.post("/reports/morning-briefing")
 async def trigger_morning_briefing(request: Request):
     """Generate a morning briefing on demand."""
@@ -173,6 +183,7 @@ async def trigger_morning_briefing(request: Request):
     features = config.get("features", {})
 
     from realize_core.scheduler.reports import generate_morning_briefing
+
     content = await generate_morning_briefing(systems, kb_path, features)
     return {"report": "morning_briefing", "content": content}
 
@@ -186,6 +197,7 @@ async def trigger_weekly_review(request: Request):
     features = config.get("features", {})
 
     from realize_core.scheduler.reports import generate_weekly_review
+
     content = await generate_weekly_review(systems, kb_path, features)
     return {"report": "weekly_review", "content": content}
 
@@ -194,21 +206,25 @@ async def trigger_weekly_review(request: Request):
 # Tools & Integrations
 # ---------------------------------------------------------------------------
 
+
 @router.get("/tools")
 async def get_tools(request: Request):
     """List all registered tools with availability and action schemas."""
     tools = []
     try:
         from realize_core.tools.tool_registry import get_tool_registry
+
         registry = get_tool_registry()
         for tool in registry._tools.values():
-            tools.append({
-                "name": tool.name,
-                "description": tool.description,
-                "category": tool.category.value if hasattr(tool.category, 'value') else str(tool.category),
-                "available": tool.is_available(),
-                "actions": [s.name for s in tool.get_schemas()],
-            })
+            tools.append(
+                {
+                    "name": tool.name,
+                    "description": tool.description,
+                    "category": tool.category.value if hasattr(tool.category, "value") else str(tool.category),
+                    "available": tool.is_available(),
+                    "actions": [s.name for s in tool.get_schemas()],
+                }
+            )
     except Exception:
         pass
 
@@ -216,6 +232,7 @@ async def get_tools(request: Request):
     google_status = {"gmail": False, "calendar": False, "drive": False}
     try:
         from realize_core.tools.google_auth import get_credentials
+
         creds = get_credentials()
         if creds:
             google_status = {"gmail": True, "calendar": True, "drive": True}
@@ -226,13 +243,16 @@ async def get_tools(request: Request):
     mcp_servers = []
     try:
         from realize_core.tools.mcp import get_mcp_hub
+
         hub = get_mcp_hub()
         for name, conn in hub._connections.items():
-            mcp_servers.append({
-                "name": name,
-                "connected": conn.connected if hasattr(conn, 'connected') else False,
-                "tools_count": len(conn.tools) if hasattr(conn, 'tools') else 0,
-            })
+            mcp_servers.append(
+                {
+                    "name": name,
+                    "connected": conn.connected if hasattr(conn, "connected") else False,
+                    "tools_count": len(conn.tools) if hasattr(conn, "tools") else 0,
+                }
+            )
     except Exception:
         pass
 
@@ -245,11 +265,13 @@ async def get_tools(request: Request):
     channels = []
     channels.append({"name": "API", "type": "api", "enabled": True})
     for ch in channels_config:
-        channels.append({
-            "name": ch.get("name", ch.get("type", "unknown")),
-            "type": ch.get("type", "unknown"),
-            "enabled": ch.get("enabled", True),
-        })
+        channels.append(
+            {
+                "name": ch.get("name", ch.get("type", "unknown")),
+                "type": ch.get("type", "unknown"),
+                "enabled": ch.get("enabled", True),
+            }
+        )
 
     return {
         "tools": tools,
@@ -263,6 +285,7 @@ async def get_tools(request: Request):
 # ---------------------------------------------------------------------------
 # LLM Routing & Usage
 # ---------------------------------------------------------------------------
+
 
 @router.get("/llm/routing")
 async def get_llm_routing():
@@ -279,14 +302,17 @@ async def get_llm_routing():
     providers = []
     try:
         from realize_core.llm.registry import get_registry
+
         registry = get_registry()
         for name, provider in registry._providers.items():
             avail = provider.is_available()
-            providers.append({
-                "name": name,
-                "available": avail,
-                "models": provider.list_models() if avail else [],
-            })
+            providers.append(
+                {
+                    "name": name,
+                    "available": avail,
+                    "models": provider.list_models() if avail else [],
+                }
+            )
     except Exception:
         pass
 
@@ -298,6 +324,7 @@ async def get_llm_usage():
     """Get LLM usage statistics."""
     try:
         from realize_core.memory.store import get_usage_stats
+
         stats = get_usage_stats()
         return {"usage": stats}
     except Exception as e:
@@ -308,6 +335,7 @@ async def get_llm_usage():
 # Memory
 # ---------------------------------------------------------------------------
 
+
 @router.get("/memory/search")
 async def search_memory(q: str, venture: str = ""):
     """Search stored memories."""
@@ -315,6 +343,7 @@ async def search_memory(q: str, venture: str = ""):
         raise HTTPException(status_code=400, detail="Query required")
     try:
         from realize_core.memory.store import search_memories
+
         results = search_memories(q.strip(), system_key=venture or None, limit=20)
         return {"query": q, "results": results}
     except Exception as e:
@@ -326,6 +355,7 @@ async def get_memory_stats():
     """Get memory store statistics."""
     try:
         from realize_core.memory.store import get_usage_stats
+
         stats = get_usage_stats()
         return {"stats": stats}
     except Exception as e:
@@ -336,11 +366,13 @@ async def get_memory_stats():
 # Trust Ladder
 # ---------------------------------------------------------------------------
 
+
 @router.get("/trust")
 async def get_trust_matrix(request: Request):
     """Get the full trust matrix with current level and all action rules."""
     config = getattr(request.app.state, "config", {})
     from realize_core.governance.trust_ladder import get_trust_matrix
+
     return get_trust_matrix(config)
 
 
@@ -352,12 +384,14 @@ async def update_trust_level(request: Request):
     config_path = os.getenv("REALIZE_CONFIG", "realize-os.yaml")
 
     from realize_core.governance.trust_ladder import set_trust_level
+
     success = set_trust_level(config_path, level)
     if not success:
         raise HTTPException(status_code=500, detail="Failed to update trust level")
 
     # Reload config
     from realize_core.config import build_systems_dict, load_config
+
     new_config = load_config()
     request.app.state.config = new_config
     request.app.state.systems = build_systems_dict(new_config)
@@ -369,6 +403,7 @@ async def update_trust_level(request: Request):
 # Security Scanner
 # ---------------------------------------------------------------------------
 
+
 @router.post("/security/scan")
 async def run_security_scan(request: Request):
     """Run a security scan of the system."""
@@ -376,6 +411,7 @@ async def run_security_scan(request: Request):
     config = getattr(request.app.state, "config", {})
 
     from realize_core.security.scanner import run_security_scan as _scan
+
     results = _scan(kb_path, config)
     return results
 
@@ -384,10 +420,12 @@ async def run_security_scan(request: Request):
 # Skill Library
 # ---------------------------------------------------------------------------
 
+
 @router.get("/skills/library")
 async def get_skill_library():
     """Get all available skill templates from the library."""
     from realize_core.skills.library import get_categories, get_library
+
     return {"skills": get_library(), "categories": get_categories()}
 
 
@@ -395,6 +433,7 @@ async def get_skill_library():
 async def get_skill_detail(skill_id: str):
     """Get a specific skill template with full YAML content."""
     from realize_core.skills.library import get_skill_template
+
     template = get_skill_template(skill_id)
     if not template:
         raise HTTPException(status_code=404, detail=f"Skill '{skill_id}' not found")
@@ -418,6 +457,7 @@ async def install_skill(request: Request):
         raise HTTPException(status_code=404, detail=f"Venture '{venture_key}' not found")
 
     from realize_core.skills.library import install_skill as _install
+
     result = _install(skill_id, kb_path, systems[venture_key])
 
     if not result.get("installed"):

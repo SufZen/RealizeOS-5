@@ -4,6 +4,7 @@ Tool SDK: Base classes for building extensible tools.
 Provides the BaseTool abstract interface that all tools implement,
 plus a ToolRegistry for discovery and management.
 """
+
 import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
@@ -15,14 +16,15 @@ logger = logging.getLogger(__name__)
 
 class ToolCategory(Enum):
     """Categories for tool classification."""
-    COMMUNICATION = "communication"    # Email, messaging, notifications
-    RESEARCH = "research"              # Web search, data lookup
-    PRODUCTIVITY = "productivity"      # Calendar, docs, spreadsheets
-    DEVELOPMENT = "development"        # Code, git, CI/CD
-    MEDIA = "media"                    # Image, video, audio generation
-    DATA = "data"                      # Database, analytics, reporting
-    AUTOMATION = "automation"          # Browser automation, workflows
-    CUSTOM = "custom"                  # User-defined tools
+
+    COMMUNICATION = "communication"  # Email, messaging, notifications
+    RESEARCH = "research"  # Web search, data lookup
+    PRODUCTIVITY = "productivity"  # Calendar, docs, spreadsheets
+    DEVELOPMENT = "development"  # Code, git, CI/CD
+    MEDIA = "media"  # Image, video, audio generation
+    DATA = "data"  # Database, analytics, reporting
+    AUTOMATION = "automation"  # Browser automation, workflows
+    CUSTOM = "custom"  # User-defined tools
 
 
 @dataclass
@@ -32,6 +34,7 @@ class ToolSchema:
 
     Compatible with Claude's tool_use format and MCP tool schemas.
     """
+
     name: str
     description: str
     input_schema: dict[str, Any]
@@ -59,6 +62,7 @@ class ToolSchema:
 @dataclass
 class ToolResult:
     """Result from executing a tool."""
+
     success: bool
     output: str
     data: Any = None

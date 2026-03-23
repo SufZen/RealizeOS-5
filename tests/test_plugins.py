@@ -8,6 +8,7 @@ Covers:
 - Venture export (zip creation, excludes secrets)
 - Venture import (restore from zip)
 """
+
 import zipfile
 
 import pytest
@@ -33,6 +34,7 @@ def clear_plugins():
 # ---------------------------------------------------------------------------
 # Plugin Discovery
 # ---------------------------------------------------------------------------
+
 
 class TestPluginDiscovery:
     def test_discover_from_directory(self, tmp_path):
@@ -71,15 +73,14 @@ class TestPluginDiscovery:
 # Plugin Loading
 # ---------------------------------------------------------------------------
 
+
 class TestPluginLoading:
-    def _create_plugin(self, tmp_path, name="my-tool", plugin_type="tool",
-                       keywords=None, code=""):
+    def _create_plugin(self, tmp_path, name="my-tool", plugin_type="tool", keywords=None, code=""):
         plugin_dir = tmp_path / "plugins" / name
         plugin_dir.mkdir(parents=True)
         kw_str = str(keywords or [])
         (plugin_dir / "plugin.yaml").write_text(
-            f"name: {name}\nversion: '1.0'\ntype: {plugin_type}\n"
-            f"entry_point: __init__\nkeywords: {kw_str}\n",
+            f"name: {name}\nversion: '1.0'\ntype: {plugin_type}\nentry_point: __init__\nkeywords: {kw_str}\n",
             encoding="utf-8",
         )
         (plugin_dir / "__init__.py").write_text(code, encoding="utf-8")
@@ -96,15 +97,19 @@ class TestPluginLoading:
         load_plugin(manifest)
 
         import sys
+
         mod = sys.modules["plugins.my-tool"]
         assert "loaded" in mod.STATE
 
     def test_unload_calls_on_unload(self, tmp_path):
-        code = "STATE = []\ndef on_load():\n    STATE.append('loaded')\ndef on_unload():\n    STATE.append('unloaded')\n"
+        code = (
+            "STATE = []\ndef on_load():\n    STATE.append('loaded')\ndef on_unload():\n    STATE.append('unloaded')\n"
+        )
         manifest = self._create_plugin(tmp_path, code=code)
         load_plugin(manifest)
 
         import sys
+
         mod = sys.modules["plugins.my-tool"]
         unload_plugin("my-tool")
         assert "unloaded" in mod.STATE
@@ -117,9 +122,7 @@ class TestPluginLoading:
         assert count == 2
 
     def test_tool_plugin_keywords(self, tmp_path):
-        manifest = self._create_plugin(
-            tmp_path, keywords=["search", "lookup"], code=""
-        )
+        manifest = self._create_plugin(tmp_path, keywords=["search", "lookup"], code="")
         load_plugin(manifest)
         keywords = get_plugin_keywords()
         assert "search" in keywords
@@ -129,6 +132,7 @@ class TestPluginLoading:
 # ---------------------------------------------------------------------------
 # Venture Export
 # ---------------------------------------------------------------------------
+
 
 class TestVentureExport:
     def _create_venture(self, kb_path, key="testbiz"):
@@ -174,6 +178,7 @@ class TestVentureExport:
 # ---------------------------------------------------------------------------
 # Venture Import
 # ---------------------------------------------------------------------------
+
 
 class TestVentureImport:
     def _create_export(self, tmp_path):

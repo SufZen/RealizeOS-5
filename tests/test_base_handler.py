@@ -6,11 +6,13 @@ Covers:
 - Custom default agent
 - Tie-breaking and highest-score-wins behavior
 """
+
 from realize_core.base_handler import select_agent
 
 # ---------------------------------------------------------------------------
 # Agent selection
 # ---------------------------------------------------------------------------
+
 
 class TestSelectAgent:
     """Test keyword-based agent routing."""

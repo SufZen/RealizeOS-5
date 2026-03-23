@@ -5,6 +5,7 @@ A channel is a communication interface (Telegram, REST API, Slack, Discord, CLI,
 that receives messages from users and sends responses back. Each channel handles its
 own formatting, authentication, and transport — but delegates all intelligence to the core engine.
 """
+
 import abc
 import logging
 from dataclasses import dataclass, field
@@ -15,26 +16,28 @@ logger = logging.getLogger(__name__)
 @dataclass
 class IncomingMessage:
     """Standardized incoming message from any channel."""
+
     user_id: str
     text: str
-    system_key: str = ""           # Which system to route to (if known)
-    channel: str = "api"           # Channel identifier (telegram, api, slack, etc.)
-    topic_id: str = ""             # Thread/topic ID (for forums, groups)
-    image_data: bytes = b""        # Attached image bytes (if any)
-    image_media_type: str = ""     # MIME type of attached image
-    file_data: bytes = b""         # Attached file bytes (if any)
-    file_name: str = ""            # Attached file name
+    system_key: str = ""  # Which system to route to (if known)
+    channel: str = "api"  # Channel identifier (telegram, api, slack, etc.)
+    topic_id: str = ""  # Thread/topic ID (for forums, groups)
+    image_data: bytes = b""  # Attached image bytes (if any)
+    image_media_type: str = ""  # MIME type of attached image
+    file_data: bytes = b""  # Attached file bytes (if any)
+    file_name: str = ""  # Attached file name
     metadata: dict = field(default_factory=dict)  # Channel-specific metadata
 
 
 @dataclass
 class OutgoingMessage:
     """Standardized outgoing response to any channel."""
+
     text: str
     user_id: str
     channel: str = "api"
-    metadata: dict = field(default_factory=dict)   # Channel-specific metadata
-    files: list = field(default_factory=list)       # Attached files to send back
+    metadata: dict = field(default_factory=dict)  # Channel-specific metadata
+    files: list = field(default_factory=list)  # Attached files to send back
 
 
 class BaseChannel(abc.ABC):

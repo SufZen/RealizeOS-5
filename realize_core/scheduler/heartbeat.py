@@ -10,6 +10,7 @@ Each heartbeat:
 3. Invokes base_handler.process_message() with a system heartbeat message
 4. Logs results to activity_events
 """
+
 import asyncio
 import logging
 from datetime import UTC, datetime
@@ -35,8 +36,12 @@ async def _run_heartbeat(agent_key: str, venture_key: str, config: dict):
     if state and state.get("status") in ("paused", "running"):
         logger.debug(f"Skipping heartbeat for {agent_key}@{venture_key}: status={state.get('status')}")
         log_event(
-            venture_key=venture_key, actor_type="system", actor_id=agent_key,
-            action="heartbeat_skipped", entity_type="agent", entity_id=agent_key,
+            venture_key=venture_key,
+            actor_type="system",
+            actor_id=agent_key,
+            action="heartbeat_skipped",
+            entity_type="agent",
+            entity_id=agent_key,
             details=f'{{"reason": "agent_{state.get("status")}"}}',
         )
         return
@@ -65,16 +70,24 @@ async def _run_heartbeat(agent_key: str, venture_key: str, config: dict):
 
         mark_idle(agent_key, venture_key)
         log_event(
-            venture_key=venture_key, actor_type="system", actor_id=agent_key,
-            action="heartbeat_completed", entity_type="agent", entity_id=agent_key,
+            venture_key=venture_key,
+            actor_type="system",
+            actor_id=agent_key,
+            action="heartbeat_completed",
+            entity_type="agent",
+            entity_id=agent_key,
         )
         logger.info(f"Heartbeat completed for {agent_key}@{venture_key}")
 
     except Exception as e:
         mark_error(agent_key, venture_key, f"Heartbeat failed: {str(e)[:300]}")
         log_event(
-            venture_key=venture_key, actor_type="system", actor_id=agent_key,
-            action="heartbeat_failed", entity_type="agent", entity_id=agent_key,
+            venture_key=venture_key,
+            actor_type="system",
+            actor_id=agent_key,
+            action="heartbeat_failed",
+            entity_type="agent",
+            entity_id=agent_key,
             details=f'{{"error": "{str(e)[:200]}"}}',
         )
         logger.error(f"Heartbeat failed for {agent_key}@{venture_key}: {e}")
@@ -83,6 +96,7 @@ async def _run_heartbeat(agent_key: str, venture_key: str, config: dict):
 def _get_scheduled_agents(db_path=None) -> list[dict]:
     """Get all agents with a schedule configured."""
     from realize_core.db.schema import get_connection
+
     conn = get_connection(db_path)
     try:
         rows = conn.execute(
@@ -101,9 +115,8 @@ def _update_next_run(agent_key: str, venture_key: str, interval_sec: int, db_pat
     from datetime import timedelta
 
     from realize_core.db.schema import get_connection
-    next_run = (datetime.now(UTC) + timedelta(seconds=interval_sec)).strftime(
-        "%Y-%m-%dT%H:%M:%S.%fZ"
-    )
+
+    next_run = (datetime.now(UTC) + timedelta(seconds=interval_sec)).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
     conn = get_connection(db_path)
     try:
         conn.execute(
@@ -219,9 +232,11 @@ def reload_schedules(app_config: dict = None):
                     continue
 
                 _scheduler.add_job(
-                    _run_heartbeat, trigger=trigger,
+                    _run_heartbeat,
+                    trigger=trigger,
                     args=[agent["agent_key"], agent["venture_key"], app_config or {}],
-                    id=job_id, replace_existing=True,
+                    id=job_id,
+                    replace_existing=True,
                 )
         except Exception as e:
             logger.error(f"Failed to reload schedules: {e}")

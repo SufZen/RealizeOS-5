@@ -4,6 +4,7 @@ Web channel adapter for RealizeOS with WebSocket support.
 Extends APIChannel with real-time WebSocket streaming and connection management.
 This is the primary channel for the web frontend.
 """
+
 import json
 import logging
 import time
@@ -19,6 +20,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class WebSocketClient:
     """Represents a connected WebSocket client."""
+
     client_id: str
     user_id: str
     connected_at: float = field(default_factory=time.time)
@@ -56,11 +58,15 @@ class WebChannel(BaseChannel):
         if target_id and target_id in self._ws_send_callbacks:
             send_fn = self._ws_send_callbacks[target_id]
             try:
-                await send_fn(json.dumps({
-                    "type": "message",
-                    "text": message.text,
-                    "metadata": message.metadata,
-                }))
+                await send_fn(
+                    json.dumps(
+                        {
+                            "type": "message",
+                            "text": message.text,
+                            "metadata": message.metadata,
+                        }
+                    )
+                )
             except Exception as e:
                 self.logger.error(f"WebSocket send error for {target_id}: {e}")
                 await self.disconnect_client(target_id)
@@ -126,7 +132,8 @@ class WebChannel(BaseChannel):
         """
         cid = client_id or str(uuid.uuid4())[:12]
         self._ws_clients[cid] = WebSocketClient(
-            client_id=cid, user_id=user_id,
+            client_id=cid,
+            user_id=user_id,
         )
         self._ws_send_callbacks[cid] = send_callback
         self.logger.info(f"WebSocket client connected: {cid} (user={user_id})")
@@ -177,10 +184,14 @@ class WebChannel(BaseChannel):
             # Send via callback
             send_fn = self._ws_send_callbacks.get(client_id)
             if send_fn:
-                await send_fn(json.dumps({
-                    "type": "message",
-                    "text": response.text,
-                }))
+                await send_fn(
+                    json.dumps(
+                        {
+                            "type": "message",
+                            "text": response.text,
+                        }
+                    )
+                )
                 return None  # Already sent
 
             return json.dumps({"type": "message", "text": response.text})

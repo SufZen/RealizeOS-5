@@ -6,6 +6,7 @@ Covers:
 - Dismiss suggestion
 - Not found / already decided errors
 """
+
 import pytest
 from realize_core.activity.bus import _recent_events, _subscribers
 from realize_core.db.schema import init_schema, set_db_path

@@ -13,6 +13,7 @@ Usage:
         secret_access_key="wJal...",
     )
 """
+
 from __future__ import annotations
 
 import logging
@@ -33,12 +34,10 @@ def _import_boto3():
     try:
         import boto3  # type: ignore[import-untyped]
         from botocore.exceptions import ClientError  # type: ignore[import-untyped]
+
         return boto3, ClientError
     except ImportError:
-        raise ImportError(
-            "The 'boto3' package is required for S3 storage. "
-            "Install it with: pip install boto3"
-        )
+        raise ImportError("The 'boto3' package is required for S3 storage. Install it with: pip install boto3")
 
 
 class S3StorageProvider(BaseStorageProvider):
@@ -86,7 +85,9 @@ class S3StorageProvider(BaseStorageProvider):
         self._client = boto3.client("s3", **kwargs)
         logger.info(
             "S3StorageProvider initialized: bucket=%s region=%s endpoint=%s",
-            bucket, region, endpoint_url or "default",
+            bucket,
+            region,
+            endpoint_url or "default",
         )
 
     # ------------------------------------------------------------------
@@ -117,7 +118,7 @@ class S3StorageProvider(BaseStorageProvider):
     def _strip_prefix(self, full_key: str) -> str:
         """Remove the prefix from a full S3 key."""
         if self._prefix and full_key.startswith(f"{self._prefix}/"):
-            return full_key[len(self._prefix) + 1:]
+            return full_key[len(self._prefix) + 1 :]
         return full_key
 
     # ------------------------------------------------------------------
@@ -222,9 +223,7 @@ class S3StorageProvider(BaseStorageProvider):
         uses the ``Delimiter='/'`` parameter to return only immediate children.
         """
         prefix = prefix.strip("/")
-        search_prefix = self._full_key(prefix) + "/" if prefix else (
-            f"{self._prefix}/" if self._prefix else ""
-        )
+        search_prefix = self._full_key(prefix) + "/" if prefix else (f"{self._prefix}/" if self._prefix else "")
 
         list_kwargs: dict[str, Any] = {
             "Bucket": self._bucket,
@@ -289,9 +288,7 @@ class S3StorageProvider(BaseStorageProvider):
                 Key=dst_full,
             )
         except Exception as exc:
-            raise OSError(
-                f"S3 copy failed: {src_key} → {dst_key}: {exc}"
-            ) from exc
+            raise OSError(f"S3 copy failed: {src_key} → {dst_key}: {exc}") from exc
 
         # Read the metadata of the new object
         try:
@@ -336,12 +333,7 @@ class S3StorageProvider(BaseStorageProvider):
                 ExpiresIn=expires_in,
             )
         except Exception as exc:
-            raise OSError(
-                f"Failed to generate presigned URL for '{key}': {exc}"
-            ) from exc
+            raise OSError(f"Failed to generate presigned URL for '{key}': {exc}") from exc
 
     def __repr__(self) -> str:
-        return (
-            f"S3StorageProvider(bucket={self._bucket!r}, "
-            f"region={self._region!r}, prefix={self._prefix!r})"
-        )
+        return f"S3StorageProvider(bucket={self._bucket!r}, region={self._region!r}, prefix={self._prefix!r})"

@@ -1,4 +1,5 @@
 """Tests for realize_core.tools.base_tool and tool_registry."""
+
 from typing import Any
 
 import pytest
@@ -58,7 +59,6 @@ class MockTool(BaseTool):
 
 
 class UnavailableTool(BaseTool):
-
     @property
     def name(self) -> str:
         return "unavailable_tool"
@@ -95,8 +95,14 @@ class UnavailableTool(BaseTool):
 class TestToolCategory:
     def test_all_categories(self):
         expected = {
-            "communication", "research", "productivity", "development",
-            "media", "data", "automation", "custom",
+            "communication",
+            "research",
+            "productivity",
+            "development",
+            "media",
+            "data",
+            "automation",
+            "custom",
         }
         assert {c.value for c in ToolCategory} == expected
 
@@ -285,6 +291,7 @@ class TestToolRegistry:
 class TestToolRegistrySingleton:
     def test_singleton(self):
         import realize_core.tools.tool_registry as mod
+
         mod._registry = None
         r1 = get_tool_registry()
         r2 = get_tool_registry()

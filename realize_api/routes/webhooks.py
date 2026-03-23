@@ -12,6 +12,7 @@ Supports configurable webhook triggers in realize-os.yaml:
 
 Events are logged to the activity system and can trigger skills/workflows.
 """
+
 import hashlib
 import hmac
 import logging
@@ -71,6 +72,7 @@ async def receive_webhook(source: str, request: Request):
     # Log to activity system
     try:
         from realize_core.activity.logger import log_event
+
         log_event(
             venture_key="shared",
             actor_type="webhook",
@@ -99,6 +101,7 @@ async def receive_webhook(source: str, request: Request):
             logger.info(f"Webhook trigger matched: {source}/{event['event_type']} -> skill:{skill_name}")
             try:
                 from realize_core.activity.logger import log_event as _log
+
                 _log(
                     venture_key="shared",
                     actor_type="webhook",

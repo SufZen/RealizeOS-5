@@ -4,6 +4,7 @@ Project scaffolding for RealizeOS.
 Creates the docs/dev-process/ directory structure with all templates,
 giving users a guided development framework from day one.
 """
+
 import logging
 import shutil
 from pathlib import Path
@@ -214,9 +215,7 @@ def scaffold_venture(project_root: str | Path, key: str, name: str = "", descrip
     # Find the template source (realize_lite/systems/my-business-1/)
     template_src = _find_venture_template()
     if not template_src:
-        raise FileNotFoundError(
-            "Venture template not found. Expected realize_lite/systems/my-business-1/"
-        )
+        raise FileNotFoundError("Venture template not found. Expected realize_lite/systems/my-business-1/")
 
     # Copy the full FABRIC structure
     for item in template_src.rglob("*"):
@@ -290,12 +289,14 @@ def list_ventures(project_root: str | Path) -> list[dict]:
     for sys_conf in config.get("systems", []):
         key = sys_conf.get("key", "")
         directory = sys_conf.get("directory", f"systems/{key}")
-        ventures.append({
-            "key": key,
-            "name": sys_conf.get("name", key),
-            "directory": directory,
-            "exists": (root / directory).exists(),
-        })
+        ventures.append(
+            {
+                "key": key,
+                "name": sys_conf.get("name", key),
+                "directory": directory,
+                "exists": (root / directory).exists(),
+            }
+        )
 
     return ventures
 

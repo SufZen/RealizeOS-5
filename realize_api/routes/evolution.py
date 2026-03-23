@@ -6,6 +6,7 @@ Endpoints:
 - POST /api/evolution/suggestions/{id}/approve — approve and apply a suggestion
 - POST /api/evolution/suggestions/{id}/dismiss — dismiss a suggestion
 """
+
 import logging
 
 from fastapi import APIRouter, HTTPException
@@ -23,6 +24,7 @@ def _get_engine():
     global _engine
     if _engine is None:
         from realize_core.evolution.engine import EvolutionEngine
+
         _engine = EvolutionEngine(auto_approve_low_risk=False)
     return _engine
 
@@ -40,18 +42,20 @@ async def list_suggestions(status: str = None):
     for p in engine._proposals.values():
         if status and p.status.value != status:
             continue
-        proposals.append({
-            "id": p.id,
-            "type": p.evolution_type.value,
-            "title": p.title,
-            "description": p.description,
-            "risk_level": p.risk_level.value,
-            "status": p.status.value,
-            "priority": p.priority,
-            "source": p.source,
-            "changes": p.changes,
-            "created_at": p.created_at,
-        })
+        proposals.append(
+            {
+                "id": p.id,
+                "type": p.evolution_type.value,
+                "title": p.title,
+                "description": p.description,
+                "risk_level": p.risk_level.value,
+                "status": p.status.value,
+                "priority": p.priority,
+                "source": p.source,
+                "changes": p.changes,
+                "created_at": p.created_at,
+            }
+        )
 
     # Sort by priority (highest first), then by creation time
     proposals.sort(key=lambda x: (-x["priority"], -x["created_at"]))
@@ -85,6 +89,7 @@ async def approve_suggestion(suggestion_id: str):
     # Log activity
     try:
         from realize_core.activity.logger import log_event
+
         log_event(
             venture_key="_system",
             actor_type="user",
@@ -119,6 +124,7 @@ async def dismiss_suggestion(suggestion_id: str, body: DismissBody = None):
 
     try:
         from realize_core.activity.logger import log_event
+
         log_event(
             venture_key="_system",
             actor_type="user",

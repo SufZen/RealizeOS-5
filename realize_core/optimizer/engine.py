@@ -13,6 +13,7 @@ Supports:
 - Model selection experiments (compare providers/models)
 - Parameter optimization (temperature, max_tokens, etc.)
 """
+
 from __future__ import annotations
 
 import logging
@@ -53,20 +54,23 @@ EvaluatorFn = Callable[[dict[str, Any], str], dict[str, float]]
 # Engine configuration
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class EngineConfig:
     """Configuration for an experiment run."""
+
     metrics: list[str] = field(default_factory=lambda: ["response_quality", "latency_ms", "cost_usd"])
     min_samples: int = 5
     max_samples: int = 50
     min_improvement_pct: float = 5.0
     auto_apply: bool = False  # Auto-apply winning candidates
-    stop_early: bool = True   # Stop if significance reached before max_samples
+    stop_early: bool = True  # Stop if significance reached before max_samples
 
 
 # ---------------------------------------------------------------------------
 # Experiment Engine
 # ---------------------------------------------------------------------------
+
 
 class ExperimentEngine:
     """

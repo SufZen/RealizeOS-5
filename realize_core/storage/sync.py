@@ -12,6 +12,7 @@ Features:
 - Sync log with status tracking
 - Graceful error handling per file
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -31,9 +32,10 @@ logger = logging.getLogger(__name__)
 # Enums & dataclasses
 # ---------------------------------------------------------------------------
 
+
 class SyncDirection(StrEnum):
-    PUSH = "push"    # source → target
-    PULL = "pull"    # target → source
+    PUSH = "push"  # source → target
+    PULL = "pull"  # target → source
 
 
 class SyncStatus(StrEnum):
@@ -47,6 +49,7 @@ class SyncStatus(StrEnum):
 @dataclass
 class SyncResult:
     """Result of a sync operation."""
+
     total_files: int = 0
     synced: int = 0
     skipped: int = 0
@@ -59,14 +62,14 @@ class SyncResult:
 
     def __repr__(self) -> str:
         return (
-            f"SyncResult(total={self.total_files}, synced={self.synced}, "
-            f"skipped={self.skipped}, failed={self.failed})"
+            f"SyncResult(total={self.total_files}, synced={self.synced}, skipped={self.skipped}, failed={self.failed})"
         )
 
 
 @dataclass
 class SyncLogEntry:
     """A record from the storage_sync_log table."""
+
     id: str
     sync_type: str
     source_backend: str
@@ -82,6 +85,7 @@ class SyncLogEntry:
 # ---------------------------------------------------------------------------
 # Sync Manager
 # ---------------------------------------------------------------------------
+
 
 class SyncManager:
     """
@@ -110,7 +114,8 @@ class SyncManager:
         self._lock = asyncio.Lock()
         logger.info(
             "SyncManager initialised: %s ↔ %s",
-            source.backend, target.backend,
+            source.backend,
+            target.backend,
         )
 
     # ------------------------------------------------------------------
@@ -387,7 +392,8 @@ class SyncManager:
 
         logger.info(
             "Full sync %s complete: %s",
-            direction, result,
+            direction,
+            result,
         )
         return result
 
@@ -448,10 +454,7 @@ class SyncManager:
             logger.warning("Failed to query sync history: %s", exc)
             return []
 
-        return [
-            SyncLogEntry(**dict(zip(columns, row)))
-            for row in rows
-        ]
+        return [SyncLogEntry(**dict(zip(columns, row))) for row in rows]
 
     def get_sync_stats(self) -> dict[str, int]:
         """
@@ -477,7 +480,4 @@ class SyncManager:
             return {}
 
     def __repr__(self) -> str:
-        return (
-            f"SyncManager(source={self._source.backend}, "
-            f"target={self._target.backend})"
-        )
+        return f"SyncManager(source={self._source.backend}, target={self._target.backend})"

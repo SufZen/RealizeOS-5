@@ -15,8 +15,8 @@ Covers:
 # Parsing tests
 # ---------------------------------------------------------------------------
 
-class TestParseSkillMd:
 
+class TestParseSkillMd:
     def test_basic_parse(self):
         """Parse a well-formed SKILL.md file."""
         from realize_core.skills.md_loader import parse_skill_md
@@ -136,8 +136,7 @@ Return a structured review with scores.
         """file_path should be stored in the definition."""
         from realize_core.skills.md_loader import parse_skill_md
 
-        defn = parse_skill_md("---\nname: test\n---\nBody",
-                               file_path="/path/to/skill.md")
+        defn = parse_skill_md("---\nname: test\n---\nBody", file_path="/path/to/skill.md")
         assert defn is not None
         assert defn.file_path == "/path/to/skill.md"
 
@@ -155,8 +154,8 @@ Return a structured review with scores.
 # to_skill_dict conversion
 # ---------------------------------------------------------------------------
 
-class TestToSkillDict:
 
+class TestToSkillDict:
     def test_conversion(self):
         """to_skill_dict() should produce a detector-compatible dict."""
         from realize_core.skills.md_loader import parse_skill_md
@@ -192,16 +191,15 @@ Detailed research instructions here.
 # File loading
 # ---------------------------------------------------------------------------
 
-class TestLoadSkillMdFile:
 
+class TestLoadSkillMdFile:
     def test_load_from_file(self, tmp_path):
         """Load a SKILL.md file from disk."""
         from realize_core.skills.md_loader import load_skill_md_file
 
         md_file = tmp_path / "my_skill.skill.md"
         md_file.write_text(
-            "---\nname: disk_skill\ntriggers:\n  - do thing\n---\n"
-            "# Instructions\n\nDo the thing carefully.",
+            "---\nname: disk_skill\ntriggers:\n  - do thing\n---\n# Instructions\n\nDo the thing carefully.",
             encoding="utf-8",
         )
 
@@ -222,8 +220,8 @@ class TestLoadSkillMdFile:
 # Directory scanning
 # ---------------------------------------------------------------------------
 
-class TestScanSkillMdFiles:
 
+class TestScanSkillMdFiles:
     def test_scan_directory(self, tmp_path):
         """Scan a directory and find SKILL.md files."""
         from realize_core.skills.md_loader import scan_skill_md_files
@@ -250,9 +248,7 @@ class TestScanSkillMdFiles:
 
         sub = tmp_path / "sub"
         sub.mkdir()
-        (sub / "deep.skill.md").write_text(
-            "---\nname: deep_skill\n---\nDeep.", encoding="utf-8"
-        )
+        (sub / "deep.skill.md").write_text("---\nname: deep_skill\n---\nDeep.", encoding="utf-8")
 
         results = scan_skill_md_files(tmp_path, recursive=True)
         assert len(results) == 1
@@ -286,12 +282,8 @@ class TestScanSkillMdFiles:
         """MD files without frontmatter should be skipped."""
         from realize_core.skills.md_loader import scan_skill_md_files
 
-        (tmp_path / "not_skill.md").write_text(
-            "# Just a doc\n\nNo frontmatter.", encoding="utf-8"
-        )
-        (tmp_path / "valid.skill.md").write_text(
-            "---\nname: valid\n---\nOK.", encoding="utf-8"
-        )
+        (tmp_path / "not_skill.md").write_text("# Just a doc\n\nNo frontmatter.", encoding="utf-8")
+        (tmp_path / "valid.skill.md").write_text("---\nname: valid\n---\nOK.", encoding="utf-8")
 
         results = scan_skill_md_files(tmp_path, recursive=False)
         assert len(results) == 1

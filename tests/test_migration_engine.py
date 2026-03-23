@@ -12,6 +12,7 @@ Covers:
 - Migration history tracking
 - Status reporting
 """
+
 import sqlite3
 import sys
 import types
@@ -21,6 +22,7 @@ import pytest
 # ---------------------------------------------------------------------------
 # Helpers — create fake migration modules for isolated testing
 # ---------------------------------------------------------------------------
+
 
 def _make_version_module(
     name: str,
@@ -69,39 +71,39 @@ def fake_versions_package(tmp_path):
 
     # Write 001_baseline.py
     (pkg_dir / "001_baseline.py").write_text(
-        'import sqlite3\n'
-        'VERSION = 1\n'
+        "import sqlite3\n"
+        "VERSION = 1\n"
         'DESCRIPTION = "Baseline test tables"\n'
-        '\n'
-        'def up(conn: sqlite3.Connection) -> None:\n'
+        "\n"
+        "def up(conn: sqlite3.Connection) -> None:\n"
         '    conn.executescript("""\n'
-        '        CREATE TABLE IF NOT EXISTS test_users (\n'
-        '            id INTEGER PRIMARY KEY,\n'
-        '            name TEXT NOT NULL\n'
-        '        );\n'
+        "        CREATE TABLE IF NOT EXISTS test_users (\n"
+        "            id INTEGER PRIMARY KEY,\n"
+        "            name TEXT NOT NULL\n"
+        "        );\n"
         '    """)\n'
-        '\n'
-        'def down(conn: sqlite3.Connection) -> None:\n'
+        "\n"
+        "def down(conn: sqlite3.Connection) -> None:\n"
         '    conn.executescript("DROP TABLE IF EXISTS test_users;")\n',
         encoding="utf-8",
     )
 
     # Write 002_add_email.py
     (pkg_dir / "002_add_email.py").write_text(
-        'import sqlite3\n'
-        'VERSION = 2\n'
+        "import sqlite3\n"
+        "VERSION = 2\n"
         'DESCRIPTION = "Add email column to test_users"\n'
-        '\n'
-        'def up(conn: sqlite3.Connection) -> None:\n'
+        "\n"
+        "def up(conn: sqlite3.Connection) -> None:\n"
         '    conn.execute("ALTER TABLE test_users ADD COLUMN email TEXT;")\n'
-        '\n'
-        'def down(conn: sqlite3.Connection) -> None:\n'
-        '    # SQLite doesn\'t support DROP COLUMN before 3.35\n'
-        '    # Recreate the table without the email column\n'
+        "\n"
+        "def down(conn: sqlite3.Connection) -> None:\n"
+        "    # SQLite doesn't support DROP COLUMN before 3.35\n"
+        "    # Recreate the table without the email column\n"
         '    conn.executescript("""\n'
-        '        CREATE TABLE test_users_backup AS SELECT id, name FROM test_users;\n'
-        '        DROP TABLE test_users;\n'
-        '        ALTER TABLE test_users_backup RENAME TO test_users;\n'
+        "        CREATE TABLE test_users_backup AS SELECT id, name FROM test_users;\n"
+        "        DROP TABLE test_users;\n"
+        "        ALTER TABLE test_users_backup RENAME TO test_users;\n"
         '    """)\n',
         encoding="utf-8",
     )
@@ -131,19 +133,14 @@ def engine(tmp_path, fake_versions_package):
 # Tests — Initialization
 # ---------------------------------------------------------------------------
 
-class TestEngineInit:
 
+class TestEngineInit:
     def test_creates_migration_history_table(self, engine, tmp_path):
         """Engine init should create the migration_history table."""
         db_path = tmp_path / "test_migrate.db"
         conn = sqlite3.connect(str(db_path))
         conn.row_factory = sqlite3.Row
-        tables = [
-            r["name"]
-            for r in conn.execute(
-                "SELECT name FROM sqlite_master WHERE type='table'"
-            ).fetchall()
-        ]
+        tables = [r["name"] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()]
         conn.close()
         assert "migration_history" in tables
 
@@ -160,8 +157,8 @@ class TestEngineInit:
 # Tests — Version Discovery
 # ---------------------------------------------------------------------------
 
-class TestDiscoverVersions:
 
+class TestDiscoverVersions:
     def test_discovers_two_versions(self, engine):
         """Should find both 001_baseline and 002_add_email."""
         versions = engine.discover_versions()
@@ -197,8 +194,8 @@ class TestDiscoverVersions:
 # Tests — Migrate Up
 # ---------------------------------------------------------------------------
 
-class TestMigrateUp:
 
+class TestMigrateUp:
     def test_migrate_up_all(self, engine, tmp_path):
         """migrate_up() with no target applies all pending migrations."""
         applied = engine.migrate_up()
@@ -243,8 +240,8 @@ class TestMigrateUp:
 # Tests — Migrate Down
 # ---------------------------------------------------------------------------
 
-class TestMigrateDown:
 
+class TestMigrateDown:
     def test_migrate_down_to_v1(self, engine, tmp_path):
         """migrate_down(1) should undo v2 but keep v1."""
         engine.migrate_up()
@@ -255,10 +252,7 @@ class TestMigrateDown:
         # test_users should still exist but without email column
         db_path = tmp_path / "test_migrate.db"
         conn = sqlite3.connect(str(db_path))
-        cols = [
-            info[1]
-            for info in conn.execute("PRAGMA table_info(test_users)").fetchall()
-        ]
+        cols = [info[1] for info in conn.execute("PRAGMA table_info(test_users)").fetchall()]
         conn.close()
         assert "name" in cols
         assert "email" not in cols
@@ -273,12 +267,7 @@ class TestMigrateDown:
         # test_users table should not exist
         db_path = tmp_path / "test_migrate.db"
         conn = sqlite3.connect(str(db_path))
-        tables = [
-            r[0]
-            for r in conn.execute(
-                "SELECT name FROM sqlite_master WHERE type='table'"
-            ).fetchall()
-        ]
+        tables = [r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()]
         conn.close()
         assert "test_users" not in tables
 
@@ -300,8 +289,8 @@ class TestMigrateDown:
 # Tests — Rollback
 # ---------------------------------------------------------------------------
 
-class TestRollback:
 
+class TestRollback:
     def test_rollback_one_step(self, engine):
         """rollback(1) undoes the last applied migration."""
         engine.migrate_up()
@@ -340,8 +329,8 @@ class TestRollback:
 # Tests — Migration Failure
 # ---------------------------------------------------------------------------
 
-class TestMigrationFailure:
 
+class TestMigrationFailure:
     def test_up_failure_rolls_back_transaction(self, tmp_path):
         """If up() raises, the transaction is aborted and version not recorded."""
         from realize_core.migration.engine import MigrationEngine
@@ -352,22 +341,22 @@ class TestMigrationFailure:
         pkg_dir.mkdir()
         (pkg_dir / "__init__.py").write_text("", encoding="utf-8")
         (pkg_dir / "001_works.py").write_text(
-            'import sqlite3\n'
-            'VERSION = 1\n'
+            "import sqlite3\n"
+            "VERSION = 1\n"
             'DESCRIPTION = "Works fine"\n'
-            'def up(conn):\n'
+            "def up(conn):\n"
             '    conn.execute("CREATE TABLE ok_table (id INTEGER PRIMARY KEY);")\n'
-            'def down(conn):\n'
+            "def down(conn):\n"
             '    conn.execute("DROP TABLE IF EXISTS ok_table;")\n',
             encoding="utf-8",
         )
         (pkg_dir / "002_fails.py").write_text(
-            'VERSION = 2\n'
+            "VERSION = 2\n"
             'DESCRIPTION = "This one fails"\n'
-            'def up(conn):\n'
+            "def up(conn):\n"
             '    raise RuntimeError("Intentional failure")\n'
-            'def down(conn):\n'
-            '    pass\n',
+            "def down(conn):\n"
+            "    pass\n",
             encoding="utf-8",
         )
 
@@ -393,8 +382,8 @@ class TestMigrationFailure:
 # Tests — Migration History
 # ---------------------------------------------------------------------------
 
-class TestMigrationHistory:
 
+class TestMigrationHistory:
     def test_history_records_up(self, engine):
         """History should record each up migration."""
         engine.migrate_up()
@@ -427,8 +416,8 @@ class TestMigrationHistory:
 # Tests — Status
 # ---------------------------------------------------------------------------
 
-class TestStatus:
 
+class TestStatus:
     def test_status_before_migrations(self, engine):
         """Status before any migration shows version 0 and pending."""
         status = engine.status()
@@ -458,8 +447,8 @@ class TestStatus:
 # Tests — Round-trip (up → down → up)
 # ---------------------------------------------------------------------------
 
-class TestRoundTrip:
 
+class TestRoundTrip:
     def test_up_down_up_cycle(self, engine, tmp_path):
         """Full cycle: up → down → up should leave DB in correct state."""
         # Up to latest
@@ -499,12 +488,14 @@ class TestRoundTrip:
 # Tests — Real migration modules (001_baseline, 002_v5_tables)
 # ---------------------------------------------------------------------------
 
+
 class TestRealMigrations:
     """Test the actual migration modules in realize_core/migration/versions/."""
 
     @pytest.fixture
     def real_engine(self, tmp_path):
         from realize_core.migration.engine import MigrationEngine
+
         db_path = tmp_path / "real_migrate.db"
         return MigrationEngine(
             db_path=db_path,
@@ -526,12 +517,7 @@ class TestRealMigrations:
 
         db_path = tmp_path / "real_migrate.db"
         conn = sqlite3.connect(str(db_path))
-        tables = {
-            r[0]
-            for r in conn.execute(
-                "SELECT name FROM sqlite_master WHERE type='table'"
-            ).fetchall()
-        }
+        tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
         conn.close()
 
         # Baseline tables
@@ -554,12 +540,7 @@ class TestRealMigrations:
 
         db_path = tmp_path / "real_migrate.db"
         conn = sqlite3.connect(str(db_path))
-        tables = {
-            r[0]
-            for r in conn.execute(
-                "SELECT name FROM sqlite_master WHERE type='table'"
-            ).fetchall()
-        }
+        tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
         conn.close()
 
         # Baseline should remain

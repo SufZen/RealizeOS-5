@@ -13,10 +13,12 @@ import pytest
 # Fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture(autouse=True)
 def reset_skills_cache():
     """Clear the global skills cache before each test."""
     from realize_core.skills.detector import _loaded_skills
+
     _loaded_skills.clear()
     yield
     _loaded_skills.clear()
@@ -106,9 +108,11 @@ pipeline:
 # Happy-path tests
 # ---------------------------------------------------------------------------
 
+
 class TestSkillDetectionHappyPath:
     def test_detect_skill_v1(self, skills_setup):
         from realize_core.skills.detector import detect_skill, load_skills
+
         tmp_path, skills_dir = skills_setup
 
         # load_skills expects the parent dir containing system subdirs
@@ -121,6 +125,7 @@ class TestSkillDetectionHappyPath:
 
     def test_detect_skill_v2(self, skills_setup):
         from realize_core.skills.detector import detect_skill, load_skills
+
         tmp_path, skills_dir = skills_setup
 
         load_skills(skills_dir.parent)
@@ -132,6 +137,7 @@ class TestSkillDetectionHappyPath:
 
     def test_no_skill_for_unrelated_message(self, skills_setup):
         from realize_core.skills.detector import detect_skill, load_skills
+
         tmp_path, skills_dir = skills_setup
 
         load_skills(skills_dir.parent)
@@ -147,10 +153,12 @@ class TestSkillDetectionHappyPath:
 # Edge cases
 # ---------------------------------------------------------------------------
 
+
 class TestSkillDetectionEdgeCases:
     def test_empty_skills_directory(self, empty_skills_dir):
         """Loading from an empty directory should not crash."""
         from realize_core.skills.detector import detect_skill, load_skills
+
         _, skills_dir = empty_skills_dir
 
         # Should not raise — pass parent dir containing "empty/" subdir
@@ -164,6 +172,7 @@ class TestSkillDetectionEdgeCases:
     def test_nonexistent_skills_directory(self, tmp_path):
         """Loading from a nonexistent directory should handle gracefully."""
         from realize_core.skills.detector import load_skills
+
         nonexistent = tmp_path / "nonexistent" / "skills"
 
         # Should not raise (implementation logs a warning)
@@ -175,6 +184,7 @@ class TestSkillDetectionEdgeCases:
     def test_skill_trigger_case_insensitive(self, skills_setup):
         """Trigger matching should be case-insensitive."""
         from realize_core.skills.detector import detect_skill, load_skills
+
         _, skills_dir = skills_setup
 
         load_skills(skills_dir.parent)
@@ -187,6 +197,7 @@ class TestSkillDetectionEdgeCases:
     def test_v1_skill_has_pipeline(self, skills_setup):
         """v1 skills should have a pipeline list."""
         from realize_core.skills.detector import detect_skill, load_skills
+
         _, skills_dir = skills_setup
 
         load_skills(skills_dir.parent)
@@ -200,6 +211,7 @@ class TestSkillDetectionEdgeCases:
     def test_v2_skill_has_steps(self, skills_setup):
         """v2 skills should have a steps list."""
         from realize_core.skills.detector import detect_skill, load_skills
+
         _, skills_dir = skills_setup
 
         load_skills(skills_dir.parent)
@@ -213,6 +225,7 @@ class TestSkillDetectionEdgeCases:
     def test_no_triggers_skill(self, no_triggers_dir):
         """Skill without triggers should not match any message."""
         from realize_core.skills.detector import detect_skill, load_skills
+
         _, skills_dir = no_triggers_dir
 
         # Should not crash when loading skill without triggers

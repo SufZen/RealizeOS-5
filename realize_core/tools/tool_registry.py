@@ -7,6 +7,7 @@ Supports:
 - YAML-based tool definitions
 - Schema aggregation for LLM tool_use calls
 """
+
 import importlib
 import logging
 from pathlib import Path
@@ -60,9 +61,7 @@ class ToolRegistry:
             self._action_map[schema.name] = tool
 
         logger.info(
-            f"Registered tool '{tool.name}' "
-            f"({len(tool.get_schemas())} actions, "
-            f"available={tool.is_available()})"
+            f"Registered tool '{tool.name}' ({len(tool.get_schemas())} actions, available={tool.is_available()})"
         )
         return True
 
@@ -91,10 +90,7 @@ class ToolRegistry:
             return ToolResult.fail(f"Unknown action: '{action_name}'")
 
         if not tool.is_available():
-            return ToolResult.fail(
-                f"Tool '{tool.name}' is not available "
-                f"(missing API key or dependency)"
-            )
+            return ToolResult.fail(f"Tool '{tool.name}' is not available (missing API key or dependency)")
 
         try:
             return await tool.execute(action_name, params)
@@ -192,11 +188,7 @@ class ToolRegistry:
                     # Look for BaseTool subclass instances
                     for attr_name in dir(mod):
                         attr = getattr(mod, attr_name)
-                        if (
-                            isinstance(attr, type)
-                            and issubclass(attr, BaseTool)
-                            and attr is not BaseTool
-                        ):
+                        if isinstance(attr, type) and issubclass(attr, BaseTool) and attr is not BaseTool:
                             try:
                                 self.register(attr())
                             except Exception as e:

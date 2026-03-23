@@ -7,6 +7,7 @@ Supports:
 - Method registry for reusable operations
 - Trigger integration (webhook, cron, manual)
 """
+
 import logging
 import time
 from collections.abc import Callable
@@ -25,17 +26,19 @@ logger = logging.getLogger(__name__)
 
 class NodeType(Enum):
     """Types of workflow nodes."""
-    PROMPT = "prompt"          # Send to LLM
-    TOOL = "tool"              # Execute a tool
-    CONDITION = "condition"    # Branch based on condition
-    LOOP = "loop"              # Repeat steps
-    METHOD = "method"          # Call a registered method
-    TRANSFORM = "transform"   # Transform data
-    PARALLEL = "parallel"     # Run nodes in parallel
+
+    PROMPT = "prompt"  # Send to LLM
+    TOOL = "tool"  # Execute a tool
+    CONDITION = "condition"  # Branch based on condition
+    LOOP = "loop"  # Repeat steps
+    METHOD = "method"  # Call a registered method
+    TRANSFORM = "transform"  # Transform data
+    PARALLEL = "parallel"  # Run nodes in parallel
 
 
 class WorkflowStatus(Enum):
     """Execution status of a workflow."""
+
     PENDING = "pending"
     RUNNING = "running"
     COMPLETED = "completed"
@@ -46,22 +49,24 @@ class WorkflowStatus(Enum):
 @dataclass
 class WorkflowNode:
     """A single step in a workflow."""
+
     id: str
     node_type: NodeType
     config: dict[str, Any] = field(default_factory=dict)
-    next_node: str = ""             # ID of next node
-    on_error: str = ""              # ID of error-handler node
+    next_node: str = ""  # ID of next node
+    on_error: str = ""  # ID of error-handler node
     metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
 class WorkflowDefinition:
     """A complete workflow definition."""
+
     name: str
     description: str = ""
     nodes: list[WorkflowNode] = field(default_factory=list)
-    entry_node: str = ""             # Starting node ID
-    trigger: str = "manual"          # manual, webhook, cron, event
+    entry_node: str = ""  # Starting node ID
+    trigger: str = "manual"  # manual, webhook, cron, event
     trigger_config: dict[str, Any] = field(default_factory=dict)
     metadata: dict[str, Any] = field(default_factory=dict)
 
@@ -73,6 +78,7 @@ class WorkflowDefinition:
 @dataclass
 class WorkflowContext:
     """Runtime context for a workflow execution."""
+
     workflow_name: str
     status: WorkflowStatus = WorkflowStatus.PENDING
     variables: dict[str, Any] = field(default_factory=dict)
@@ -110,9 +116,11 @@ class MethodRegistry:
 
     def method(self, name: str):
         """Decorator to register a method."""
+
         def decorator(fn):
             self.register(name, fn)
             return fn
+
         return decorator
 
     def get(self, name: str) -> Callable | None:
@@ -193,14 +201,16 @@ def load_workflow(yaml_path: str | Path) -> WorkflowDefinition | None:
         except ValueError:
             node_type = NodeType.PROMPT
 
-        nodes.append(WorkflowNode(
-            id=node_data.get("id", ""),
-            node_type=node_type,
-            config=node_data.get("config", {}),
-            next_node=node_data.get("next", ""),
-            on_error=node_data.get("on_error", ""),
-            metadata=node_data.get("metadata", {}),
-        ))
+        nodes.append(
+            WorkflowNode(
+                id=node_data.get("id", ""),
+                node_type=node_type,
+                config=node_data.get("config", {}),
+                next_node=node_data.get("next", ""),
+                on_error=node_data.get("on_error", ""),
+                metadata=node_data.get("metadata", {}),
+            )
+        )
 
     entry = data.get("entry_node", "")
     if not entry and nodes:
@@ -291,11 +301,13 @@ class WorkflowRunner:
 
             try:
                 result = await self._execute_node(node, ctx)
-                ctx.results.append({
-                    "node_id": current_id,
-                    "type": node.node_type.value,
-                    "result": result,
-                })
+                ctx.results.append(
+                    {
+                        "node_id": current_id,
+                        "type": node.node_type.value,
+                        "result": result,
+                    }
+                )
 
                 # Store result as a variable for subsequent nodes
                 ctx.variables[current_id] = result
@@ -320,10 +332,7 @@ class WorkflowRunner:
 
         ctx.completed_at = time.time()
         ctx.current_node = ""
-        logger.info(
-            f"Workflow '{workflow.name}' {ctx.status.value} "
-            f"in {ctx.duration_ms}ms ({len(ctx.results)} steps)"
-        )
+        logger.info(f"Workflow '{workflow.name}' {ctx.status.value} in {ctx.duration_ms}ms ({len(ctx.results)} steps)")
         return ctx
 
     async def _execute_node(self, node: WorkflowNode, ctx: WorkflowContext) -> Any:
@@ -341,6 +350,7 @@ class WorkflowRunner:
         # Import and call LLM
         try:
             from realize_core.llm.router import route_and_query
+
             response = await route_and_query(prompt)
         except Exception:
             response = f"[LLM unavailable] Prompt: {prompt[:200]}"
@@ -350,13 +360,11 @@ class WorkflowRunner:
     async def _run_tool(self, node: WorkflowNode, ctx: WorkflowContext) -> dict:
         """Execute a tool node."""
         tool_name = node.config.get("tool", "")
-        params = {
-            k: self._substitute(str(v), ctx.variables)
-            for k, v in node.config.get("params", {}).items()
-        }
+        params = {k: self._substitute(str(v), ctx.variables) for k, v in node.config.get("params", {}).items()}
 
         try:
             from realize_core.tools.tool_registry import get_tool_registry
+
             registry = get_tool_registry()
             result = await registry.execute(tool_name, params)
             return {"output": result.output if hasattr(result, "output") else str(result)}
@@ -366,10 +374,7 @@ class WorkflowRunner:
     async def _run_method(self, node: WorkflowNode, ctx: WorkflowContext) -> dict:
         """Execute a registered method."""
         method_name = node.config.get("method", "")
-        params = {
-            k: self._substitute(str(v), ctx.variables)
-            for k, v in node.config.get("params", {}).items()
-        }
+        params = {k: self._substitute(str(v), ctx.variables) for k, v in node.config.get("params", {}).items()}
 
         method = self._method_registry.get(method_name)
         if not method:
@@ -409,6 +414,7 @@ class WorkflowRunner:
             {node_id.key} → variables[node_id][key]
         """
         import re
+
         def replacer(match):
             key = match.group(1)
             if "." in key:

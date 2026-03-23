@@ -7,6 +7,7 @@ Endpoints:
 - GET /api/ventures/{key}/agents — agent list with current states
 - GET /api/ventures/{key}/skills — skill list with execution stats
 """
+
 import logging
 from datetime import UTC
 from pathlib import Path
@@ -26,14 +27,16 @@ async def list_ventures(request: Request):
     ventures = []
     for key, sys_conf in systems.items():
         fabric = _analyze_fabric(kb_path, sys_conf)
-        ventures.append({
-            "key": key,
-            "name": sys_conf.get("name", key),
-            "description": sys_conf.get("description", ""),
-            "agent_count": len(sys_conf.get("agents", {})),
-            "skill_count": _count_skills(kb_path, sys_conf),
-            "fabric_completeness": fabric["completeness"],
-        })
+        ventures.append(
+            {
+                "key": key,
+                "name": sys_conf.get("name", key),
+                "description": sys_conf.get("description", ""),
+                "agent_count": len(sys_conf.get("agents", {})),
+                "skill_count": _count_skills(kb_path, sys_conf),
+                "fabric_completeness": fabric["completeness"],
+            }
+        )
 
     return {"ventures": ventures}
 
@@ -101,6 +104,7 @@ async def get_org_tree(venture_key: str, request: Request):
         raise HTTPException(status_code=404, detail=f"Venture '{venture_key}' not found")
 
     from realize_core.scheduler.hierarchy import build_org_tree
+
     tree = build_org_tree(kb_path, systems[venture_key])
     return {"venture_key": venture_key, **tree}
 
@@ -132,6 +136,7 @@ async def get_agent_detail(venture_key: str, agent_key: str, request: Request):
     status_data = {"status": "idle", "last_run_at": None, "last_error": None}
     try:
         from realize_core.scheduler.lifecycle import get_agent_status
+
         state = get_agent_status(agent_key, venture_key)
         if state:
             status_data = {
@@ -149,6 +154,7 @@ async def get_agent_detail(venture_key: str, agent_key: str, request: Request):
     recent_activity = []
     try:
         from realize_core.activity.store import query_events
+
         recent_activity = query_events(venture_key=venture_key, actor_id=agent_key, limit=20)
     except Exception:
         pass
@@ -173,13 +179,19 @@ async def pause_agent(venture_key: str, agent_key: str, request: Request):
         raise HTTPException(status_code=404, detail=f"Agent '{agent_key}' not found")
 
     from realize_core.scheduler.lifecycle import set_agent_status
+
     set_agent_status(agent_key, venture_key, "paused")
 
     try:
         from realize_core.activity.logger import log_event
+
         log_event(
-            venture_key=venture_key, actor_type="user", actor_id="dashboard",
-            action="agent_paused", entity_type="agent", entity_id=agent_key,
+            venture_key=venture_key,
+            actor_type="user",
+            actor_id="dashboard",
+            action="agent_paused",
+            entity_type="agent",
+            entity_id=agent_key,
         )
     except Exception:
         pass
@@ -197,13 +209,19 @@ async def resume_agent(venture_key: str, agent_key: str, request: Request):
         raise HTTPException(status_code=404, detail=f"Agent '{agent_key}' not found")
 
     from realize_core.scheduler.lifecycle import set_agent_status
+
     set_agent_status(agent_key, venture_key, "idle")
 
     try:
         from realize_core.activity.logger import log_event
+
         log_event(
-            venture_key=venture_key, actor_type="user", actor_id="dashboard",
-            action="agent_resumed", entity_type="agent", entity_id=agent_key,
+            venture_key=venture_key,
+            actor_type="user",
+            actor_id="dashboard",
+            action="agent_resumed",
+            entity_type="agent",
+            entity_id=agent_key,
         )
     except Exception:
         pass
@@ -242,9 +260,7 @@ async def set_agent_schedule(venture_key: str, agent_key: str, request: Request)
         now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
         next_run = None
         if interval:
-            next_run = (datetime.now(UTC) + timedelta(seconds=int(interval))).strftime(
-                "%Y-%m-%dT%H:%M:%S.%fZ"
-            )
+            next_run = (datetime.now(UTC) + timedelta(seconds=int(interval))).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
 
         if existing:
             conn.execute(
@@ -267,15 +283,21 @@ async def set_agent_schedule(venture_key: str, agent_key: str, request: Request)
     # Reload scheduler if running
     try:
         from realize_core.scheduler.heartbeat import reload_schedules
+
         reload_schedules()
     except Exception:
         pass
 
     try:
         from realize_core.activity.logger import log_event
+
         log_event(
-            venture_key=venture_key, actor_type="user", actor_id="dashboard",
-            action="schedule_updated", entity_type="agent", entity_id=agent_key,
+            venture_key=venture_key,
+            actor_type="user",
+            actor_id="dashboard",
+            action="schedule_updated",
+            entity_type="agent",
+            entity_id=agent_key,
             details=f'{{"cron": "{cron or ""}", "interval_sec": {interval or 0}}}',
         )
     except Exception:
@@ -300,6 +322,7 @@ async def clear_agent_schedule(venture_key: str, agent_key: str, request: Reques
         raise HTTPException(status_code=404, detail=f"Agent '{agent_key}' not found")
 
     from realize_core.db.schema import get_connection
+
     conn = get_connection()
     try:
         conn.execute(
@@ -314,6 +337,7 @@ async def clear_agent_schedule(venture_key: str, agent_key: str, request: Reques
 
     try:
         from realize_core.scheduler.heartbeat import reload_schedules
+
         reload_schedules()
     except Exception:
         pass
@@ -324,6 +348,7 @@ async def clear_agent_schedule(venture_key: str, agent_key: str, request: Reques
 # ---------------------------------------------------------------------------
 # Venture CRUD
 # ---------------------------------------------------------------------------
+
 
 @router.post("/ventures")
 async def create_venture(request: Request):
@@ -343,6 +368,7 @@ async def create_venture(request: Request):
     kb_path: Path = getattr(request.app.state, "kb_path", Path("."))
 
     from realize_core.scaffold import scaffold_venture
+
     result = scaffold_venture(str(kb_path), key, name=name, description=description)
 
     if not result.get("created"):
@@ -350,15 +376,21 @@ async def create_venture(request: Request):
 
     # Reload config to pick up the new venture
     from realize_core.config import build_systems_dict, load_config
+
     config = load_config()
     request.app.state.config = config
     request.app.state.systems = build_systems_dict(config)
 
     try:
         from realize_core.activity.logger import log_event
+
         log_event(
-            venture_key=key, actor_type="user", actor_id="dashboard",
-            action="venture_created", entity_type="venture", entity_id=key,
+            venture_key=key,
+            actor_type="user",
+            actor_id="dashboard",
+            action="venture_created",
+            entity_type="venture",
+            entity_id=key,
         )
     except Exception:
         pass
@@ -376,6 +408,7 @@ async def delete_venture(venture_key: str, request: Request):
     kb_path: Path = getattr(request.app.state, "kb_path", Path("."))
 
     from realize_core.scaffold import delete_venture as _delete
+
     success = _delete(str(kb_path), venture_key, confirm_name=venture_key)
 
     if not success:
@@ -383,6 +416,7 @@ async def delete_venture(venture_key: str, request: Request):
 
     # Reload config
     from realize_core.config import build_systems_dict, load_config
+
     config = load_config()
     request.app.state.config = config
     request.app.state.systems = build_systems_dict(config)
@@ -410,6 +444,7 @@ async def export_venture(venture_key: str, request: Request):
         raise HTTPException(status_code=500, detail="Export failed")
 
     from fastapi.responses import FileResponse
+
     return FileResponse(
         path=str(zip_path),
         filename=f"{venture_key}.zip",
@@ -420,6 +455,7 @@ async def export_venture(venture_key: str, request: Request):
 # ---------------------------------------------------------------------------
 # Knowledge Base Browser
 # ---------------------------------------------------------------------------
+
 
 @router.get("/ventures/{venture_key}/kb/files")
 async def list_kb_files(venture_key: str, request: Request):
@@ -453,11 +489,13 @@ async def list_kb_files(venture_key: str, request: Request):
         files = []
         for f in sorted(full_path.rglob("*")):
             if f.is_file() and not f.name.startswith("."):
-                files.append({
-                    "name": f.name,
-                    "relative_path": str(f.relative_to(kb_path)),
-                    "size": f.stat().st_size,
-                })
+                files.append(
+                    {
+                        "name": f.name,
+                        "relative_path": str(f.relative_to(kb_path)),
+                        "size": f.stat().st_size,
+                    }
+                )
         tree[label] = {"exists": True, "files": files}
 
     return {"venture_key": venture_key, "tree": tree}
@@ -502,6 +540,7 @@ async def search_kb(venture_key: str, q: str, request: Request):
 
     try:
         from realize_core.kb.indexer import semantic_search
+
         results = semantic_search(q.strip(), system_key=venture_key, top_k=10)
         return {"query": q, "results": results}
     except Exception as e:
@@ -551,9 +590,14 @@ async def ingest_content(venture_key: str, request: Request):
 
     try:
         from realize_core.activity.logger import log_event
+
         log_event(
-            venture_key=venture_key, actor_type="user", actor_id="dashboard",
-            action="content_ingested", entity_type="kb_file", entity_id=result["path"],
+            venture_key=venture_key,
+            actor_type="user",
+            actor_id="dashboard",
+            action="content_ingested",
+            entity_type="kb_file",
+            entity_id=result["path"],
             details=f'{{"source": "{url or "text"}", "chars": {extracted["char_count"]}}}',
         )
     except Exception:
@@ -602,6 +646,7 @@ async def save_kb_file(venture_key: str, request: Request):
     if "/A-agents/" in path or "\\A-agents\\" in path:
         try:
             from realize_core.config import build_systems_dict, load_config
+
             config = load_config()
             request.app.state.config = config
             request.app.state.systems = build_systems_dict(config)
@@ -646,6 +691,7 @@ async def create_kb_file(venture_key: str, request: Request):
     if "/A-agents/" in path or "\\A-agents\\" in path:
         try:
             from realize_core.config import build_systems_dict, load_config
+
             config = load_config()
             request.app.state.config = config
             request.app.state.systems = build_systems_dict(config)
@@ -685,6 +731,7 @@ async def delete_kb_file(venture_key: str, path: str, request: Request):
     if "/A-agents/" in path or "\\A-agents\\" in path:
         try:
             from realize_core.config import build_systems_dict, load_config
+
             config = load_config()
             request.app.state.config = config
             request.app.state.systems = build_systems_dict(config)
@@ -698,6 +745,7 @@ async def delete_kb_file(venture_key: str, path: str, request: Request):
 # Shared files API
 # ---------------------------------------------------------------------------
 
+
 @router.get("/shared/files")
 async def list_shared_files(request: Request):
     """List files in the shared directory."""
@@ -710,12 +758,14 @@ async def list_shared_files(request: Request):
     files = []
     for f in sorted(shared_dir.rglob("*")):
         if f.is_file() and not f.name.startswith("."):
-            files.append({
-                "name": f.name,
-                "relative_path": str(f.relative_to(kb_path)),
-                "size": f.stat().st_size,
-                "directory": str(f.parent.relative_to(shared_dir)) if f.parent != shared_dir else "",
-            })
+            files.append(
+                {
+                    "name": f.name,
+                    "relative_path": str(f.relative_to(kb_path)),
+                    "size": f.stat().st_size,
+                    "directory": str(f.parent.relative_to(shared_dir)) if f.parent != shared_dir else "",
+                }
+            )
     return {"files": files}
 
 
@@ -771,6 +821,7 @@ async def save_shared_file(request: Request):
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _analyze_fabric(kb_path: Path, sys_conf: dict) -> dict:
     """Analyze FABRIC directory completeness for a venture."""
     fabric_dirs = {
@@ -815,6 +866,7 @@ def _get_agents_with_status(sys_conf: dict, venture_key: str) -> list[dict]:
 
         try:
             from realize_core.scheduler.lifecycle import get_agent_status
+
             state = get_agent_status(agent_key, venture_key)
             if state:
                 agent_data["status"] = state["status"]
@@ -841,17 +893,20 @@ def _get_skills(kb_path: Path, sys_conf: dict) -> list[dict]:
     skills = []
     try:
         import yaml
+
         for yaml_file in sorted(skills_path.glob("*.yaml")):
             try:
                 with open(yaml_file, encoding="utf-8") as f:
                     data = yaml.safe_load(f)
                 if data and isinstance(data, dict):
-                    skills.append({
-                        "name": data.get("name", yaml_file.stem),
-                        "version": "v2" if "steps" in data else "v1",
-                        "triggers": data.get("triggers", []),
-                        "task_type": data.get("task_type", "general"),
-                    })
+                    skills.append(
+                        {
+                            "name": data.get("name", yaml_file.stem),
+                            "version": "v2" if "steps" in data else "v1",
+                            "triggers": data.get("triggers", []),
+                            "task_type": data.get("task_type", "general"),
+                        }
+                    )
             except Exception:
                 pass
     except ImportError:

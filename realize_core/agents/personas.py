@@ -12,6 +12,7 @@ Built-in personas:
 - ``analyst`` — research, data, competitive analysis
 - ``reviewer`` — quality gates, editorial, compliance
 """
+
 from __future__ import annotations
 
 import logging
@@ -28,6 +29,7 @@ class PersonaBundle:
     When a V2 agent declares ``persona: writer``, the corresponding
     PersonaBundle is merged into the agent's configuration during activation.
     """
+
     key: str
     display_name: str
     description: str = ""
@@ -131,10 +133,7 @@ REVIEWER = PersonaBundle(
 # Registry
 # ---------------------------------------------------------------------------
 
-_BUILTIN_PERSONAS: dict[str, PersonaBundle] = {
-    p.key: p
-    for p in (EXEC_ASSISTANT, WRITER, PM, ANALYST, REVIEWER)
-}
+_BUILTIN_PERSONAS: dict[str, PersonaBundle] = {p.key: p for p in (EXEC_ASSISTANT, WRITER, PM, ANALYST, REVIEWER)}
 
 # Mutable store for user-defined personas
 _custom_personas: dict[str, PersonaBundle] = {}

@@ -5,6 +5,7 @@ When gap detection finds repeated patterns or unhandled requests,
 this module uses Claude to draft a v2 skill YAML that could address the gap.
 The suggestion is presented to the user for approval before being installed.
 """
+
 import json
 import logging
 from pathlib import Path
@@ -94,6 +95,7 @@ async def suggest_skill_from_gap(suggestion: dict, system_config: dict = None) -
 
         try:
             import yaml
+
             parsed = yaml.safe_load(yaml_text)
             if not isinstance(parsed, dict) or "name" not in parsed:
                 return None
@@ -116,6 +118,7 @@ async def install_suggested_skill(yaml_text: str, skills_dir: str = None) -> str
     """
     try:
         import yaml
+
         parsed = yaml.safe_load(yaml_text)
     except Exception as e:
         return f"Failed to parse skill YAML: {e}"
@@ -143,6 +146,7 @@ def format_skill_preview(yaml_text: str) -> str:
     """Format a skill suggestion for display."""
     try:
         import yaml
+
         parsed = yaml.safe_load(yaml_text)
     except Exception:
         return f"```\n{yaml_text[:500]}\n```"
@@ -152,8 +156,7 @@ def format_skill_preview(yaml_text: str) -> str:
     triggers = parsed.get("triggers", [])[:3]
     steps = parsed.get("steps", [])
 
-    lines = [f"**Suggested Skill: {name}**", f"_{desc}_\n",
-             f"Triggers: {', '.join(triggers)}", f"Steps: {len(steps)}"]
+    lines = [f"**Suggested Skill: {name}**", f"_{desc}_\n", f"Triggers: {', '.join(triggers)}", f"Steps: {len(steps)}"]
     for i, step in enumerate(steps, 1):
         step_type = step.get("type", step.get("action", "?"))
         label = step.get("label", step.get("id", f"Step {i}"))

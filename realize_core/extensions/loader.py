@@ -14,6 +14,7 @@ Usage::
     loader = ExtensionLoader(registry=my_registry)
     count = await loader.discover_and_load(config_path="realize-os.yaml")
 """
+
 from __future__ import annotations
 
 import logging
@@ -71,6 +72,7 @@ class ExtensionLoader:
         # Deferred import to avoid circular
         if registry is None:
             from realize_core.extensions.registry import get_extension_registry
+
             registry = get_extension_registry()
 
         self._registry = registry
@@ -117,7 +119,8 @@ class ExtensionLoader:
                 manifests.append(manifest)
                 logger.debug(
                     "Discovered extension '%s' in %s",
-                    manifest.name, child,
+                    manifest.name,
+                    child,
                 )
 
         return manifests
@@ -174,7 +177,8 @@ class ExtensionLoader:
             except ValueError:
                 logger.warning(
                     "Unknown extension type '%s' for '%s'",
-                    ext_type_str, item["name"],
+                    ext_type_str,
+                    item["name"],
                 )
                 ext_type = ExtensionType.TOOL
 
@@ -221,13 +225,14 @@ class ExtensionLoader:
                     seen[m.name] = m
 
         # 3. Extra directories
-        for extra in (extra_dirs or []):
+        for extra in extra_dirs or []:
             for m in self.discover_from_directory(extra):
                 if m.name not in seen:
                     seen[m.name] = m
 
         logger.info(
-            "Discovered %d extensions from all sources", len(seen),
+            "Discovered %d extensions from all sources",
+            len(seen),
         )
         return list(seen.values())
 

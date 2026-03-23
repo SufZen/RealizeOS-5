@@ -19,6 +19,7 @@ Usage::
         skills_dir=Path("systems/my-biz/R-routines/skills"),
     )
 """
+
 from __future__ import annotations
 
 import logging
@@ -120,6 +121,7 @@ Do not wrap it in code blocks.
 # Core creation function
 # ---------------------------------------------------------------------------
 
+
 async def create_skill(
     description: str,
     output_format: str = "yaml",
@@ -146,15 +148,13 @@ async def create_skill(
         - ``error`` (str | None) — error message if failed
     """
     if not description or not description.strip():
-        return {"success": False, "content": "", "path": None,
-                "error": "Description is empty"}
+        return {"success": False, "content": "", "path": None, "error": "Description is empty"}
 
     # Resolve LLM
     if llm_fn is None:
         llm_fn = _get_default_llm()
         if llm_fn is None:
-            return {"success": False, "content": "", "path": None,
-                    "error": "No LLM available for skill generation"}
+            return {"success": False, "content": "", "path": None, "error": "No LLM available for skill generation"}
 
     # Select prompt
     if output_format == "skill_md":
@@ -170,15 +170,13 @@ async def create_skill(
         )
     except Exception as exc:
         logger.error("Skill creation LLM call failed: %s", exc)
-        return {"success": False, "content": "", "path": None,
-                "error": f"LLM call failed: {exc}"}
+        return {"success": False, "content": "", "path": None, "error": f"LLM call failed: {exc}"}
 
     # Clean up response — strip any markdown code block wrappers
     content = _clean_generated_content(content, output_format)
 
     if not content.strip():
-        return {"success": False, "content": "", "path": None,
-                "error": "LLM returned empty content"}
+        return {"success": False, "content": "", "path": None, "error": "LLM returned empty content"}
 
     # Extract skill name for filename
     skill_name = _extract_skill_name(content, output_format)
@@ -209,15 +207,18 @@ async def create_skill(
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _get_default_llm() -> LLMCallable | None:
     """Attempt to import the default LLM client."""
     try:
         from realize_core.llm.claude_client import call_claude
+
         return call_claude
     except ImportError:
         pass
     try:
         from realize_core.llm.gemini_client import call_gemini
+
         return call_gemini
     except ImportError:
         pass
@@ -248,6 +249,7 @@ def _extract_skill_name(content: str, output_format: str) -> str | None:
         # Parse from frontmatter
         try:
             from realize_core.skills.md_loader import parse_skill_md
+
             defn = parse_skill_md(content)
             if defn:
                 return defn.key

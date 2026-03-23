@@ -1,6 +1,7 @@
 """
 API Middleware: Authentication and request processing.
 """
+
 import logging
 
 from starlette.middleware.base import BaseHTTPMiddleware

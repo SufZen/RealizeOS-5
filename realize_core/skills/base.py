@@ -9,6 +9,7 @@ Defines the shared contracts for skill implementations:
 These interfaces support both YAML skills (v1/v2) and Anthropic-inspired
 SKILL.md markdown skills with semantic triggering fallback.
 """
+
 from __future__ import annotations
 
 import logging
@@ -23,14 +24,17 @@ logger = logging.getLogger(__name__)
 # Enums
 # ---------------------------------------------------------------------------
 
+
 class SkillFormat(StrEnum):
     """Format of the skill definition file."""
+
     YAML = "yaml"
     SKILL_MD = "skill_md"
 
 
 class TriggerMethod(StrEnum):
     """How a skill was matched to a user message."""
+
     KEYWORD = "keyword"
     SEMANTIC = "semantic"
     EXPLICIT = "explicit"  # User directly named the skill
@@ -41,6 +45,7 @@ class TriggerMethod(StrEnum):
 # Dataclasses
 # ---------------------------------------------------------------------------
 
+
 @dataclass(frozen=True)
 class SkillTriggerResult:
     """
@@ -49,6 +54,7 @@ class SkillTriggerResult:
     Contains the match score (0.0–1.0), the method used to trigger,
     and any extracted parameters from the message.
     """
+
     skill_key: str
     score: float
     trigger_method: TriggerMethod
@@ -74,6 +80,7 @@ class SkillMetadata:
     Used by the skill registry for indexing without loading
     the full skill body into memory.
     """
+
     key: str
     name: str
     description: str = ""
@@ -87,6 +94,7 @@ class SkillMetadata:
 # ---------------------------------------------------------------------------
 # Protocol — runtime interface for skill implementations
 # ---------------------------------------------------------------------------
+
 
 @runtime_checkable
 class BaseSkill(Protocol):

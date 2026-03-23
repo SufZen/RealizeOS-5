@@ -11,6 +11,7 @@ Defines the shared contracts that all agent implementations must follow:
 These interfaces are the foundation for Agent 1's pipeline executor,
 multi-agent orchestration, and Dev-QA retry loops.
 """
+
 from __future__ import annotations
 
 import logging
@@ -27,6 +28,7 @@ logger = logging.getLogger(__name__)
 # Enums
 # ---------------------------------------------------------------------------
 
+
 class HandoffType(StrEnum):
     """
     Types of handoff between agents in a pipeline.
@@ -39,6 +41,7 @@ class HandoffType(StrEnum):
     - sprint:      Sprint boundary — checkpoint and report
     - incident:    Error-triggered handoff to incident handler
     """
+
     STANDARD = "standard"
     QA_PASS = "qa_pass"
     QA_FAIL = "qa_fail"
@@ -50,6 +53,7 @@ class HandoffType(StrEnum):
 
 class AgentStatus(StrEnum):
     """Runtime status of an agent instance."""
+
     IDLE = "idle"
     RUNNING = "running"
     PAUSED = "paused"
@@ -60,6 +64,7 @@ class AgentStatus(StrEnum):
 # Dataclasses — lightweight value objects
 # ---------------------------------------------------------------------------
 
+
 @dataclass(frozen=True)
 class HandoffData:
     """
@@ -68,6 +73,7 @@ class HandoffData:
     Carries context, artifacts, and metadata from one agent
     to the next in a pipeline or delegation chain.
     """
+
     source_agent: str
     target_agent: str
     handoff_type: HandoffType
@@ -104,6 +110,7 @@ class PipelineStage:
     Stages are executed sequentially. Each stage specifies which agent
     handles it, what handoff type leads in, and optional guardrails.
     """
+
     name: str
     agent_key: str
     description: str = ""
@@ -118,8 +125,10 @@ class PipelineStage:
 # Pydantic model — V2 YAML agent configuration
 # ---------------------------------------------------------------------------
 
+
 class GuardrailConfig(BaseModel):
     """A single guardrail rule for an agent."""
+
     name: str
     description: str = ""
     enforcement: str = Field(
@@ -139,6 +148,7 @@ class AgentConfig(BaseModel):
 
     V1 .md agents remain fully supported — this model is for V2 only.
     """
+
     # Identity
     name: str
     key: str
@@ -207,6 +217,7 @@ class AgentConfig(BaseModel):
 # ---------------------------------------------------------------------------
 # Protocol — runtime interface for agent implementations
 # ---------------------------------------------------------------------------
+
 
 @runtime_checkable
 class BaseAgent(Protocol):

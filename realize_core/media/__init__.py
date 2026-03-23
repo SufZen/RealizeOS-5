@@ -7,6 +7,7 @@ Supports:
 - Media ingestion (download from channel, process, store)
 - Media generation routing (images, video, audio)
 """
+
 import logging
 import os
 from dataclasses import dataclass, field
@@ -18,6 +19,7 @@ logger = logging.getLogger(__name__)
 
 class MediaType(Enum):
     """Supported media types."""
+
     IMAGE = "image"
     AUDIO = "audio"
     VIDEO = "video"
@@ -28,10 +30,11 @@ class MediaType(Enum):
 @dataclass
 class MediaAttachment:
     """A media attachment from any channel."""
+
     media_type: MediaType
     mime_type: str = ""
     data: bytes = b""
-    url: str = ""                       # Remote URL (for download)
+    url: str = ""  # Remote URL (for download)
     file_name: str = ""
     file_size: int = 0
     channel: str = ""
@@ -49,8 +52,9 @@ class MediaAttachment:
 @dataclass
 class MediaResult:
     """Result of processing a media attachment."""
+
     success: bool
-    output: str                         # Human-readable output (transcription, description)
+    output: str  # Human-readable output (transcription, description)
     media_type: MediaType = MediaType.UNKNOWN
     data: Any = None
     error: str | None = None
@@ -110,6 +114,7 @@ async def analyze_image(
     try:
         # Try Gemini Vision first (free, high quality)
         from realize_core.llm.gemini_client import query_gemini
+
         response = await query_gemini(
             prompt=prompt,
             image_data=image_data,
@@ -124,6 +129,7 @@ async def analyze_image(
     try:
         # Fallback to Claude Vision
         from realize_core.llm.claude_client import query_claude
+
         response = await query_claude(
             prompt=prompt,
             image_data=image_data,
@@ -174,8 +180,12 @@ async def transcribe_audio(
 
             # Determine file extension from mime type
             ext_map = {
-                "audio/ogg": "ogg", "audio/mp3": "mp3", "audio/mpeg": "mp3",
-                "audio/wav": "wav", "audio/webm": "webm", "audio/m4a": "m4a",
+                "audio/ogg": "ogg",
+                "audio/mp3": "mp3",
+                "audio/mpeg": "mp3",
+                "audio/wav": "wav",
+                "audio/webm": "webm",
+                "audio/m4a": "m4a",
             }
             ext = ext_map.get(mime_type, "ogg")
 
@@ -192,9 +202,7 @@ async def transcribe_audio(
         except Exception as e:
             logger.warning(f"Whisper transcription failed: {e}")
 
-    return MediaResult.fail(
-        "Audio transcription requires OPENAI_API_KEY for Whisper API"
-    )
+    return MediaResult.fail("Audio transcription requires OPENAI_API_KEY for Whisper API")
 
 
 # ---------------------------------------------------------------------------
@@ -238,10 +246,7 @@ async def process_attachment(
 
     if media_type == MediaType.VIDEO:
         # Video: extract first frame for vision, or return guidance
-        return MediaResult.fail(
-            "Video processing not yet implemented. "
-            "Tip: Extract key frames and send as images."
-        )
+        return MediaResult.fail("Video processing not yet implemented. Tip: Extract key frames and send as images.")
 
     if media_type == MediaType.DOCUMENT:
         # Documents: extract text
@@ -265,8 +270,7 @@ async def _process_document(attachment: MediaAttachment) -> MediaResult:
         pass
 
     return MediaResult.fail(
-        f"Cannot read document '{attachment.file_name}'. "
-        "Binary formats (PDF, DOCX) require additional dependencies."
+        f"Cannot read document '{attachment.file_name}'. Binary formats (PDF, DOCX) require additional dependencies."
     )
 
 
@@ -296,28 +300,24 @@ async def route_media_generation(
         api_key = os.environ.get("OPENAI_API_KEY", "")
         if api_key:
             return MediaResult.ok(
-                f"Image generation ready. Prompt: '{prompt[:100]}'. "
-                f"Use DALL-E 3 or Imagen via the routing engine.",
+                f"Image generation ready. Prompt: '{prompt[:100]}'. Use DALL-E 3 or Imagen via the routing engine.",
                 MediaType.IMAGE,
                 provider="openai",
                 action="generate",
             )
 
         return MediaResult.fail(
-            "Image generation requires OPENAI_API_KEY (for DALL-E) "
-            "or Google Cloud credentials (for Imagen)."
+            "Image generation requires OPENAI_API_KEY (for DALL-E) or Google Cloud credentials (for Imagen)."
         )
 
     if media_type == MediaType.AUDIO:
         return MediaResult.fail(
-            "Audio generation (TTS) is planned but not yet implemented. "
-            "Consider using ElevenLabs or Google Cloud TTS."
+            "Audio generation (TTS) is planned but not yet implemented. Consider using ElevenLabs or Google Cloud TTS."
         )
 
     if media_type == MediaType.VIDEO:
         return MediaResult.fail(
-            "Video generation is planned but not yet implemented. "
-            "Consider using Google Veo or Runway when available."
+            "Video generation is planned but not yet implemented. Consider using Google Veo or Runway when available."
         )
 
     return MediaResult.fail(f"Cannot generate media of type: {media_type.value}")

@@ -6,6 +6,7 @@ Extends the original classify_task() with support for:
 - Modality detection for routing to specialized providers
 - Confidence scoring for classification
 """
+
 import logging
 from dataclasses import dataclass
 from enum import Enum
@@ -15,6 +16,7 @@ logger = logging.getLogger(__name__)
 
 class Modality(Enum):
     """Output modality that a task requires."""
+
     TEXT = "text"
     CODE = "code"
     IMAGE_GEN = "image_gen"
@@ -29,11 +31,12 @@ class Modality(Enum):
 @dataclass
 class TaskClassification:
     """Result of classifying a user's message."""
-    task_type: str           # Legacy task type for backward compat
-    modality: Modality       # Primary output modality
-    tier: int                # Recommended model tier (1=cheap, 2=mid, 3=premium)
-    confidence: float        # 0.0 to 1.0 classification confidence
-    requires_tools: bool     # Whether the task needs tool calling
+
+    task_type: str  # Legacy task type for backward compat
+    modality: Modality  # Primary output modality
+    tier: int  # Recommended model tier (1=cheap, 2=mid, 3=premium)
+    confidence: float  # 0.0 to 1.0 classification confidence
+    requires_tools: bool  # Whether the task needs tool calling
     secondary_modality: Modality | None = None  # Optional second modality
 
     @property
@@ -43,43 +46,96 @@ class TaskClassification:
 
 # Extended keyword sets for multi-modal classification
 IMAGE_GEN_KEYWORDS = {
-    "generate image", "create image", "draw", "design a logo",
-    "create a graphic", "generate a picture", "make an image",
-    "illustration", "visual design", "mockup", "wireframe",
-    "generate art", "create art", "image of",
+    "generate image",
+    "create image",
+    "draw",
+    "design a logo",
+    "create a graphic",
+    "generate a picture",
+    "make an image",
+    "illustration",
+    "visual design",
+    "mockup",
+    "wireframe",
+    "generate art",
+    "create art",
+    "image of",
 }
 
 VIDEO_GEN_KEYWORDS = {
-    "generate video", "create video", "make a video",
-    "video clip", "animate", "animation", "render video",
-    "video content", "produce video",
+    "generate video",
+    "create video",
+    "make a video",
+    "video clip",
+    "animate",
+    "animation",
+    "render video",
+    "video content",
+    "produce video",
 }
 
 AUDIO_KEYWORDS = {
-    "generate audio", "text to speech", "voice over",
-    "create music", "sound effect", "podcast",
-    "audio file", "narration", "voice",
+    "generate audio",
+    "text to speech",
+    "voice over",
+    "create music",
+    "sound effect",
+    "podcast",
+    "audio file",
+    "narration",
+    "voice",
 }
 
 CODE_KEYWORDS = {
-    "write code", "code", "function", "class", "debug",
-    "script", "program", "algorithm", "api", "endpoint",
-    "refactor", "implement", "unit test", "test case",
-    "python", "javascript", "typescript", "sql",
-    "fix the bug", "pull request", "code review",
+    "write code",
+    "code",
+    "function",
+    "class",
+    "debug",
+    "script",
+    "program",
+    "algorithm",
+    "api",
+    "endpoint",
+    "refactor",
+    "implement",
+    "unit test",
+    "test case",
+    "python",
+    "javascript",
+    "typescript",
+    "sql",
+    "fix the bug",
+    "pull request",
+    "code review",
 }
 
 SPREADSHEET_KEYWORDS = {
-    "spreadsheet", "excel", "csv", "table",
-    "pivot table", "chart", "graph", "data visualization",
-    "calculate", "formula", "financial model",
-    "projection", "forecast",
+    "spreadsheet",
+    "excel",
+    "csv",
+    "table",
+    "pivot table",
+    "chart",
+    "graph",
+    "data visualization",
+    "calculate",
+    "formula",
+    "financial model",
+    "projection",
+    "forecast",
 }
 
 VISION_KEYWORDS = {
-    "look at this image", "analyze this image", "describe this photo",
-    "what's in this picture", "screenshot", "scan this",
-    "read this document", "ocr", "extract from image",
+    "look at this image",
+    "analyze this image",
+    "describe this photo",
+    "what's in this picture",
+    "screenshot",
+    "scan this",
+    "read this document",
+    "ocr",
+    "extract from image",
 }
 
 # Import the legacy keyword sets from router for backward compat
@@ -99,6 +155,7 @@ def _get_legacy_keywords():
             WEB_ACTION_KEYWORDS,
             WEB_RESEARCH_KEYWORDS,
         )
+
         _LEGACY_KEYWORD_SETS = {
             "complex": COMPLEX_KEYWORDS,
             "financial": FINANCIAL_KEYWORDS,

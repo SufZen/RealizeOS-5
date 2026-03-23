@@ -1,6 +1,7 @@
 """
 Systems API routes: CRUD for system configurations, agents, and skills.
 """
+
 import logging
 
 from fastapi import APIRouter, HTTPException, Request
@@ -15,12 +16,14 @@ async def list_systems(request: Request):
     systems = request.app.state.systems
     result = []
     for key, config in systems.items():
-        result.append({
-            "key": key,
-            "name": config.get("name", key),
-            "agents": list(config.get("agents", {}).keys()),
-            "routing": {k: v for k, v in config.get("routing", {}).items()},
-        })
+        result.append(
+            {
+                "key": key,
+                "name": config.get("name", key),
+                "agents": list(config.get("agents", {}).keys()),
+                "routing": {k: v for k, v in config.get("routing", {}).items()},
+            }
+        )
     return {"systems": result}
 
 
@@ -61,12 +64,12 @@ async def list_skills(system_key: str, request: Request):
     """List available skills for a system."""
     try:
         from realize_core.skills.detector import get_skills_for_system
+
         skills = get_skills_for_system(system_key)
         return {
             "system_key": system_key,
             "skills": [
-                {"name": s.get("name", ""), "triggers": s.get("triggers", []),
-                 "version": s.get("_version", 1)}
+                {"name": s.get("name", ""), "triggers": s.get("triggers", []), "version": s.get("_version", 1)}
                 for s in skills
             ],
         }
@@ -78,12 +81,14 @@ async def list_skills(system_key: str, request: Request):
 async def get_session(system_key: str, user_id: str):
     """Get the active creative session for a user."""
     from realize_core.pipeline.session import get_session as _get
+
     session = _get(system_key, user_id)
     if not session:
         return {"session": None}
     return {
         "session": {
-            "id": session.id, "stage": session.stage,
+            "id": session.id,
+            "stage": session.stage,
             "active_agent": session.active_agent,
             "task_type": session.task_type,
             "pipeline": session.pipeline,

@@ -15,6 +15,7 @@ from realize_core.agents.guardrails import (
 # Verdict parsing
 # ---------------------------------------------------------------------------
 
+
 class TestParseVerdict:
     """Test PASS/FAIL parsing from free-text agent output."""
 
@@ -88,6 +89,7 @@ class TestParseVerdict:
 # Guardrail checking
 # ---------------------------------------------------------------------------
 
+
 class TestCheckGuardrails:
     """Test guardrail violation detection."""
 
@@ -160,9 +162,11 @@ class TestCheckGuardrails:
 # Violation helpers
 # ---------------------------------------------------------------------------
 
+
 class TestViolationHelpers:
     def test_has_strict_violations(self):
         from realize_core.agents.guardrails import GuardrailViolation
+
         violations = [
             GuardrailViolation("r1", "d1", "strict"),
             GuardrailViolation("r2", "d2", "advisory"),
@@ -171,6 +175,7 @@ class TestViolationHelpers:
 
     def test_no_strict_violations(self):
         from realize_core.agents.guardrails import GuardrailViolation
+
         violations = [
             GuardrailViolation("r1", "d1", "advisory"),
         ]
@@ -178,6 +183,7 @@ class TestViolationHelpers:
 
     def test_has_advisory_violations(self):
         from realize_core.agents.guardrails import GuardrailViolation
+
         violations = [
             GuardrailViolation("r1", "d1", "advisory"),
         ]

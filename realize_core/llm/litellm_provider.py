@@ -11,6 +11,7 @@ Key features:
 - Calculates cost using LiteLLM's built-in cost tracker
 - Feature-gated: only active when `litellm` is installed
 """
+
 import logging
 
 from realize_core.llm.base_provider import (
@@ -26,44 +27,84 @@ logger = logging.getLogger(__name__)
 # Each entry: (litellm_model_id, display_name, tier, capabilities, input_cost_m, output_cost_m, max_tokens, ctx_window)
 _DEFAULT_LITELLM_MODELS: list[tuple[str, str, int, set[Capability], float, float, int, int]] = [
     (
-        "gpt-4o", "GPT-4o", 2,
+        "gpt-4o",
+        "GPT-4o",
+        2,
         {Capability.TEXT, Capability.VISION, Capability.TOOLS},
-        2.50, 10.00, 16384, 128000,
+        2.50,
+        10.00,
+        16384,
+        128000,
     ),
     (
-        "gpt-4o-mini", "GPT-4o Mini", 1,
+        "gpt-4o-mini",
+        "GPT-4o Mini",
+        1,
         {Capability.TEXT, Capability.VISION, Capability.TOOLS},
-        0.15, 0.60, 16384, 128000,
+        0.15,
+        0.60,
+        16384,
+        128000,
     ),
     (
-        "o3-mini", "o3-mini", 2,
+        "o3-mini",
+        "o3-mini",
+        2,
         {Capability.TEXT, Capability.CODE},
-        1.10, 4.40, 100000, 200000,
+        1.10,
+        4.40,
+        100000,
+        200000,
     ),
     (
-        "mistral/mistral-large-latest", "Mistral Large", 2,
+        "mistral/mistral-large-latest",
+        "Mistral Large",
+        2,
         {Capability.TEXT, Capability.TOOLS},
-        2.00, 6.00, 8192, 128000,
+        2.00,
+        6.00,
+        8192,
+        128000,
     ),
     (
-        "mistral/mistral-small-latest", "Mistral Small", 1,
+        "mistral/mistral-small-latest",
+        "Mistral Small",
+        1,
         {Capability.TEXT},
-        0.10, 0.30, 8192, 32000,
+        0.10,
+        0.30,
+        8192,
+        32000,
     ),
     (
-        "together_ai/meta-llama/Llama-3.3-70B-Instruct-Turbo", "Llama 3.3 70B", 1,
+        "together_ai/meta-llama/Llama-3.3-70B-Instruct-Turbo",
+        "Llama 3.3 70B",
+        1,
         {Capability.TEXT, Capability.CODE},
-        0.88, 0.88, 8192, 128000,
+        0.88,
+        0.88,
+        8192,
+        128000,
     ),
     (
-        "deepseek/deepseek-chat", "DeepSeek V3", 1,
+        "deepseek/deepseek-chat",
+        "DeepSeek V3",
+        1,
         {Capability.TEXT, Capability.CODE},
-        0.27, 1.10, 8192, 128000,
+        0.27,
+        1.10,
+        8192,
+        128000,
     ),
     (
-        "cohere/command-r-plus", "Cohere Command R+", 2,
+        "cohere/command-r-plus",
+        "Cohere Command R+",
+        2,
         {Capability.TEXT, Capability.TOOLS},
-        2.50, 10.00, 4096, 128000,
+        2.50,
+        10.00,
+        4096,
+        128000,
     ),
 ]
 
@@ -112,6 +153,7 @@ class LiteLLMProvider(BaseLLMProvider):
         """Lazy-load the litellm module."""
         if self._litellm is None:
             import litellm
+
             # Suppress litellm's verbose logging by default
             litellm.suppress_debug_info = True
             self._litellm = litellm
@@ -121,6 +163,7 @@ class LiteLLMProvider(BaseLLMProvider):
         """Check if litellm is installed."""
         try:
             import litellm  # noqa: F401
+
             return True
         except ImportError:
             return False
@@ -135,16 +178,18 @@ class LiteLLMProvider(BaseLLMProvider):
         for model_id, display, tier, caps, in_cost, out_cost, max_tok, ctx in _DEFAULT_LITELLM_MODELS:
             if self._enabled_models and model_id not in self._enabled_models:
                 continue
-            models.append(ModelInfo(
-                model_id=model_id,
-                display_name=f"{display} (LiteLLM)",
-                tier=tier,
-                capabilities=caps,
-                input_cost_per_m=in_cost,
-                output_cost_per_m=out_cost,
-                max_tokens=max_tok,
-                context_window=ctx,
-            ))
+            models.append(
+                ModelInfo(
+                    model_id=model_id,
+                    display_name=f"{display} (LiteLLM)",
+                    tier=tier,
+                    capabilities=caps,
+                    input_cost_per_m=in_cost,
+                    output_cost_per_m=out_cost,
+                    max_tokens=max_tok,
+                    context_window=ctx,
+                )
+            )
         return models
 
     async def complete(
@@ -291,18 +336,20 @@ class LiteLLMProvider(BaseLLMProvider):
 
         # Last user message gets the image
         last_text = messages[-1]["content"] if messages else "Describe this image."
-        openai_messages.append({
-            "role": "user",
-            "content": [
-                {"type": "text", "text": last_text},
-                {
-                    "type": "image_url",
-                    "image_url": {
-                        "url": f"data:{media_type};base64,{b64_image}",
+        openai_messages.append(
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": last_text},
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:{media_type};base64,{b64_image}",
+                        },
                     },
-                },
-            ],
-        })
+                ],
+            }
+        )
 
         try:
             response = await litellm.acompletion(
@@ -352,9 +399,8 @@ class LiteLLMProvider(BaseLLMProvider):
         # Fallback: use our local pricing data
         for m_info in self.list_models():
             if m_info.model_id == model:
-                return (
-                    (input_tokens * m_info.input_cost_per_m / 1_000_000)
-                    + (output_tokens * m_info.output_cost_per_m / 1_000_000)
+                return (input_tokens * m_info.input_cost_per_m / 1_000_000) + (
+                    output_tokens * m_info.output_cost_per_m / 1_000_000
                 )
 
         return 0.0

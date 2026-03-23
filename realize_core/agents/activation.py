@@ -10,6 +10,7 @@ incorporating:
 - Communication style
 - Pipeline context (current stage, upstream results)
 """
+
 from __future__ import annotations
 
 import logging
@@ -104,6 +105,7 @@ def build_activation_prompt(
 # Section builders
 # ---------------------------------------------------------------------------
 
+
 def _build_identity_section(agent: V2AgentDef, venture_name: str) -> str:
     """Build the agent identity section."""
     parts = [f"# Agent: {agent.name}"]
@@ -159,10 +161,7 @@ def _build_handoff_section(handoff: HandoffData) -> str:
         f"**Type:** {handoff.handoff_type.value}",
     ]
     if handoff.retry_count > 0:
-        lines.append(
-            f"**Retry:** {handoff.retry_count}/{handoff.max_retries} "
-            "(previous attempt was rejected)"
-        )
+        lines.append(f"**Retry:** {handoff.retry_count}/{handoff.max_retries} (previous attempt was rejected)")
     if handoff.context:
         lines.append("**Context:**")
         for k, v in handoff.context.items():
@@ -178,10 +177,7 @@ def _build_pipeline_section(context: dict[str, Any]) -> str:
     if "stage_name" in context:
         lines.append(f"**Current stage:** {context['stage_name']}")
     if "stage_index" in context and "total_stages" in context:
-        lines.append(
-            f"**Progress:** Stage {context['stage_index'] + 1} "
-            f"of {context['total_stages']}"
-        )
+        lines.append(f"**Progress:** Stage {context['stage_index'] + 1} of {context['total_stages']}")
     if "previous_output" in context:
         prev = context["previous_output"]
         if len(prev) > 500:
@@ -200,13 +196,9 @@ def _style_instruction(style: str) -> str:
         ),
         "casual": "Be conversational and approachable. Use plain language.",
         "analytical": (
-            "Be data-driven and precise. Support claims with evidence. "
-            "Use structured formats (tables, numbered lists)."
+            "Be data-driven and precise. Support claims with evidence. Use structured formats (tables, numbered lists)."
         ),
-        "adaptive": (
-            "Match the user's tone and formality level. "
-            "Default to professional if unsure."
-        ),
+        "adaptive": ("Match the user's tone and formality level. Default to professional if unsure."),
         "direct": "Be concise and direct. Lead with actionable feedback.",
     }
     return styles.get(style, styles["professional"])

@@ -7,6 +7,7 @@ Supports auto-detection of format based on file extension:
 
 Both formats return type-safe Pydantic model instances.
 """
+
 from __future__ import annotations
 
 import logging
@@ -25,6 +26,7 @@ AgentDef = V1AgentDef | V2AgentDef
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
+
 
 def load_agent(path: Path | str) -> AgentDef:
     """
@@ -50,10 +52,7 @@ def load_agent(path: Path | str) -> AgentDef:
     elif suffix in (".yaml", ".yml"):
         return _load_v2(path)
     else:
-        raise ValueError(
-            f"Unsupported agent file type '{suffix}' for {path}. "
-            "Expected .md (V1) or .yaml/.yml (V2)."
-        )
+        raise ValueError(f"Unsupported agent file type '{suffix}' for {path}. Expected .md (V1) or .yaml/.yml (V2).")
 
 
 def load_agents_from_directory(directory: Path | str) -> list[AgentDef]:
@@ -172,6 +171,7 @@ def _extract_list(text: str) -> list[str]:
 # V2 Loader (YAML)
 # ---------------------------------------------------------------------------
 
+
 def _load_v2(path: Path) -> V2AgentDef:
     """Parse a V2 YAML agent file into a V2AgentDef."""
     content = path.read_text(encoding="utf-8")
@@ -182,9 +182,7 @@ def _load_v2(path: Path) -> V2AgentDef:
         raise ValueError(f"Invalid YAML in agent file {path}: {exc}") from exc
 
     if not isinstance(data, dict):
-        raise ValueError(
-            f"Agent YAML must be a mapping, got {type(data).__name__} in {path}"
-        )
+        raise ValueError(f"Agent YAML must be a mapping, got {type(data).__name__} in {path}")
 
     # Derive key from filename if not specified
     if "key" not in data:

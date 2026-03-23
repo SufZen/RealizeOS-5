@@ -1,4 +1,5 @@
 """Tests for realize_core.security — RBAC, audit log, injection protection, vault."""
+
 import os
 import tempfile
 
@@ -107,10 +108,13 @@ class TestUserManager:
 
     def test_get_user_by_channel(self):
         mgr = UserManager()
-        mgr.register_user(UserProfile(
-            user_id="u1", display_name="Test",
-            channel_ids={"telegram": "123"},
-        ))
+        mgr.register_user(
+            UserProfile(
+                user_id="u1",
+                display_name="Test",
+                channel_ids={"telegram": "123"},
+            )
+        )
         user = mgr.get_user_by_channel("telegram", "123")
         assert user is not None
         assert user.user_id == "u1"
@@ -325,6 +329,7 @@ class TestSecretVault:
 class TestSingletons:
     def test_user_manager_singleton(self):
         import realize_core.security as mod
+
         mod._user_manager = None
         m1 = get_user_manager()
         m2 = get_user_manager()
@@ -333,6 +338,7 @@ class TestSingletons:
 
     def test_audit_log_singleton(self):
         import realize_core.security as mod
+
         mod._audit_log = None
         a1 = get_audit_log()
         a2 = get_audit_log()
@@ -341,6 +347,7 @@ class TestSingletons:
 
     def test_vault_singleton(self):
         import realize_core.security as mod
+
         mod._vault = None
         v1 = get_vault()
         v2 = get_vault()

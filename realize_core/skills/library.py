@@ -5,6 +5,7 @@ Ships 18 built-in skill templates organized by category.
 Users can browse, preview, and install skills to their ventures
 via the dashboard.
 """
+
 import logging
 from pathlib import Path
 
@@ -393,6 +394,7 @@ pipeline:
 def get_library() -> list[dict]:
     """Get all skill templates from the library with parsed metadata."""
     import yaml as _yaml
+
     results = []
     for s in SKILL_TEMPLATES:
         # Parse triggers and task_type from the embedded YAML
@@ -408,16 +410,18 @@ def get_library() -> list[dict]:
                 steps = len(step_list)
         except Exception:
             pass
-        results.append({
-            "id": s["id"],
-            "name": s["name"],
-            "category": s["category"],
-            "description": s["description"],
-            "version": s["version"],
-            "task_type": task_type,
-            "triggers": triggers,
-            "steps": steps,
-        })
+        results.append(
+            {
+                "id": s["id"],
+                "name": s["name"],
+                "category": s["category"],
+                "description": s["description"],
+                "version": s["version"],
+                "task_type": task_type,
+                "triggers": triggers,
+                "steps": steps,
+            }
+        )
     return results
 
 
@@ -468,6 +472,7 @@ def install_skill(skill_id: str, kb_path: Path, system_config: dict) -> dict:
     # Trigger skill reload
     try:
         from realize_core.skills.detector import reload_skills
+
         reload_skills(kb_path=str(kb_path))
     except Exception:
         pass

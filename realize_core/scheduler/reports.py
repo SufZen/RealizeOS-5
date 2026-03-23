@@ -5,6 +5,7 @@ These are pre-built scheduled jobs that aggregate data across the system
 and produce summaries. They can be triggered by cron schedules or on-demand
 via the dashboard.
 """
+
 import logging
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -38,12 +39,14 @@ async def generate_morning_briefing(
     if features.get("approval_gates"):
         try:
             from realize_core.governance.gates import get_pending_approvals
+
             pending = get_pending_approvals()
             if pending:
                 sections.append(f"## Pending Approvals ({len(pending)})")
                 for p in pending[:5]:
-                    sections.append(f"- **{p.get('action', 'unknown')}** by {p.get('actor_id', '?')} "
-                                   f"in {p.get('venture_key', '?')}")
+                    sections.append(
+                        f"- **{p.get('action', 'unknown')}** by {p.get('actor_id', '?')} in {p.get('venture_key', '?')}"
+                    )
             else:
                 sections.append("## Approvals\nNo pending approvals.")
         except Exception:
@@ -53,6 +56,7 @@ async def generate_morning_briefing(
     if features.get("activity_log"):
         try:
             from realize_core.activity.store import count_events
+
             yesterday = (now - timedelta(hours=24)).isoformat()
             total = count_events(since=yesterday)
             sections.append(f"## Activity (last 24h)\n{total} events recorded.")
@@ -69,6 +73,7 @@ async def generate_morning_briefing(
     if features.get("agent_lifecycle"):
         try:
             from realize_core.db.schema import get_connection
+
             conn = get_connection()
             rows = conn.execute(
                 "SELECT venture_key, status, COUNT(*) as cnt FROM agent_states GROUP BY venture_key, status"
@@ -123,6 +128,7 @@ async def generate_weekly_review(
     if features.get("activity_log"):
         try:
             from realize_core.activity.store import count_events, query_events
+
             total = count_events(since=week_ago)
             sections.append(f"## Activity Summary\n{total} total events this week.")
 
@@ -134,6 +140,7 @@ async def generate_weekly_review(
             # Top actions
             events = query_events(limit=200)
             from collections import Counter
+
             action_counts = Counter(e.get("action", "unknown") for e in events)
             if action_counts:
                 sections.append("\n### Top Actions")
@@ -146,6 +153,7 @@ async def generate_weekly_review(
     if features.get("approval_gates"):
         try:
             from realize_core.db.schema import get_connection
+
             conn = get_connection()
             approved = conn.execute(
                 "SELECT COUNT(*) FROM approval_queue WHERE status = 'approved' AND updated_at > ?",
@@ -182,6 +190,7 @@ async def generate_daily_log(
     if features.get("activity_log"):
         try:
             from realize_core.activity.store import query_events
+
             events = query_events(limit=100)
             sections.append(f"Total events: {len(events)}")
 

@@ -7,6 +7,7 @@ Runs as a scheduled job to:
 3. Generate improvement suggestions -> feeds into evolution inbox
 4. Track performance trends over time
 """
+
 import logging
 from datetime import UTC, datetime, timedelta
 
@@ -43,38 +44,46 @@ async def run_nightly_evaluation(
     if features.get("activity_log"):
         try:
             from realize_core.activity.store import query_events
+
             events = query_events(limit=200)
             results["total_events"] = len(events)
         except Exception as e:
             logger.warning(f"Failed to load events: {e}")
 
     # 2. Analyze error events
-    error_events = [e for e in events if e.get("action", "").endswith("_error") or "error" in e.get("details", "").lower()]
+    error_events = [
+        e for e in events if e.get("action", "").endswith("_error") or "error" in e.get("details", "").lower()
+    ]
     results["errors_found"] = len(error_events)
 
     if error_events:
-        results["suggestions"].append({
-            "type": "error_pattern",
-            "priority": "high",
-            "title": f"{len(error_events)} errors detected today",
-            "description": _summarize_errors(error_events),
-            "source": "nightly_review",
-        })
+        results["suggestions"].append(
+            {
+                "type": "error_pattern",
+                "priority": "high",
+                "title": f"{len(error_events)} errors detected today",
+                "description": _summarize_errors(error_events),
+                "source": "nightly_review",
+            }
+        )
 
     # 3. Detect repeated unanswered patterns
     from collections import Counter
+
     action_counts = Counter(e.get("action", "") for e in events)
 
     # Check for high skill_not_found rates
     skill_misses = action_counts.get("skill_not_found", 0)
     if skill_misses >= 3:
-        results["suggestions"].append({
-            "type": "skill_gap",
-            "priority": "medium",
-            "title": f"Skill not found {skill_misses} times",
-            "description": "Users are requesting capabilities that don't match existing skills. Consider creating new skills for these patterns.",
-            "source": "nightly_review",
-        })
+        results["suggestions"].append(
+            {
+                "type": "skill_gap",
+                "priority": "medium",
+                "title": f"Skill not found {skill_misses} times",
+                "description": "Users are requesting capabilities that don't match existing skills. Consider creating new skills for these patterns.",
+                "source": "nightly_review",
+            }
+        )
 
     # 4. Check agent utilization imbalance
     agent_actions = Counter(e.get("actor_id", "") for e in events if e.get("actor_type") == "agent")
@@ -82,13 +91,15 @@ async def run_nightly_evaluation(
         most_used = agent_actions.most_common(1)[0]
         total_agent_events = sum(agent_actions.values())
         if most_used[1] > total_agent_events * 0.7 and len(agent_actions) > 2:
-            results["suggestions"].append({
-                "type": "routing_imbalance",
-                "priority": "low",
-                "title": f"Agent '{most_used[0]}' handles {most_used[1]}/{total_agent_events} events",
-                "description": "One agent is handling most of the work. Consider improving routing rules to better distribute tasks.",
-                "source": "nightly_review",
-            })
+            results["suggestions"].append(
+                {
+                    "type": "routing_imbalance",
+                    "priority": "low",
+                    "title": f"Agent '{most_used[0]}' handles {most_used[1]}/{total_agent_events} events",
+                    "description": "One agent is handling most of the work. Consider improving routing rules to better distribute tasks.",
+                    "source": "nightly_review",
+                }
+            )
 
     # 5. Check LLM usage patterns
     llm_events = [e for e in events if e.get("action") == "llm_called"]
@@ -110,14 +121,17 @@ async def run_nightly_evaluation(
     if results["suggestions"]:
         try:
             from realize_core.evolution.gap_detector import _store_suggestions
+
             formatted = []
             for s in results["suggestions"]:
-                formatted.append({
-                    "type": s["type"],
-                    "priority": s["priority"],
-                    "description": f"{s['title']}: {s['description']}",
-                    "source": "nightly_review",
-                })
+                formatted.append(
+                    {
+                        "type": s["type"],
+                        "priority": s["priority"],
+                        "description": f"{s['title']}: {s['description']}",
+                        "source": "nightly_review",
+                    }
+                )
             _store_suggestions(formatted)
             logger.info(f"Nightly review: stored {len(formatted)} suggestions")
         except Exception as e:
@@ -129,6 +143,7 @@ async def run_nightly_evaluation(
 def _summarize_errors(error_events: list[dict]) -> str:
     """Create a human-readable error summary."""
     from collections import Counter
+
     error_actions = Counter(e.get("action", "unknown") for e in error_events)
     parts = [f"{action} ({count}x)" for action, count in error_actions.most_common(5)]
     return "Error types: " + ", ".join(parts)

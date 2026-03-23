@@ -4,6 +4,7 @@ Telegram channel adapter for RealizeOS.
 Wraps python-telegram-bot to receive and send messages via Telegram.
 This is an optional channel — requires TELEGRAM_BOT_TOKEN.
 """
+
 import logging
 
 from realize_core.channels.base import BaseChannel, IncomingMessage, OutgoingMessage
@@ -30,11 +31,7 @@ class TelegramChannel(BaseChannel):
         try:
             from telegram.ext import ApplicationBuilder, MessageHandler, filters
 
-            self._application = (
-                ApplicationBuilder()
-                .token(self.bot_token)
-                .build()
-            )
+            self._application = ApplicationBuilder().token(self.bot_token).build()
 
             # Register message handler
             self._application.add_handler(

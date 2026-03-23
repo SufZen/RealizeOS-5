@@ -5,6 +5,7 @@ Configure in .env:
   N8N_BASE_URL=https://your-n8n.example.com
   N8N_API_KEY=...
 """
+
 import logging
 import os
 
@@ -33,6 +34,7 @@ async def trigger_workflow(workflow_id: str, data: dict = None) -> dict:
 
     try:
         import httpx
+
         headers = {"Content-Type": "application/json"}
         if api_key:
             headers["Authorization"] = f"Bearer {api_key}"
@@ -61,6 +63,7 @@ async def list_workflows() -> dict:
 
     try:
         import httpx
+
         headers = {"Authorization": f"Bearer {api_key}"}
 
         async with httpx.AsyncClient(timeout=30) as client:

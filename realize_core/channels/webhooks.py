@@ -6,6 +6,7 @@ Supports:
 - Payload transformation to IncomingMessage
 - Routing webhooks through the engine as system messages
 """
+
 import hashlib
 import hmac
 import logging
@@ -22,11 +23,12 @@ logger = logging.getLogger(__name__)
 @dataclass
 class WebhookEndpoint:
     """A registered webhook endpoint."""
+
     name: str
     system_key: str
-    secret: str = ""                   # HMAC secret for signature verification
+    secret: str = ""  # HMAC secret for signature verification
     enabled: bool = True
-    message_template: str = ""         # Template for converting payload to message
+    message_template: str = ""  # Template for converting payload to message
     last_received: float = 0.0
     receive_count: int = 0
     metadata: dict[str, Any] = field(default_factory=dict)
@@ -36,9 +38,7 @@ class WebhookEndpoint:
         if not self.secret:
             return True  # No secret configured, skip verification
 
-        expected = hmac.new(
-            self.secret.encode(), body, hashlib.sha256
-        ).hexdigest()
+        expected = hmac.new(self.secret.encode(), body, hashlib.sha256).hexdigest()
 
         # Support both raw and prefixed signatures
         sig_clean = signature.replace("sha256=", "")
@@ -156,14 +156,16 @@ class WebhookChannel(BaseChannel):
             if isinstance(secret, str) and secret.startswith("${") and secret.endswith("}"):
                 secret = os.getenv(secret[2:-1], "")
 
-            self.register_endpoint(WebhookEndpoint(
-                name=name,
-                system_key=cfg.get("system_key", self.system_key),
-                secret=secret,
-                enabled=cfg.get("enabled", True),
-                message_template=cfg.get("message_template", ""),
-                metadata=cfg.get("metadata", {}),
-            ))
+            self.register_endpoint(
+                WebhookEndpoint(
+                    name=name,
+                    system_key=cfg.get("system_key", self.system_key),
+                    secret=secret,
+                    enabled=cfg.get("enabled", True),
+                    message_template=cfg.get("message_template", ""),
+                    metadata=cfg.get("metadata", {}),
+                )
+            )
 
     # -----------------------------------------------------------------------
     # Webhook processing

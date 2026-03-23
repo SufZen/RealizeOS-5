@@ -11,6 +11,7 @@ The system auto-detects schema version: if a skill has a 'steps' key, it's v2.
 SKILL.md files are identified by the ``_format: 'skill_md'`` key.
 Use reload_skills() to pick up new YAML / SKILL.md files without restart.
 """
+
 import logging
 from pathlib import Path
 
@@ -27,9 +28,14 @@ _DEFAULT_SKILLS: dict[str, list[dict]] = {
         {
             "name": "content_pipeline",
             "triggers": [
-                "write a post", "create content", "draft article",
-                "blog post", "newsletter", "social media post",
-                "write email", "write copy",
+                "write a post",
+                "create content",
+                "draft article",
+                "blog post",
+                "newsletter",
+                "social media post",
+                "write email",
+                "write copy",
             ],
             "pipeline": ["writer", "reviewer"],
             "task_type": "content",
@@ -38,8 +44,13 @@ _DEFAULT_SKILLS: dict[str, list[dict]] = {
         {
             "name": "research_workflow",
             "triggers": [
-                "research", "analyze", "compare", "investigate",
-                "market analysis", "competitive analysis", "due diligence",
+                "research",
+                "analyze",
+                "compare",
+                "investigate",
+                "market analysis",
+                "competitive analysis",
+                "due diligence",
             ],
             "pipeline": ["analyst"],
             "task_type": "research",
@@ -48,8 +59,11 @@ _DEFAULT_SKILLS: dict[str, list[dict]] = {
         {
             "name": "strategy_session",
             "triggers": [
-                "strategic analysis", "business model", "positioning",
-                "market opportunity", "growth strategy",
+                "strategic analysis",
+                "business model",
+                "positioning",
+                "market opportunity",
+                "growth strategy",
             ],
             "pipeline": ["analyst", "reviewer"],
             "task_type": "strategy",
@@ -137,9 +151,7 @@ def _load_md_skills(skills_dir) -> dict[str, list[dict]]:
         system_key = system_dir.name
         definitions = scan_skill_md_files(system_dir, recursive=True)
         if definitions:
-            skills_by_system.setdefault(system_key, []).extend(
-                defn.to_skill_dict() for defn in definitions
-            )
+            skills_by_system.setdefault(system_key, []).extend(defn.to_skill_dict() for defn in definitions)
 
     return skills_by_system
 
@@ -172,6 +184,7 @@ def load_skills(skills_dir=None, kb_path=None):
                 system_key = system_dir.parent.parent.name
                 try:
                     import yaml
+
                     for yaml_file in system_dir.glob("*.yaml"):
                         try:
                             with open(yaml_file) as f:
@@ -188,11 +201,10 @@ def load_skills(skills_dir=None, kb_path=None):
                 # V5: also scan for SKILL.md files in R-routines
                 try:
                     from realize_core.skills.md_loader import scan_skill_md_files
+
                     md_defs = scan_skill_md_files(system_dir, recursive=True)
                     for defn in md_defs:
-                        _loaded_skills.setdefault(system_key, []).append(
-                            defn.to_skill_dict()
-                        )
+                        _loaded_skills.setdefault(system_key, []).append(defn.to_skill_dict())
                 except ImportError:
                     pass
 
@@ -304,10 +316,7 @@ async def detect_skill_v2(
         # Find the skill dict that matches the key
         for s in candidates:
             if s.get("name") == result.skill_key:
-                logger.info(
-                    f"Semantic match: {result.skill_key} "
-                    f"(score={result.score:.2f}) for system={system_key}"
-                )
+                logger.info(f"Semantic match: {result.skill_key} (score={result.score:.2f}) for system={system_key}")
                 return s
 
     return None
@@ -316,6 +325,7 @@ async def detect_skill_v2(
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
+
 
 def _get_candidates(system_key: str | None) -> list[dict]:
     """Gather candidate skills for a given system key."""
@@ -327,9 +337,7 @@ def _get_candidates(system_key: str | None) -> list[dict]:
 
     # Fall back to defaults if no YAML/MD skills loaded for this system
     if not candidates:
-        candidates = _DEFAULT_SKILLS.get(
-            system_key, _DEFAULT_SKILLS.get("_default", [])
-        )
+        candidates = _DEFAULT_SKILLS.get(system_key, _DEFAULT_SKILLS.get("_default", []))
     return candidates
 
 

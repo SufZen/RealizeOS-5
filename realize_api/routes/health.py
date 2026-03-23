@@ -1,6 +1,7 @@
 """
 Health and status endpoints.
 """
+
 import logging
 import os
 
@@ -37,6 +38,7 @@ async def status(request: Request):
 
     try:
         from realize_core.tools.google_auth import get_credentials
+
         if get_credentials():
             tools_status["google_workspace"] = "authenticated"
         else:
@@ -47,6 +49,7 @@ async def status(request: Request):
     # MCP status
     try:
         from realize_core.tools.mcp import get_mcp_hub
+
         hub = get_mcp_hub()
         if hub.servers:
             connected = sum(1 for s in hub.servers.values() if s.connected)
@@ -58,6 +61,7 @@ async def status(request: Request):
     memory_status = {}
     try:
         from realize_core.utils.cost_tracker import get_usage_summary
+
         memory_status["llm_usage"] = get_usage_summary()
     except Exception:
         pass
@@ -65,8 +69,9 @@ async def status(request: Request):
     return {
         "status": "ok",
         "version": "0.1.0",
-        "systems": {k: {"name": v.get("name", k), "agents": list(v.get("agents", {}).keys())}
-                    for k, v in systems.items()},
+        "systems": {
+            k: {"name": v.get("name", k), "agents": list(v.get("agents", {}).keys())} for k, v in systems.items()
+        },
         "llm": llm_status,
         "tools": tools_status,
         "memory": memory_status,

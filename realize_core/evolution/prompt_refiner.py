@@ -5,6 +5,7 @@ When the gap detector finds low satisfaction or corrections, this module
 analyzes the pattern and suggests prompt improvements. Changes are tracked
 with version history for easy rollback.
 """
+
 import json
 import logging
 from datetime import datetime
@@ -135,6 +136,7 @@ async def apply_prompt_refinement(refinement: dict, kb_path: str = ".") -> str:
     _log_refinement(refinement, str(backup_path))
 
     from realize_core.prompt.builder import clear_cache
+
     clear_cache()
 
     return (
@@ -148,13 +150,19 @@ def _log_refinement(refinement: dict, backup_path: str):
     try:
         with _get_conn() as conn:
             now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            conn.execute("""
+            conn.execute(
+                """
                 INSERT INTO evolution_suggestions
                 (timestamp, suggestion_type, title, description, action_data, status)
                 VALUES (?, 'prompt_refinement', ?, ?, ?, 'applied')
-            """, (now, f"Prompt refined: {refinement.get('agent_key', '?')}",
-                  refinement.get("summary", "Prompt updated"),
-                  json.dumps({"backup": backup_path, **refinement})))
+            """,
+                (
+                    now,
+                    f"Prompt refined: {refinement.get('agent_key', '?')}",
+                    refinement.get("summary", "Prompt updated"),
+                    json.dumps({"backup": backup_path, **refinement}),
+                ),
+            )
     except Exception as e:
         logger.debug(f"Failed to log refinement: {e}")
 
@@ -168,6 +176,7 @@ def format_refinement_preview(refinement: dict) -> str:
 
     lines = [f"**Prompt Refinement: {system}/{agent}**", f"_{summary}_\n"]
     for i, change in enumerate(changes, 1):
-        lines.append(f"  {i}. [{change.get('type', '?')}] {change.get('reason', '')}\n"
-                     f"     `{change.get('content', '')[:100]}`")
+        lines.append(
+            f"  {i}. [{change.get('type', '?')}] {change.get('reason', '')}\n     `{change.get('content', '')[:100]}`"
+        )
     return "\n".join(lines)

@@ -5,6 +5,7 @@ Stores memories, conversations, sessions, episodes, and LLM usage as searchable 
 Schema: memories(id, system_key, category, content, tags, created_at)
 Categories: feedback | decision | learning | preference | entity
 """
+
 import json
 import logging
 import sqlite3
@@ -23,6 +24,7 @@ def _resolve_db_path() -> Path:
     global DB_PATH
     if DB_PATH is None:
         from realize_core.config import DATA_PATH
+
         DB_PATH = DATA_PATH / "memory.db"
     return DB_PATH
 
@@ -141,10 +143,8 @@ def store_memory(system_key: str, category: str, content: str, tags: list[str] =
     """Store a memory record."""
     with db_connection() as conn:
         conn.execute(
-            "INSERT INTO memories (system_key, category, content, tags, created_at) "
-            "VALUES (?, ?, ?, ?, ?)",
-            (system_key, category, content, json.dumps(tags or []),
-             datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
+            "INSERT INTO memories (system_key, category, content, tags, created_at) VALUES (?, ?, ?, ?, ?)",
+            (system_key, category, content, json.dumps(tags or []), datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
         )
 
 
@@ -159,8 +159,7 @@ def search_memories(query: str, system_key: str = None, limit: int = 5) -> list[
             ).fetchall()
         else:
             rows = conn.execute(
-                "SELECT m.* FROM memories m JOIN memories_fts f ON m.id = f.rowid "
-                "WHERE memories_fts MATCH ? LIMIT ?",
+                "SELECT m.* FROM memories m JOIN memories_fts f ON m.id = f.rowid WHERE memories_fts MATCH ? LIMIT ?",
                 (query, limit),
             ).fetchall()
     return [dict(r) for r in rows]
@@ -179,8 +178,7 @@ def log_llm_usage(
             conn.execute(
                 "INSERT INTO llm_usage (model, input_tokens, output_tokens, cost_usd, tenant_id, created_at) "
                 "VALUES (?, ?, ?, ?, ?, ?)",
-                (model, input_tokens, output_tokens, cost_usd, tenant_id,
-                 datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
+                (model, input_tokens, output_tokens, cost_usd, tenant_id, datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
             )
     except Exception as e:
         logger.debug(f"Failed to log LLM usage: {e}")

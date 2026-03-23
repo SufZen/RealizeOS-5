@@ -3,6 +3,7 @@ Gemini LLM Provider: Wraps the existing gemini_client module behind BaseLLMProvi
 
 Supports text and vision via Google's Gemini API.
 """
+
 import logging
 
 from realize_core.llm.base_provider import (
@@ -27,6 +28,7 @@ class GeminiProvider(BaseLLMProvider):
     def _get_models_config(self) -> dict:
         if self._MODELS is None:
             from realize_core.config import MODELS
+
             GeminiProvider._MODELS = MODELS
         return self._MODELS
 
@@ -50,6 +52,7 @@ class GeminiProvider(BaseLLMProvider):
             from google import genai  # noqa: F401
 
             from realize_core.config import GOOGLE_AI_API_KEY
+
             return bool(GOOGLE_AI_API_KEY)
         except ImportError:
             return False
@@ -76,12 +79,7 @@ class GeminiProvider(BaseLLMProvider):
             contents = []
             for msg in messages:
                 role = "user" if msg["role"] == "user" else "model"
-                contents.append(
-                    genai.types.Content(
-                        role=role,
-                        parts=[genai.types.Part(text=msg["content"])]
-                    )
-                )
+                contents.append(genai.types.Content(role=role, parts=[genai.types.Part(text=msg["content"])]))
 
             response = await client.aio.models.generate_content(
                 model=model,
@@ -102,6 +100,7 @@ class GeminiProvider(BaseLLMProvider):
             # Log usage
             try:
                 from realize_core.memory.store import log_llm_usage
+
                 log_llm_usage(model=model, input_tokens=input_tokens, output_tokens=output_tokens, cost_usd=cost)
             except Exception:
                 pass
@@ -120,7 +119,8 @@ class GeminiProvider(BaseLLMProvider):
             logger.error(f"Gemini API error: {e}", exc_info=True)
             return LLMResponse(
                 text="An error occurred processing your request. Please try again.",
-                model=model, provider=self.name,
+                model=model,
+                provider=self.name,
                 error=str(e),
             )
 

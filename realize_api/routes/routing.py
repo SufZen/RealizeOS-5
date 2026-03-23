@@ -8,6 +8,7 @@ Endpoints:
 - POST   /api/routing/test                    — test routing for a message
 - GET    /api/routing/agents/{agent_key}/stats — per-agent routing stats
 """
+
 import logging
 
 from fastapi import APIRouter, HTTPException, Request
@@ -24,8 +25,10 @@ _routing_analytics: list[dict] = []
 # Request/Response models
 # ---------------------------------------------------------------------------
 
+
 class UpdateRoutingBody(BaseModel):
     """Body for updating routing configuration."""
+
     system_key: str
     agent_routing: dict[str, list[str]] = Field(
         ...,
@@ -36,6 +39,7 @@ class UpdateRoutingBody(BaseModel):
 
 class TestRoutingBody(BaseModel):
     """Body for testing routing with a sample message."""
+
     message: str
     system_key: str
 
@@ -43,6 +47,7 @@ class TestRoutingBody(BaseModel):
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
+
 
 @router.get("/routing")
 async def get_routing_config(request: Request, system_key: str | None = None):
@@ -71,12 +76,14 @@ async def get_routing_config(request: Request, system_key: str | None = None):
     # Return routing for all systems
     routing_configs = []
     for key, conf in systems.items():
-        routing_configs.append({
-            "system_key": key,
-            "agent_routing": conf.get("agent_routing", {}),
-            "routing": conf.get("routing", {}),
-            "agents": list(conf.get("agents", {}).keys()),
-        })
+        routing_configs.append(
+            {
+                "system_key": key,
+                "agent_routing": conf.get("agent_routing", {}),
+                "routing": conf.get("routing", {}),
+                "agents": list(conf.get("agents", {}).keys()),
+            }
+        )
 
     return {"routing_configs": routing_configs, "total_systems": len(routing_configs)}
 
@@ -145,12 +152,14 @@ async def test_routing(body: TestRoutingBody, request: Request):
             scores[agent] = {"score": score, "matched_keywords": [kw for kw in keywords if kw in msg_lower]}
 
     # Track analytics
-    _routing_analytics.append({
-        "system_key": body.system_key,
-        "message_preview": body.message[:100],
-        "selected_agent": selected,
-        "scores": scores,
-    })
+    _routing_analytics.append(
+        {
+            "system_key": body.system_key,
+            "message_preview": body.message[:100],
+            "selected_agent": selected,
+            "scores": scores,
+        }
+    )
 
     return {
         "selected_agent": selected,
@@ -197,10 +206,7 @@ async def get_routing_analytics(
 @router.get("/routing/agents/{agent_key}/stats")
 async def get_agent_routing_stats(agent_key: str, request: Request):
     """Get routing stats for a specific agent."""
-    entries = [
-        e for e in _routing_analytics
-        if e.get("selected_agent") == agent_key
-    ]
+    entries = [e for e in _routing_analytics if e.get("selected_agent") == agent_key]
 
     # Most common matched keywords
     keyword_counts: dict[str, int] = {}

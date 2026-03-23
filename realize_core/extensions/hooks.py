@@ -27,6 +27,7 @@ Usage::
     # Fire event
     await hooks.emit("on_message", {"text": "hello", "user": "alice"})
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -48,8 +49,10 @@ logger = logging.getLogger(__name__)
 # Event types
 # ---------------------------------------------------------------------------
 
+
 class EventType(StrEnum):
     """Standard lifecycle events."""
+
     ON_MESSAGE = "on_message"
     ON_VENTURE_CHANGE = "on_venture_change"
     ON_AGENT_COMPLETE = "on_agent_complete"
@@ -62,13 +65,15 @@ class EventType(StrEnum):
 # Subscription record
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class HookSubscription:
     """A single subscription to an event."""
+
     event: str
     handler: Callable[..., Any]
     priority: int = 0  # lower = fires first
-    name: str = ""     # optional human label
+    name: str = ""  # optional human label
 
     def __post_init__(self) -> None:
         if not self.name:
@@ -92,6 +97,7 @@ HOOKS_MANIFEST = ExtensionManifest(
 # ---------------------------------------------------------------------------
 # HooksExtension
 # ---------------------------------------------------------------------------
+
 
 class HooksExtension:
     """
@@ -135,7 +141,8 @@ class HooksExtension:
         self._loaded = False
         self._emit_count = 0
         logger.info(
-            "HooksExtension unloaded (%d subscriptions cleared)", sub_count,
+            "HooksExtension unloaded (%d subscriptions cleared)",
+            sub_count,
         )
 
     # -- Public API ----------------------------------------------------
@@ -175,7 +182,9 @@ class HooksExtension:
 
         logger.debug(
             "Subscribed '%s' to event '%s' (priority=%d)",
-            sub.name, event, priority,
+            sub.name,
+            event,
+            priority,
         )
         return sub
 
@@ -238,7 +247,9 @@ class HooksExtension:
             except Exception as e:
                 logger.error(
                     "Error in hook handler '%s' for event '%s': %s",
-                    sub.name, event, e,
+                    sub.name,
+                    event,
+                    e,
                 )
                 results.append(None)
                 if fail_fast:
@@ -273,10 +284,7 @@ class HooksExtension:
             "events": len(self._subscriptions),
             "total_subscriptions": self.subscription_count,
             "emit_count": self._emit_count,
-            "by_event": {
-                event: len(subs)
-                for event, subs in self._subscriptions.items()
-            },
+            "by_event": {event: len(subs) for event, subs in self._subscriptions.items()},
         }
 
     # -- Internal ------------------------------------------------------

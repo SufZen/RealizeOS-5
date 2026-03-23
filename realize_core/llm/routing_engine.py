@@ -5,6 +5,7 @@ Loads provider capabilities from YAML, supports routing strategies
 (cost_optimized, quality_first, balanced, speed_first),
 fallback chains, and per-request cost tracking.
 """
+
 import logging
 import time
 from dataclasses import dataclass, field
@@ -25,6 +26,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ModelCapability:
     """Parsed model capability from YAML registry."""
+
     key: str
     display_name: str
     provider: str
@@ -45,6 +47,7 @@ class ModelCapability:
 @dataclass
 class RoutingDecision:
     """Result of the routing engine selecting a model."""
+
     model_key: str
     provider: str
     display_name: str
@@ -59,6 +62,7 @@ class RoutingDecision:
 @dataclass
 class CostRecord:
     """Tracks cost of a single LLM call."""
+
     model_key: str
     provider: str
     modality: str
@@ -172,17 +176,17 @@ class RoutingEngine:
 
         # Step 2: Find candidates that support the required modality
         candidates = [
-            m for m in self._models.values()
-            if m.supports_modality(modality_str)
-            and (available_providers is None or m.provider in available_providers)
+            m
+            for m in self._models.values()
+            if m.supports_modality(modality_str) and (available_providers is None or m.provider in available_providers)
         ]
 
         if not candidates:
             # Step 3: Fallback to any text-capable model
             candidates = [
-                m for m in self._models.values()
-                if m.supports_modality("text")
-                and (available_providers is None or m.provider in available_providers)
+                m
+                for m in self._models.values()
+                if m.supports_modality("text") and (available_providers is None or m.provider in available_providers)
             ]
 
         if not candidates:
@@ -191,10 +195,15 @@ class RoutingEngine:
             candidates = list(self._models.values())
             if not candidates:
                 return RoutingDecision(
-                    model_key="gemini_flash", provider="gemini",
-                    display_name="Gemini Flash (fallback)", task_type=classification.task_type,
-                    modality=modality_str, tier=1, strategy=strategy,
-                    fallback_chain=[], confidence=0.1,
+                    model_key="gemini_flash",
+                    provider="gemini",
+                    display_name="Gemini Flash (fallback)",
+                    task_type=classification.task_type,
+                    modality=modality_str,
+                    tier=1,
+                    strategy=strategy,
+                    fallback_chain=[],
+                    confidence=0.1,
                 )
 
         # Step 5: Sort by strategy
@@ -213,30 +222,42 @@ class RoutingEngine:
         self._strategies.get(strategy, {})
 
         if strategy == "cost_optimized":
-            return sorted(candidates, key=lambda m: (
-                m.cost_per_1k_input + m.cost_per_1k_output,
-                abs(m.tier - preferred_tier),
-                -_SPEED_ORDER.get(m.speed, 2),
-            ))
+            return sorted(
+                candidates,
+                key=lambda m: (
+                    m.cost_per_1k_input + m.cost_per_1k_output,
+                    abs(m.tier - preferred_tier),
+                    -_SPEED_ORDER.get(m.speed, 2),
+                ),
+            )
         elif strategy == "quality_first":
-            return sorted(candidates, key=lambda m: (
-                -_QUALITY_ORDER.get(m.quality, 2),
-                -m.tier,
-                -_SPEED_ORDER.get(m.speed, 2),
-            ))
+            return sorted(
+                candidates,
+                key=lambda m: (
+                    -_QUALITY_ORDER.get(m.quality, 2),
+                    -m.tier,
+                    -_SPEED_ORDER.get(m.speed, 2),
+                ),
+            )
         elif strategy == "speed_first":
-            return sorted(candidates, key=lambda m: (
-                -_SPEED_ORDER.get(m.speed, 2),
-                m.cost_per_1k_input + m.cost_per_1k_output,
-                -_QUALITY_ORDER.get(m.quality, 2),
-            ))
+            return sorted(
+                candidates,
+                key=lambda m: (
+                    -_SPEED_ORDER.get(m.speed, 2),
+                    m.cost_per_1k_input + m.cost_per_1k_output,
+                    -_QUALITY_ORDER.get(m.quality, 2),
+                ),
+            )
         else:  # balanced (default)
-            return sorted(candidates, key=lambda m: (
-                abs(m.tier - preferred_tier),
-                -_QUALITY_ORDER.get(m.quality, 2),
-                m.cost_per_1k_input + m.cost_per_1k_output,
-                -_SPEED_ORDER.get(m.speed, 2),
-            ))
+            return sorted(
+                candidates,
+                key=lambda m: (
+                    abs(m.tier - preferred_tier),
+                    -_QUALITY_ORDER.get(m.quality, 2),
+                    m.cost_per_1k_input + m.cost_per_1k_output,
+                    -_SPEED_ORDER.get(m.speed, 2),
+                ),
+            )
 
     def _make_decision(
         self,
@@ -291,8 +312,10 @@ class RoutingEngine:
         if not model:
             logger.warning(f"Unknown model '{model_key}' for cost tracking")
             record = CostRecord(
-                model_key=model_key, provider="unknown",
-                modality="text", cost_usd=0.0,
+                model_key=model_key,
+                provider="unknown",
+                modality="text",
+                cost_usd=0.0,
             )
             self._cost_log.append(record)
             return record

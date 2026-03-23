@@ -7,6 +7,7 @@ Status model: idle → running → idle (normal flow)
 
 All transitions are persisted in the agent_states table and logged as activity events.
 """
+
 import logging
 from datetime import UTC, datetime
 
@@ -18,6 +19,7 @@ VALID_STATUSES = {"idle", "running", "paused", "error"}
 def get_agent_status(agent_key: str, venture_key: str, db_path=None) -> dict | None:
     """Get the current status record for an agent."""
     from realize_core.db.schema import get_connection
+
     conn = get_connection(db_path)
     try:
         row = conn.execute(
@@ -45,6 +47,7 @@ def set_agent_status(
         raise ValueError(f"Invalid status: {status}. Must be one of {VALID_STATUSES}")
 
     from realize_core.db.schema import get_connection
+
     now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
     conn = get_connection(db_path)
 
@@ -75,9 +78,14 @@ def set_agent_status(
             conn.execute(
                 """INSERT INTO agent_states (agent_key, venture_key, status, updated_at, last_run_at, last_error)
                    VALUES (?, ?, ?, ?, ?, ?)""",
-                (agent_key, venture_key, status, now,
-                 now if status == "running" else None,
-                 error_message if status == "error" else None),
+                (
+                    agent_key,
+                    venture_key,
+                    status,
+                    now,
+                    now if status == "running" else None,
+                    error_message if status == "error" else None,
+                ),
             )
         conn.commit()
     finally:
@@ -86,6 +94,7 @@ def set_agent_status(
     # Log transition as activity event (fire-and-forget)
     try:
         from realize_core.activity.logger import log_event
+
         log_event(
             venture_key=venture_key,
             actor_type="system",

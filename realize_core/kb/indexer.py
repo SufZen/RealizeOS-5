@@ -8,6 +8,7 @@ Falls back to FTS5-only search when fastembed is not installed.
 
 Index stored in SQLite for persistence across restarts.
 """
+
 import logging
 import sqlite3
 import struct
@@ -81,6 +82,7 @@ def _get_embedder():
         return _embedder
     try:
         from fastembed import TextEmbedding
+
         _embedder = TextEmbedding(model_name="BAAI/bge-small-en-v1.5")
         _embedder_available = True
         logger.info("Fastembed loaded: BAAI/bge-small-en-v1.5 (local embeddings active)")
@@ -305,6 +307,7 @@ def semantic_search(
     """
     if db_path is None:
         from realize_core.config import KB_PATH
+
         db_path = KB_PATH / "kb_index.db"
 
     _init_index_db(db_path)
@@ -346,13 +349,15 @@ def _fts_search(conn, query: str, system_key: str = None, top_k: int = 10) -> li
             rank_range = max_rank - min_rank if max_rank != min_rank else 1.0
             for row in rows:
                 norm_score = 1.0 - ((row["rank"] - min_rank) / rank_range) if rank_range else 1.0
-                results.append({
-                    "path": row["path"],
-                    "title": row["title"],
-                    "system_key": row["system_key"],
-                    "snippet": row["snippet"],
-                    "keyword_score": norm_score,
-                })
+                results.append(
+                    {
+                        "path": row["path"],
+                        "title": row["title"],
+                        "system_key": row["system_key"],
+                        "snippet": row["snippet"],
+                        "keyword_score": norm_score,
+                    }
+                )
         return results
 
     except sqlite3.OperationalError:
@@ -383,13 +388,15 @@ def _vector_search(conn, query_blob: bytes, system_key: str = None, top_k: int =
         if row["embedding"]:
             doc_vec = _bytes_to_vec(row["embedding"])
             sim = _cosine_similarity(query_vec, doc_vec)
-            scored.append({
-                "path": row["path"],
-                "title": row["title"],
-                "system_key": row["system_key"],
-                "snippet": row["snippet"],
-                "vector_score": sim,
-            })
+            scored.append(
+                {
+                    "path": row["path"],
+                    "title": row["title"],
+                    "system_key": row["system_key"],
+                    "snippet": row["snippet"],
+                    "vector_score": sim,
+                }
+            )
 
     scored.sort(key=lambda x: x["vector_score"], reverse=True)
     return scored[:top_k]
@@ -417,9 +424,8 @@ def _merge_hybrid(
             merged[path] = {**r, "keyword_score": 0.0}
 
     for entry in merged.values():
-        entry["score"] = (
-            vector_weight * entry.get("vector_score", 0.0)
-            + keyword_weight * entry.get("keyword_score", 0.0)
+        entry["score"] = vector_weight * entry.get("vector_score", 0.0) + keyword_weight * entry.get(
+            "keyword_score", 0.0
         )
 
     results = sorted(merged.values(), key=lambda x: x["score"], reverse=True)

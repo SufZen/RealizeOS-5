@@ -21,6 +21,7 @@ Example config::
             required_params: [spreadsheet_id]
             service: sheets
 """
+
 import asyncio
 import json
 import logging
@@ -119,9 +120,7 @@ class GwsCliTool(BaseTool):
         # Validate required params
         missing = [p for p in cmd_config.required_params if p not in params]
         if missing:
-            return ToolResult.fail(
-                f"Missing required parameters for '{action}': {', '.join(missing)}"
-            )
+            return ToolResult.fail(f"Missing required parameters for '{action}': {', '.join(missing)}")
 
         # Build the command string
         try:
@@ -132,9 +131,7 @@ class GwsCliTool(BaseTool):
         timeout = cmd_config.timeout_seconds or self._config.default_timeout
 
         # Execute in a thread to avoid blocking the event loop
-        return await asyncio.to_thread(
-            self._run_command, cmd_str, timeout
-        )
+        return await asyncio.to_thread(self._run_command, cmd_str, timeout)
 
     def is_available(self) -> bool:
         """Check if the gws binary is installed and the tool is enabled."""
@@ -225,6 +222,7 @@ class GwsCliTool(BaseTool):
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _shell_escape(value: str) -> str:
     """
     Basic shell escaping for parameter values.
@@ -234,7 +232,7 @@ def _shell_escape(value: str) -> str:
     if not value:
         return '""'
     # If the value contains spaces or shell metacharacters, quote it
-    needs_quoting = any(c in value for c in ' \t\n"\'\\|&;$(){}[]<>!#*?~`')
+    needs_quoting = any(c in value for c in " \t\n\"'\\|&;$(){}[]<>!#*?~`")
     if needs_quoting:
         # Escape existing double quotes and backslashes
         escaped = value.replace("\\", "\\\\").replace('"', '\\"')
@@ -255,6 +253,7 @@ def _try_parse_json(text: str) -> Any:
 # ---------------------------------------------------------------------------
 # Factory
 # ---------------------------------------------------------------------------
+
 
 def get_tool(config: GwsToolConfig | None = None) -> GwsCliTool:
     """Factory function for tool registry auto-discovery."""

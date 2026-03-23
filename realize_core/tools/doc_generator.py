@@ -8,6 +8,7 @@ Uses:
 
 Falls back gracefully if libraries aren't installed.
 """
+
 import logging
 from datetime import datetime
 from pathlib import Path
@@ -229,20 +230,29 @@ def get_available_formats() -> list[dict]:
 
     try:
         import reportlab  # noqa: F401
+
         formats.append({"format": "pdf", "available": True, "library": "reportlab"})
     except ImportError:
-        formats.append({"format": "pdf", "available": False, "library": "reportlab", "install": "pip install reportlab"})
+        formats.append(
+            {"format": "pdf", "available": False, "library": "reportlab", "install": "pip install reportlab"}
+        )
 
     try:
         import docx  # noqa: F401
+
         formats.append({"format": "docx", "available": True, "library": "python-docx"})
     except ImportError:
-        formats.append({"format": "docx", "available": False, "library": "python-docx", "install": "pip install python-docx"})
+        formats.append(
+            {"format": "docx", "available": False, "library": "python-docx", "install": "pip install python-docx"}
+        )
 
     try:
         import pptx  # noqa: F401
+
         formats.append({"format": "pptx", "available": True, "library": "python-pptx"})
     except ImportError:
-        formats.append({"format": "pptx", "available": False, "library": "python-pptx", "install": "pip install python-pptx"})
+        formats.append(
+            {"format": "pptx", "available": False, "library": "python-pptx", "install": "pip install python-pptx"}
+        )
 
     return formats

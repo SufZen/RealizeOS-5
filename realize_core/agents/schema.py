@@ -7,6 +7,7 @@ success_metrics, learning, communication_style, and pipeline stages.
 
 V1 (.md) agents are represented as a minimal V1AgentDef for backward compat.
 """
+
 from __future__ import annotations
 
 import logging
@@ -23,6 +24,7 @@ logger = logging.getLogger(__name__)
 # V1 Agent Definition (parsed from .md frontmatter-less files)
 # ---------------------------------------------------------------------------
 
+
 class V1AgentDef(BaseModel):
     """
     Minimal representation of a V1 markdown agent.
@@ -31,6 +33,7 @@ class V1AgentDef(BaseModel):
     and operating rules expressed in prose.  We extract what we can from
     the structure and expose it through a compatible interface.
     """
+
     key: str
     name: str = ""
     version: str = "1"
@@ -50,12 +53,14 @@ class V1AgentDef(BaseModel):
 # V2 Pipeline Stage (richer than base.PipelineStage dataclass)
 # ---------------------------------------------------------------------------
 
+
 class PipelineStageConfig(BaseModel):
     """
     Configuration for a single stage in a V2 agent pipeline.
 
     Defined in the agent YAML under ``pipeline_stages``.
     """
+
     name: str
     agent_key: str
     description: str = ""
@@ -72,6 +77,7 @@ class PipelineStageConfig(BaseModel):
 # V2 Full Agent Definition
 # ---------------------------------------------------------------------------
 
+
 class V2AgentDef(BaseModel):
     """
     Full V2 composable agent definition (loaded from YAML).
@@ -80,6 +86,7 @@ class V2AgentDef(BaseModel):
     critical rules, decision logic, success metrics, learning config,
     and communication style.
     """
+
     # Identity
     name: str
     key: str

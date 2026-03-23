@@ -1,4 +1,5 @@
 """Tests for realize_core.media — media pipeline."""
+
 import pytest
 from realize_core.media import (
     MediaAttachment,
@@ -85,6 +86,7 @@ class TestProcessAttachment:
     @pytest.mark.asyncio
     async def test_no_image_data(self):
         from realize_core.media import analyze_image
+
         result = await analyze_image(b"")
         assert not result.success
         assert "No image data" in result.error
@@ -92,12 +94,14 @@ class TestProcessAttachment:
     @pytest.mark.asyncio
     async def test_no_audio_data(self):
         from realize_core.media import transcribe_audio
+
         result = await transcribe_audio(b"")
         assert not result.success
 
     @pytest.mark.asyncio
     async def test_process_text_document(self):
         from realize_core.media import process_attachment
+
         att = MediaAttachment(
             media_type=MediaType.DOCUMENT,
             data=b"Hello, this is a text file.",
@@ -111,6 +115,7 @@ class TestProcessAttachment:
     @pytest.mark.asyncio
     async def test_process_unsupported_video(self):
         from realize_core.media import process_attachment
+
         att = MediaAttachment(
             media_type=MediaType.VIDEO,
             data=b"fake-video",
@@ -125,6 +130,7 @@ class TestRouteMediaGeneration:
     @pytest.mark.asyncio
     async def test_audio_generation_not_ready(self):
         from realize_core.media import route_media_generation
+
         result = await route_media_generation("Say hello", MediaType.AUDIO)
         assert not result.success
         assert "not yet implemented" in result.error
@@ -132,5 +138,6 @@ class TestRouteMediaGeneration:
     @pytest.mark.asyncio
     async def test_video_generation_not_ready(self):
         from realize_core.media import route_media_generation
+
         result = await route_media_generation("Make intro", MediaType.VIDEO)
         assert not result.success

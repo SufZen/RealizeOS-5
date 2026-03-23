@@ -9,6 +9,7 @@ Covers:
 - Empty inputs
 - Batch matching
 """
+
 import json
 import sys
 import types
@@ -34,8 +35,8 @@ from realize_core.skills.semantic import (
 # JSON extraction
 # ---------------------------------------------------------------------------
 
-class TestExtractJson:
 
+class TestExtractJson:
     def test_plain_json(self):
         text = '{"skill_key": "test", "score": 0.8, "reason": "match"}'
         assert _extract_json(text) == text
@@ -72,14 +73,12 @@ class TestExtractJson:
 # Response parsing
 # ---------------------------------------------------------------------------
 
-class TestParseSemanticResponse:
 
+class TestParseSemanticResponse:
     def test_valid_match(self):
-        response = json.dumps({
-            "skill_key": "content_pipeline",
-            "score": 0.85,
-            "reason": "Strong match for content creation"
-        })
+        response = json.dumps(
+            {"skill_key": "content_pipeline", "score": 0.85, "reason": "Strong match for content creation"}
+        )
         result = _parse_semantic_response(response, threshold=0.6)
         assert result is not None
         assert result.skill_key == "content_pipeline"
@@ -88,11 +87,7 @@ class TestParseSemanticResponse:
         assert "content creation" in result.confidence_reason
 
     def test_below_threshold(self):
-        response = json.dumps({
-            "skill_key": "some_skill",
-            "score": 0.3,
-            "reason": "Weak match"
-        })
+        response = json.dumps({"skill_key": "some_skill", "score": 0.3, "reason": "Weak match"})
         result = _parse_semantic_response(response, threshold=0.6)
         assert result is None
 
@@ -101,11 +96,7 @@ class TestParseSemanticResponse:
         assert result is None
 
     def test_null_skill_key(self):
-        response = json.dumps({
-            "skill_key": None,
-            "score": 0.0,
-            "reason": "No match found"
-        })
+        response = json.dumps({"skill_key": None, "score": 0.0, "reason": "No match found"})
         result = _parse_semantic_response(response, threshold=0.6)
         assert result is None
 
@@ -123,17 +114,20 @@ class TestParseSemanticResponse:
 # Semantic match (mocked LLM)
 # ---------------------------------------------------------------------------
 
-class TestSemanticMatch:
 
+class TestSemanticMatch:
     @pytest.mark.asyncio
     async def test_successful_match(self):
         """LLM returns a match above threshold."""
+
         async def mock_llm(**kwargs):
-            return json.dumps({
-                "skill_key": "strategy_session",
-                "score": 0.88,
-                "reason": "Message about brand positioning matches strategy skill"
-            })
+            return json.dumps(
+                {
+                    "skill_key": "strategy_session",
+                    "score": 0.88,
+                    "reason": "Message about brand positioning matches strategy skill",
+                }
+            )
 
         result = await semantic_match(
             message="How should I position my brand in the market?",
@@ -152,12 +146,9 @@ class TestSemanticMatch:
     @pytest.mark.asyncio
     async def test_no_match_below_threshold(self):
         """LLM returns score below threshold."""
+
         async def mock_llm(**kwargs):
-            return json.dumps({
-                "skill_key": "content_pipeline",
-                "score": 0.4,
-                "reason": "Weak match"
-            })
+            return json.dumps({"skill_key": "content_pipeline", "score": 0.4, "reason": "Weak match"})
 
         result = await semantic_match(
             message="What's the weather today?",
@@ -191,6 +182,7 @@ class TestSemanticMatch:
     @pytest.mark.asyncio
     async def test_llm_failure_graceful(self):
         """If LLM call raises, should return None."""
+
         async def failing_llm(**kwargs):
             raise RuntimeError("API error")
 
@@ -222,12 +214,9 @@ class TestSemanticMatch:
     @pytest.mark.asyncio
     async def test_custom_threshold(self):
         """Custom threshold should be respected."""
+
         async def mock_llm(**kwargs):
-            return json.dumps({
-                "skill_key": "test",
-                "score": 0.55,
-                "reason": "Moderate match"
-            })
+            return json.dumps({"skill_key": "test", "score": 0.55, "reason": "Moderate match"})
 
         # With 0.6 threshold: no match
         result = await semantic_match(
@@ -253,17 +242,14 @@ class TestSemanticMatch:
 # Batch matching
 # ---------------------------------------------------------------------------
 
-class TestSemanticMatchBatch:
 
+class TestSemanticMatchBatch:
     @pytest.mark.asyncio
     async def test_batch_returns_list(self):
         """Batch match should return a list."""
+
         async def mock_llm(**kwargs):
-            return json.dumps({
-                "skill_key": "content_pipeline",
-                "score": 0.9,
-                "reason": "Strong match"
-            })
+            return json.dumps({"skill_key": "content_pipeline", "score": 0.9, "reason": "Strong match"})
 
         results = await semantic_match_batch(
             message="write a blog post",
@@ -279,6 +265,7 @@ class TestSemanticMatchBatch:
     @pytest.mark.asyncio
     async def test_batch_empty_on_no_match(self):
         """Batch returns empty list when no match."""
+
         async def mock_llm(**kwargs):
             return "NO_MATCH"
 

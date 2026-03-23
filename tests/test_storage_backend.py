@@ -3,6 +3,7 @@ Tests for storage backends: LocalStorageProvider, S3StorageProvider, and SyncMan
 
 Uses temporary directories for local storage tests and mocks for S3.
 """
+
 from __future__ import annotations
 
 import json
@@ -25,6 +26,7 @@ from realize_core.storage.sync import (
 # ======================================================================
 # Fixtures
 # ======================================================================
+
 
 @pytest.fixture
 def tmp_root(tmp_path):
@@ -64,6 +66,7 @@ def sync_db():
 # StorageObject Tests
 # ======================================================================
 
+
 class TestStorageObject:
     def test_extension_with_dot(self):
         obj = StorageObject(key="path/to/file.yaml")
@@ -85,6 +88,7 @@ class TestStorageObject:
 # ======================================================================
 # LocalStorageProvider Tests
 # ======================================================================
+
 
 class TestLocalInit:
     def test_creates_root_directory(self, tmp_root):
@@ -280,6 +284,7 @@ class TestLocalSecurity:
 # S3StorageProvider Tests (mocked)
 # ======================================================================
 
+
 class TestS3Lazy:
     def test_import_error_without_boto3(self):
         with patch.dict("sys.modules", {"boto3": None, "botocore": None, "botocore.exceptions": None}):
@@ -287,6 +292,7 @@ class TestS3Lazy:
             from importlib import reload
 
             import realize_core.storage.s3 as s3_module
+
             try:
                 reload(s3_module)
             except Exception:
@@ -309,6 +315,7 @@ class TestS3Provider:
             mock_import.return_value = (mock_boto3, FakeClientError)
 
             from realize_core.storage.s3 import S3StorageProvider
+
             provider = S3StorageProvider(
                 bucket="test-bucket",
                 region="us-east-1",
@@ -360,6 +367,7 @@ class TestS3Provider:
     @pytest.mark.asyncio
     async def test_list_returns_objects(self):
         from datetime import datetime
+
         client = MagicMock()
         client.list_objects_v2.return_value = {
             "Contents": [
@@ -383,6 +391,7 @@ class TestS3Provider:
             mock_import.return_value = (mock_boto3, Exception)
 
             from realize_core.storage.s3 import S3StorageProvider
+
             provider = S3StorageProvider(
                 bucket="bucket",
                 prefix="myapp",
@@ -407,6 +416,7 @@ class TestS3Provider:
 # ======================================================================
 # SyncManager Tests
 # ======================================================================
+
 
 class TestSyncManagerInit:
     def test_init_with_providers(self, local_provider, tmp_path):

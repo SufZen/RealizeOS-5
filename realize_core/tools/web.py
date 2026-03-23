@@ -5,6 +5,7 @@ Two capabilities:
 1. web_search — Search the web using Brave Search API
 2. web_fetch — Fetch a URL and extract clean readable content
 """
+
 import logging
 import os
 import re
@@ -60,19 +61,23 @@ async def web_search(query: str, count: int = 5, freshness: str = None) -> list[
 
     try:
         resp = await client.get(
-            BRAVE_SEARCH_URL, params=params,
-            headers={"Accept": "application/json", "Accept-Encoding": "gzip",
-                     "X-Subscription-Token": api_key},
+            BRAVE_SEARCH_URL,
+            params=params,
+            headers={"Accept": "application/json", "Accept-Encoding": "gzip", "X-Subscription-Token": api_key},
         )
         resp.raise_for_status()
         data = resp.json()
         results = []
         for item in data.get("web", {}).get("results", []):
-            results.append({
-                "title": item.get("title", ""), "url": item.get("url", ""),
-                "description": item.get("description", ""), "age": item.get("age", ""),
-                "extra_snippets": item.get("extra_snippets", []),
-            })
+            results.append(
+                {
+                    "title": item.get("title", ""),
+                    "url": item.get("url", ""),
+                    "description": item.get("description", ""),
+                    "age": item.get("age", ""),
+                    "extra_snippets": item.get("extra_snippets", []),
+                }
+            )
         logger.info(f"Web search '{query}': {len(results)} results")
         return results
     except httpx.HTTPStatusError as e:
@@ -117,8 +122,8 @@ async def web_fetch(url: str, max_chars: int = 8000, extract_mode: str = "auto")
     client = _get_http_client()
     try:
         resp = await client.get(
-            url, headers={"Accept": "text/html,application/xhtml+xml,*/*;q=0.8",
-                          "Accept-Language": "en-US,en;q=0.9"},
+            url,
+            headers={"Accept": "text/html,application/xhtml+xml,*/*;q=0.8", "Accept-Language": "en-US,en;q=0.9"},
         )
         resp.raise_for_status()
         html = resp.text
@@ -128,9 +133,17 @@ async def web_fetch(url: str, max_chars: int = 8000, extract_mode: str = "auto")
         if extract_mode in ("auto", "trafilatura"):
             try:
                 import trafilatura
-                content = trafilatura.extract(
-                    html, include_links=True, include_tables=True, favor_recall=True, url=url,
-                ) or ""
+
+                content = (
+                    trafilatura.extract(
+                        html,
+                        include_links=True,
+                        include_tables=True,
+                        favor_recall=True,
+                        url=url,
+                    )
+                    or ""
+                )
             except ImportError:
                 content = _simple_html_to_text(html) if extract_mode == "auto" else ""
             except Exception:
@@ -144,8 +157,7 @@ async def web_fetch(url: str, max_chars: int = 8000, extract_mode: str = "auto")
         truncated = len(content) > max_chars
         if truncated:
             content = content[:max_chars] + "\n\n[...truncated]"
-        return {"url": url, "title": title, "content": content,
-                "content_length": len(content), "truncated": truncated}
+        return {"url": url, "title": title, "content": content, "content_length": len(content), "truncated": truncated}
     except httpx.HTTPStatusError as e:
         return {"url": url, "error": f"HTTP {e.response.status_code}"}
     except Exception as e:
@@ -157,20 +169,35 @@ async def web_fetch(url: str, max_chars: int = 8000, extract_mode: str = "auto")
 # ---------------------------------------------------------------------------
 
 WEB_TOOL_SCHEMAS = [
-    {"name": "web_search",
-     "description": "Search the web using Brave Search. Returns titles, URLs, and descriptions.",
-     "input_schema": {"type": "object", "properties": {
-         "query": {"type": "string", "description": "The search query."},
-         "count": {"type": "integer", "description": "Number of results (1-20, default 5).", "default": 5},
-         "freshness": {"type": "string", "enum": ["pd", "pw", "pm", "py"],
-                       "description": "Freshness filter: pd/pw/pm/py or omit for all time."}},
-         "required": ["query"]}},
-    {"name": "web_fetch",
-     "description": "Fetch a web page and extract readable content as clean text.",
-     "input_schema": {"type": "object", "properties": {
-         "url": {"type": "string", "description": "The URL to fetch."},
-         "max_chars": {"type": "integer", "description": "Max characters (default 8000).", "default": 8000}},
-         "required": ["url"]}},
+    {
+        "name": "web_search",
+        "description": "Search the web using Brave Search. Returns titles, URLs, and descriptions.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "The search query."},
+                "count": {"type": "integer", "description": "Number of results (1-20, default 5).", "default": 5},
+                "freshness": {
+                    "type": "string",
+                    "enum": ["pd", "pw", "pm", "py"],
+                    "description": "Freshness filter: pd/pw/pm/py or omit for all time.",
+                },
+            },
+            "required": ["query"],
+        },
+    },
+    {
+        "name": "web_fetch",
+        "description": "Fetch a web page and extract readable content as clean text.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "url": {"type": "string", "description": "The URL to fetch."},
+                "max_chars": {"type": "integer", "description": "Max characters (default 8000).", "default": 8000},
+            },
+            "required": ["url"],
+        },
+    },
 ]
 
 TOOL_FUNCTIONS = {"web_search": web_search, "web_fetch": web_fetch}

@@ -1,0 +1,971 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RealizeOS V5 — User Guide</title>
+<meta name="description" content="Comprehensive interactive guide for RealizeOS V5 — the AI operations system for your business.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0f172a;--bg-secondary:#1e293b;--bg-card:#1e293b;--bg-sidebar:#0b1120;--bg-code:#0d1526;--text:#e2e8f0;--text-secondary:#94a3b8;--text-muted:#64748b;--accent:#06b6d4;--accent2:#8b5cf6;--accent-glow:rgba(6,182,212,.15);--border:#1e293b;--border-active:#334155;--gradient:linear-gradient(135deg,#06b6d4,#8b5cf6);--shadow:0 4px 24px rgba(0,0,0,.3);--radius:12px;--sidebar-w:280px;--topbar-h:56px}
+[data-theme="light"]{--bg:#f8fafc;--bg-secondary:#ffffff;--bg-card:#ffffff;--bg-sidebar:#f1f5f9;--bg-code:#f1f5f9;--text:#0f172a;--text-secondary:#475569;--text-muted:#94a3b8;--accent:#0891b2;--accent2:#7c3aed;--accent-glow:rgba(8,145,178,.1);--border:#e2e8f0;--border-active:#cbd5e1;--shadow:0 4px 24px rgba(0,0,0,.08)}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:calc(var(--topbar-h) + 24px)}
+body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);line-height:1.7;transition:background .3s,color .3s}
+::selection{background:var(--accent);color:#fff}
+/* TOPBAR */
+.topbar{position:fixed;top:0;left:0;right:0;height:var(--topbar-h);background:var(--bg-secondary);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 24px;z-index:100;backdrop-filter:blur(12px);background:rgba(15,23,42,.85)}
+[data-theme="light"] .topbar{background:rgba(255,255,255,.9)}
+.topbar .logo{font-weight:800;font-size:1.1rem;background:var(--gradient);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;margin-right:auto;display:flex;align-items:center;gap:8px}
+.topbar .logo span{font-weight:400;font-size:.75rem;background:var(--bg-card);border:1px solid var(--border);padding:2px 8px;border-radius:6px;-webkit-text-fill-color:var(--text-muted)}
+.search-box{position:relative;margin-right:16px}
+.search-box input{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:6px 12px 6px 32px;color:var(--text);font-size:.85rem;width:220px;outline:none;transition:border .2s}
+.search-box input:focus{border-color:var(--accent)}
+.search-box svg{position:absolute;left:10px;top:50%;transform:translateY(-50%);width:14px;height:14px;stroke:var(--text-muted)}
+.theme-toggle{background:none;border:1px solid var(--border);border-radius:8px;padding:6px 10px;cursor:pointer;color:var(--text);font-size:1rem;transition:border .2s}
+.theme-toggle:hover{border-color:var(--accent)}
+/* SIDEBAR */
+.sidebar{position:fixed;top:var(--topbar-h);left:0;width:var(--sidebar-w);height:calc(100vh - var(--topbar-h));background:var(--bg-sidebar);border-right:1px solid var(--border);overflow-y:auto;padding:16px 0;z-index:90;transition:transform .3s}
+.sidebar::-webkit-scrollbar{width:4px}
+.sidebar::-webkit-scrollbar-thumb{background:var(--border-active);border-radius:4px}
+.nav-section{padding:4px 16px;margin-bottom:4px}
+.nav-section-title{font-size:.65rem;text-transform:uppercase;letter-spacing:1.5px;color:var(--text-muted);font-weight:600;padding:8px 0 4px}
+.nav-link{display:flex;align-items:center;gap:8px;padding:7px 12px;border-radius:8px;color:var(--text-secondary);text-decoration:none;font-size:.85rem;font-weight:400;transition:all .15s;cursor:pointer}
+.nav-link:hover{background:var(--accent-glow);color:var(--text)}
+.nav-link.active{background:var(--accent-glow);color:var(--accent);font-weight:500}
+.nav-link .icon{width:18px;text-align:center;font-size:.9rem}
+.nav-sub{padding-left:20px}
+.nav-sub .nav-link{font-size:.8rem;padding:5px 12px}
+.mobile-toggle{display:none;position:fixed;bottom:20px;right:20px;z-index:200;width:48px;height:48px;border-radius:50%;background:var(--gradient);border:none;color:#fff;font-size:1.3rem;cursor:pointer;box-shadow:0 4px 20px rgba(6,182,212,.4)}
+/* MAIN */
+.main{margin-left:var(--sidebar-w);margin-top:var(--topbar-h);padding:32px 48px 80px;max-width:900px}
+section{margin-bottom:64px;animation:fadeUp .4s ease}
+@keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+h1{font-size:2.4rem;font-weight:800;margin-bottom:8px;background:var(--gradient);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.subtitle{font-size:1.1rem;color:var(--text-secondary);margin-bottom:32px}
+h2{font-size:1.6rem;font-weight:700;margin:48px 0 16px;padding-top:16px;border-top:1px solid var(--border);color:var(--text)}
+h2 .icon{margin-right:8px}
+h3{font-size:1.15rem;font-weight:600;margin:28px 0 12px;color:var(--text)}
+h4{font-size:.95rem;font-weight:600;margin:20px 0 8px;color:var(--accent)}
+p{margin-bottom:14px;color:var(--text-secondary)}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+strong{color:var(--text);font-weight:600}
+/* CARDS */
+.card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:20px 24px;margin-bottom:16px;transition:border .2s,box-shadow .2s}
+.card:hover{border-color:var(--border-active);box-shadow:var(--shadow)}
+.card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px;margin:16px 0}
+.card-icon{font-size:1.6rem;margin-bottom:8px}
+.card h4{margin:0 0 6px;color:var(--text)}
+.card p{font-size:.85rem;margin:0;color:var(--text-secondary)}
+/* TABLES */
+table{width:100%;border-collapse:collapse;margin:16px 0;font-size:.88rem}
+th{text-align:left;padding:10px 14px;background:var(--bg-code);border:1px solid var(--border);color:var(--text);font-weight:600;font-size:.8rem;text-transform:uppercase;letter-spacing:.5px}
+td{padding:10px 14px;border:1px solid var(--border);color:var(--text-secondary)}
+tr:hover td{background:var(--accent-glow)}
+/* CODE */
+pre{background:var(--bg-code);border:1px solid var(--border);border-radius:10px;padding:16px 20px;overflow-x:auto;margin:14px 0;position:relative;font-size:.84rem;line-height:1.6}
+code{font-family:'JetBrains Mono',monospace;font-size:.84rem}
+pre code{color:var(--text)}
+p code,li code,td code{background:var(--bg-code);padding:2px 6px;border-radius:4px;border:1px solid var(--border);font-size:.8rem;color:var(--accent)}
+.copy-btn{position:absolute;top:8px;right:8px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:6px;padding:4px 10px;cursor:pointer;color:var(--text-muted);font-size:.7rem;font-family:'Inter',sans-serif;transition:all .15s}
+.copy-btn:hover{border-color:var(--accent);color:var(--accent)}
+/* TABS */
+.tabs{display:flex;gap:2px;margin-bottom:-1px;position:relative;z-index:1}
+.tab{padding:8px 16px;cursor:pointer;font-size:.84rem;font-weight:500;border:1px solid var(--border);border-bottom:none;border-radius:8px 8px 0 0;background:var(--bg);color:var(--text-muted);transition:all .15s}
+.tab.active{background:var(--bg-code);color:var(--accent);border-color:var(--border)}
+.tab-content{display:none}
+.tab-content.active{display:block}
+/* ALERTS */
+.alert{border-radius:10px;padding:14px 18px;margin:16px 0;font-size:.88rem;display:flex;gap:10px;align-items:flex-start}
+.alert-info{background:rgba(6,182,212,.08);border:1px solid rgba(6,182,212,.2);color:var(--accent)}
+.alert-warn{background:rgba(234,179,8,.08);border:1px solid rgba(234,179,8,.2);color:#eab308}
+.alert-tip{background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.2);color:#22c55e}
+/* ARCH DIAGRAM */
+.arch-diagram{display:flex;flex-direction:column;gap:8px;margin:24px 0;padding:24px;background:var(--bg-code);border:1px solid var(--border);border-radius:var(--radius)}
+.arch-layer{display:flex;align-items:center;gap:12px;padding:12px 16px;border-radius:10px;cursor:pointer;transition:all .2s;border:1px solid transparent}
+.arch-layer:hover{background:var(--accent-glow);border-color:var(--border-active)}
+.arch-layer .num{width:28px;height:28px;border-radius:50%;background:var(--gradient);display:flex;align-items:center;justify-content:center;color:#fff;font-size:.75rem;font-weight:700;flex-shrink:0}
+.arch-layer .label{font-weight:600;font-size:.9rem}
+.arch-layer .desc{font-size:.78rem;color:var(--text-muted)}
+.arch-arrow{text-align:center;color:var(--text-muted);font-size:.9rem}
+/* LIST */
+ul,ol{margin:8px 0 16px 24px;color:var(--text-secondary)}
+li{margin-bottom:6px;font-size:.9rem}
+/* BADGE */
+.badge{display:inline-block;padding:2px 8px;border-radius:6px;font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.5px}
+.badge-teal{background:rgba(6,182,212,.15);color:var(--accent)}
+.badge-purple{background:rgba(139,92,246,.15);color:var(--accent2)}
+/* RESPONSIVE */
+@media(max-width:900px){
+  .sidebar{transform:translateX(-100%)}
+  .sidebar.open{transform:none}
+  .main{margin-left:0;padding:24px 20px 80px}
+  .mobile-toggle{display:block}
+  .card-grid{grid-template-columns:1fr}
+  .search-box input{width:140px}
+}
+</style>
+</head>
+<body>
+<!-- TOPBAR -->
+<header class="topbar">
+  <div class="logo">RealizeOS <span>V5 Guide</span></div>
+  <div class="search-box">
+    <svg fill="none" viewBox="0 0 24 24" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    <input type="text" id="search" placeholder="Search guide..." autocomplete="off">
+  </div>
+  <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme">🌓</button>
+</header>
+
+<!-- SIDEBAR -->
+<nav class="sidebar" id="sidebar">
+  <div class="nav-section">
+    <div class="nav-section-title">Start</div>
+    <a class="nav-link" href="#hero"><span class="icon">🏠</span> Overview</a>
+    <a class="nav-link" href="#getting-started"><span class="icon">🚀</span> Getting Started</a>
+  </div>
+  <div class="nav-section">
+    <div class="nav-section-title">Architecture</div>
+    <a class="nav-link" href="#channels"><span class="icon">📡</span> Channel Layer</a>
+    <div class="nav-sub">
+      <a class="nav-link" href="#ch-api">REST API</a>
+      <a class="nav-link" href="#ch-telegram">Telegram</a>
+      <a class="nav-link" href="#ch-dashboard">Dashboard</a>
+      <a class="nav-link" href="#ch-cli">CLI</a>
+    </div>
+    <a class="nav-link" href="#processing"><span class="icon">⚙️</span> Processing Engine</a>
+    <div class="nav-sub">
+      <a class="nav-link" href="#pr-pipeline">Message Pipeline</a>
+      <a class="nav-link" href="#pr-config">Configuration</a>
+      <a class="nav-link" href="#pr-sessions">Creative Sessions</a>
+    </div>
+    <a class="nav-link" href="#intelligence"><span class="icon">🧠</span> Intelligence Layer</a>
+    <div class="nav-sub">
+      <a class="nav-link" href="#in-agents">Agents</a>
+      <a class="nav-link" href="#in-skills">Skills & Workflows</a>
+      <a class="nav-link" href="#in-llm">LLM Routing</a>
+      <a class="nav-link" href="#in-prompt">Prompt Assembly</a>
+      <a class="nav-link" href="#in-kb">Knowledge Base</a>
+    </div>
+    <a class="nav-link" href="#tools"><span class="icon">🔧</span> Tools & Extensions</a>
+    <div class="nav-sub">
+      <a class="nav-link" href="#to-google">Google Workspace</a>
+      <a class="nav-link" href="#to-web">Web & Browser</a>
+      <a class="nav-link" href="#to-ext">Extensions</a>
+      <a class="nav-link" href="#to-hooks">Hooks & Cron</a>
+    </div>
+    <a class="nav-link" href="#infra"><span class="icon">🏗️</span> Infrastructure</a>
+    <div class="nav-sub">
+      <a class="nav-link" href="#if-storage">Storage</a>
+      <a class="nav-link" href="#if-evolution">Self-Evolution</a>
+      <a class="nav-link" href="#if-optimizer">Optimization</a>
+    </div>
+    <a class="nav-link" href="#security"><span class="icon">🔒</span> Security</a>
+    <div class="nav-sub">
+      <a class="nav-link" href="#se-jwt">JWT Auth</a>
+      <a class="nav-link" href="#se-rbac">RBAC</a>
+      <a class="nav-link" href="#se-injection">Injection Defense</a>
+      <a class="nav-link" href="#se-audit">Audit Logging</a>
+    </div>
+  </div>
+  <div class="nav-section">
+    <div class="nav-section-title">Reference</div>
+    <a class="nav-link" href="#operations"><span class="icon">📊</span> Operations</a>
+    <a class="nav-link" href="#deployment"><span class="icon">🐳</span> Deployment</a>
+    <a class="nav-link" href="#best-practices"><span class="icon">⭐</span> Best Practices</a>
+    <a class="nav-link" href="#troubleshooting"><span class="icon">🔍</span> Troubleshooting</a>
+    <a class="nav-link" href="#glossary"><span class="icon">📖</span> Glossary</a>
+  </div>
+</nav>
+
+<button class="mobile-toggle" onclick="document.getElementById('sidebar').classList.toggle('open')">☰</button>
+
+<!-- MAIN CONTENT -->
+<main class="main" id="main-content">
+
+<!-- HERO -->
+<section id="hero">
+<h1>RealizeOS V5</h1>
+<p class="subtitle">The AI operations system for your business — coordinated agents that understand your venture, remember your preferences, and execute multi-step workflows.</p>
+
+<div class="arch-diagram">
+  <div class="arch-layer" onclick="document.getElementById('channels').scrollIntoView({behavior:'smooth'})">
+    <div class="num">1</div>
+    <div><div class="label">📡 Channel Layer</div><div class="desc">API · Telegram · Dashboard · CLI — how users reach the system</div></div>
+  </div>
+  <div class="arch-arrow">▼</div>
+  <div class="arch-layer" onclick="document.getElementById('processing').scrollIntoView({behavior:'smooth'})">
+    <div class="num">2</div>
+    <div><div class="label">⚙️ Processing Engine</div><div class="desc">Message pipeline · Routing · Sessions · Configuration</div></div>
+  </div>
+  <div class="arch-arrow">▼</div>
+  <div class="arch-layer" onclick="document.getElementById('intelligence').scrollIntoView({behavior:'smooth'})">
+    <div class="num">3</div>
+    <div><div class="label">🧠 Intelligence Layer</div><div class="desc">Agents · Skills · Multi-LLM Router · Prompt Assembly · KB</div></div>
+  </div>
+  <div class="arch-arrow">▼</div>
+  <div class="arch-layer" onclick="document.getElementById('tools').scrollIntoView({behavior:'smooth'})">
+    <div class="num">4</div>
+    <div><div class="label">🔧 Tools & Extensions</div><div class="desc">24 Google tools · Web · Browser · MCP · Cron · Hooks</div></div>
+  </div>
+  <div class="arch-arrow">▼</div>
+  <div class="arch-layer" onclick="document.getElementById('infra').scrollIntoView({behavior:'smooth'})">
+    <div class="num">5</div>
+    <div><div class="label">🏗️ Infrastructure</div><div class="desc">Storage · KB Search · Memory · Evolution · Optimization</div></div>
+  </div>
+  <div class="arch-arrow">▼</div>
+  <div class="arch-layer" onclick="document.getElementById('security').scrollIntoView({behavior:'smooth'})">
+    <div class="num">6</div>
+    <div><div class="label">🔒 Security</div><div class="desc">JWT · RBAC · Prompt Injection Defense · Audit Logging</div></div>
+  </div>
+</div>
+</section>
+
+<!-- PLACEHOLDER: Content sections will be added next -->
+<section id="getting-started">
+<h2><span class="icon">🚀</span> Getting Started</h2>
+
+<h3>Prerequisites</h3>
+<table>
+<tr><th>Requirement</th><th>Version</th><th>Notes</th></tr>
+<tr><td>Python</td><td>3.11+</td><td>Required</td></tr>
+<tr><td>LLM API key</td><td>—</td><td>At least one: Anthropic, Google, OpenAI, or Ollama</td></tr>
+<tr><td>Docker</td><td>24.0+</td><td>Optional (for containerized deployment)</td></tr>
+<tr><td>Node.js</td><td>20+</td><td>Optional (for dashboard development)</td></tr>
+</table>
+
+<h3>Installation</h3>
+<pre><code># Clone the repository
+git clone https://github.com/SufZen/RealizeOS-5.git
+cd RealizeOS-5
+
+# Install Python dependencies
+pip install -r requirements.txt
+
+# Initialize from a business template
+python cli.py init --template consulting
+
+# Configure API keys
+cp .env.example .env
+# Edit .env — add ANTHROPIC_API_KEY and/or GOOGLE_AI_API_KEY</code></pre>
+
+<h3>Available Templates</h3>
+<div class="card-grid">
+<div class="card"><div class="card-icon">💼</div><h4>consulting</h4><p>Solo consultants, advisory firms</p></div>
+<div class="card"><div class="card-icon">🎨</div><h4>agency</h4><p>Creative / marketing agencies</p></div>
+<div class="card"><div class="card-icon">📊</div><h4>portfolio</h4><p>Multi-venture operators</p></div>
+<div class="card"><div class="card-icon">💻</div><h4>saas</h4><p>SaaS founders, product teams</p></div>
+<div class="card"><div class="card-icon">🛒</div><h4>ecommerce</h4><p>Online stores, D2C ventures</p></div>
+<div class="card"><div class="card-icon">🧮</div><h4>accounting</h4><p>Accountants, bookkeepers</p></div>
+<div class="card"><div class="card-icon">🎯</div><h4>coaching</h4><p>Business/life coaches</p></div>
+<div class="card"><div class="card-icon">✏️</div><h4>freelance</h4><p>Developers, designers, writers</p></div>
+</div>
+
+<h3>First Run</h3>
+<pre><code># Start locally
+python cli.py serve
+
+# Or with Docker
+docker compose up</code></pre>
+
+<h3>Your First API Call</h3>
+<pre><code>curl -X POST http://localhost:8080/api/chat \
+  -H "Content-Type: application/json" \
+  -d '{
+    "message": "Help me plan Q2 strategy",
+    "system_key": "consulting"
+  }'</code></pre>
+
+<div class="alert alert-tip">💡 The system auto-discovers LLM providers from your API keys and routes each request to the optimal model.</div>
+
+<h3>The FABRIC Knowledge Structure</h3>
+<p>Every venture's knowledge base follows the <strong>FABRIC</strong> directory structure:</p>
+<table>
+<tr><th>Directory</th><th>Purpose</th><th>Example Files</th></tr>
+<tr><td><strong>F</strong>-foundations/</td><td>Venture identity, voice rules</td><td><code>identity.md</code>, <code>voice-guide.md</code></td></tr>
+<tr><td><strong>A</strong>-agents/</td><td>Agent team definitions</td><td><code>writer.md</code>, <code>analyst.md</code></td></tr>
+<tr><td><strong>B</strong>-brain/</td><td>Domain knowledge, research</td><td><code>market-data.md</code>, <code>competitors.md</code></td></tr>
+<tr><td><strong>R</strong>-routines/</td><td>Skills, workflows, SOPs</td><td><code>skills/content-pipeline.yaml</code></td></tr>
+<tr><td><strong>I</strong>-insights/</td><td>Memory, learning log</td><td><code>learning-log.md</code>, <code>feedback.md</code></td></tr>
+<tr><td><strong>C</strong>-creations/</td><td>Deliverables, outputs</td><td><code>drafts/</code>, <code>final/</code></td></tr>
+</table>
+</section>
+<section id="channels">
+<h2><span class="icon">📡</span> Channel Layer</h2>
+<p>Channels are the entry points through which users interact with RealizeOS. Multiple channels can run simultaneously, all sharing the same engine and knowledge base.</p>
+
+<h3 id="ch-api">REST API</h3>
+<p>The primary channel for programmatic access. All endpoints are served by FastAPI at <code>http://localhost:8080</code>.</p>
+<table>
+<tr><th>Method</th><th>Endpoint</th><th>Description</th></tr>
+<tr><td><span class="badge badge-teal">POST</span></td><td><code>/api/chat</code></td><td>Send message, get AI response</td></tr>
+<tr><td><span class="badge badge-purple">GET</span></td><td><code>/api/systems</code></td><td>List all configured systems</td></tr>
+<tr><td><span class="badge badge-purple">GET</span></td><td><code>/api/systems/{key}</code></td><td>System details (agents, routing)</td></tr>
+<tr><td><span class="badge badge-purple">GET</span></td><td><code>/api/systems/{key}/agents</code></td><td>List agents for a system</td></tr>
+<tr><td><span class="badge badge-purple">GET</span></td><td><code>/api/systems/{key}/skills</code></td><td>List available skills</td></tr>
+<tr><td><span class="badge badge-teal">POST</span></td><td><code>/api/systems/reload</code></td><td>Hot-reload configurations</td></tr>
+<tr><td><span class="badge badge-purple">GET</span></td><td><code>/api/activity/stream</code></td><td>SSE real-time activity feed</td></tr>
+<tr><td><span class="badge badge-purple">GET</span></td><td><code>/api/conversations/{key}/{user}</code></td><td>Get conversation history</td></tr>
+<tr><td><span class="badge badge-purple">GET</span></td><td><code>/health</code></td><td>Health check</td></tr>
+<tr><td><span class="badge badge-purple">GET</span></td><td><code>/status</code></td><td>Detailed system status</td></tr>
+</table>
+
+<h4>Authentication</h4>
+<p>If <code>REALIZE_API_KEY</code> is set in <code>.env</code>, include it in requests:</p>
+<pre><code>Authorization: Bearer YOUR_API_KEY
+# or
+X-API-Key: YOUR_API_KEY</code></pre>
+
+<h4>Chat Request Example</h4>
+<pre><code># Send a message to a specific system and agent
+curl -X POST http://localhost:8080/api/chat \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -d '{
+    "message": "Analyze our Q2 revenue trends",
+    "system_key": "consulting",
+    "user_id": "user-123",
+    "agent_key": "analyst",
+    "channel": "api"
+  }'
+
+# Response:
+# {
+#   "response": "Based on the data...",
+#   "system_key": "consulting",
+#   "agent_key": "analyst",
+#   "user_id": "user-123"
+# }</code></pre>
+
+<h3 id="ch-telegram">Telegram Bot</h3>
+<p>Start a Telegram bot that connects to your RealizeOS instance:</p>
+<pre><code># Set TELEGRAM_BOT_TOKEN in .env, then:
+python cli.py bot</code></pre>
+<p>Telegram supports inline commands like <code>/reload</code> to hot-reload configurations without restart.</p>
+
+<h3 id="ch-dashboard">Visual Dashboard</h3>
+<p>RealizeOS V5 includes a React 19 + Vite dashboard served at the same port as the API. Features include:</p>
+<ul>
+<li><strong>Real-time activity feed</strong> — SSE-powered live stream of all system events</li>
+<li><strong>Venture management</strong> — View and manage all configured ventures</li>
+<li><strong>Agent monitoring</strong> — See agent status, recent interactions, and performance</li>
+<li><strong>System health</strong> — Provider status, tool availability, memory stats</li>
+</ul>
+
+<h3 id="ch-cli">CLI Reference</h3>
+<pre><code>python cli.py init --template NAME           # Initialize from template
+python cli.py serve [--port PORT] [--reload] # Start API + dashboard
+python cli.py bot                            # Start Telegram bot
+python cli.py status                         # Show system status
+python cli.py index                          # Rebuild KB search index
+python cli.py venture create --key KEY       # Create new venture
+python cli.py venture delete --key KEY       # Delete venture
+python cli.py venture list                   # List all ventures
+python cli.py setup-google                   # Run Google OAuth flow</code></pre>
+</section>
+<section id="processing">
+<h2><span class="icon">⚙️</span> Processing Engine</h2>
+<p>The processing engine is the core of RealizeOS — it receives messages from channels, routes them to the right agent, and orchestrates the full response pipeline.</p>
+
+<h3 id="pr-pipeline">Message Pipeline</h3>
+<p>Every message passes through this pipeline in <code>base_handler.py</code>:</p>
+<div class="arch-diagram">
+  <div class="arch-layer"><div class="num">1</div><div><div class="label">Session Check</div><div class="desc">Is there an active creative session? If yes, continue it.</div></div></div>
+  <div class="arch-arrow">▼</div>
+  <div class="arch-layer"><div class="num">2</div><div><div class="label">Skill Detection</div><div class="desc">Does the message match a skill trigger? If yes, execute the skill workflow.</div></div></div>
+  <div class="arch-arrow">▼</div>
+  <div class="arch-layer"><div class="num">3</div><div><div class="label">Agent Routing</div><div class="desc">Score agents by keyword match → select the best agent for this message.</div></div></div>
+  <div class="arch-arrow">▼</div>
+  <div class="arch-layer"><div class="num">4</div><div><div class="label">Task Classification</div><div class="desc">Classify as simple / content / complex → select LLM model tier.</div></div></div>
+  <div class="arch-arrow">▼</div>
+  <div class="arch-layer"><div class="num">5</div><div><div class="label">Prompt Assembly</div><div class="desc">Build the 12-layer prompt from knowledge base, agent definition, memory, and context.</div></div></div>
+  <div class="arch-arrow">▼</div>
+  <div class="arch-layer"><div class="num">6</div><div><div class="label">LLM Call + Tools</div><div class="desc">Send to selected model. Execute tool calls if needed. Return response.</div></div></div>
+</div>
+
+<h3 id="pr-config">Configuration</h3>
+<p>RealizeOS is configured through <code>realize-os.yaml</code> and <code>.env</code>:</p>
+<pre><code># realize-os.yaml
+name: "My Business"
+
+systems:
+  - key: my-business
+    name: "My Business"
+    directory: systems/my-business
+
+    routing:
+      content: [writer, reviewer]
+      strategy: [analyst, orchestrator]
+      general: [orchestrator]
+
+    agent_routing:
+      writer: [write, draft, post, blog, content]
+      analyst: [analyze, research, data, market]
+      reviewer: [review, check, quality, approve]
+      orchestrator: [plan, help, think, prioritize]
+
+features:
+  review_pipeline: true      # Auto-route to reviewer
+  auto_memory: true          # Log learnings
+  proactive_mode: true       # Proactive suggestions
+  activity_log: true         # SQLite activity logging
+  approval_gates: false      # Human-in-the-loop
+
+llm:
+  default_model: claude-sonnet
+  routing:
+    simple: gemini-flash
+    content: claude-sonnet
+    complex: claude-opus</code></pre>
+
+<h4>Feature Flags</h4>
+<table>
+<tr><th>Flag</th><th>Default</th><th>Description</th></tr>
+<tr><td><code>review_pipeline</code></td><td>true</td><td>Automatic review pipeline for content</td></tr>
+<tr><td><code>auto_memory</code></td><td>true</td><td>Log learnings after interactions</td></tr>
+<tr><td><code>proactive_mode</code></td><td>true</td><td>Proactive suggestions in prompts</td></tr>
+<tr><td><code>cross_system</code></td><td>false</td><td>Share context across systems</td></tr>
+<tr><td><code>activity_log</code></td><td>false</td><td>SQLite activity event logging</td></tr>
+<tr><td><code>agent_lifecycle</code></td><td>false</td><td>Agent status tracking</td></tr>
+<tr><td><code>approval_gates</code></td><td>false</td><td>Human-in-the-loop approvals</td></tr>
+</table>
+
+<h3 id="pr-sessions">Creative Sessions</h3>
+<p>When a task requires multiple steps (write → review → iterate), RealizeOS creates a <strong>creative session</strong>:</p>
+<ul>
+<li><strong>Stage progression</strong>: briefing → drafting → iterating → reviewing → approved</li>
+<li><strong>Pipeline tracking</strong>: Which agents are involved and in what order</li>
+<li><strong>Version history</strong>: All drafts and revisions are tracked</li>
+<li><strong>Context persistence</strong>: Session state persists across messages</li>
+</ul>
+<pre><code># Check active session
+GET /api/systems/{system_key}/sessions/{user_id}</code></pre>
+</section>
+<section id="intelligence">
+<h2><span class="icon">🧠</span> Intelligence Layer</h2>
+<p>The intelligence layer is where RealizeOS transforms a raw message into a thoughtful, context-rich response using agents, skills, LLM routing, and multi-layer prompt assembly.</p>
+
+<h3 id="in-agents">Agents</h3>
+<p>Agents are specialized AI team members, each with a unique role, personality, and capabilities. Agents are defined as markdown or YAML files in <code>A-agents/</code>.</p>
+
+<h4>Built-in Agents</h4>
+<div class="card-grid">
+<div class="card"><div class="card-icon">🎯</div><h4>Orchestrator</h4><p>General coordinator, task router, and planner. Handles requests that don't match specialized agents.</p></div>
+<div class="card"><div class="card-icon">✍️</div><h4>Writer</h4><p>Content creation specialist — blog posts, emails, social media, newsletters.</p></div>
+<div class="card"><div class="card-icon">🔍</div><h4>Reviewer</h4><p>Quality gatekeeper with scoring framework. Reviews drafts against venture standards.</p></div>
+<div class="card"><div class="card-icon">📊</div><h4>Analyst</h4><p>Research, strategy, data analysis. Competitive analysis, market trends, decision support.</p></div>
+</div>
+
+<h4>V2 Agent Definition</h4>
+<pre><code># A-agents/writer.yaml
+version: "2"
+name: writer
+scope: Content creation specialist
+communication_style: friendly, professional
+inputs:
+  - content_brief
+  - venture_voice
+outputs:
+  - draft_content
+  - revision_notes
+guardrails:
+  require_approval_for:
+    - publish
+    - send_email
+tools:
+  - gmail_send
+  - drive_create_doc
+critical_rules:
+  - Always match the venture voice
+  - Include a call-to-action
+success_metrics:
+  - content_quality_score > 80</code></pre>
+<div class="alert alert-info">ℹ️ V1 agent definitions still work. The loader auto-detects the format — no migration required.</div>
+
+<h4>Agent Pipelines & Handoffs</h4>
+<p>Agents can be chained in pipelines with 7 handoff types:</p>
+<table>
+<tr><th>Handoff Type</th><th>Description</th></tr>
+<tr><td><code>standard</code></td><td>Pass output to next agent</td></tr>
+<tr><td><code>qa-pass</code></td><td>Quality check passed, proceed</td></tr>
+<tr><td><code>qa-fail</code></td><td>Quality check failed, revise</td></tr>
+<tr><td><code>escalation</code></td><td>Escalate to a more capable agent</td></tr>
+<tr><td><code>phase-gate</code></td><td>Major checkpoint — requires approval</td></tr>
+<tr><td><code>sprint</code></td><td>Sprint boundary handoff</td></tr>
+<tr><td><code>incident</code></td><td>Emergency escalation</td></tr>
+</table>
+
+<h3 id="in-skills">Skills & Workflows</h3>
+<p>Skills are YAML-defined workflows in <code>R-routines/skills/</code> that chain multiple steps.</p>
+
+<h4>v1 Skills — Simple Pipelines</h4>
+<pre><code>name: content_pipeline
+triggers:
+  - "write a post"
+  - "create content"
+task_type: content
+pipeline:
+  - writer
+  - reviewer</code></pre>
+
+<h4>v2 Skills — Multi-Step Workflows</h4>
+<pre><code>name: competitor_analysis
+version: "2.0"
+triggers:
+  - "analyze competitor"
+  - "competitive analysis"
+steps:
+  - id: search
+    type: tool
+    action: web_search
+    params:
+      query: "{user_message} site:linkedin.com"
+
+  - id: analyze
+    type: agent
+    agent: analyst
+    inject_context: [search]
+    prompt: |
+      Analyze the competitive landscape for: {user_message}
+
+  - id: confirm
+    type: human
+    question: "Create a detailed report?"
+
+  - id: report
+    type: agent
+    agent: writer
+    inject_context: [search, analyze]</code></pre>
+
+<h4>Step Types</h4>
+<table>
+<tr><th>Type</th><th>Purpose</th><th>Key Fields</th></tr>
+<tr><td><code>agent</code></td><td>Call an LLM agent</td><td><code>agent</code>, <code>inject_context</code>, <code>prompt</code></td></tr>
+<tr><td><code>tool</code></td><td>Execute a tool</td><td><code>action</code>, <code>params</code></td></tr>
+<tr><td><code>condition</code></td><td>Branch logic</td><td><code>check</code>, <code>branches</code></td></tr>
+<tr><td><code>human</code></td><td>User input/approval</td><td><code>question</code></td></tr>
+</table>
+
+<h3 id="in-llm">Multi-LLM Routing</h3>
+<p>Every request is classified by complexity, then routed to the optimal model:</p>
+<table>
+<tr><th>Task Class</th><th>Default Model</th><th>Use Case</th></tr>
+<tr><td><span class="badge badge-teal">Simple</span></td><td>Gemini Flash</td><td>Quick lookups, formatting, status checks</td></tr>
+<tr><td><span class="badge badge-purple">Content</span></td><td>Claude Sonnet</td><td>Writing, analysis, summarization</td></tr>
+<tr><td><span class="badge badge-teal">Complex</span></td><td>Claude Opus</td><td>Strategy, multi-step reasoning, code</td></tr>
+</table>
+
+<h4>Supported Providers</h4>
+<table>
+<tr><th>Provider</th><th>Env Variable</th><th>Models</th></tr>
+<tr><td>Anthropic (Claude)</td><td><code>ANTHROPIC_API_KEY</code></td><td>Sonnet, Opus</td></tr>
+<tr><td>Google (Gemini)</td><td><code>GOOGLE_AI_API_KEY</code></td><td>Flash</td></tr>
+<tr><td>OpenAI</td><td><code>OPENAI_API_KEY</code></td><td>GPT-4o, GPT-4o Mini</td></tr>
+<tr><td>Ollama (local)</td><td><code>OLLAMA_BASE_URL</code></td><td>Llama, DeepSeek, etc.</td></tr>
+</table>
+<p>Providers are auto-discovered at startup. Fallback chain: Claude → Gemini → OpenAI → Ollama.</p>
+
+<h3 id="in-prompt">12-Layer Prompt Assembly</h3>
+<p>Every response is built from 12 dynamic layers assembled from your knowledge base:</p>
+<div class="arch-diagram">
+<div class="arch-layer"><div class="num">1</div><div><div class="label">Identity</div><div class="desc">Who you are (shared/identity.md)</div></div></div>
+<div class="arch-layer"><div class="num">2</div><div><div class="label">Preferences</div><div class="desc">User communication preferences</div></div></div>
+<div class="arch-layer"><div class="num">3</div><div><div class="label">Venture</div><div class="desc">Venture identity and voice rules</div></div></div>
+<div class="arch-layer"><div class="num">4</div><div><div class="label">Routing</div><div class="desc">Agent team overview and capabilities</div></div></div>
+<div class="arch-layer"><div class="num">5</div><div><div class="label">Agent</div><div class="desc">The active agent's full definition</div></div></div>
+<div class="arch-layer"><div class="num">6</div><div><div class="label">Extra Context</div><div class="desc">Additional files loaded for the task</div></div></div>
+<div class="arch-layer"><div class="num">7</div><div><div class="label">Dynamic KB</div><div class="desc">RAG: relevant documents for this message</div></div></div>
+<div class="arch-layer"><div class="num">8</div><div><div class="label">Memory</div><div class="desc">Recent learnings and accumulated insights</div></div></div>
+<div class="arch-layer"><div class="num">9</div><div><div class="label">Cross-System</div><div class="desc">Context from other ventures (when enabled)</div></div></div>
+<div class="arch-layer"><div class="num">10</div><div><div class="label">Session</div><div class="desc">Active creative session state</div></div></div>
+<div class="arch-layer"><div class="num">11</div><div><div class="label">Proactive</div><div class="desc">Collaboration instructions (ask, suggest, push back)</div></div></div>
+<div class="arch-layer"><div class="num">12</div><div><div class="label">Format</div><div class="desc">Channel-specific formatting rules</div></div></div>
+</div>
+
+<h3 id="in-kb">Knowledge Base & Search</h3>
+<p>RealizeOS uses hybrid KB search to find relevant context for each message:</p>
+<ul>
+<li><strong>FTS5</strong> — SQLite full-text search for keyword matching</li>
+<li><strong>Vector embeddings</strong> — Semantic similarity search for concept matching</li>
+<li><strong>Hybrid scoring</strong> — Combines both scores for optimal retrieval</li>
+</ul>
+<pre><code># Rebuild the KB search index
+python cli.py index</code></pre>
+</section>
+<section id="tools">
+<h2><span class="icon">🔧</span> Tools & Extensions</h2>
+<p>RealizeOS can use external tools during conversations, and the extension system allows adding custom capabilities without modifying core code.</p>
+
+<h3 id="to-google">24 Google Workspace Tools</h3>
+<table>
+<tr><th>Service</th><th>Count</th><th>Capabilities</th></tr>
+<tr><td>📧 Gmail</td><td>8</td><td>Search, read, send, draft, reply, forward, triage, label</td></tr>
+<tr><td>📅 Calendar</td><td>4</td><td>List events, create, update, find free time</td></tr>
+<tr><td>📁 Drive</td><td>9</td><td>Search, list, read, create doc, append, upload, download, perms, move</td></tr>
+<tr><td>📊 Sheets</td><td>3</td><td>Read, append, create</td></tr>
+</table>
+<div class="alert alert-info">ℹ️ Tools are activated based on task classification. Write operations (sending emails, creating events) always require user confirmation.</div>
+
+<h4>Google OAuth Setup</h4>
+<pre><code># 1. Create Google Cloud project, enable APIs
+# 2. Download client_secrets.json to .credentials/
+# 3. Run OAuth:
+python cli.py setup-google
+# 4. Tokens saved to .credentials/tokens.json</code></pre>
+
+<h3 id="to-web">Web & Browser Tools</h3>
+<ul>
+<li><strong>Web Search</strong> — <code>web_search</code> via Brave API (set <code>BRAVE_API_KEY</code>)</li>
+<li><strong>Web Fetch</strong> — <code>web_fetch</code> to read any URL content</li>
+<li><strong>Browser</strong> — Headless Chromium for page interaction</li>
+<li><strong>MCP</strong> — Connect to any MCP-compatible tool server</li>
+</ul>
+
+<h3 id="to-ext">Extension System</h3>
+<p>Extensions are auto-discovered from <code>extensions/</code>, <code>realize-os.yaml</code>, and legacy <code>plugins/</code>.</p>
+<table>
+<tr><th>Type</th><th>Purpose</th><th>Example</th></tr>
+<tr><td><code>tool</code></td><td>New tool capabilities</td><td>Stripe payments, Twilio SMS</td></tr>
+<tr><td><code>channel</code></td><td>Communication channels</td><td>Slack, Discord, WhatsApp</td></tr>
+<tr><td><code>integration</code></td><td>Backend integrations</td><td>CRM sync, analytics</td></tr>
+<tr><td><code>hook</code></td><td>Event hooks</td><td>Notifications, logging</td></tr>
+</table>
+
+<h4>Extension Manifest</h4>
+<pre><code># extensions/my-extension/extension.yaml
+name: my-extension
+version: "1.0.0"
+type: tool
+entry_point: "__init__"
+description: "What this extension does"</code></pre>
+
+<h3 id="to-hooks">Hooks & Cron</h3>
+<h4>Event Hooks (Pub/Sub)</h4>
+<p>Subscribe to lifecycle events across the system:</p>
+<ul>
+<li><code>on_message</code> — Every incoming message</li>
+<li><code>on_venture_change</code> — Venture config changes</li>
+<li><code>on_agent_complete</code> — Agent finishes processing</li>
+<li><code>on_skill_trigger</code> — Skill is activated</li>
+</ul>
+
+<h4>Cron Scheduler</h4>
+<p>APScheduler-backed scheduled tasks configured in <code>realize-os.yaml</code>:</p>
+<pre><code>extensions:
+  - name: cron
+    type: integration
+    config:
+      jobs:
+        - id: daily_digest
+          trigger: cron
+          hour: 9
+          action: run_skill
+          params:
+            skill: daily_summary</code></pre>
+</section>
+<section id="infra">
+<h2><span class="icon">🏗️</span> Infrastructure</h2>
+<p>The infrastructure layer provides pluggable storage, knowledge base search, self-evolution, and optimization capabilities.</p>
+
+<h3 id="if-storage">Storage System</h3>
+<p>RealizeOS uses a pluggable storage architecture with multiple backend support:</p>
+
+<h4>Storage Backends</h4>
+<div class="card-grid">
+<div class="card"><div class="card-icon">💾</div><h4>Local Storage</h4><p>Filesystem-based storage with atomic writes, directory sync, and automatic cleanup. Default backend.</p></div>
+<div class="card"><div class="card-icon">☁️</div><h4>S3 Storage</h4><p>S3-compatible object storage (AWS S3, MinIO, DigitalOcean Spaces). Supports multipart uploads and presigned URLs.</p></div>
+</div>
+
+<h4>Sync Manager</h4>
+<p>The sync manager coordinates background synchronization between storage backends:</p>
+<ul>
+<li><strong>Bi-directional sync</strong> — Push local changes to S3, pull remote changes</li>
+<li><strong>Conflict resolution</strong> — Last-write-wins with configurable strategies</li>
+<li><strong>Orphan cleanup</strong> — Detect and remove orphaned files</li>
+<li><strong>Event logging</strong> — All sync operations logged to <code>storage_sync_log</code></li>
+</ul>
+
+<h3 id="if-evolution">Self-Evolution Engine</h3>
+<p>RealizeOS learns and improves over time with user approval:</p>
+<div class="arch-diagram">
+<div class="arch-layer"><div class="num">1</div><div><div class="label">Interaction Tracking</div><div class="desc">Every request is logged with metadata — agent, model, tokens, success</div></div></div>
+<div class="arch-arrow">▼</div>
+<div class="arch-layer"><div class="num">2</div><div><div class="label">Gap Detection</div><div class="desc">Find unhandled patterns, repeated ad-hoc requests, low-quality responses</div></div></div>
+<div class="arch-arrow">▼</div>
+<div class="arch-layer"><div class="num">3</div><div><div class="label">Skill Suggestion</div><div class="desc">Auto-generate skill YAML for detected gaps</div></div></div>
+<div class="arch-arrow">▼</div>
+<div class="arch-layer"><div class="num">4</div><div><div class="label">Prompt Refinement</div><div class="desc">Suggest agent prompt improvements from feedback</div></div></div>
+</div>
+<div class="alert alert-warn">⚠️ All evolution changes require user approval before being applied.</div>
+
+<h3 id="if-optimizer">Optimization Engine</h3>
+<p>Run A/B experiments on prompts, models, and parameters to improve performance:</p>
+<ul>
+<li><strong>Experiment Engine</strong> — Define experiments with control/variant groups</li>
+<li><strong>Experiment Tracker</strong> — Track results and statistical significance</li>
+<li><strong>Metrics</strong> — Define custom metrics (quality, latency, cost, tokens)</li>
+<li><strong>Token Optimization</strong> — Compress prompts to reduce token usage without losing quality</li>
+</ul>
+</section>
+<section id="security">
+<h2><span class="icon">🔒</span> Security</h2>
+<p>RealizeOS V5 includes a comprehensive security layer with authentication, authorization, threat detection, and audit logging.</p>
+
+<h3 id="se-jwt">JWT Authentication</h3>
+<p>Secure API access with JSON Web Tokens:</p>
+<ul>
+<li><strong>Token issuance</strong> — Sign tokens with configurable expiration</li>
+<li><strong>Token validation</strong> — Verify signatures and check expiration</li>
+<li><strong>Claims</strong> — User ID, roles, permissions encoded in token payload</li>
+<li><strong>Refresh flow</strong> — Refresh tokens for long-lived sessions</li>
+</ul>
+<pre><code># Environment configuration
+JWT_SECRET_KEY=your-secret-key-here
+JWT_ALGORITHM=HS256
+JWT_EXPIRATION_MINUTES=60</code></pre>
+
+<h3 id="se-rbac">Role-Based Access Control (RBAC)</h3>
+<p>Define roles and permissions in YAML with fine-grained access control:</p>
+<pre><code># security/roles.yaml
+roles:
+  admin:
+    permissions:
+      - system:manage
+      - venture:create
+      - venture:delete
+      - agent:configure
+      - security:audit
+  operator:
+    permissions:
+      - venture:read
+      - venture:write
+      - agent:use
+  viewer:
+    permissions:
+      - venture:read
+      - agent:use</code></pre>
+<p>The RBAC manager loads roles from YAML files and validates permissions against JWT token claims.</p>
+
+<h3 id="se-injection">Prompt Injection Defense</h3>
+<p>Multi-layer defense against prompt injection attacks:</p>
+<div class="card-grid">
+<div class="card"><div class="card-icon">🛡️</div><h4>Pattern Detection</h4><p>Regex-based scanning for known injection patterns (ignore instructions, role override, etc.)</p></div>
+<div class="card"><div class="card-icon">🧹</div><h4>Input Sanitization</h4><p>Strip dangerous characters and normalize input before processing</p></div>
+<div class="card"><div class="card-icon">📏</div><h4>Threat Scoring</h4><p>Calculate risk score from 0-1 based on multiple signals</p></div>
+<div class="card"><div class="card-icon">🚫</div><h4>Auto-Block</h4><p>Reject requests exceeding configurable threat threshold</p></div>
+</div>
+
+<h3 id="se-audit">Audit Logging</h3>
+<p>Every security-relevant action is logged with full context:</p>
+<ul>
+<li><strong>Authentication events</strong> — Login, logout, token refresh, failures</li>
+<li><strong>Authorization checks</strong> — Permission grants and denials</li>
+<li><strong>Security threats</strong> — Injection attempts, suspicious patterns</li>
+<li><strong>Admin actions</strong> — Config changes, user management</li>
+</ul>
+<div class="alert alert-tip">💡 Audit logs are stored in SQLite and can be queried via the API or exported for compliance.</div>
+</section>
+<section id="operations">
+<h2><span class="icon">📊</span> Operations</h2>
+<p>Monitor system health, track activity, and manage approval workflows.</p>
+
+<h3>Monitoring</h3>
+<pre><code># Health check
+curl http://localhost:8080/health
+# → {"status": "ok"}
+
+# Detailed status
+curl http://localhost:8080/status
+# → {"status": "ok", "ventures": 3, "agents": 12, ...}
+
+# Real-time activity stream (SSE)
+curl -N http://localhost:8080/api/activity/stream</code></pre>
+
+<h3>Activity Logging</h3>
+<p>When <code>activity_log: true</code> is set, every system event is logged to SQLite:</p>
+<ul>
+<li>Message received / response sent</li>
+<li>Agent selected / skill triggered</li>
+<li>Tool executed / LLM called</li>
+<li>Error / warning events</li>
+</ul>
+<p>The dashboard displays these in a real-time SSE-powered activity feed.</p>
+
+<h3>Approval Gates</h3>
+<p>When <code>approval_gates: true</code> is set, consequential actions require human approval before execution:</p>
+<ul>
+<li>Sending emails</li>
+<li>Creating calendar events</li>
+<li>Publishing content</li>
+<li>Any action marked in agent guardrails</li>
+</ul>
+</section>
+
+<section id="deployment">
+<h2><span class="icon">🐳</span> Deployment</h2>
+
+<h3>Local Development</h3>
+<pre><code>python cli.py serve                    # Default port 8080
+python cli.py serve --port 3000       # Custom port
+python cli.py serve --reload          # Auto-reload on changes</code></pre>
+
+<h3>Docker Deployment</h3>
+<pre><code># Quick deploy
+docker compose up -d
+
+# With rebuild
+docker compose build --no-cache
+docker compose up -d
+
+# View logs
+docker compose logs -f api</code></pre>
+
+<h3>Reverse Proxy (Nginx)</h3>
+<pre><code>server {
+    listen 443 ssl http2;
+    server_name realize.yourdomain.com;
+
+    ssl_certificate /path/to/fullchain.pem;
+    ssl_certificate_key /path/to/privkey.pem;
+
+    location / {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_buffering off;        # SSE support
+        proxy_read_timeout 86400s;
+    }
+}</code></pre>
+
+<h3>Production Checklist</h3>
+<ul>
+<li>✅ Set a strong <code>REALIZE_API_KEY</code></li>
+<li>✅ Restrict <code>CORS_ORIGINS</code> to your domain</li>
+<li>✅ Use HTTPS via reverse proxy</li>
+<li>✅ Never expose port 8080 directly</li>
+<li>✅ Keep <code>.env</code> and <code>.credentials/</code> out of version control</li>
+<li>✅ Set <code>RATE_LIMIT_PER_MINUTE</code> and <code>COST_LIMIT_PER_HOUR_USD</code></li>
+<li>✅ Configure Docker resource limits</li>
+<li>✅ Set up automated backups</li>
+</ul>
+
+<h3>Backups</h3>
+<pre><code># Database backup
+docker cp realizeos-api:/app/data/realizeos.db ./backups/
+
+# Full backup
+tar czf realizeos-backup.tar.gz \
+  realize-os.yaml .env systems/ .credentials/</code></pre>
+</section>
+<section id="best-practices">
+<h2><span class="icon">⭐</span> Best Practices</h2>
+
+<h3>Venture Setup</h3>
+<ul>
+<li>Start with a template closest to your business type</li>
+<li>Fill in <code>F-foundations/identity.md</code> thoroughly — this drives all agent responses</li>
+<li>Write clear voice rules in <code>F-foundations/voice-guide.md</code></li>
+<li>Add real domain knowledge into <code>B-brain/</code> — the more context, the better the outputs</li>
+</ul>
+
+<h3>Agent Design</h3>
+<ul>
+<li>Keep agents focused — one primary responsibility per agent</li>
+<li>Use V2 format for agents that need guardrails or tool access</li>
+<li>Define clear <code>critical_rules</code> to prevent common mistakes</li>
+<li>Add 5-8 routing keywords per agent to avoid misrouting</li>
+</ul>
+
+<h3>Skill Authoring</h3>
+<ul>
+<li>Use 3-5 specific triggers per skill to avoid false matches</li>
+<li>Add <code>human</code> steps before any destructive actions</li>
+<li>Use <code>inject_context</code> to chain step results</li>
+<li>Test skills with varied phrasings of the trigger</li>
+</ul>
+
+<h3>Security Hardening</h3>
+<ul>
+<li>Always set <code>REALIZE_API_KEY</code> in production</li>
+<li>Enable JWT authentication for multi-user deployments</li>
+<li>Use RBAC to restrict access by role</li>
+<li>Enable audit logging for compliance</li>
+<li>Set rate limits to prevent abuse</li>
+</ul>
+</section>
+
+<section id="troubleshooting">
+<h2><span class="icon">🔍</span> Troubleshooting</h2>
+
+<h3>Common Issues</h3>
+<table>
+<tr><th>Problem</th><th>Solution</th></tr>
+<tr><td>Container won't start</td><td>Check <code>docker compose logs api</code> — usually missing <code>.env</code> or invalid API key</td></tr>
+<tr><td>"No LLM providers available"</td><td>Set at least one API key in <code>.env</code>. Check <code>/status</code> endpoint.</td></tr>
+<tr><td>Google tools not working</td><td>Verify <code>.credentials/tokens.json</code> exists. Re-run <code>python cli.py setup-google</code>.</td></tr>
+<tr><td>Agent routing wrong</td><td>Check <code>agent_routing</code> keywords in <code>realize-os.yaml</code>. Add more specific keywords.</td></tr>
+<tr><td>High memory usage</td><td>Set Docker resource limits. Check for memory leaks in custom extensions.</td></tr>
+<tr><td>Dashboard blank</td><td>Rebuild: <code>docker compose build --no-cache</code>. Check that <code>static/</code> exists in container.</td></tr>
+<tr><td>Port 8080 in use</td><td>Change <code>REALIZE_PORT</code> in <code>.env</code> or use <code>--port</code> flag.</td></tr>
+<tr><td>Skills not triggering</td><td>Check trigger patterns. Use <code>POST /api/systems/reload</code> to pick up changes.</td></tr>
+</table>
+
+<h3>Getting Help</h3>
+<ul>
+<li>Check the <a href="https://github.com/SufZen/RealizeOS-5/issues">GitHub Issues</a></li>
+<li>Review the <a href="self-hosting-guide.md">Self-Hosting Guide</a> for deployment issues</li>
+<li>See <a href="configuration.md">Configuration Guide</a> for all options</li>
+</ul>
+</section>
+
+<section id="glossary">
+<h2><span class="icon">📖</span> Glossary</h2>
+<table>
+<tr><th>Term</th><th>Definition</th></tr>
+<tr><td><strong>System</strong></td><td>A venture, business, or project. Each system has its own agents, KB, and config.</td></tr>
+<tr><td><strong>Venture</strong></td><td>Synonym for system — represents a business entity.</td></tr>
+<tr><td><strong>FABRIC</strong></td><td>Directory structure: Foundations, Agents, Brain, Routines, Insights, Creations.</td></tr>
+<tr><td><strong>Agent</strong></td><td>An AI team member with a specialized role and capabilities.</td></tr>
+<tr><td><strong>Skill</strong></td><td>A YAML-defined workflow that chains multiple steps together.</td></tr>
+<tr><td><strong>Pipeline</strong></td><td>A sequence of agents that process a request in order.</td></tr>
+<tr><td><strong>Extension</strong></td><td>A plugin that adds tools, channels, integrations, or hooks.</td></tr>
+<tr><td><strong>Handoff</strong></td><td>The transition of work from one agent to another.</td></tr>
+<tr><td><strong>Creative Session</strong></td><td>A multi-step stateful workflow (e.g., write → review → revise).</td></tr>
+<tr><td><strong>LLM Router</strong></td><td>The component that selects the optimal AI model for each task.</td></tr>
+<tr><td><strong>KB</strong></td><td>Knowledge Base — the collection of documents that inform agent responses.</td></tr>
+<tr><td><strong>RAG</strong></td><td>Retrieval-Augmented Generation — finding relevant KB docs for each message.</td></tr>
+<tr><td><strong>RBAC</strong></td><td>Role-Based Access Control — permissions system based on user roles.</td></tr>
+<tr><td><strong>MCP</strong></td><td>Model Context Protocol — standard for connecting AI to external tools.</td></tr>
+</table>
+
+<div style="text-align:center;padding:40px 0;color:var(--text-muted)">
+  <p style="font-size:.85rem">RealizeOS V5 — Built with ❤️ by <a href="https://github.com/SufZen">SufZen</a></p>
+  <p style="font-size:.75rem">Last updated: March 2026</p>
+</div>
+</section>
+
+</main>
+
+<script>
+// Theme toggle
+function toggleTheme(){const t=document.documentElement;t.dataset.theme=t.dataset.theme==='dark'?'light':'dark';localStorage.setItem('theme',t.dataset.theme)}
+if(localStorage.getItem('theme'))document.documentElement.dataset.theme=localStorage.getItem('theme');
+
+// Active nav highlight on scroll
+const navLinks=document.querySelectorAll('.nav-link[href^="#"]');
+const observer=new IntersectionObserver(entries=>{entries.forEach(e=>{if(e.isIntersecting){navLinks.forEach(l=>l.classList.remove('active'));document.querySelectorAll(`.nav-link[href="#${e.target.id}"]`).forEach(l=>l.classList.add('active'))}})},{rootMargin:'-80px 0px -60% 0px',threshold:0});
+document.querySelectorAll('section[id]').forEach(s=>observer.observe(s));
+
+// Search
+document.getElementById('search').addEventListener('input',function(){const q=this.value.toLowerCase();document.querySelectorAll('section').forEach(s=>{const text=s.textContent.toLowerCase();s.style.display=!q||text.includes(q)?'':'none'})});
+
+// Copy buttons for code blocks
+document.querySelectorAll('pre').forEach(pre=>{const btn=document.createElement('button');btn.className='copy-btn';btn.textContent='Copy';btn.onclick=()=>{navigator.clipboard.writeText(pre.querySelector('code')?.textContent||pre.textContent);btn.textContent='Copied!';setTimeout(()=>btn.textContent='Copy',1500)};pre.appendChild(btn)});
+
+// Mobile sidebar close on link click
+navLinks.forEach(l=>l.addEventListener('click',()=>document.getElementById('sidebar').classList.remove('open')));
+</script>
+</body>
+</html>

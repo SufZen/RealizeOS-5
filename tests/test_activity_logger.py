@@ -45,19 +45,22 @@ def clear_bus():
 # Event logging
 # ---------------------------------------------------------------------------
 
+
 class TestLogEvent:
     def test_logs_to_sqlite(self, setup_db):
         event_id = log_event(
-            venture_key="v1", actor_type="agent", actor_id="writer",
-            action="llm_called", entity_type="task", entity_id="content",
+            venture_key="v1",
+            actor_type="agent",
+            actor_id="writer",
+            action="llm_called",
+            entity_type="task",
+            entity_id="content",
             details='{"tokens": 100}',
         )
         assert event_id is not None
 
         conn = get_connection(setup_db)
-        row = conn.execute(
-            "SELECT * FROM activity_events WHERE id = ?", (event_id,)
-        ).fetchone()
+        row = conn.execute("SELECT * FROM activity_events WHERE id = ?", (event_id,)).fetchone()
         conn.close()
 
         assert row is not None
@@ -69,7 +72,9 @@ class TestLogEvent:
         subscribe(lambda e: received.append(e))
 
         log_event(
-            venture_key="v1", actor_type="user", actor_id="u1",
+            venture_key="v1",
+            actor_type="user",
+            actor_id="u1",
             action="message_received",
         )
 
@@ -81,7 +86,9 @@ class TestLogEvent:
         set_db_path(tmp_path / "nonexistent_dir" / "db.sqlite")
         # Should not raise
         result = log_event(
-            venture_key="v1", actor_type="agent", actor_id="x",
+            venture_key="v1",
+            actor_type="agent",
+            actor_id="x",
             action="test",
         )
         # May return an ID even if persistence failed
@@ -92,11 +99,14 @@ class TestLogEvent:
 # Event store (query layer)
 # ---------------------------------------------------------------------------
 
+
 class TestActivityStore:
     def test_query_all(self, setup_db):
         for i in range(5):
             log_event(
-                venture_key="v1", actor_type="agent", actor_id="writer",
+                venture_key="v1",
+                actor_type="agent",
+                actor_id="writer",
                 action=f"action_{i}",
             )
 
@@ -145,6 +155,7 @@ class TestActivityStore:
 # Event bus
 # ---------------------------------------------------------------------------
 
+
 class TestEventBus:
     def test_subscribe_receives_events(self):
         received = []
@@ -154,8 +165,10 @@ class TestEventBus:
 
     def test_unsubscribe(self):
         received = []
+
         def cb(e):
             return received.append(e)
+
         subscribe(cb)
         publish_event({"action": "first"})
         unsubscribe(cb)

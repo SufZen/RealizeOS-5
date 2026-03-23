@@ -7,6 +7,7 @@ Provides:
 - Hot-reload from directory (file-watcher friendly)
 - Enumerate all agents with optional filters
 """
+
 from __future__ import annotations
 
 import logging
@@ -143,7 +144,9 @@ class AgentRegistry:
             self._load_timestamp = time.time()
 
         logger.info(
-            "Loaded %d agents from %s", len(agents), directory,
+            "Loaded %d agents from %s",
+            len(agents),
+            directory,
         )
         return len(agents)
 

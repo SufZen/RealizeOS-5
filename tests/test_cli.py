@@ -1,4 +1,5 @@
 """Tests for realize_core.cli — CLI entry point."""
+
 import tempfile
 from pathlib import Path
 
@@ -47,7 +48,7 @@ class TestCmdInit:
         with tempfile.TemporaryDirectory() as tmpdir:
             cmd_init(tmpdir, "lite", "lite-project")
             assert not (Path(tmpdir) / "channels").is_dir()  # Lite = no channels dir
-            assert (Path(tmpdir) / "config").is_dir()       # But still has config
+            assert (Path(tmpdir) / "config").is_dir()  # But still has config
 
     def test_idempotent(self):
         """Running init twice should not overwrite existing files."""

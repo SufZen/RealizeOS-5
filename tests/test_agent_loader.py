@@ -1,6 +1,7 @@
 """
 Tests for the agent loader — V1 (.md) and V2 (.yaml) format loading.
 """
+
 import textwrap
 from pathlib import Path
 
@@ -16,6 +17,7 @@ from realize_core.agents.schema import V1AgentDef, V2AgentDef
 # Fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 def tmp_agents_dir(tmp_path: Path) -> Path:
     """Create a temp directory with sample V1 and V2 agent files."""
@@ -23,7 +25,8 @@ def tmp_agents_dir(tmp_path: Path) -> Path:
     agents_dir.mkdir()
 
     # V1 markdown agent
-    (agents_dir / "writer.md").write_text(textwrap.dedent("""\
+    (agents_dir / "writer.md").write_text(
+        textwrap.dedent("""\
         # Writer Agent
 
         ## Role
@@ -42,10 +45,13 @@ def tmp_agents_dir(tmp_path: Path) -> Path:
         1. Always read venture-voice.md before writing
         2. Ask about target audience
         3. Produce a draft, then offer to iterate
-    """), encoding="utf-8")
+    """),
+        encoding="utf-8",
+    )
 
     # V2 YAML agent
-    (agents_dir / "orchestrator.yaml").write_text(textwrap.dedent("""\
+    (agents_dir / "orchestrator.yaml").write_text(
+        textwrap.dedent("""\
         name: Orchestrator
         key: orchestrator
         version: "2"
@@ -75,7 +81,9 @@ def tmp_agents_dir(tmp_path: Path) -> Path:
           - name: execute
             agent_key: writer
             description: Execute the plan
-    """), encoding="utf-8")
+    """),
+        encoding="utf-8",
+    )
 
     # Skip file (starts with _)
     (agents_dir / "_README.md").write_text("# Agents directory\n", encoding="utf-8")
@@ -97,6 +105,7 @@ def v2_file(tmp_agents_dir: Path) -> Path:
 # Format detection
 # ---------------------------------------------------------------------------
 
+
 class TestDetectFormat:
     def test_md_is_v1(self):
         assert detect_format("writer.md") == "v1"
@@ -114,6 +123,7 @@ class TestDetectFormat:
 # ---------------------------------------------------------------------------
 # V1 Loader
 # ---------------------------------------------------------------------------
+
 
 class TestV1Loader:
     def test_loads_v1_agent(self, v1_file: Path):
@@ -152,6 +162,7 @@ class TestV1Loader:
 # ---------------------------------------------------------------------------
 # V2 Loader
 # ---------------------------------------------------------------------------
+
 
 class TestV2Loader:
     def test_loads_v2_agent(self, v2_file: Path):
@@ -201,6 +212,7 @@ class TestV2Loader:
 # Directory loading
 # ---------------------------------------------------------------------------
 
+
 class TestDirectoryLoader:
     def test_loads_all_agents(self, tmp_agents_dir: Path):
         agents = load_agents_from_directory(tmp_agents_dir)
@@ -232,6 +244,7 @@ class TestDirectoryLoader:
 # ---------------------------------------------------------------------------
 # Error cases
 # ---------------------------------------------------------------------------
+
 
 class TestLoaderErrors:
     def test_file_not_found(self):

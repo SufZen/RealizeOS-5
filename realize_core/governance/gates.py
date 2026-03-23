@@ -16,6 +16,7 @@ governance:
     high_cost_llm: false
 ```
 """
+
 import json
 import logging
 import uuid
@@ -112,6 +113,7 @@ def create_approval_request(
     # Log activity event
     try:
         from realize_core.activity.logger import log_event
+
         log_event(
             venture_key=venture_key,
             actor_type="system",
@@ -177,10 +179,14 @@ def approve_request(approval_id: str, decision_note: str = None, db_path=None) -
 
     try:
         from realize_core.activity.logger import log_event
+
         log_event(
             venture_key=result["venture_key"],
-            actor_type="user", actor_id="dashboard",
-            action="approval_approved", entity_type="approval", entity_id=approval_id,
+            actor_type="user",
+            actor_id="dashboard",
+            action="approval_approved",
+            entity_type="approval",
+            entity_id=approval_id,
         )
     except Exception:
         pass
@@ -217,10 +223,14 @@ def reject_request(approval_id: str, decision_note: str = None, db_path=None) ->
 
     try:
         from realize_core.activity.logger import log_event
+
         log_event(
             venture_key=result["venture_key"],
-            actor_type="user", actor_id="dashboard",
-            action="approval_rejected", entity_type="approval", entity_id=approval_id,
+            actor_type="user",
+            actor_id="dashboard",
+            action="approval_rejected",
+            entity_type="approval",
+            entity_id=approval_id,
         )
     except Exception:
         pass

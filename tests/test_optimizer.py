@@ -10,7 +10,6 @@ Covers:
 - Token optimization in prompt builder (estimate_tokens, truncate_to_budget, deduplicate_layers)
 """
 
-
 import pytest
 from realize_core.optimizer.base import (
     BaseExperiment,
@@ -49,6 +48,7 @@ from realize_core.prompt.builder import (
 # ===========================================================================
 # Fixtures
 # ===========================================================================
+
 
 @pytest.fixture
 def tmp_experiments_dir(tmp_path):
@@ -91,6 +91,7 @@ def sample_experiment(sample_target):
 # ===========================================================================
 # Metrics: MetricDefinition
 # ===========================================================================
+
 
 class TestMetricDefinition:
     def test_higher_is_better_threshold(self):
@@ -143,6 +144,7 @@ class TestMetricDefinition:
 # Metrics: compare_groups
 # ===========================================================================
 
+
 class TestCompareGroups:
     def test_basic_comparison(self):
         m = MetricDefinition(name="quality", direction=MetricDirection.HIGHER_IS_BETTER)
@@ -188,18 +190,21 @@ class TestCompareGroups:
 # Metrics: composite score
 # ===========================================================================
 
+
 class TestCompositeScore:
     def test_positive_composite(self):
         comparisons = [
             MetricComparison(
                 metric_name="quality",
-                control_mean=70, candidate_mean=85,
+                control_mean=70,
+                candidate_mean=85,
                 improvement_pct=21.4,
                 direction=MetricDirection.HIGHER_IS_BETTER,
             ),
             MetricComparison(
                 metric_name="latency_ms",
-                control_mean=500, candidate_mean=300,
+                control_mean=500,
+                candidate_mean=300,
                 improvement_pct=40.0,
                 direction=MetricDirection.LOWER_IS_BETTER,
             ),
@@ -211,7 +216,8 @@ class TestCompositeScore:
         comparisons = [
             MetricComparison(
                 metric_name="quality",
-                control_mean=85, candidate_mean=70,
+                control_mean=85,
+                candidate_mean=70,
                 improvement_pct=-17.6,
                 direction=MetricDirection.HIGHER_IS_BETTER,
             ),
@@ -226,6 +232,7 @@ class TestCompositeScore:
 # ===========================================================================
 # Tracker: Registration & Recording
 # ===========================================================================
+
 
 class TestExperimentTracker:
     def test_register_experiment(self, tracker, sample_experiment):
@@ -338,6 +345,7 @@ class TestExperimentTracker:
 # Tracker: ExperimentRecord serialization
 # ===========================================================================
 
+
 class TestExperimentRecordSerialization:
     def test_to_dict_roundtrip(self, sample_experiment, sample_target):
         record = ExperimentRecord(
@@ -377,6 +385,7 @@ class TestExperimentRecordSerialization:
 # ===========================================================================
 # Engine: ExperimentEngine
 # ===========================================================================
+
 
 class TestExperimentEngine:
     def test_create_experiment(self, tracker):
@@ -522,6 +531,7 @@ class TestExperimentEngine:
         )
 
         call_count = 0
+
         def evaluator(config, sample_id):
             nonlocal call_count
             call_count += 1
@@ -541,6 +551,7 @@ class TestExperimentEngine:
 # ===========================================================================
 # Token Optimization: estimate_tokens
 # ===========================================================================
+
 
 class TestEstimateTokens:
     def test_empty_string(self):
@@ -566,6 +577,7 @@ class TestEstimateTokens:
 # Token Optimization: truncate_to_budget
 # ===========================================================================
 
+
 class TestTruncateToBudget:
     def test_under_budget_unchanged(self):
         layers = ["## Identity\nShort content", "## Active Agent\nAgent stuff"]
@@ -577,7 +589,7 @@ class TestTruncateToBudget:
             "## Identity\nCritical identity content",
             "## Active Agent\nAgent definition",
             "## Cross-System Awareness\n" + "x " * 500,  # Low priority, long
-            "## Recent Learning\n" + "y " * 500,         # Low priority, long
+            "## Recent Learning\n" + "y " * 500,  # Low priority, long
         ]
         result = truncate_to_budget(layers, token_budget=100)
         # Should trim low-priority layers but keep identity and agent
@@ -605,6 +617,7 @@ class TestTruncateToBudget:
 # ===========================================================================
 # Token Optimization: deduplicate_layers
 # ===========================================================================
+
 
 class TestDeduplicateLayers:
     def test_no_duplicates_unchanged(self):
@@ -636,6 +649,7 @@ class TestDeduplicateLayers:
 # Token Optimization: layer priorities
 # ===========================================================================
 
+
 class TestLayerPriorities:
     def test_identity_is_highest(self):
         assert _get_layer_priority("## Identity\nSome content") == 9
@@ -653,6 +667,7 @@ class TestLayerPriorities:
 # ===========================================================================
 # Token Optimization: integrated with build_system_prompt
 # ===========================================================================
+
 
 class TestTokenBudgetIntegration:
     @pytest.fixture(autouse=True)
