@@ -1,5 +1,5 @@
 import { useState, lazy, Suspense, Component, type ReactNode } from 'react'
-import { BrowserRouter, Routes, Route, NavLink } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, NavLink, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard,
   Briefcase,
@@ -141,13 +141,19 @@ function MobileSheet({ open, onClose }: { open: boolean; onClose: () => void }) 
 }
 
 
-class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: string }> {
-  constructor(props: { children: ReactNode }) {
+class ErrorBoundary extends Component<{ children: ReactNode; resetKey?: string }, { hasError: boolean; error: string }> {
+  constructor(props: { children: ReactNode; resetKey?: string }) {
     super(props)
     this.state = { hasError: false, error: '' }
   }
   static getDerivedStateFromError(error: Error) {
     return { hasError: true, error: error.message }
+  }
+  componentDidUpdate(prevProps: { resetKey?: string }) {
+    // Auto-reset when navigation changes (user clicks a different page)
+    if (this.state.hasError && prevProps.resetKey !== this.props.resetKey) {
+      this.setState({ hasError: false, error: '' })
+    }
   }
   render() {
     if (this.state.hasError) {
@@ -157,18 +163,31 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boole
             <div className="text-4xl mb-4">:(</div>
             <h2 className="text-xl font-bold text-foreground mb-2">Something went wrong</h2>
             <p className="text-sm text-muted-foreground mb-4">{this.state.error || 'An unexpected error occurred.'}</p>
-            <button
-              onClick={() => { this.setState({ hasError: false, error: '' }); window.location.reload() }}
-              className="px-4 py-2 text-sm rounded-lg bg-brand-400 text-black hover:bg-brand-400/90 font-medium"
-            >
-              Reload
-            </button>
+            <div className="flex gap-3 justify-center">
+              <button
+                onClick={() => this.setState({ hasError: false, error: '' })}
+                className="px-4 py-2 text-sm rounded-lg bg-brand-400 text-black hover:bg-brand-400/90 font-medium"
+              >
+                Retry
+              </button>
+              <button
+                onClick={() => window.location.reload()}
+                className="px-4 py-2 text-sm rounded-lg border border-border text-foreground hover:bg-surface-700 font-medium"
+              >
+                Reload Page
+              </button>
+            </div>
           </div>
         </div>
       )
     }
     return this.props.children
   }
+}
+
+function ErrorBoundaryWithLocation({ children }: { children: ReactNode }) {
+  const location = useLocation()
+  return <ErrorBoundary resetKey={location.pathname}>{children}</ErrorBoundary>
 }
 
 export default function App() {
@@ -182,7 +201,7 @@ export default function App() {
           <MobileHeader onToggle={() => setMobileOpen(true)} />
           <MobileSheet open={mobileOpen} onClose={() => setMobileOpen(false)} />
           <main className="flex-1 overflow-y-auto p-6">
-            <ErrorBoundary>
+            <ErrorBoundaryWithLocation>
             <Suspense
               fallback={<div className="flex items-center justify-center h-64 text-muted-foreground">Loading...</div>}
             >
@@ -205,7 +224,7 @@ export default function App() {
                 <Route path="/settings" element={<SettingsPage />} />
               </Routes>
             </Suspense>
-            </ErrorBoundary>
+            </ErrorBoundaryWithLocation>
           </main>
         </div>
       </div>

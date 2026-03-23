@@ -238,12 +238,14 @@ export default function SettingsPage() {
                 <span
                   className={cn(
                     'text-xs px-2 py-0.5 rounded-full',
-                    p.available
+                    p.available && p.models.length > 0
                       ? 'bg-green-400/10 text-green-400'
+                      : p.available
+                      ? 'bg-amber-400/10 text-amber-400'
                       : 'bg-surface-700 text-muted-foreground',
                   )}
                 >
-                  {p.available ? 'Connected' : 'Not configured'}
+                  {p.available && p.models.length > 0 ? 'Connected' : p.available ? 'Available' : 'Not configured'}
                 </span>
               </div>
             ))}
@@ -261,7 +263,11 @@ export default function SettingsPage() {
           <div className="text-muted-foreground">Python</div>
           <div className="text-foreground">{data.system_info.python_version}</div>
           <div className="text-muted-foreground">Database size</div>
-          <div className="text-foreground">{formatBytes(data.system_info.db_size_bytes)}</div>
+          <div className="text-foreground">
+            {data.system_info.db_size_bytes === 0
+              ? <span className="text-muted-foreground italic">Empty — will initialize on first chat</span>
+              : formatBytes(data.system_info.db_size_bytes)}
+          </div>
           <div className="text-muted-foreground">KB files</div>
           <div className="text-foreground">{data.system_info.kb_file_count} markdown files</div>
         </div>
