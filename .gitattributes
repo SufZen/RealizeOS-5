@@ -1,0 +1,6 @@
+# Exclude developer resources from GitHub ZIP downloads
+developer_resources/ export-ignore
+tests/ export-ignore
+.github/ export-ignore
+.gitignore export-ignore
+.gitattributes export-ignore

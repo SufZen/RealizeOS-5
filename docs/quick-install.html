@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RealizeOS — Quick Install Guide</title>
+    <!-- Use Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #4f46e5;
+            --primary-hover: #4338ca;
+            --accent: #ec4899;
+            --bg-body: #0f111a;
+            --bg-card: rgba(255, 255, 255, 0.05);
+            --border: rgba(255, 255, 255, 0.1);
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-body);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow-x: hidden;
+            background: radial-gradient(circle at top left, #1e1b4b 0%, #0f111a 50%, #1e1b4b 100%);
+        }
+
+        .container {
+            width: 100%;
+            max-width: 800px;
+            padding: 2rem;
+            position: relative;
+            z-index: 10;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 3rem;
+            animation: fadeInDown 0.8s ease-out;
+        }
+
+        .header h1 {
+            font-size: 3.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #a855f7 0%, #ec4899 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.5rem;
+            letter-spacing: -1px;
+        }
+
+        .header p {
+            font-size: 1.25rem;
+            color: var(--text-muted);
+            font-weight: 300;
+        }
+
+        /* Glassmorphism Card Container */
+        .glass-panel {
+            background: var(--bg-card);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            padding: 2.5rem;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            animation: fadeInUp 0.8s ease-out;
+        }
+
+        /* Stepper UI */
+        .stepper {
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+        }
+
+        .step {
+            display: flex;
+            gap: 1.5rem;
+            opacity: 0.4;
+            transition: all 0.4s ease;
+            position: relative;
+            cursor: pointer;
+        }
+
+        .step::after {
+            content: '';
+            position: absolute;
+            left: 24px;
+            top: 60px;
+            bottom: -30px;
+            width: 2px;
+            background: var(--border);
+            z-index: -1;
+        }
+
+        .step:last-child::after {
+            display: none;
+        }
+
+        .step.active {
+            opacity: 1;
+            transform: scale(1.02);
+        }
+
+        .step.completed .step-circle {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+            box-shadow: 0 0 15px rgba(79, 70, 229, 0.5);
+        }
+
+        .step.completed::after {
+            background: var(--primary);
+            box-shadow: 0 0 10px rgba(79, 70, 229, 0.4);
+        }
+
+        .step-circle {
+            width: 50px;
+            height: 50px;
+            min-width: 50px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255, 255, 255, 0.05);
+            border: 2px solid var(--border);
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            transition: all 0.3s ease;
+            z-index: 2;
+        }
+
+        .step.active .step-circle {
+            border-color: var(--accent);
+            color: var(--accent);
+            box-shadow: 0 0 20px rgba(236, 72, 153, 0.3);
+        }
+
+        .step-content {
+            flex: 1;
+            background: rgba(0, 0, 0, 0.2);
+            padding: 1.5rem;
+            border-radius: 16px;
+            border: 1px solid var(--border);
+        }
+
+        .step-content h3 {
+            font-size: 1.5rem;
+            margin-bottom: 0.5rem;
+            color: white;
+        }
+
+        .step-content p {
+            color: var(--text-muted);
+            line-height: 1.6;
+            margin-bottom: 1rem;
+        }
+
+        .step-content a {
+            color: var(--accent);
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.2s;
+        }
+
+        .step-content a:hover {
+            color: #f472b6;
+            text-decoration: underline;
+        }
+
+        /* Action Buttons */
+        .btn-group {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .btn {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn:hover {
+            background: var(--primary-hover);
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px -10px var(--primary);
+        }
+
+        .btn.outline {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-main);
+        }
+
+        .btn.outline:hover {
+            border-color: var(--text-main);
+            background: rgba(255, 255, 255, 0.05);
+            box-shadow: none;
+        }
+
+        /* Glow Effects */
+        .glow {
+            position: absolute;
+            width: 300px;
+            height: 300px;
+            background: var(--primary);
+            border-radius: 50%;
+            filter: blur(150px);
+            opacity: 0.3;
+            z-index: 1;
+            top: -100px;
+            right: -100px;
+            animation: pulse 8s infinite alternate;
+        }
+
+        .glow-2 {
+            position: absolute;
+            width: 250px;
+            height: 250px;
+            background: var(--accent);
+            border-radius: 50%;
+            filter: blur(150px);
+            opacity: 0.2;
+            z-index: 1;
+            bottom: -50px;
+            left: -100px;
+            animation: pulse 10s infinite alternate-reverse;
+        }
+
+        /* Code block style */
+        .code-block {
+            background: #000;
+            color: #10b981;
+            padding: 1rem;
+            border-radius: 8px;
+            font-family: monospace;
+            display: inline-block;
+            margin-top: 0.5rem;
+            user-select: all;
+            border: 1px solid var(--border);
+        }
+
+        @keyframes fadeInDown {
+            from { opacity: 0; transform: translateY(-30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 0.2; }
+            100% { transform: scale(1.2); opacity: 0.4; }
+        }
+
+        .hidden {
+            display: none !important;
+        }
+        
+    </style>
+</head>
+<body>
+
+    <div class="glow"></div>
+    <div class="glow-2"></div>
+
+    <div class="container">
+        <div class="header">
+            <h1>RealizeOS Setup</h1>
+            <p>Welcome to the easiest installation guide ever.</p>
+        </div>
+
+        <div class="glass-panel">
+            <div class="stepper" id="stepper">
+                
+                <!-- Step 1 -->
+                <div class="step active" id="step1" onclick="activateStep(1)">
+                    <div class="step-circle" id="circle1">1</div>
+                    <div class="step-content">
+                        <h3>Download Python</h3>
+                        <p>RealizeOS relies on Python to run its AI features. If you already have it installed, you can skip this step!</p>
+                        <p>If not, download logic is simple: go to the official Python website, download the latest version, and <strong>crucially, make sure you check the box that says "Add Python to PATH" during installation.</strong></p>
+                        
+                        <div class="btn-group">
+                            <a href="https://www.python.org/downloads/" target="_blank" style="text-decoration: none;">
+                                <button class="btn">
+                                    <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+                                    Download Python 3
+                                </button>
+                            </a>
+                            <button class="btn outline" onclick="completeStep(1, event)">I already have Python</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 2 -->
+                <div class="step" id="step2" onclick="activateStep(2)">
+                    <div class="step-circle" id="circle2">2</div>
+                    <div class="step-content">
+                        <h3>Extract RealizeOS</h3>
+                        <p>Find the RealizeOS folder you downloaded (likely an extracted `.zip` file on your computer).</p>
+                        <p>Simply extract the contents anywhere on your hard drive. Your <code>Desktop</code> or <code>Documents</code> folder is perfectly fine!</p>
+                        
+                        <div class="btn-group">
+                            <button class="btn" onclick="completeStep(2, event)">
+                                <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+                                Done, Extracted!
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 3 -->
+                <div class="step" id="step3" onclick="activateStep(3)">
+                    <div class="step-circle" id="circle3">3</div>
+                    <div class="step-content">
+                        <h3>Launch the System</h3>
+                        <p>Everything is ready. Instead of relying on complicated terminal commands, we designed a simple one-click launcher for you.</p>
+                        <p>Open your extracted RealizeOS folder and <strong>double-click the file named:</strong></p>
+                        <div class="code-block">start-realizeos.bat</div>
+                        <p style="margin-top: 1rem; font-size: 0.9rem;"><em>(The very first time you click this, it may take 1-2 minutes to automatically download standard AI dependencies directly in the background. Please be patient while it initializes!)</em></p>
+                        
+                        <div class="btn-group">
+                            <button class="btn" id="finishBtn" onclick="finish(event)">
+                                <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                                Complete Installation!
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Success State -->
+                <div class="step hidden" id="success-state">
+                    <div class="step-circle" style="border-color: #10b981; color: #10b981; box-shadow: 0 0 20px rgba(16, 185, 129, 0.4);">✓</div>
+                    <div class="step-content" style="border-color: #10b981;">
+                        <h3 style="color: #10b981;">You're All Set!</h3>
+                        <p>The system is now running locally on your computer. When you launch the .bat file, RealizeOS will load an icon into your system tray and serve the dashboard directly on your local browser.</p>
+                        <p>You can access the dashboard manually any time at:</p>
+                        <a href="http://localhost:8080" target="_blank" style="font-size: 1.25rem; font-weight: bold; margin-top: 0.5rem; display: inline-block;">http://localhost:8080</a>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- Interactivity Script -->
+    <script>
+        let highestCompleted = 0;
+
+        function activateStep(stepNum) {
+            // Only allow activating if previous steps are completed
+            if (stepNum > highestCompleted + 1) return;
+
+            // Remove active from all
+            document.querySelectorAll('.step').forEach(el => el.classList.remove('active'));
+            
+            // Add active to current
+            const target = document.getElementById('step' + stepNum);
+            if(target) target.classList.add('active');
+        }
+
+        function completeStep(stepNum, event) {
+            if (event) event.stopPropagation();
+            
+            // Mark current as completed
+            const stepEl = document.getElementById('step' + stepNum);
+            stepEl.classList.add('completed');
+            
+            highestCompleted = Math.max(highestCompleted, stepNum);
+            
+            // Activate next step
+            activateStep(stepNum + 1);
+        }
+
+        function finish(event) {
+            if (event) event.stopPropagation();
+            
+            // Complete step 3
+            document.getElementById('step3').classList.add('completed');
+            document.getElementById('step3').classList.remove('active');
+            
+            // Show Success Msg
+            document.getElementById('success-state').classList.remove('hidden');
+            document.getElementById('success-state').style.opacity = '0';
+            
+            setTimeout(() => {
+                document.getElementById('success-state').style.transition = 'opacity 0.6s ease';
+                document.getElementById('success-state').style.opacity = '1';
+                document.getElementById('success-state').classList.add('active');
+            }, 50);
+        }
+    </script>
+</body>
+</html>
