@@ -38,6 +38,8 @@ const WorkflowEditorPage = lazy(() => import('@/pages/workflow-editor'))
 const RoutingPage = lazy(() => import('@/pages/routing-page'))
 const IntegrationsPage = lazy(() => import('@/pages/integrations-page'))
 
+import OnboardingWizard, { isOnboardingComplete } from '@/components/onboarding-wizard'
+
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Overview' },
   { to: '/chat', icon: MessageCircle, label: 'Chat' },
@@ -192,6 +194,11 @@ function ErrorBoundaryWithLocation({ children }: { children: ReactNode }) {
 
 export default function App() {
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [showOnboarding, setShowOnboarding] = useState(!isOnboardingComplete())
+
+  if (showOnboarding) {
+    return <OnboardingWizard onComplete={() => setShowOnboarding(false)} />
+  }
 
   return (
     <BrowserRouter>
