@@ -1,4 +1,5 @@
 import { useState, useCallback, useMemo } from 'react'
+import { useDebounce } from '@/hooks/use-debounce'
 import {
   FileCode2,
   Plus,
@@ -159,20 +160,21 @@ export default function WorkflowEditorPage() {
   }, [content])
 
   /* ---- Filtered files ---- */
+  const debouncedSearch = useDebounce(searchQuery, 250)
   const filteredFiles = useMemo(() => {
     if (!data?.workflows) return []
     let files = data.workflows
     if (selectedVenture) {
       files = files.filter((f) => f.venture_key === selectedVenture)
     }
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase()
+    if (debouncedSearch) {
+      const q = debouncedSearch.toLowerCase()
       files = files.filter(
         (f) => f.name.toLowerCase().includes(q) || f.content.toLowerCase().includes(q),
       )
     }
     return files
-  }, [data, selectedVenture, searchQuery])
+  }, [data, selectedVenture, debouncedSearch])
 
   /* ---- Preview parsing ---- */
   const preview = useMemo(() => {
@@ -221,6 +223,7 @@ export default function WorkflowEditorPage() {
               onClick={handleNew}
               className="p-1.5 rounded-lg border border-border text-muted-foreground hover:text-brand-400 hover:border-brand-400/50 transition-colors"
               title="New file"
+              aria-label="Create new file"
             >
               <Plus className="h-3.5 w-3.5" />
             </button>
@@ -327,6 +330,7 @@ export default function WorkflowEditorPage() {
                 onClick={handleCopy}
                 className="p-1.5 rounded-lg border border-border text-muted-foreground hover:text-foreground transition-colors"
                 title="Copy"
+                aria-label="Copy to clipboard"
               >
                 <Copy className="h-3.5 w-3.5" />
               </button>

@@ -213,13 +213,13 @@ class TestGoogleSheets:
         assert all(callable(fn) for fn in SHEETS_TOOL_FUNCTIONS.values())
 
     def test_functions_are_async(self):
-        import asyncio
+        import inspect
 
         from realize_core.tools.google_sheets import sheets_append, sheets_create, sheets_read
 
-        assert asyncio.iscoroutinefunction(sheets_read)
-        assert asyncio.iscoroutinefunction(sheets_append)
-        assert asyncio.iscoroutinefunction(sheets_create)
+        assert inspect.iscoroutinefunction(sheets_read)
+        assert inspect.iscoroutinefunction(sheets_append)
+        assert inspect.iscoroutinefunction(sheets_create)
 
 
 # =====================================================================
@@ -282,12 +282,12 @@ class TestGoogleWorkspaceExpanded:
         assert schema_names == func_names, f"Mismatch: {schema_names ^ func_names}"
 
     def test_all_functions_are_async(self):
-        import asyncio
+        import inspect
 
         from realize_core.tools.google_workspace import TOOL_FUNCTIONS
 
         for name, fn in TOOL_FUNCTIONS.items():
-            assert asyncio.iscoroutinefunction(fn), f"{name} is not async"
+            assert inspect.iscoroutinefunction(fn), f"{name} is not async"
 
     def test_gmail_triage_schema(self):
         from realize_core.tools.google_workspace import GOOGLE_TOOL_SCHEMAS

@@ -1,4 +1,4 @@
-import { useState, lazy, Suspense, Component, type ReactNode } from 'react'
+import { useState, useEffect, lazy, Suspense, Component, type ReactNode } from 'react'
 import { BrowserRouter, Routes, Route, NavLink, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard,
@@ -23,6 +23,7 @@ import { cn } from '@/lib/utils'
 import { ThemeProvider } from '@/components/theme-provider'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { TourProvider } from '@/components/tour-provider'
+import { Skeleton, SkeletonCard } from '@/components/ui/skeleton'
 
 const OverviewPage = lazy(() => import('@/pages/overview'))
 const ChatPage = lazy(() => import('@/pages/chat-page'))
@@ -156,12 +157,26 @@ function MobileHeader({ onToggle }: { onToggle: () => void }) {
 }
 
 function MobileSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+  useEffect(() => {
+    if (!open) return
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose()
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [open, onClose])
+
   if (!open) return null
 
   return (
     <>
       <div className="fixed inset-0 z-40 bg-black/60" onClick={onClose} />
-      <div className="fixed inset-y-0 left-0 z-50 w-72 bg-surface-950 border-r border-border p-4 shadow-xl">
+      <div
+        className="fixed inset-y-0 left-0 z-50 w-72 bg-surface-950 border-r border-border p-4 shadow-xl"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Navigation menu"
+      >
         <div className="flex items-center justify-between mb-6">
           <Logo />
           <button
@@ -178,6 +193,41 @@ function MobileSheet({ open, onClose }: { open: boolean; onClose: () => void }) 
   )
 }
 
+function PageSkeleton() {
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center gap-2">
+        <Skeleton className="h-6 w-6 rounded" />
+        <Skeleton className="h-8 w-48" />
+      </div>
+      <div className="grid gap-4 md:grid-cols-3">
+        <SkeletonCard />
+        <SkeletonCard />
+        <SkeletonCard />
+      </div>
+    </div>
+  )
+}
+
+function NotFoundPage() {
+  return (
+    <div className="flex flex-1 items-center justify-center p-8">
+      <div className="text-center max-w-md">
+        <div className="text-6xl font-bold text-muted-foreground/20 mb-4">404</div>
+        <h2 className="text-xl font-bold text-foreground mb-2">Page not found</h2>
+        <p className="text-sm text-muted-foreground mb-4">
+          The page you are looking for does not exist or has been moved.
+        </p>
+        <NavLink
+          to="/"
+          className="inline-flex px-4 py-2 text-sm rounded-lg bg-brand-400 text-black hover:bg-brand-400/90 font-medium"
+        >
+          Go to Overview
+        </NavLink>
+      </div>
+    </div>
+  )
+}
 
 class ErrorBoundary extends Component<{ children: ReactNode; resetKey?: string }, { hasError: boolean; error: string }> {
   constructor(props: { children: ReactNode; resetKey?: string }) {
@@ -244,6 +294,7 @@ export default function App() {
     <ThemeProvider>
       <BrowserRouter>
         <TourProvider>
+        <ErrorBoundary>
         <div className="flex h-screen bg-background">
           <DesktopSidebar />
           <div className="flex flex-1 flex-col overflow-hidden">
@@ -251,9 +302,7 @@ export default function App() {
             <MobileSheet open={mobileOpen} onClose={() => setMobileOpen(false)} />
             <main className="flex-1 overflow-y-auto p-6">
               <ErrorBoundaryWithLocation>
-              <Suspense
-                fallback={<div className="flex items-center justify-center h-64 text-muted-foreground">Loading...</div>}
-              >
+              <Suspense fallback={<PageSkeleton />}>
                 <Routes>
                   <Route path="/" element={<OverviewPage />} />
                   <Route path="/chat" element={<ChatPage />} />
@@ -272,12 +321,14 @@ export default function App() {
                   <Route path="/setup" element={<SetupPage />} />
                   <Route path="/settings" element={<SettingsPage />} />
                   <Route path="/docs" element={<DocsPage />} />
+                  <Route path="*" element={<NotFoundPage />} />
                 </Routes>
               </Suspense>
               </ErrorBoundaryWithLocation>
             </main>
           </div>
         </div>
+        </ErrorBoundary>
         </TourProvider>
       </BrowserRouter>
     </ThemeProvider>

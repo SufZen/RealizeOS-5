@@ -10,19 +10,12 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
-from fastapi import Request as FastAPIRequest
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from realize_api.error_handlers import mask_sensitive, register_error_handlers
+from realize_api.error_handlers import register_error_handlers
 from realize_api.middleware import APIKeyMiddleware
-from realize_api.security_middleware import (
-    AuditMiddleware,
-    InjectionGuardMiddleware,
-    JWTAuthMiddleware,
-    RateLimitMiddleware,
-)
 from realize_api.routes import (
     activity,
     agents_v2,
@@ -30,6 +23,7 @@ from realize_api.routes import (
     auth,
     chat,
     dashboard,
+    devmode,
     evolution,
     extensions,
     health,
@@ -39,11 +33,16 @@ from realize_api.routes import (
     settings,
     setup,
     storage_settings,
-    devmode,
     systems,
     ventures,
     webhooks,
     workflows,
+)
+from realize_api.security_middleware import (
+    AuditMiddleware,
+    InjectionGuardMiddleware,
+    JWTAuthMiddleware,
+    RateLimitMiddleware,
 )
 
 logger = logging.getLogger(__name__)
@@ -205,15 +204,28 @@ async def lifespan(app: FastAPI):
 
 def create_app() -> FastAPI:
     """Create and configure the FastAPI application."""
+    from realize_core.utils.rate_limiter import build_rate_limiter
+
     app = FastAPI(
         title="RealizeOS",
         description="AI Operations System — Multi-agent, multi-venture, self-evolving.",
         version="0.1.0",
         lifespan=lifespan,
     )
+    app.state.rate_limiter = build_rate_limiter()
 
-    # CORS
-    allowed_origins = os.environ.get("CORS_ORIGINS", "*").split(",")
+    # CORS — defaults to localhost dev origins; production must set CORS_ORIGINS
+    cors_env = os.environ.get("CORS_ORIGINS", "")
+    if cors_env:
+        allowed_origins = [o.strip() for o in cors_env.split(",") if o.strip()]
+    else:
+        allowed_origins = [
+            "http://localhost:5173",
+            "http://localhost:3000",
+            "http://127.0.0.1:5173",
+        ]
+    if "*" in allowed_origins:
+        logger.warning("CORS wildcard (*) is enabled — not recommended for production")
     app.add_middleware(
         CORSMiddleware,
         allow_origins=allowed_origins,
@@ -285,9 +297,13 @@ def create_app() -> FastAPI:
 
         @app.get("/{full_path:path}")
         async def serve_spa(full_path: str):
-            file_path = static_dir / full_path
-            if file_path.is_file() and ".." not in full_path:
-                return FileResponse(file_path)
+            if full_path and not full_path.startswith("api/"):
+                file_path = (static_dir / full_path).resolve()
+                # Ensure resolved path is still under static_dir (prevents traversal)
+                if file_path.is_file() and str(file_path).startswith(
+                    str(static_dir.resolve())
+                ):
+                    return FileResponse(file_path)
             return FileResponse(static_dir / "index.html")
 
         logger.info(f"Dashboard serving from {static_dir}")

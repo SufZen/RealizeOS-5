@@ -396,6 +396,7 @@ function StepCard({ step, index, total, allSteps, onUpdate, onRemove, onMove }: 
           <button
             className="cursor-grab text-muted-foreground hover:text-foreground"
             title="Drag to reorder"
+            aria-label="Drag to reorder"
             onClick={() => {}} // Drag placeholder
           >
             <GripVertical className="h-4 w-4" />
@@ -419,6 +420,7 @@ function StepCard({ step, index, total, allSteps, onUpdate, onRemove, onMove }: 
               disabled={index === 0}
               className="p-1 rounded text-muted-foreground hover:text-foreground disabled:opacity-30"
               title="Move up"
+              aria-label="Move step up"
             >
               <ChevronDown className="h-3.5 w-3.5 rotate-180" />
             </button>
@@ -427,6 +429,7 @@ function StepCard({ step, index, total, allSteps, onUpdate, onRemove, onMove }: 
               disabled={index === total - 1}
               className="p-1 rounded text-muted-foreground hover:text-foreground disabled:opacity-30"
               title="Move down"
+              aria-label="Move step down"
             >
               <ChevronDown className="h-3.5 w-3.5" />
             </button>
@@ -434,6 +437,7 @@ function StepCard({ step, index, total, allSteps, onUpdate, onRemove, onMove }: 
               onClick={() => setExpanded(!expanded)}
               className="p-1 rounded text-muted-foreground hover:text-foreground"
               title="Expand"
+              aria-label={expanded ? 'Collapse step' : 'Expand step'}
             >
               <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', expanded && 'rotate-180')} />
             </button>
@@ -441,6 +445,7 @@ function StepCard({ step, index, total, allSteps, onUpdate, onRemove, onMove }: 
               onClick={onRemove}
               className="p-1 rounded text-muted-foreground hover:text-red-400"
               title="Remove"
+              aria-label="Remove step"
             >
               <Trash2 className="h-3.5 w-3.5" />
             </button>

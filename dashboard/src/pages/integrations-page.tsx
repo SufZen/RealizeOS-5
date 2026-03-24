@@ -1,4 +1,5 @@
 import { useState, useCallback, useMemo } from 'react'
+import { useDebounce } from '@/hooks/use-debounce'
 import {
   Puzzle,
   Plus,
@@ -117,20 +118,21 @@ export default function IntegrationsPage() {
 
   /* ---- Filtering ---- */
 
+  const debouncedSearch = useDebounce(searchQuery, 250)
   const filteredIntegrations = useMemo(() => {
     if (!data?.integrations) return []
     let result = data.integrations
     if (filter) {
       result = result.filter((i) => i.category === filter)
     }
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase()
+    if (debouncedSearch) {
+      const q = debouncedSearch.toLowerCase()
       result = result.filter(
         (i) => i.name.toLowerCase().includes(q) || i.provider.toLowerCase().includes(q),
       )
     }
     return result
-  }, [data, filter, searchQuery])
+  }, [data, filter, debouncedSearch])
 
   /* ---- Stats ---- */
 
@@ -171,6 +173,7 @@ export default function IntegrationsPage() {
             onClick={() => refetch()}
             className="rounded-lg p-2 text-muted-foreground hover:bg-surface-700 hover:text-foreground transition-colors"
             title="Refresh"
+            aria-label="Refresh integrations"
           >
             <RefreshCw className="h-4 w-4" />
           </button>

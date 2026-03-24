@@ -5,9 +5,12 @@ Implements per-tenant rate limiting based on requests per minute
 and cost per hour thresholds.
 """
 
+from __future__ import annotations
+
 import logging
 import time
 from collections import defaultdict
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -83,14 +86,29 @@ class RateLimiter:
 _limiter: RateLimiter | None = None
 
 
-def get_rate_limiter() -> RateLimiter:
-    """Get or create the global rate limiter."""
+def build_rate_limiter(
+    requests_per_minute: int | None = None,
+    cost_per_hour_usd: float | None = None,
+) -> RateLimiter:
+    """Create a configured rate limiter instance."""
+    from realize_core.config import COST_LIMIT_PER_HOUR_USD, RATE_LIMIT_PER_MINUTE
+
+    return RateLimiter(
+        requests_per_minute=requests_per_minute or RATE_LIMIT_PER_MINUTE,
+        cost_per_hour_usd=cost_per_hour_usd or COST_LIMIT_PER_HOUR_USD,
+    )
+
+
+def get_rate_limiter(app: Any = None) -> RateLimiter:
+    """Get or create the rate limiter, preferring an app-scoped instance."""
+    if app is not None and hasattr(app, "state"):
+        limiter = getattr(app.state, "rate_limiter", None)
+        if limiter is None:
+            limiter = build_rate_limiter()
+            app.state.rate_limiter = limiter
+        return limiter
+
     global _limiter
     if _limiter is None:
-        from realize_core.config import COST_LIMIT_PER_HOUR_USD, RATE_LIMIT_PER_MINUTE
-
-        _limiter = RateLimiter(
-            requests_per_minute=RATE_LIMIT_PER_MINUTE,
-            cost_per_hour_usd=COST_LIMIT_PER_HOUR_USD,
-        )
+        _limiter = build_rate_limiter()
     return _limiter

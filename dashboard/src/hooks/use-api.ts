@@ -14,6 +14,27 @@ interface UseApiResult<T> extends ApiState<T> {
 const DEFAULT_TIMEOUT = 30000
 const RETRY_DELAY = 2000
 
+function friendlyMessage(status: number, raw: string): string {
+  switch (status) {
+    case 401:
+      return 'Authentication required. Please check your credentials.'
+    case 403:
+      return 'You do not have permission to access this resource.'
+    case 404:
+      return 'The requested data was not found.'
+    case 422:
+      return `Invalid input: ${raw}`
+    case 429:
+      return 'Too many requests. Please wait a moment and try again.'
+    case 500:
+      return 'An unexpected server error occurred. Please try again later.'
+    case 503:
+      return 'The service is temporarily unavailable. Please try again later.'
+    default:
+      return status >= 500 ? 'A server error occurred.' : raw || 'Something went wrong.'
+  }
+}
+
 async function fetchWithTimeout<T>(path: string, timeout: number): Promise<T> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeout)
@@ -50,7 +71,7 @@ export function useApi<T>(path: string, timeout = DEFAULT_TIMEOUT): UseApiResult
       } catch (err) {
         // API errors (4xx/5xx) — don't retry
         if (err instanceof ApiError) {
-          if (active) setState({ data: null, loading: false, error: `${err.status}: ${err.message}` })
+          if (active) setState({ data: null, loading: false, error: friendlyMessage(err.status, err.message) })
           return
         }
         // Network error / timeout — retry once after delay
@@ -62,7 +83,7 @@ export function useApi<T>(path: string, timeout = DEFAULT_TIMEOUT): UseApiResult
         } catch (retryErr) {
           if (active) {
             const msg = retryErr instanceof ApiError
-              ? `${retryErr.status}: ${retryErr.message}`
+              ? friendlyMessage(retryErr.status, retryErr.message)
               : 'Network error. Check your connection.'
             setState({ data: null, loading: false, error: msg })
           }

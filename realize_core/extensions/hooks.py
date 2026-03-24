@@ -31,6 +31,7 @@ Usage::
 from __future__ import annotations
 
 import asyncio
+import inspect
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -295,7 +296,7 @@ class HooksExtension:
         data: dict[str, Any],
     ) -> Any:
         """Call a handler, wrapping sync handlers in to_thread."""
-        if asyncio.iscoroutinefunction(handler):
+        if inspect.iscoroutinefunction(handler):
             return await handler(data)
         return await asyncio.to_thread(handler, data)
 

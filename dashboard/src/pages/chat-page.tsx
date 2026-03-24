@@ -30,7 +30,17 @@ interface ConversationResponse {
   messages: Array<{ role: string; content: string; timestamp?: string }>
 }
 
-const USER_ID = 'dashboard-user'
+function getSessionUserId(): string {
+  const key = 'realize_session_user_id'
+  let id = localStorage.getItem(key)
+  if (!id) {
+    id = `user-${crypto.randomUUID().slice(0, 8)}`
+    localStorage.setItem(key, id)
+  }
+  return id
+}
+
+const USER_ID = getSessionUserId()
 
 export default function ChatPage() {
   const { data: venturesData } = useApi<VenturesResponse>('/ventures')
@@ -260,6 +270,7 @@ export default function ChatPage() {
               'bg-brand-400 text-black hover:bg-brand-400/90',
               'disabled:opacity-40 disabled:cursor-not-allowed',
             )}
+            aria-label="Send message"
           >
             <Send className="h-4 w-4" />
           </button>

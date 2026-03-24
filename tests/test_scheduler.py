@@ -153,6 +153,8 @@ class TestScheduleAPI:
         res = client.delete("/api/ventures/v1/agents/writer/schedule")
         assert res.status_code == 200
         assert res.json()["schedule"] is None
+        assert res.json()["agent_key"] == "writer"
+        assert res.json()["venture_key"] == "v1"
 
     def test_missing_schedule_params(self, client):
         res = client.put("/api/ventures/v1/agents/writer/schedule", json={})

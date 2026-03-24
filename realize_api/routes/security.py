@@ -12,7 +12,7 @@ import logging
 import os
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 
 from realize_api.dependencies import CurrentUser, require_permission
 
@@ -87,6 +87,7 @@ async def security_events(
 
 @router.get("/status")
 async def security_status(
+    request: Request,
     _user: CurrentUser = Depends(require_permission("admin:security")),
 ):
     """Overall security posture: which features are active."""
@@ -99,7 +100,7 @@ async def security_status(
     try:
         from realize_core.utils.rate_limiter import get_rate_limiter
 
-        rl = get_rate_limiter()
+        rl = get_rate_limiter(request.app)
         rate_limit = rl.requests_per_minute
         cost_limit = rl.cost_per_hour_usd
     except Exception:

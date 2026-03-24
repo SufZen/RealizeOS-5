@@ -60,7 +60,7 @@ def check_yaml_config(root: Path) -> CheckResult:
         return CheckResult("Config File", CheckStatus.FAIL, "realize-os.yaml not found")
 
     try:
-        with open(config_path, "r", encoding="utf-8") as f:
+        with open(config_path, encoding="utf-8") as f:
             data = yaml.safe_load(f)
 
         if not isinstance(data, dict):
@@ -93,7 +93,7 @@ def check_env_file(root: Path) -> CheckResult:
         )
 
     content = env_path.read_text(encoding="utf-8", errors="replace")
-    lines = [l.strip() for l in content.splitlines() if l.strip() and not l.startswith("#")]
+    lines = [line.strip() for line in content.splitlines() if line.strip() and not line.startswith("#")]
 
     if not lines:
         return CheckResult("Environment", CheckStatus.WARN, ".env is empty")
@@ -101,7 +101,7 @@ def check_env_file(root: Path) -> CheckResult:
     # Check for at least one LLM key
     llm_keys = ("ANTHROPIC_API_KEY", "GOOGLE_AI_API_KEY", "OPENAI_API_KEY")
     has_llm = any(
-        any(l.startswith(k + "=") and len(l.split("=", 1)[1].strip()) > 5 for l in lines)
+        any(line.startswith(k + "=") and len(line.split("=", 1)[1].strip()) > 5 for line in lines)
         for k in llm_keys
     )
 

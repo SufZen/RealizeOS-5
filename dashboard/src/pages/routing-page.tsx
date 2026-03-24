@@ -13,6 +13,7 @@ import {
   RefreshCw,
 } from 'lucide-react'
 import { useApi } from '@/hooks/use-api'
+import { ErrorState } from '@/components/ui/error-state'
 import { cn } from '@/lib/utils'
 
 /* ------------------------------------------------------------------ */
@@ -69,8 +70,19 @@ export default function RoutingPage() {
     if (!rawData) return null
     return {
       decisions: rawData.decisions ?? [],
-      agent_stats: rawData.agent_stats ?? [],
-      model_stats: rawData.model_stats ?? [],
+      agent_stats: (rawData.agent_stats ?? []).map((a) => ({
+        ...a,
+        avg_confidence: a.avg_confidence ?? 0,
+        avg_latency_ms: a.avg_latency_ms ?? 0,
+        fallback_rate: a.fallback_rate ?? 0,
+        total_calls: a.total_calls ?? 0,
+      })),
+      model_stats: (rawData.model_stats ?? []).map((m) => ({
+        ...m,
+        calls: m.calls ?? 0,
+        avg_latency_ms: m.avg_latency_ms ?? 0,
+        error_rate: m.error_rate ?? 0,
+      })),
       total_decisions: rawData.total_decisions ?? 0,
       avg_latency_ms: rawData.avg_latency_ms ?? 0,
       avg_confidence: rawData.avg_confidence ?? 0,
@@ -96,12 +108,7 @@ export default function RoutingPage() {
   }
 
   if (error || !data) {
-    return (
-      <div className="flex items-center justify-center h-64 text-red-400 gap-2">
-        <AlertCircle className="h-5 w-5" />
-        Failed to load routing data
-      </div>
-    )
+    return <ErrorState message={error || 'Failed to load routing data'} onRetry={refetch} />
   }
 
   return (
@@ -133,6 +140,7 @@ export default function RoutingPage() {
             onClick={() => refetch()}
             className="rounded-lg p-2 text-muted-foreground hover:bg-surface-700 hover:text-foreground transition-colors"
             title="Refresh"
+            aria-label="Refresh routing data"
           >
             <RefreshCw className="h-4 w-4" />
           </button>

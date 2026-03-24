@@ -27,20 +27,24 @@ def client():
     app = create_app()
 
     with TestClient(app, raise_server_exceptions=False) as c:
-        # Override app state AFTER lifespan startup (which loads real config)
-        app.state.config = {"systems": [], "features": {}}
-        app.state.systems = {
-            "test": {
-                "name": "Test System",
-                "agents": {"orchestrator": "systems/test/A-agents/orchestrator.md"},
-                "agents_dir": "systems/test/A-agents",
-                "agent_routing": {"orchestrator": ["help", "general", "question"]},
-                "routing": {},
-            }
-        }
-        app.state.kb_path = None
-        app.state.shared_config = {"identity": "shared/identity.md"}
+        _configure_test_app(app)
         yield c
+
+
+def _configure_test_app(app):
+    """Apply the test app overrides after lifespan startup."""
+    app.state.config = {"systems": [], "features": {}}
+    app.state.systems = {
+        "test": {
+            "name": "Test System",
+            "agents": {"orchestrator": "systems/test/A-agents/orchestrator.md"},
+            "agents_dir": "systems/test/A-agents",
+            "agent_routing": {"orchestrator": ["help", "general", "question"]},
+            "routing": {},
+        }
+    }
+    app.state.kb_path = None
+    app.state.shared_config = {"identity": "shared/identity.md"}
 
 
 # ---------------------------------------------------------------------------
@@ -328,3 +332,30 @@ class TestWorkflowRoutes:
         data = resp.json()
         assert "workflows" in data
         assert isinstance(data["workflows"], list)
+
+
+class TestRateLimitIsolation:
+    def test_rate_limit_enforced_within_single_app(self):
+        app = create_app()
+        with TestClient(app, raise_server_exceptions=False) as client:
+            _configure_test_app(app)
+            app.state.rate_limiter.requests_per_minute = 1
+            headers = {"X-Tenant-ID": "single-app-tenant"}
+            assert client.get("/api/routing", headers=headers).status_code == 200
+            assert client.get("/api/routing", headers=headers).status_code == 429
+
+    def test_rate_limit_does_not_leak_across_apps(self):
+        headers = {"X-Tenant-ID": "isolated-tenant"}
+
+        app_one = create_app()
+        with TestClient(app_one, raise_server_exceptions=False) as client_one:
+            _configure_test_app(app_one)
+            app_one.state.rate_limiter.requests_per_minute = 1
+            assert client_one.get("/api/routing", headers=headers).status_code == 200
+            assert client_one.get("/api/routing", headers=headers).status_code == 429
+
+        app_two = create_app()
+        with TestClient(app_two, raise_server_exceptions=False) as client_two:
+            _configure_test_app(app_two)
+            app_two.state.rate_limiter.requests_per_minute = 1
+            assert client_two.get("/api/routing", headers=headers).status_code == 200
