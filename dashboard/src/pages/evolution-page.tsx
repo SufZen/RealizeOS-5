@@ -1,6 +1,7 @@
-import { Sparkles, AlertCircle, RefreshCw, Check, X, ArrowUp, ArrowDown } from 'lucide-react'
+import { Sparkles, RefreshCw, Check, X, ArrowUp, ArrowDown } from 'lucide-react'
 import { useApi } from '@/hooks/use-api'
 import { api } from '@/lib/api'
+import { ErrorState } from '@/components/ui/error-state'
 import { cn } from '@/lib/utils'
 
 interface Suggestion {
@@ -54,12 +55,7 @@ export default function EvolutionPage() {
   }
 
   if (error) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <AlertCircle className="h-8 w-8 text-red-400 mx-auto mb-2" />
-        <p className="text-red-400 text-sm">{error}</p>
-      </div>
-    )
+    return <ErrorState message={error} onRetry={refetch} />
   }
 
   const suggestions = data?.suggestions ?? []

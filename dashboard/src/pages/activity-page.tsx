@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Activity, Filter, RefreshCw } from 'lucide-react'
 import { useApi } from '@/hooks/use-api'
+import { useDebounce } from '@/hooks/use-debounce'
 import { ActivityFeed, type ActivityEvent } from '@/components/activity-feed'
 import { createActivityStream } from '@/lib/api'
 import { cn } from '@/lib/utils'
@@ -12,6 +13,29 @@ interface ActivityResponse {
   offset: number
 }
 
+function isActivityEvent(data: Record<string, unknown>): data is ActivityEvent {
+  return (
+    typeof data.id === 'string' &&
+    typeof data.action === 'string' &&
+    typeof data.actor_id === 'string' &&
+    typeof data.created_at === 'string'
+  )
+}
+
+function extractEvents(data: unknown): ActivityEvent[] {
+  if (!data || typeof data !== 'object') return []
+  const obj = data as Record<string, unknown>
+  if (Array.isArray(obj.events)) return obj.events
+  if (Array.isArray(obj.recent_activity)) return obj.recent_activity
+  return []
+}
+
+function extractTotal(data: unknown): number | null {
+  if (!data || typeof data !== 'object') return null
+  const obj = data as Record<string, unknown>
+  return typeof obj.total === 'number' ? obj.total : null
+}
+
 export default function ActivityPage() {
   const [ventureKey, setVentureKey] = useState('')
   const [actorFilter, setActorFilter] = useState('')
@@ -19,25 +43,30 @@ export default function ActivityPage() {
   const [newCount, setNewCount] = useState(0)
   const [liveEvents, setLiveEvents] = useState<ActivityEvent[]>([])
 
+  const debouncedVentureKey = useDebounce(ventureKey, 400)
+  const debouncedActorFilter = useDebounce(actorFilter, 400)
+
   const params = new URLSearchParams()
-  if (ventureKey) params.set('venture_key', ventureKey)
-  if (actorFilter) params.set('actor_id', actorFilter)
+  if (debouncedVentureKey) params.set('venture_key', debouncedVentureKey)
+  if (debouncedActorFilter) params.set('actor_id', debouncedActorFilter)
   if (actionFilter) params.set('action', actionFilter)
 
   // For now, use a default venture or all
-  const queryPath = ventureKey
-    ? `/ventures/${ventureKey}/activity?${params.toString()}`
+  const queryPath = debouncedVentureKey
+    ? `/ventures/${debouncedVentureKey}/activity?${params.toString()}`
     : '/ventures/_all/activity'
 
   const { data, loading, error, refetch } = useApi<ActivityResponse>(
-    ventureKey ? queryPath : '/dashboard',
+    debouncedVentureKey ? queryPath : '/dashboard',
   )
 
   // SSE for live updates
   useEffect(() => {
     const source = createActivityStream((event) => {
-      setLiveEvents((prev) => [event as unknown as ActivityEvent, ...prev].slice(0, 50))
-      setNewCount((c) => c + 1)
+      if (isActivityEvent(event)) {
+        setLiveEvents((prev) => [event, ...prev].slice(0, 50))
+        setNewCount((c) => c + 1)
+      }
     })
 
     return () => source.close()
@@ -50,7 +79,7 @@ export default function ActivityPage() {
   }, [refetch])
 
   // Combine persisted + live events
-  const persistedEvents = (data as ActivityResponse)?.events ?? (data as { recent_activity?: ActivityEvent[] })?.recent_activity ?? []
+  const persistedEvents = extractEvents(data)
   const allEvents = [...liveEvents, ...persistedEvents]
   // Deduplicate by ID
   const seen = new Set<string>()
@@ -59,6 +88,8 @@ export default function ActivityPage() {
     seen.add(e.id)
     return true
   })
+
+  const totalCount = extractTotal(data)
 
   return (
     <div className="space-y-6">
@@ -77,6 +108,7 @@ export default function ActivityPage() {
             onClick={handleRefresh}
             className="rounded-lg p-2 text-muted-foreground hover:bg-surface-700 hover:text-foreground transition-colors"
             title="Refresh"
+            aria-label="Refresh activity"
           >
             <RefreshCw className="h-4 w-4" />
           </button>
@@ -138,9 +170,9 @@ export default function ActivityPage() {
         )}
       </div>
 
-      {(data as ActivityResponse)?.total != null && (
+      {totalCount != null && (
         <p className="text-xs text-muted-foreground text-center">
-          Showing {uniqueEvents.length} of {(data as ActivityResponse).total} events
+          Showing {uniqueEvents.length} of {totalCount} events
         </p>
       )}
     </div>

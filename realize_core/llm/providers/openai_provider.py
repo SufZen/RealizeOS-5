@@ -74,20 +74,31 @@ class OpenAIProvider(BaseLLMProvider):
                 error="not_configured",
             )
 
-        # TODO: Implement when ready
-        # import openai
-        # client = openai.AsyncOpenAI()
-        # response = await client.chat.completions.create(
-        #     model=model or "gpt-4o",
-        #     messages=[{"role": "system", "content": system_prompt}] + messages,
-        #     max_tokens=max_tokens,
-        #     temperature=temperature,
-        # )
-        # return LLMResponse(text=response.choices[0].message.content, ...)
+        import openai
 
-        return LLMResponse(
-            text="OpenAI provider not yet implemented.",
-            model=model or "gpt-4o",
-            provider=self.name,
-            error="not_implemented",
-        )
+        target_model = model or "gpt-4o"
+        client = openai.AsyncOpenAI()
+        try:
+            response = await client.chat.completions.create(
+                model=target_model,
+                messages=[{"role": "system", "content": system_prompt}] + messages,
+                max_tokens=max_tokens,
+                temperature=temperature,
+            )
+            choice = response.choices[0]
+            return LLMResponse(
+                text=choice.message.content or "",
+                model=target_model,
+                provider=self.name,
+                input_tokens=response.usage.prompt_tokens if response.usage else 0,
+                output_tokens=response.usage.completion_tokens if response.usage else 0,
+                raw=response,
+            )
+        except Exception as e:
+            logger.error("OpenAI completion failed: %s", e)
+            return LLMResponse(
+                text=f"OpenAI error: {e}",
+                model=target_model,
+                provider=self.name,
+                error=str(e),
+            )

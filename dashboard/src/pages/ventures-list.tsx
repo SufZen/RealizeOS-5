@@ -91,6 +91,7 @@ export default function VenturesListPage() {
                 onClick={(e) => handleExport(v.key, e)}
                 className="p-1.5 rounded-lg bg-surface-800/80 border border-border text-muted-foreground hover:text-foreground transition-colors"
                 title="Export"
+                aria-label={`Export ${v.key}`}
               >
                 <Download className="h-3.5 w-3.5" />
               </button>
@@ -99,6 +100,7 @@ export default function VenturesListPage() {
                 disabled={deleting === v.key}
                 className="p-1.5 rounded-lg bg-surface-800/80 border border-border text-muted-foreground hover:text-red-400 transition-colors"
                 title="Delete"
+                aria-label={`Delete ${v.key}`}
               >
                 <Trash2 className="h-3.5 w-3.5" />
               </button>

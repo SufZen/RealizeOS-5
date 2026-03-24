@@ -79,22 +79,38 @@ class OllamaProvider(BaseLLMProvider):
                 error="not_available",
             )
 
-        # TODO: Implement when ready
-        # import httpx, os
-        # host = os.getenv("OLLAMA_HOST", "http://localhost:11434")
-        # async with httpx.AsyncClient() as client:
-        #     response = await client.post(f"{host}/api/chat", json={
-        #         "model": model or "llama3.1:8b",
-        #         "messages": [{"role": "system", "content": system_prompt}] + messages,
-        #         "options": {"temperature": temperature, "num_predict": max_tokens},
-        #         "stream": False,
-        #     })
-        #     data = response.json()
-        #     return LLMResponse(text=data["message"]["content"], ...)
+        import os
 
-        return LLMResponse(
-            text="Ollama provider not yet implemented.",
-            model=model or "llama3.1:8b",
-            provider=self.name,
-            error="not_implemented",
-        )
+        import httpx
+
+        host = os.getenv("OLLAMA_HOST", "http://localhost:11434")
+        target_model = model or "llama3.1:8b"
+        try:
+            async with httpx.AsyncClient(timeout=120.0) as client:
+                response = await client.post(
+                    f"{host}/api/chat",
+                    json={
+                        "model": target_model,
+                        "messages": [{"role": "system", "content": system_prompt}] + messages,
+                        "options": {"temperature": temperature, "num_predict": max_tokens},
+                        "stream": False,
+                    },
+                )
+                response.raise_for_status()
+                data = response.json()
+                return LLMResponse(
+                    text=data.get("message", {}).get("content", ""),
+                    model=target_model,
+                    provider=self.name,
+                    input_tokens=data.get("prompt_eval_count", 0),
+                    output_tokens=data.get("eval_count", 0),
+                    raw=data,
+                )
+        except Exception as e:
+            logger.error("Ollama completion failed: %s", e)
+            return LLMResponse(
+                text=f"Ollama error: {e}",
+                model=target_model,
+                provider=self.name,
+                error=str(e),
+            )

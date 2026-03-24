@@ -107,7 +107,7 @@ class {class_name}:
     async def on_load(self, config: dict[str, Any] | None = None) -> None:
         """Initialize the extension."""
         logger.info("{name} extension loaded")
-        # TODO: Add initialization logic here
+        # Add your initialization logic here — e.g., connect to services, load config
 
     async def on_unload(self) -> None:
         """Clean up resources."""
