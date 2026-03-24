@@ -247,11 +247,27 @@ class TestMigrations:
         run_migrations(db_path)
         conn = get_connection(db_path)
         version = get_current_version(conn)
-        assert version == 1
+        assert version == 2
+        row = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'storage_sync_log'"
+        ).fetchone()
+        assert row is not None
         conn.close()
 
     def test_version_tracking(self, db_path):
         conn = get_connection(db_path)
         version = get_current_version(conn)
         assert version == 1
+        conn.close()
+
+    def test_run_migrations_creates_v2_indexes(self, db_path):
+        run_migrations(db_path)
+        conn = get_connection(db_path)
+        index_rows = conn.execute("SELECT name FROM sqlite_master WHERE type = 'index'").fetchall()
+        index_names = {row["name"] for row in index_rows}
+        assert "idx_sync_log_status" in index_names
+        assert "idx_sync_log_file_key" in index_names
+        assert "idx_activity_created_at" in index_names
+        assert "idx_activity_entity" in index_names
+        assert "idx_approval_expires" in index_names
         conn.close()

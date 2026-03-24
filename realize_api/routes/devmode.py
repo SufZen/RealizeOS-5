@@ -54,7 +54,7 @@ def _load_devmode_state(root: Path) -> dict[str, Any]:
     if not config_path.exists():
         return {"enabled": False, "protection_level": "standard"}
 
-    with open(config_path, "r", encoding="utf-8") as f:
+    with open(config_path, encoding="utf-8") as f:
         data = yaml.safe_load(f) or {}
 
     return data.get("developer_mode", {"enabled": False, "protection_level": "standard"})
@@ -65,7 +65,7 @@ def _save_devmode_state(root: Path, state: dict[str, Any]) -> None:
     import yaml
 
     config_path = root / "realize-os.yaml"
-    with open(config_path, "r", encoding="utf-8") as f:
+    with open(config_path, encoding="utf-8") as f:
         data = yaml.safe_load(f) or {}
 
     data["developer_mode"] = state
@@ -116,9 +116,7 @@ async def get_devmode_status(request: Request) -> dict[str, Any]:
         logger.debug("Git snapshot lookup failed: %s", exc)
 
     # Protection level info
-    from realize_core.devmode.protection import FileProtection as FP
-
-    levels = FP.available_levels()
+    levels = FileProtection.available_levels()
 
     return {
         "enabled": state.get("enabled", False),

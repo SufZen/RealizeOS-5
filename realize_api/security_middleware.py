@@ -54,7 +54,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         try:
             from realize_core.utils.rate_limiter import get_rate_limiter
 
-            limiter = get_rate_limiter()
+            limiter = get_rate_limiter(request.app)
             tenant = request.headers.get(
                 "X-Tenant-ID",
                 request.client.host if request.client else "anonymous",

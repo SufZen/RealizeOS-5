@@ -276,6 +276,8 @@ class TestAgentManagement:
         res = client.post("/api/ventures/testbiz/agents/writer/pause")
         assert res.status_code == 200
         assert res.json()["status"] == "paused"
+        assert res.json()["agent_key"] == "writer"
+        assert res.json()["venture_key"] == "testbiz"
 
         # Verify status persisted
         detail = client.get("/api/ventures/testbiz/agents/writer")
@@ -289,6 +291,8 @@ class TestAgentManagement:
         res = client.post("/api/ventures/testbiz/agents/writer/resume")
         assert res.status_code == 200
         assert res.json()["status"] == "idle"
+        assert res.json()["agent_key"] == "writer"
+        assert res.json()["venture_key"] == "testbiz"
 
         # Verify
         detail = client.get("/api/ventures/testbiz/agents/writer")

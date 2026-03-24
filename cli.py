@@ -400,7 +400,7 @@ def cmd_devmode(args):
             description=args.description or "",
         )
         print(f"Scaffolded extension at: {ext_dir}")
-        print(f"  extension.yaml, __init__.py, README.md, tests/")
+        print("  extension.yaml, __init__.py, README.md, tests/")
         print(f"\nNext: implement your logic in {ext_dir / '__init__.py'}")
 
     elif action == "snapshot":

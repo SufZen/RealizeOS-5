@@ -22,7 +22,7 @@ python -m venv venv
 venv\Scripts\activate     # Windows
 # source venv/bin/activate  # macOS/Linux
 pip install -r requirements.txt
-pip install pytest
+pip install -r requirements-dev.txt
 python -m pytest tests/ -v --tb=short
 ```
 
@@ -46,17 +46,21 @@ python -m pytest tests/ -v --tb=short
 3. **Install dependencies**:
    ```bash
    pip install -r requirements.txt
-   pip install pytest
+   pip install -r requirements-dev.txt
    ```
 4. **Run tests**:
    ```bash
    python -m pytest tests/ -v --tb=short
    ```
-5. **Optional — install Google Workspace tools**:
+5. **Run coverage locally**:
+   ```bash
+   python -m pytest tests/ -v --tb=short --cov=realize_core --cov=realize_api --cov-report=term-missing
+   ```
+6. **Optional — install Google Workspace tools**:
    ```bash
    pip install google-api-python-client google-auth-oauthlib
    ```
-6. **Optional — install dashboard dependencies**:
+7. **Optional — install dashboard dependencies**:
    ```bash
    cd dashboard && pnpm install && cd ..
    ```

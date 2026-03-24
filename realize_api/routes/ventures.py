@@ -196,6 +196,12 @@ async def pause_agent(venture_key: str, agent_key: str, request: Request):
     except Exception as exc:
         logger.debug("Activity log failed for agent_paused: %s", exc)
 
+    return {
+        "agent_key": agent_key,
+        "venture_key": venture_key,
+        "status": "paused",
+    }
+
 
 @router.post("/ventures/{venture_key}/agents/{agent_key}/resume")
 async def resume_agent(venture_key: str, agent_key: str, request: Request):
@@ -223,6 +229,12 @@ async def resume_agent(venture_key: str, agent_key: str, request: Request):
         )
     except Exception as exc:
         logger.debug("Activity log failed for agent_resumed: %s", exc)
+
+    return {
+        "agent_key": agent_key,
+        "venture_key": venture_key,
+        "status": "idle",
+    }
 
 
 @router.put("/ventures/{venture_key}/agents/{agent_key}/schedule")
@@ -337,6 +349,12 @@ async def clear_agent_schedule(venture_key: str, agent_key: str, request: Reques
         reload_schedules()
     except Exception as exc:
         logger.debug("Scheduler reload failed: %s", exc)
+
+    return {
+        "agent_key": agent_key,
+        "venture_key": venture_key,
+        "schedule": None,
+    }
 
 
 # ---------------------------------------------------------------------------

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 import subprocess
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import NamedTuple
 
@@ -71,7 +71,7 @@ class GitSafety:
         if not self.is_git_repo():
             raise RuntimeError("Not a git repository")
 
-        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+        timestamp = datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
         tag_name = f"{self.TAG_PREFIX}before-{tool}-{timestamp}"
         message = label or f"DevMode snapshot before {tool} session"
 

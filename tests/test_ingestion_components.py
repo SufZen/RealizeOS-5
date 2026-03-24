@@ -1,10 +1,8 @@
 """Test content ingestion module."""
-import json
-import sqlite3
-from pathlib import Path
 
 import pytest
-from realize_core.ingestion.extractor import extract_from_url, extract_from_pdf, save_to_kb, extract_from_text, _url_to_title
+from realize_core.ingestion.extractor import extract_from_url, save_to_kb
+
 
 @pytest.fixture
 def test_pdf(tmp_path):
@@ -23,17 +21,17 @@ async def test_extract_from_url(monkeypatch):
 
 def test_save_to_kb(tmp_path):
     system_config = {"brain_dir": "brain"}
-    
+
     result = save_to_kb(
         content="Test content",
         title="My Document",
         kb_path=tmp_path,
         system_config=system_config,
-        category="brain"
+        category="brain",
     )
-    
+
     assert result["saved"] is True
-    
+
     # check file exists
     saved_file = tmp_path / "brain" / "my-document.md"
     assert saved_file.exists()
@@ -44,8 +42,9 @@ def test_save_to_kb(tmp_path):
 
 def test_url_to_title():
     from realize_core.ingestion.extractor import _url_to_title
+
     title = _url_to_title("https://example.com/some-blog-post")
     assert title == "Some Blog Post"
-    
+
     title2 = _url_to_title("https://github.com/")
     assert title2 == "Github.Com"

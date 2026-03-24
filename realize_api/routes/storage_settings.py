@@ -6,7 +6,6 @@ import json
 import logging
 import os
 import shutil
-import tempfile
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request
@@ -303,4 +302,3 @@ async def provider_info(request: Request):
             "type": "unknown",
             "error": str(exc),
         }
-

@@ -10,7 +10,7 @@ Endpoints:
 import logging
 import os
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from realize_api.dependencies import CurrentUser, get_current_user

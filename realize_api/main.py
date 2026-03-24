@@ -10,19 +10,12 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
-from fastapi import Request as FastAPIRequest
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from realize_api.error_handlers import mask_sensitive, register_error_handlers
+from realize_api.error_handlers import register_error_handlers
 from realize_api.middleware import APIKeyMiddleware
-from realize_api.security_middleware import (
-    AuditMiddleware,
-    InjectionGuardMiddleware,
-    JWTAuthMiddleware,
-    RateLimitMiddleware,
-)
 from realize_api.routes import (
     activity,
     agents_v2,
@@ -30,6 +23,7 @@ from realize_api.routes import (
     auth,
     chat,
     dashboard,
+    devmode,
     evolution,
     extensions,
     health,
@@ -39,11 +33,16 @@ from realize_api.routes import (
     settings,
     setup,
     storage_settings,
-    devmode,
     systems,
     ventures,
     webhooks,
     workflows,
+)
+from realize_api.security_middleware import (
+    AuditMiddleware,
+    InjectionGuardMiddleware,
+    JWTAuthMiddleware,
+    RateLimitMiddleware,
 )
 
 logger = logging.getLogger(__name__)
@@ -205,12 +204,15 @@ async def lifespan(app: FastAPI):
 
 def create_app() -> FastAPI:
     """Create and configure the FastAPI application."""
+    from realize_core.utils.rate_limiter import build_rate_limiter
+
     app = FastAPI(
         title="RealizeOS",
         description="AI Operations System — Multi-agent, multi-venture, self-evolving.",
         version="0.1.0",
         lifespan=lifespan,
     )
+    app.state.rate_limiter = build_rate_limiter()
 
     # CORS
     allowed_origins = os.environ.get("CORS_ORIGINS", "*").split(",")

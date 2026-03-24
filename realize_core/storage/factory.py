@@ -12,7 +12,7 @@ import logging
 import os
 from pathlib import Path
 
-from realize_core.storage.base import BaseStorageProvider, StorageBackend
+from realize_core.storage.base import BaseStorageProvider
 
 logger = logging.getLogger(__name__)
 
