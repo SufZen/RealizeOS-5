@@ -1,7 +1,7 @@
 # RealizeOS — Post-Purchase Automation Setup
 
-All automations run on self-hosted **n8n** at `https://n8n.realization.co.il`.
-Importable workflow JSON files are in the [n8n-automations repo](https://github.com/SufZen/n8n-automations/tree/main/workflows/realizeos).
+All automations run on self-hosted **n8n** at `https://<YOUR_N8N_DOMAIN>`.
+Importable workflow JSON files are in your n8n-automations repository.
 
 ---
 
@@ -17,13 +17,13 @@ Importable workflow JSON files are in the [n8n-automations repo](https://github.
 
 ### Update the download links
 
-File IDs are already wired into both `docs/thank-you.html` and the `realizeos-welcome-flow.json` workflow in the [n8n-automations repo](https://github.com/SufZen/n8n-automations):
+File IDs are already wired into both `docs/thank-you.html` and the `realizeos-welcome-flow.json` workflow in your n8n-automations repo:
 
 ```javascript
 const driveLinks = {
-  lite: 'https://drive.google.com/uc?export=download&id=14biPd0qhI2qTe4sOc1wtWTqkJawv9ti4',
-  full: 'https://drive.google.com/uc?export=download&id=1TzFPlBZofwm5cWHOcZgdMvswpeha6IPE',
-  setup: 'https://drive.google.com/uc?export=download&id=1TzFPlBZofwm5cWHOcZgdMvswpeha6IPE'
+  lite: 'https://drive.google.com/uc?export=download&id=<LITE_FILE_ID>',
+  full: 'https://drive.google.com/uc?export=download&id=<FULL_FILE_ID>',
+  setup: 'https://drive.google.com/uc?export=download&id=<SETUP_FILE_ID>'
 };
 ```
 
@@ -32,14 +32,14 @@ const driveLinks = {
 ## 2. Stripe Configuration
 
 ### Payment links (already configured via API)
-- **Lite:** `https://buy.stripe.com/9B64gAcPFcgscma6G56Ri0c` → redirects to `https://realizeos.ai/thank-you.html?tier=lite`
-- **Full:** `https://buy.stripe.com/dRm14odTJbcocma3tT6Ri0d` → redirects to `https://realizeos.ai/thank-you.html?tier=full`
-- **Setup:** `https://buy.stripe.com/4gM14o5nddkwgCqd4t6Ri0e` → redirects to `https://realizeos.ai/thank-you.html?tier=setup`
+- **Lite:** `https://buy.stripe.com/<LITE_LINK_ID>` → redirects to `https://<YOUR_DOMAIN>/thank-you.html?tier=lite`
+- **Full:** `https://buy.stripe.com/<FULL_LINK_ID>` → redirects to `https://<YOUR_DOMAIN>/thank-you.html?tier=full`
+- **Setup:** `https://buy.stripe.com/<SETUP_LINK_ID>` → redirects to `https://<YOUR_DOMAIN>/thank-you.html?tier=setup`
 
 ### Webhook (already configured via API)
 
 - **Endpoint ID:** see Stripe Dashboard → Developers → Webhooks
-- **URL:** `https://n8n.realization.co.il/webhook/realizeos-stripe-webhook`
+- **URL:** `https://<YOUR_N8N_DOMAIN>/webhook/realizeos-stripe-webhook`
 - **Events:** `checkout.session.completed`
 - **Signing secret:** stored in `.env` file — never commit to git
 
@@ -58,18 +58,17 @@ Booking type created: **RealizeOS Setup Assistance**
 
 ### 4.1 Deploy n8n on VPS
 ```bash
-# n8n is already configured at /opt/n8n on VPS 37.27.182.247
-# If not yet running:
-ssh root@37.27.182.247
+# n8n should be running on your VPS
+ssh root@<YOUR_VPS_IP>
 cd /opt/n8n
 docker compose up -d
 ```
 
 ### 4.2 Import workflows
-In n8n admin (https://n8n.realization.co.il):
+In n8n admin (`https://<YOUR_N8N_DOMAIN>`):
 
 1. Go to **Workflows** → **Import from File**
-2. Import these 3 workflow files from the [n8n-automations repo](https://github.com/SufZen/n8n-automations/tree/main/workflows/realizeos):
+2. Import these 3 workflow files from your n8n-automations repo:
 
 | Workflow | File | What it does |
 |----------|------|-------------|
@@ -82,12 +81,12 @@ After importing, you need to set up these credentials:
 
 1. **Google OAuth** (for Gmail + Google Sheets):
    - Go to n8n Settings → Credentials → Add Credential → Google OAuth2
-   - Use the `info@realization.co.il` Google account
+   - Use your Google Workspace account
    - Scopes needed: Gmail send, Google Sheets read/write
    - Connect to all Gmail and Google Sheets nodes
 
 2. **Google Sheets** — Single spreadsheet with 2 tabs (already created):
-   - **Spreadsheet ID:** `1OrFpReqNSWPX-TZyMuWehLcUK7YimByz89lrfjDeuLw`
+   - **Spreadsheet ID:** `<YOUR_SPREADSHEET_ID>`
    - **Sheet1** (Leads) — Columns: `Name`, `Email`, `Challenge`, `Source`, `Timestamp`
    - **Customers** tab — Columns: `Date`, `Name`, `Email`, `Tier`, `Amount`, `Stripe ID`
    - Already wired into all 3 workflow JSON files
@@ -95,10 +94,10 @@ After importing, you need to set up these credentials:
 ### 4.4 Update landing page webhook URL
 After the Email Capture workflow is active, copy the n8n webhook URL and update `docs/js/main.js` line 185:
 ```javascript
-// Old Make.com URL (replaced):
-// const WEBHOOK_URL = 'https://hook.eu1.make.com/8x2o5l1elm1t2iwaavn7yyjxtwxhj715';
+// Old webhook URL (replaced):
+// const WEBHOOK_URL = 'https://<OLD_WEBHOOK_URL>';
 // Current n8n URL:
-const WEBHOOK_URL = 'https://n8n.realization.co.il/webhook/lead-capture';
+const WEBHOOK_URL = 'https://<YOUR_N8N_DOMAIN>/webhook/lead-capture';
 ```
 
 ### 4.5 Activate all workflows
@@ -147,9 +146,9 @@ Schedule: Daily at 9:00 AM (Europe/Lisbon)
 - [x] n8n deployed on VPS (docker compose up)
 - [x] Google OAuth credentials configured in n8n
 - [x] Google Sheets created (single file, 2 tabs: Sheet1=Leads, Customers)
-- [x] Stripe webhook endpoint added via API (`we_1T68CJIGXbcklRht0o5JU8yN`)
+- [x] Stripe webhook endpoint added via API (`<YOUR_WEBHOOK_ENDPOINT_ID>`)
 - [x] Landing page webhook URL updated to n8n (`lead-capture`)
-- [x] Google Drive files uploaded (`14biPd0qhI2qTe4sOc1wtWTqkJawv9ti4` / `1TzFPlBZofwm5cWHOcZgdMvswpeha6IPE`)
+- [x] Google Drive files uploaded (`<LITE_FILE_ID>` / `<FULL_FILE_ID>`)
 - [x] FILE_IDs wired into thank-you page + welcome flow email
 - [x] All 3 n8n workflows imported and activated
 - [x] Test purchase completed end-to-end (all 3 tiers verified, 7 bugs fixed)

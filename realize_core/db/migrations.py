@@ -70,6 +70,122 @@ def _migration_v2(conn):
 MIGRATIONS[2] = _migration_v2
 
 
+# ---------------------------------------------------------------------------
+# Migration v3 — approval_requests table
+# ---------------------------------------------------------------------------
+
+
+def _migration_v3(conn):
+    """
+    Add approval_requests table for operator approval workflow.
+
+    Stores pending and resolved approval requests from agents.
+    """
+    conn.executescript("""
+        CREATE TABLE IF NOT EXISTS approval_requests (
+            id TEXT PRIMARY KEY,
+            action TEXT NOT NULL CHECK(action IN ('request_decision', 'request_credential', 'request_input')),
+            description TEXT NOT NULL,
+            agent_key TEXT NOT NULL,
+            system_key TEXT NOT NULL,
+            session_id TEXT DEFAULT '',
+            options TEXT DEFAULT '',
+            status TEXT NOT NULL DEFAULT 'pending'
+                CHECK(status IN ('pending', 'approved', 'rejected', 'expired', 'cancelled')),
+            response TEXT,
+            responded_by TEXT,
+            created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%f', 'now')),
+            expires_at TEXT NOT NULL,
+            responded_at TEXT,
+            metadata TEXT DEFAULT '{}'
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_approval_status
+            ON approval_requests(status, created_at DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_approval_system
+            ON approval_requests(system_key, status);
+
+        CREATE INDEX IF NOT EXISTS idx_approval_agent
+            ON approval_requests(agent_key, status);
+    """)
+
+
+MIGRATIONS[3] = _migration_v3
+
+
+# ---------------------------------------------------------------------------
+# Migration v4 — messaging tables (agent-to-agent bus)
+# ---------------------------------------------------------------------------
+
+
+def _migration_v4(conn):
+    """
+    Add messaging tables for agent-to-agent communication.
+
+    - agent_messages: stores all messages
+    - message_channels: named broadcast channels
+    - message_queues: offline delivery queue
+    """
+    conn.executescript("""
+        CREATE TABLE IF NOT EXISTS agent_messages (
+            id TEXT PRIMARY KEY,
+            sender TEXT NOT NULL,
+            target TEXT NOT NULL,
+            target_type TEXT NOT NULL CHECK(target_type IN ('agent', 'human', 'channel')),
+            target_id TEXT NOT NULL,
+            content TEXT NOT NULL,
+            system_key TEXT NOT NULL DEFAULT '',
+            status TEXT NOT NULL DEFAULT 'sent'
+                CHECK(status IN ('sent', 'delivered', 'read', 'queued', 'failed')),
+            created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%f', 'now')),
+            delivered_at TEXT,
+            read_at TEXT,
+            metadata TEXT DEFAULT '{}'
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_messages_target
+            ON agent_messages(target_type, target_id, created_at DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_messages_sender
+            ON agent_messages(sender, created_at DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_messages_status
+            ON agent_messages(status);
+
+        CREATE TABLE IF NOT EXISTS message_channels (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            system_key TEXT NOT NULL,
+            created_by TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%f', 'now')),
+            UNIQUE(name, system_key)
+        );
+
+        CREATE TABLE IF NOT EXISTS message_channel_subscribers (
+            channel_id TEXT NOT NULL,
+            agent_key TEXT NOT NULL,
+            subscribed_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%f', 'now')),
+            PRIMARY KEY (channel_id, agent_key),
+            FOREIGN KEY (channel_id) REFERENCES message_channels(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS message_queues (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            message_id TEXT NOT NULL,
+            agent_key TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%f', 'now')),
+            FOREIGN KEY (message_id) REFERENCES agent_messages(id)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_queue_agent
+            ON message_queues(agent_key, created_at);
+    """)
+
+
+MIGRATIONS[4] = _migration_v4
+
+
 def get_current_version(conn: sqlite3.Connection) -> int:
     """Get the current schema version from the database."""
     try:

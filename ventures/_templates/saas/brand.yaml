@@ -1,0 +1,39 @@
+# Brand Profile — SaaS Template
+# Used by content-focused agents for consistent brand voice and identity.
+
+name: "LaunchPad SaaS"
+tagline: "Ship faster, scale smarter"
+mission: "Empower developers and teams to build and launch products with confidence."
+
+# Visual Identity
+primary_color: "#0984E3"
+secondary_color: "#55EFC4"
+typography_note: "Clean tech aesthetic. Mono for code, sans-serif for copy."
+
+# Voice & Tone
+voice: "technical-friendly"
+tone: "Clear, direct, developer-focused. Technical accuracy over marketing fluff."
+writing_guidelines:
+  - "Be precise — prefer specific numbers over vague claims"
+  - "Show, don't tell — use code examples where possible"
+  - "Write for developers first, decision-makers second"
+  - "Keep docs and content evergreen"
+
+# Audience
+target_audience: "Technical founders, senior developers, and DevOps engineers"
+domains:
+  - "developer tools"
+  - "SaaS infrastructure"
+  - "API documentation"
+  - "technical content"
+
+# Social
+social_handles:
+  twitter: "@launchpaddev"
+  github: "launchpad-saas"
+
+# Differentiators
+key_differentiators:
+  - "Developer-first approach to SaaS tooling"
+  - "Open-source core with enterprise extensions"
+  - "Sub-100ms API response times globally"

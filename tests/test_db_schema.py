@@ -247,11 +247,21 @@ class TestMigrations:
         run_migrations(db_path)
         conn = get_connection(db_path)
         version = get_current_version(conn)
-        assert version == 2
+        assert version == 4
         row = conn.execute(
             "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'storage_sync_log'"
         ).fetchone()
         assert row is not None
+        # v3 table also exists
+        row_v3 = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'approval_requests'"
+        ).fetchone()
+        assert row_v3 is not None
+        # v4 table also exists
+        row_v4 = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'agent_messages'"
+        ).fetchone()
+        assert row_v4 is not None
         conn.close()
 
     def test_version_tracking(self, db_path):

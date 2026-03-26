@@ -20,8 +20,14 @@ Token optimization features:
 - deduplicate_layers(): Detect and remove redundant content across layers
 """
 
+from __future__ import annotations
+
 import logging
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from realize_core.agents.persona import AgentPersona
 
 logger = logging.getLogger(__name__)
 
@@ -128,9 +134,11 @@ def estimate_tokens(text: str) -> int:
 # Uses layer heading patterns to identify each layer.
 _LAYER_PRIORITIES: dict[str, int] = {
     "## Identity": 9,  # Core identity — never cut
+    "## Agent Persona": 8,  # Persona — critical for personality
     "## Active Agent": 8,  # Agent definition — critical
     "## Writing Style": 8,  # Channel format — critical
     "## Response Format": 8,  # Channel format — critical
+    "## Venture Goal": 7,  # Goal — important for alignment
     "## Collaboration": 7,  # Proactive instructions
     "## Venture Identity": 6,  # Brand context
     "## Venture Voice": 6,
@@ -564,6 +572,61 @@ def _build_cross_system_context(
     return "\n\n".join(parts)
 
 
+def _build_persona_layer(persona: "AgentPersona | None") -> str:
+    """Build the persona prompt layer from an AgentPersona."""
+    if persona is None:
+        return ""
+    try:
+        from realize_core.agents.persona import persona_to_prompt
+        return persona_to_prompt(persona)
+    except Exception as e:
+        logger.warning("Failed to build persona layer: %s", e)
+        return ""
+
+
+def _build_goal_layer(kb_path: Path, system_config: dict, system_key: str) -> str:
+    """Build the venture goal prompt layer."""
+    try:
+        from realize_core.prompt.goal import load_goal, goal_to_prompt
+        goal_text = load_goal(kb_path, system_config, system_key)
+        if goal_text:
+            system_name = system_config.get("name", "")
+            return goal_to_prompt(goal_text, system_name)
+    except Exception as e:
+        logger.warning("Failed to build goal layer: %s", e)
+    return ""
+
+
+def _build_brand_profile_layer(
+    kb_path: Path,
+    system_config: dict,
+) -> str:
+    """
+    Build the brand profile prompt layer from brand.yaml.
+
+    Looks for brand.yaml in the venture directory and converts it
+    to a prompt-friendly format.
+    """
+    try:
+        from realize_core.prompt.brand import resolve_brand, brand_to_prompt
+
+        # Try loading from system_config (inline brand data)
+        brand = resolve_brand(config=system_config)
+        if brand:
+            return brand_to_prompt(brand)
+
+        # Try loading from venture directory
+        venture_dir = system_config.get("venture_dir", "")
+        if venture_dir:
+            brand = resolve_brand(venture_dir=kb_path / venture_dir)
+            if brand:
+                return brand_to_prompt(brand)
+
+    except Exception as e:
+        logger.warning("Failed to build brand profile layer: %s", e)
+    return ""
+
+
 def build_system_prompt(
     kb_path: Path,
     system_config: dict,
@@ -577,6 +640,7 @@ def build_system_prompt(
     features: dict = None,
     all_systems: dict = None,
     token_budget: int | None = None,
+    persona_override: "AgentPersona | None" = None,
 ) -> str:
     """
     Assemble the full system prompt from KB layers.
@@ -606,6 +670,21 @@ def build_system_prompt(
     identity = _build_identity_layer(kb_path, shared_config)
     if identity:
         layers.append(identity)
+
+    # Layer 1.5: Agent Persona (SOUL)
+    persona_layer = _build_persona_layer(persona_override)
+    if persona_layer:
+        layers.append(persona_layer)
+
+    # Layer 1.6: Venture Goal
+    goal_layer = _build_goal_layer(kb_path, system_config, system_key)
+    if goal_layer:
+        layers.append(goal_layer)
+
+    # Layer 1.7: Brand Profile (from brand.yaml)
+    brand_profile = _build_brand_profile_layer(kb_path, system_config)
+    if brand_profile:
+        layers.append(brand_profile)
 
     # Layer 2: Venture
     brand = _build_brand_layer(kb_path, system_config)

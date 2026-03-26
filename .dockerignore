@@ -1,0 +1,57 @@
+# =============================================================================
+# RealizeOS 5 — Docker Build Exclusions
+# =============================================================================
+
+# Version control
+.git
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+htmlcov/
+coverage.xml
+
+# Node (dashboard rebuilds inside container)
+dashboard/node_modules/
+realize-os-cli/node_modules/
+
+# Documentation & metadata (not needed at runtime)
+docs/
+developer_resources/
+*.md
+!requirements.txt
+
+# AutoBuild
+.autobuild/
+
+# Tests (not needed in production image)
+tests/
+
+# Env files (mounted at runtime)
+.env
+.env.*
+!.env.example
+
+# Data directories (mounted at runtime)
+data/
+systems/
+shared/
+.credentials/
+
+# OS files
+.DS_Store
+Thumbs.db
+*.log

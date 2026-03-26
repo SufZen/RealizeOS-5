@@ -1,0 +1,21 @@
+name: SaaS Starter
+description: AI-powered SaaS operations template with support, onboarding, and growth agents
+vertical: saas
+version: "1.0.0"
+author: RealizeOS Team
+tags:
+  - saas
+  - support
+  - onboarding
+  - growth
+agents:
+  - support_agent
+  - onboarding_specialist
+  - growth_analyst
+skills:
+  - ticket_handling
+  - user_onboarding
+  - churn_analysis
+requirements:
+  python: ">=3.11"
+  realizeos: ">=5.0.0"
