@@ -59,12 +59,14 @@ def client(setup_test_env):
     except ImportError:
         pytest.skip("FastAPI not installed")
 
-    from realize_api.routes import activity, dashboard, ventures
+    from realize_api.routes import activity, dashboard, venture_agents, venture_kb, ventures
 
     app = FastAPI()
     app.include_router(activity.router, prefix="/api")
     app.include_router(dashboard.router, prefix="/api")
     app.include_router(ventures.router, prefix="/api")
+    app.include_router(venture_agents.router, prefix="/api")
+    app.include_router(venture_kb.router, prefix="/api")
 
     # Mock app state
     app.state.systems = {

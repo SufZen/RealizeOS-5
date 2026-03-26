@@ -34,6 +34,9 @@ from realize_api.routes import (
     setup,
     storage_settings,
     systems,
+    venture_agents,
+    venture_kb,
+    venture_shared,
     ventures,
     webhooks,
     workflows,
@@ -43,6 +46,7 @@ from realize_api.security_middleware import (
     InjectionGuardMiddleware,
     JWTAuthMiddleware,
     RateLimitMiddleware,
+    SecurityHeadersMiddleware,
 )
 
 logger = logging.getLogger(__name__)
@@ -231,13 +235,23 @@ def create_app() -> FastAPI:
         allow_origins=allowed_origins,
         allow_credentials=True,
         allow_methods=["*"],
-        allow_headers=["*"],
+        allow_headers=[
+            "Authorization",
+            "Content-Type",
+            "Accept",
+            "X-Request-ID",
+            "X-User-ID",
+            "X-API-Key",
+        ],
     )
 
     # Register centralized error handlers
     register_error_handlers(app)
 
     # --- Security middleware stack (order matters: outermost → innermost) ---
+
+    # 0. Security headers — set on ALL responses
+    app.add_middleware(SecurityHeadersMiddleware)
 
     # 1. Audit logging — outermost so it captures everything
     app.add_middleware(AuditMiddleware)
@@ -266,6 +280,9 @@ def create_app() -> FastAPI:
     app.include_router(activity.router, prefix="/api", tags=["Activity"])
     app.include_router(dashboard.router, prefix="/api", tags=["Dashboard"])
     app.include_router(ventures.router, prefix="/api", tags=["Ventures"])
+    app.include_router(venture_agents.router, prefix="/api", tags=["Venture Agents"])
+    app.include_router(venture_kb.router, prefix="/api", tags=["Venture KB"])
+    app.include_router(venture_shared.router, prefix="/api", tags=["Shared Files"])
     app.include_router(approvals.router, prefix="/api", tags=["Approvals"])
     app.include_router(evolution.router, prefix="/api", tags=["Evolution"])
     app.include_router(settings.router, prefix="/api", tags=["Settings"])
