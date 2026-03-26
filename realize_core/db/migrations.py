@@ -1,38 +1,43 @@
 """
-Simple migration system for RealizeOS operational database.
+Migration compatibility shim for RealizeOS.
 
-Migrations are functions registered in MIGRATIONS dict, keyed by version number.
-On startup, any unapplied migrations are run in order.
+.. deprecated:: V5
+    This module is a backward-compatible shim.  All migration logic has
+    been moved to ``realize_core.migration.engine.MigrationEngine`` and
+    individual version modules under ``realize_core/migration/versions/``.
+
+    New code should use::
+
+        from realize_core.migration.engine import MigrationEngine
+        engine = MigrationEngine()
+        engine.migrate_up()
+
+    This shim is kept so that ``realize_api.main`` and existing test
+    imports continue to work without changes.
 """
 
 import logging
 import sqlite3
+import warnings
 from pathlib import Path
+from typing import Callable, Optional
 
 from realize_core.db.schema import get_connection, init_schema
 
 logger = logging.getLogger(__name__)
 
-# Registry of migrations: version -> callable(conn)
-# Version 1 is the initial schema (handled by init_schema).
-# Add future migrations here as version 2, 3, etc.
-MIGRATIONS: dict[int, callable] = {}
-
-
 # ---------------------------------------------------------------------------
-# Migration v2 — storage sync log + performance indexes
+# Legacy MIGRATIONS dict — kept for backward compatibility with tests
+# that inspect ``MIGRATIONS`` directly (test_messaging, test_hardening_phase2,
+# test_approval_tool, test_launch_checklist).
 # ---------------------------------------------------------------------------
+
+MIGRATIONS: dict[int, Callable] = {}
 
 
 def _migration_v2(conn):
-    """
-    Add storage_sync_log table and extra performance indexes.
-
-    - storage_sync_log: tracks sync operations between storage providers
-    - Additional indexes on activity_events for dashboard queries
-    """
+    """Storage sync log + performance indexes (legacy — now in versions/003)."""
     conn.executescript("""
-        -- Storage sync log (used by realize_core.storage.sync.SyncManager)
         CREATE TABLE IF NOT EXISTS storage_sync_log (
             id TEXT PRIMARY KEY,
             sync_type TEXT NOT NULL,
@@ -53,14 +58,12 @@ def _migration_v2(conn):
         CREATE INDEX IF NOT EXISTS idx_sync_log_file_key
             ON storage_sync_log(file_key);
 
-        -- Extra activity indexes for dashboard performance
         CREATE INDEX IF NOT EXISTS idx_activity_created_at
             ON activity_events(created_at DESC);
 
         CREATE INDEX IF NOT EXISTS idx_activity_entity
             ON activity_events(entity_type, entity_id);
 
-        -- Approval queue: index for expiry lookups
         CREATE INDEX IF NOT EXISTS idx_approval_expires
             ON approval_queue(expires_at)
             WHERE status = 'pending';
@@ -70,17 +73,8 @@ def _migration_v2(conn):
 MIGRATIONS[2] = _migration_v2
 
 
-# ---------------------------------------------------------------------------
-# Migration v3 — approval_requests table
-# ---------------------------------------------------------------------------
-
-
 def _migration_v3(conn):
-    """
-    Add approval_requests table for operator approval workflow.
-
-    Stores pending and resolved approval requests from agents.
-    """
+    """Approval requests table (legacy — now in versions/004)."""
     conn.executescript("""
         CREATE TABLE IF NOT EXISTS approval_requests (
             id TEXT PRIMARY KEY,
@@ -114,19 +108,8 @@ def _migration_v3(conn):
 MIGRATIONS[3] = _migration_v3
 
 
-# ---------------------------------------------------------------------------
-# Migration v4 — messaging tables (agent-to-agent bus)
-# ---------------------------------------------------------------------------
-
-
 def _migration_v4(conn):
-    """
-    Add messaging tables for agent-to-agent communication.
-
-    - agent_messages: stores all messages
-    - message_channels: named broadcast channels
-    - message_queues: offline delivery queue
-    """
+    """Messaging tables (legacy — now in versions/005)."""
     conn.executescript("""
         CREATE TABLE IF NOT EXISTS agent_messages (
             id TEXT PRIMARY KEY,
@@ -186,6 +169,11 @@ def _migration_v4(conn):
 MIGRATIONS[4] = _migration_v4
 
 
+# ---------------------------------------------------------------------------
+# Public API — backward compatible
+# ---------------------------------------------------------------------------
+
+
 def get_current_version(conn: sqlite3.Connection) -> int:
     """Get the current schema version from the database."""
     try:
@@ -195,9 +183,14 @@ def get_current_version(conn: sqlite3.Connection) -> int:
         return 0
 
 
-def run_migrations(db_path: Path = None):
+def run_migrations(db_path: Optional[Path] = None):
     """
     Run all pending migrations.
+
+    .. deprecated:: V5
+        Prefer ``MigrationEngine().migrate_up()`` for new code.
+
+    Kept for backward compatibility with ``realize_api.main`` and tests.
 
     1. Ensures base schema exists (version 1)
     2. Checks current version

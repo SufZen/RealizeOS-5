@@ -43,6 +43,10 @@ dashboard/node_modules/
 dashboard/dist/
 dashboard/.pnpm-store/
 
+# CLI build artifacts
+realize-os-cli/node_modules/
+realize-os-cli/dist/
+
 # Testing
 .pytest_cache/
 .coverage
