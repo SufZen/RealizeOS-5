@@ -269,4 +269,4 @@ Every story follows the BMAD MTH-37 workflow:
 
 ## License
 
-By contributing, you agree that your contributions will be licensed under the same license as the project (MIT).
+By contributing, you agree that your contributions will be licensed under the [Business Source License 1.1](LICENSE), the same license as the project. This license converts to Apache 2.0 on March 26, 2030.

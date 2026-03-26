@@ -1,0 +1,41 @@
+# Brand Profile — Agency Template
+# Used by content-focused agents for consistent brand voice and identity.
+
+name: "CreativeFlow Agency"
+tagline: "Ideas that move people"
+mission: "To help businesses tell compelling stories that drive growth and engagement."
+
+# Visual Identity
+primary_color: "#6C5CE7"
+secondary_color: "#00CEC9"
+typography_note: "Modern sans-serif (Inter, Outfit). Clean headers, readable body."
+
+# Voice & Tone
+voice: "confident-creative"
+tone: "Warm, approachable, but expert. Avoids jargon unless audience-appropriate."
+writing_guidelines:
+  - "Use active voice"
+  - "Lead with benefits, not features"
+  - "Keep sentences under 25 words where possible"
+  - "Use data to support claims"
+  - "Include a clear call-to-action in every piece"
+
+# Audience
+target_audience: "B2B SaaS founders, marketing managers, and growth teams"
+domains:
+  - "content marketing"
+  - "brand strategy"
+  - "social media"
+  - "copywriting"
+
+# Social
+social_handles:
+  twitter: "@creativeflowHQ"
+  linkedin: "creativeflow-agency"
+  instagram: "@creativeflow"
+
+# Differentiators
+key_differentiators:
+  - "AI-augmented content creation at scale"
+  - "Data-driven strategy with creative execution"
+  - "Full-stack content operations"

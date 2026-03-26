@@ -1,0 +1,46 @@
+# Sample Eval Suite — Agency Vertical
+# Tests common agency agent behaviors
+
+name: "Agency Eval Suite"
+metadata:
+  vertical: agency
+  version: "1.0"
+  description: "Evaluates agents for content agency operations"
+
+cases:
+  - name: greeting_response
+    prompt: "Hello, I need help with our content strategy"
+    expected_patterns:
+      - "content"
+      - "strategy|plan|approach"
+    expected_tools: []
+    dimensions:
+      - name: friendliness
+        weight: 1.0
+        description: "Agent should be welcoming and professional"
+    tags: ["basic", "agency"]
+
+  - name: brand_awareness
+    prompt: "What is our brand voice?"
+    expected_patterns:
+      - "voice|tone|brand"
+    expected_tools: []
+    dimensions:
+      - name: brand_knowledge
+        weight: 2.0
+        description: "Agent should demonstrate brand profile knowledge"
+    tags: ["brand", "agency"]
+
+  - name: content_creation
+    prompt: "Write a social media post about our new AI feature"
+    expected_patterns:
+      - "AI|artificial intelligence"
+    expected_tools: []
+    dimensions:
+      - name: creativity
+        weight: 1.5
+        description: "Post should be engaging and on-brand"
+      - name: accuracy
+        weight: 1.0
+        description: "Content should be factually correct"
+    tags: ["content", "agency"]

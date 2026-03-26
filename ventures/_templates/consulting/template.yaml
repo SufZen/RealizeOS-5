@@ -1,0 +1,20 @@
+name: Consulting Accelerator
+description: AI consulting firm template with strategist, researcher, and delivery agents
+vertical: consulting
+version: "1.0.0"
+author: RealizeOS Team
+tags:
+  - consulting
+  - strategy
+  - research
+  - delivery
+agents:
+  - strategist
+  - researcher
+skills:
+  - market_research
+  - strategy_development
+  - report_generation
+requirements:
+  python: ">=3.11"
+  realizeos: ">=5.0.0"

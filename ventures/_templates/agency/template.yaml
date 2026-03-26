@@ -1,0 +1,21 @@
+name: Agency Starter
+description: Multi-agent digital agency template with content, social, and analytics roles
+vertical: agency
+version: "1.0.0"
+author: RealizeOS Team
+tags:
+  - agency
+  - content
+  - marketing
+  - social-media
+agents:
+  - writer
+  - social_manager
+  - analyst
+skills:
+  - content_creation
+  - social_publishing
+  - analytics
+requirements:
+  python: ">=3.11"
+  realizeos: ">=5.0.0"

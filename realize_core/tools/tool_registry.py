@@ -173,6 +173,8 @@ class ToolRegistry:
             "realize_core.tools.browser_tool",
             "realize_core.tools.gws_cli_tool",
             "realize_core.tools.google_sheets_tool",
+            "realize_core.tools.approval",
+            "realize_core.tools.messaging",
         ]
 
         for module_name in known_modules:

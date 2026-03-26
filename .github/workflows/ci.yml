@@ -136,6 +136,13 @@ jobs:
           path: bandit-report.json
           retention-days: 14
 
+      - name: Scan for hardcoded secrets (gitleaks)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          args: detect --source . --verbose
+
   # ──────────────────────────────────────────────
   # Job 4: Docker Build (verify Dockerfile builds)
   # ──────────────────────────────────────────────

@@ -67,11 +67,27 @@ test3.bat
 .gemini/
 .claude/
 
-# Credentials (security-sensitive)
+# Credentials & secrets (security-sensitive)
 .credentials/
+*.key
+*.pem
+*.cert
+*.p12
+*.pfx
+*.jks
+service-account*.json
+*-credentials.json
+.secrets.baseline
 
 # Migration backups
 backups/
 
 # OS-specific
 desktop.ini
+
+# Production configs (never commit)
+realize-os.yaml
+!realize-os.example.yaml
+
+# Temporary launch strategy files
+launch-strategy.*

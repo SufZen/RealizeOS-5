@@ -1,0 +1,118 @@
+# =============================================================================
+# RealizeOS 5 — Production Docker Compose
+# =============================================================================
+# Optimized for production self-hosting:
+# - No build step (uses pre-built image from GHCR)
+# - Resource limits and memory reservations
+# - Automatic restart with backoff
+# - Logging configuration
+# - Security hardening (read-only root, no-new-privileges)
+#
+# Usage:
+#   docker compose -f docker-compose.prod.yml up -d
+#
+# Prerequisites:
+#   - Copy .env.example to .env and configure
+#   - Ensure ./systems/ and ./realize-os.yaml exist
+# =============================================================================
+
+services:
+  api:
+    image: ghcr.io/sufzen/realizeos-5:latest
+    container_name: realizeos-api
+    ports:
+      - "${REALIZE_PORT:-8080}:8080"
+    volumes:
+      # Named volumes for persistent storage
+      - realize-data:/app/data
+      - realize-shared:/app/shared
+      # Bind mounts for user-editable config
+      - ./realize-os.yaml:/app/realize-os.yaml:ro
+      - ./systems:/app/systems
+      - ./.credentials:/app/.credentials:ro
+    env_file:
+      - .env
+    environment:
+      - DATA_DIR=/app/data
+      - KB_PATH=/app
+      - REALIZE_HOST=0.0.0.0
+      - REALIZE_PORT=8080
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 15s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: "2.0"
+        reservations:
+          memory: 512M
+          cpus: "0.5"
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:size=256M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ---------------------------------------------------------------------------
+  # Optional: Telegram bot (uncomment to enable)
+  # ---------------------------------------------------------------------------
+  # telegram:
+  #   image: ghcr.io/sufzen/realizeos-5:latest
+  #   container_name: realizeos-telegram
+  #   command: python cli.py bot
+  #   volumes:
+  #     - realize-data:/app/data
+  #     - realize-shared:/app/shared
+  #     - ./realize-os.yaml:/app/realize-os.yaml:ro
+  #     - ./systems:/app/systems
+  #     - ./.credentials:/app/.credentials:ro
+  #   env_file:
+  #     - .env
+  #   environment:
+  #     - DATA_DIR=/app/data
+  #     - KB_PATH=/app
+  #   depends_on:
+  #     api:
+  #       condition: service_healthy
+  #   restart: unless-stopped
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         memory: 1G
+  #         cpus: "1.0"
+  #   security_opt:
+  #     - no-new-privileges:true
+  #   read_only: true
+  #   tmpfs:
+  #     - /tmp:size=128M
+  #   logging:
+  #     driver: json-file
+  #     options:
+  #       max-size: "10m"
+  #       max-file: "3"
+
+# =============================================================================
+# Named Volumes — Docker-managed persistent storage
+# =============================================================================
+volumes:
+  realize-data:
+    name: realizeos-data
+    driver: local
+    labels:
+      com.realizeos.description: "SQLite database and operational data"
+
+  realize-shared:
+    name: realizeos-shared
+    driver: local
+    labels:
+      com.realizeos.description: "Shared knowledge base content across ventures"

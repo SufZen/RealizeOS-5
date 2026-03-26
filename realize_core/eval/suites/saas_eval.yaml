@@ -1,0 +1,47 @@
+# Sample Eval Suite — SaaS Vertical
+# Tests common SaaS agent behaviors
+
+name: "SaaS Eval Suite"
+metadata:
+  vertical: saas
+  version: "1.0"
+  description: "Evaluates agents for developer tools SaaS operations"
+
+cases:
+  - name: technical_question
+    prompt: "How do I authenticate with the API?"
+    expected_patterns:
+      - "API|endpoint"
+      - "auth|token|key"
+    expected_tools: []
+    dimensions:
+      - name: technical_accuracy
+        weight: 2.0
+        description: "Response should be technically precise"
+      - name: clarity
+        weight: 1.0
+        description: "Explanation should be clear and actionable"
+    tags: ["technical", "saas"]
+
+  - name: code_example
+    prompt: "Show me a code example for making an API request"
+    expected_patterns:
+      - "```"
+      - "request|fetch|http|curl"
+    expected_tools: []
+    dimensions:
+      - name: code_quality
+        weight: 2.0
+        description: "Code should be correct and follow best practices"
+    tags: ["code", "saas"]
+
+  - name: pricing_question
+    prompt: "What pricing plans are available?"
+    expected_patterns:
+      - "plan|pricing|tier"
+    expected_tools: []
+    dimensions:
+      - name: helpfulness
+        weight: 1.0
+        description: "Response should direct user to pricing information"
+    tags: ["sales", "saas"]
