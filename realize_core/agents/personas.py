@@ -5,6 +5,12 @@ Personas define opinionated defaults — tool sets, communication style,
 and guardrails — that can be applied to an agent via ``persona: <key>``
 in the V2 YAML definition.
 
+See Also:
+    ``realize_core.agents.persona`` — Dynamic SOUL persona system that
+    resolves custom personas from YAML frontmatter in agent markdown
+    files.  This module (``personas.py``) provides *static* built-in
+    presets, while ``persona.py`` handles *dynamic* resolution.
+
 Built-in personas:
 - ``exec-assistant`` — executive brief style, calendar/email tools
 - ``writer`` — content creation, style-aware, review pipeline

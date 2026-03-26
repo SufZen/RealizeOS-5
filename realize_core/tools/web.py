@@ -4,6 +4,13 @@ Web Tools: Search the web and fetch/read web pages.
 Two capabilities:
 1. web_search — Search the web using Brave Search API
 2. web_fetch — Fetch a URL and extract clean readable content
+
+Architecture Note:
+    This module contains the raw implementation functions and Pydantic
+    schemas.  The ``BaseTool`` interface is provided by
+    ``realize_core.tools.web_tool.WebTool``, which delegates to these
+    functions.  This split pattern allows unit-testing the logic
+    independently of the tool registry interface.
 """
 
 import logging

@@ -9,6 +9,13 @@ Each agent can have a persona YAML that defines:
 - Reporting hierarchy
 - Tool access lists (used by Intent 3.2 - Tool Gating)
 
+See Also:
+    ``realize_core.agents.personas`` — Built-in persona presets
+    (exec-assistant, writer, analyst, etc.) that provide opinionated
+    defaults.  This module (``persona.py``) handles *dynamic* persona
+    resolution from YAML files, while ``personas.py`` provides the
+    *static* preset registry.
+
 Personas are loaded from YAML files in the agent directory and injected
 into the prompt builder to give each agent a consistent personality.
 """

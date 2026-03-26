@@ -1,6 +1,17 @@
 """
 Advanced Routing Engine: Routes tasks to the best provider+model by strategy.
 
+.. deprecated:: V5 Audit
+    **This module is currently NOT wired into any production code.**
+    The active routing module is ``realize_core.llm.router``, which is
+    imported by ``base_handler.py``, ``__init__.py``, ``workflows/``,
+    ``pipeline/creative.py``, ``memory/consolidator.py``, and
+    ``llm/classifier.py``.
+
+    This module contains a more advanced YAML-driven strategy engine
+    that could replace ``router.py`` in a future refactor.  Until then,
+    it is kept as reference / experimental code.
+
 Loads provider capabilities from YAML, supports routing strategies
 (cost_optimized, quality_first, balanced, speed_first),
 fallback chains, and per-request cost tracking.
