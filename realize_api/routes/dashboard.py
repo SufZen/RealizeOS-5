@@ -10,6 +10,8 @@ from pathlib import Path
 
 from fastapi import APIRouter, Request
 
+from realize_api.routes.route_helpers import count_skills
+
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
@@ -30,7 +32,7 @@ async def get_dashboard_overview(request: Request):
     ventures = []
     for key, sys_conf in systems.items():
         agent_count = len(sys_conf.get("agents", {}))
-        skill_count = _count_skills(kb_path, sys_conf)
+        skill_count = count_skills(kb_path, sys_conf)
         ventures.append(
             {
                 "key": key,
@@ -55,11 +57,13 @@ async def get_dashboard_overview(request: Request):
         from realize_core.db.schema import get_connection
 
         conn = get_connection()
-        rows = conn.execute("SELECT status, COUNT(*) as c FROM agent_states GROUP BY status").fetchall()
-        for row in rows:
-            if row["status"] in agent_summary:
-                agent_summary[row["status"]] = row["c"]
-        conn.close()
+        try:
+            rows = conn.execute("SELECT status, COUNT(*) as c FROM agent_states GROUP BY status").fetchall()
+            for row in rows:
+                if row["status"] in agent_summary:
+                    agent_summary[row["status"]] = row["c"]
+        finally:
+            conn.close()
     except Exception as exc:
         logger.debug("Agent status query failed: %s", exc)
 
@@ -70,13 +74,3 @@ async def get_dashboard_overview(request: Request):
         "agent_summary": agent_summary,
     }
 
-
-def _count_skills(kb_path: Path, sys_conf: dict) -> int:
-    """Count YAML skill files in a venture's R-routines/skills/ directory."""
-    routines_dir = sys_conf.get("routines_dir", "")
-    if not routines_dir:
-        return 0
-    skills_path = kb_path / routines_dir / "skills"
-    if not skills_path.exists():
-        return 0
-    return sum(1 for f in skills_path.glob("*.yaml"))
