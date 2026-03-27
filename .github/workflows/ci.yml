@@ -167,7 +167,43 @@ jobs:
           cache-to: type=gha,mode=max
 
   # ──────────────────────────────────────────────
-  # Job 5: npm CLI lint + build (when CLI exists)
+  # Job 5: Dashboard lint + build
+  # ──────────────────────────────────────────────
+  dashboard-check:
+    name: Dashboard Check
+    runs-on: ubuntu-latest
+    needs: lint
+    if: hashFiles('dashboard/package.json') != ''
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: dashboard/pnpm-lock.yaml
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Install dependencies
+        working-directory: dashboard
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        working-directory: dashboard
+        run: pnpm lint
+
+      - name: Build
+        working-directory: dashboard
+        run: pnpm build
+
+  # ──────────────────────────────────────────────
+  # Job 6: npm CLI lint + build (when CLI exists)
   # ──────────────────────────────────────────────
   cli-check:
     name: CLI Build Check

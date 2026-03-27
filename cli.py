@@ -8,6 +8,7 @@ Usage:
     python cli.py serve [--port PORT]          Start the API server
     python cli.py bot                          Start the Telegram bot
     python cli.py status                       Show system status
+    python cli.py audit                        Run a structured system audit
     python cli.py index                        Rebuild the KB search index
     python cli.py venture create               Create a new venture
     python cli.py venture delete               Delete a venture
@@ -237,7 +238,7 @@ def cmd_bot(args):
 
 def cmd_status(args):
     """Show system status."""
-    from realize_core.config import build_systems_dict, load_config
+    from realize_core.config import build_systems_dict, discover_workspace_state, load_config
 
     try:
         config = load_config()
@@ -246,6 +247,7 @@ def cmd_status(args):
         sys.exit(1)
 
     systems = build_systems_dict(config)
+    workspace = discover_workspace_state(Path(args.directory or "."), config=config)
 
     print("RealizeOS Status")
     print("=" * 40)
@@ -274,6 +276,31 @@ def cmd_status(args):
     print("\nTools:")
     print(f"  Web Search: {'configured' if os.environ.get('BRAVE_API_KEY') else 'not configured'}")
     print(f"  Browser: {'enabled' if os.environ.get('BROWSER_ENABLED') else 'disabled'}")
+
+    print("\nWorkspace:")
+    print(f"  Config file: {'present' if workspace['config_exists'] else 'missing'}")
+    print(f"  FABRIC dirs on disk: {len(workspace['discovered_system_dirs'])}")
+    if workspace["discovered_system_dirs"]:
+        print(f"  On disk: {', '.join(workspace['discovered_system_dirs'])}")
+    if workspace["warnings"]:
+        print("\nWarnings:")
+        for warning in workspace["warnings"]:
+            print(f"  - {warning}")
+        print("\nSuggested next step:")
+        print("  Run: python cli.py audit --quick")
+
+
+def cmd_audit(args):
+    """Run the structured RealizeOS audit."""
+    from realize_core.devmode.audit import build_audit_report, format_audit_report
+
+    root = Path(args.directory or ".")
+    report = build_audit_report(root=root, quick=args.quick)
+    if args.format == "json":
+        print(report.to_json())
+        return
+
+    print(format_audit_report(report))
 
 
 def cmd_index(args):
@@ -484,7 +511,14 @@ def main():
     subparsers.add_parser("bot", help="Start the Telegram bot")
 
     # status
-    subparsers.add_parser("status", help="Show system status")
+    status_parser = subparsers.add_parser("status", help="Show system status")
+    status_parser.add_argument("--directory", "-d", default=".", help="Project root directory")
+
+    # audit
+    audit_parser = subparsers.add_parser("audit", help="Run the structured audit playbook")
+    audit_parser.add_argument("--directory", "-d", default=".", help="Project root directory")
+    audit_parser.add_argument("--quick", action="store_true", help="Skip slower checks such as the dashboard build probe")
+    audit_parser.add_argument("--format", choices=["text", "json"], default="text", help="Output format")
 
     # index
     subparsers.add_parser("index", help="Rebuild KB search index")
@@ -537,6 +571,7 @@ def main():
         "serve": cmd_serve,
         "bot": cmd_bot,
         "status": cmd_status,
+        "audit": cmd_audit,
         "index": cmd_index,
         "venture": cmd_venture,
         "setup": cmd_setup,
