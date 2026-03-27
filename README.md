@@ -216,6 +216,7 @@ python cli.py init --setup setup.yaml        # Initialize from setup file
 python cli.py serve [--port PORT] [--reload] # Start API + dashboard
 python cli.py bot                            # Start Telegram bot
 python cli.py status                         # Show system status
+python cli.py audit [--quick]               # Run the structured audit playbook
 python cli.py index                          # Rebuild KB search index
 python cli.py venture create --key KEY       # Create new venture
 python cli.py venture delete --key KEY       # Delete a venture
@@ -262,6 +263,7 @@ python cli.py devmode rollback --tag TAG     # Rollback to a snapshot
 |-------|-------------|
 | [⚡ Quickstart](QUICKSTART.md) | Zero to running in 10 minutes |
 | [🏗️ Architecture](docs/architecture.md) | FABRIC, message flow, modules |
+| [🩺 Audit Playbook](docs/audit-playbook.md) | Risk-first audit workflow and session template |
 | [📖 Getting Started](docs/getting-started.md) | First steps after setup |
 | [🔧 Configuration](docs/configuration.md) | Customize your deployment |
 | [🚀 Self-Hosting](docs/self-hosting-guide.md) | Production deployment |

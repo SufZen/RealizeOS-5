@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import importlib
 import logging
+import shutil
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -21,6 +22,8 @@ from enum import StrEnum
 from pathlib import Path
 
 import yaml
+
+from realize_core.config import discover_workspace_state
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +60,11 @@ def check_yaml_config(root: Path) -> CheckResult:
     """Verify realize-os.yaml is valid YAML with expected structure."""
     config_path = root / "realize-os.yaml"
     if not config_path.exists():
-        return CheckResult("Config File", CheckStatus.FAIL, "realize-os.yaml not found")
+        workspace = discover_workspace_state(root)
+        details = ""
+        if workspace["discovered_system_dirs"]:
+            details = "FABRIC directories found on disk: " + ", ".join(workspace["discovered_system_dirs"])
+        return CheckResult("Config File", CheckStatus.FAIL, "realize-os.yaml not found", details)
 
     try:
         with open(config_path, encoding="utf-8") as f:
@@ -81,6 +88,19 @@ def check_yaml_config(root: Path) -> CheckResult:
         return CheckResult("Config File", CheckStatus.PASS, "Valid YAML with expected structure")
     except yaml.YAMLError as e:
         return CheckResult("Config File", CheckStatus.FAIL, f"YAML parse error: {e}")
+
+
+def check_workspace_state(root: Path) -> CheckResult:
+    """Flag partial initialization states that will confuse operators later."""
+    workspace = discover_workspace_state(root)
+
+    if not workspace["warnings"]:
+        return CheckResult("Workspace State", CheckStatus.PASS, "Workspace looks configured and aligned")
+
+    status = CheckStatus.FAIL if not workspace["config_exists"] else CheckStatus.WARN
+    message = workspace["warnings"][0]
+    details = "\n   ".join(workspace["warnings"][1:4])
+    return CheckResult("Workspace State", status, message, details)
 
 
 def check_env_file(root: Path) -> CheckResult:
@@ -207,6 +227,64 @@ def check_dashboard_types(root: Path) -> CheckResult:
         return CheckResult("Dashboard", CheckStatus.WARN, f"Could not check: {e}")
 
 
+def _find_dashboard_build_command(dashboard: Path) -> tuple[list[str] | None, str]:
+    if (dashboard / "pnpm-lock.yaml").exists():
+        if shutil.which("pnpm"):
+            return (
+                ["pnpm", "exec", "vite", "build", "--outDir", ".health-dist", "--emptyOutDir"],
+                "pnpm",
+            )
+        if shutil.which("corepack"):
+            return (
+                ["corepack", "pnpm", "exec", "vite", "build", "--outDir", ".health-dist", "--emptyOutDir"],
+                "corepack pnpm",
+            )
+        return None, "dashboard/pnpm-lock.yaml exists but pnpm/corepack is unavailable"
+
+    if (dashboard / "package-lock.json").exists():
+        if shutil.which("npx"):
+            return (
+                ["npx", "vite", "build", "--outDir", ".health-dist", "--emptyOutDir"],
+                "npm",
+            )
+        return None, "dashboard/package-lock.json exists but npx is unavailable"
+
+    return None, "no dashboard lockfile was found"
+
+
+def check_dashboard_build(root: Path) -> CheckResult:
+    """Verify the dashboard can complete a production build without touching tracked static assets."""
+    dashboard = root / "dashboard"
+    if not dashboard.exists():
+        return CheckResult("Dashboard Build", CheckStatus.WARN, "Dashboard directory not found")
+
+    command, label = _find_dashboard_build_command(dashboard)
+    if not command:
+        return CheckResult("Dashboard Build", CheckStatus.WARN, label)
+
+    try:
+        result = subprocess.run(
+            command,
+            cwd=str(dashboard),
+            capture_output=True,
+            text=True,
+            timeout=180,
+        )
+    except subprocess.TimeoutExpired:
+        return CheckResult("Dashboard Build", CheckStatus.WARN, "Dashboard build timed out")
+    except Exception as e:
+        return CheckResult("Dashboard Build", CheckStatus.WARN, f"Could not run dashboard build: {e}")
+    finally:
+        shutil.rmtree(dashboard / ".health-dist", ignore_errors=True)
+
+    if result.returncode == 0:
+        return CheckResult("Dashboard Build", CheckStatus.PASS, f"Dashboard build succeeded with {label}")
+
+    output = (result.stderr or result.stdout or "").strip().splitlines()
+    detail = output[-1] if output else ""
+    return CheckResult("Dashboard Build", CheckStatus.FAIL, f"Dashboard build failed with {label}", detail)
+
+
 def check_version_file(root: Path) -> CheckResult:
     """Check VERSION file exists."""
     version_path = root / "VERSION"
@@ -236,6 +314,7 @@ def run_health_check(root: Path | None = None, quick: bool = False) -> list[Chec
 
     # Fast checks
     results.append(check_yaml_config(root))
+    results.append(check_workspace_state(root))
     results.append(check_env_file(root))
     results.append(check_version_file(root))
     results.append(check_core_imports(root))
@@ -244,6 +323,7 @@ def run_health_check(root: Path | None = None, quick: bool = False) -> list[Chec
     if not quick:
         results.append(check_tests(root))
         results.append(check_dashboard_types(root))
+        results.append(check_dashboard_build(root))
 
     return results
 

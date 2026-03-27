@@ -158,6 +158,68 @@ def build_systems_dict(config: dict, kb_path: Path = None) -> dict:
     return systems
 
 
+def discover_workspace_state(root: Path | None = None, config: dict | None = None) -> dict:
+    """
+    Inspect the current workspace and highlight partial setup issues.
+
+    Returns a dictionary that can be reused by status, audit, and health tooling.
+    """
+    root = (root or Path.cwd()).resolve()
+    config_path = Path(os.getenv("REALIZE_CONFIG", "realize-os.yaml"))
+    if not config_path.is_absolute():
+        config_path = root / config_path
+
+    config = config or load_config(config_path)
+    configured_keys = [
+        str(system.get("key", "")).strip()
+        for system in config.get("systems", [])
+        if isinstance(system, dict) and str(system.get("key", "")).strip()
+    ]
+
+    systems_dir = root / "systems"
+    discovered_system_dirs = []
+    if systems_dir.exists():
+        discovered_system_dirs = sorted(
+            entry.name
+            for entry in systems_dir.iterdir()
+            if entry.is_dir() and not entry.name.startswith(".")
+        )
+
+    unconfigured_system_dirs = [name for name in discovered_system_dirs if name not in configured_keys]
+    has_provider = any(
+        bool(os.getenv(key))
+        for key in ("ANTHROPIC_API_KEY", "GOOGLE_AI_API_KEY", "OPENAI_API_KEY")
+    )
+    has_runtime_databases = any((root / filename).exists() for filename in ("realize_data.db", "kb_index.db"))
+
+    warnings = []
+    if not config_path.exists():
+        warnings.append("Config file missing: realize-os.yaml")
+    if discovered_system_dirs and not configured_keys:
+        warnings.append("FABRIC systems exist on disk but none are configured in realize-os.yaml")
+    elif unconfigured_system_dirs:
+        warnings.append(
+            "Some FABRIC system directories are not registered in realize-os.yaml: "
+            + ", ".join(unconfigured_system_dirs)
+        )
+    if not has_provider:
+        warnings.append("No LLM provider API keys are configured")
+
+    return {
+        "root": str(root),
+        "config_path": str(config_path),
+        "config_exists": config_path.exists(),
+        "configured_system_count": len(configured_keys),
+        "configured_system_keys": configured_keys,
+        "discovered_system_dirs": discovered_system_dirs,
+        "unconfigured_system_dirs": unconfigured_system_dirs,
+        "has_provider": has_provider,
+        "has_runtime_databases": has_runtime_databases,
+        "partially_initialized": bool(warnings),
+        "warnings": warnings,
+    }
+
+
 def get_features(config: dict) -> dict:
     """
     Extract feature flags from the config.
