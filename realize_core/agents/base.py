@@ -80,6 +80,7 @@ class HandoffData:
     payload: dict[str, Any] = field(default_factory=dict)
     artifacts: list[str] = field(default_factory=list)
     context: dict[str, Any] = field(default_factory=dict)
+    history: list[dict[str, Any]] = field(default_factory=list)
     retry_count: int = 0
     max_retries: int = 3
 
@@ -97,6 +98,7 @@ class HandoffData:
             payload=self.payload,
             artifacts=self.artifacts,
             context=self.context,
+            history=self.history,
             retry_count=self.retry_count + 1,
             max_retries=self.max_retries,
         )

@@ -8,8 +8,73 @@ export interface ChatMsg {
   timestamp?: string
 }
 
+/* ---- Lightweight markdown rendering ---- */
+
+function renderMarkdown(text: string): React.ReactNode[] {
+  const nodes: React.ReactNode[] = []
+  const codeBlockRegex = /```(\w*)\n([\s\S]*?)```/g
+  let lastIndex = 0
+  let key = 0
+
+  // First pass: split by code blocks
+  let match: RegExpExecArray | null
+  while ((match = codeBlockRegex.exec(text)) !== null) {
+    // Add text before the code block
+    if (match.index > lastIndex) {
+      nodes.push(...renderInline(text.slice(lastIndex, match.index), key))
+      key += 100
+    }
+    // Add the code block
+    const lang = match[1] || 'plain'
+    nodes.push(
+      <pre
+        key={`code-${key++}`}
+        className="bg-surface-800 border border-border rounded-lg p-3 text-xs font-mono overflow-x-auto my-2"
+      >
+        <div className="text-[10px] text-muted-foreground mb-1 uppercase tracking-wider">{lang}</div>
+        <code>{match[2]}</code>
+      </pre>
+    )
+    lastIndex = match.index + match[0].length
+  }
+
+  // Add remaining text after last code block
+  if (lastIndex < text.length) {
+    nodes.push(...renderInline(text.slice(lastIndex), key))
+  }
+
+  return nodes
+}
+
+function renderInline(text: string, startKey: number): React.ReactNode[] {
+  if (!text) return []
+
+  // Split by inline patterns: **bold**, *italic*, `inline code`
+  const parts = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`)/)
+
+  return parts.map((part, i) => {
+    if (part.startsWith('**') && part.endsWith('**')) {
+      return <strong key={startKey + i} className="font-semibold">{part.slice(2, -2)}</strong>
+    }
+    if (part.startsWith('*') && part.endsWith('*') && !part.startsWith('**')) {
+      return <em key={startKey + i}>{part.slice(1, -1)}</em>
+    }
+    if (part.startsWith('`') && part.endsWith('`')) {
+      return (
+        <code key={startKey + i} className="bg-surface-800 px-1.5 py-0.5 rounded text-xs font-mono text-brand-400">
+          {part.slice(1, -1)}
+        </code>
+      )
+    }
+    return <span key={startKey + i}>{part}</span>
+  })
+}
+
+/* ---- Components ---- */
+
 export function ChatMessage({ msg }: { msg: ChatMsg }) {
   const isUser = msg.role === 'user'
+  const hasMarkdown = !isUser && /[`*]/.test(msg.content)
 
   return (
     <div className={cn('flex gap-3 max-w-3xl', isUser ? 'ml-auto flex-row-reverse' : '')}>
@@ -32,7 +97,9 @@ export function ChatMessage({ msg }: { msg: ChatMsg }) {
         {msg.agent_key && !isUser && (
           <div className="text-xs text-muted-foreground mb-1 font-medium">{msg.agent_key}</div>
         )}
-        <div className="whitespace-pre-wrap">{msg.content}</div>
+        <div className="whitespace-pre-wrap">
+          {hasMarkdown ? renderMarkdown(msg.content) : msg.content}
+        </div>
         {msg.timestamp && (
           <div className="text-xs text-muted-foreground mt-1 opacity-60">
             {new Date(msg.timestamp).toLocaleTimeString()}

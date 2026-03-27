@@ -13,10 +13,8 @@ Covers:
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timedelta, timezone
 
 import pytest
-
 from realize_core.tools.approval import (
     ApprovalAction,
     ApprovalRequest,
@@ -26,7 +24,6 @@ from realize_core.tools.approval import (
     get_tool,
 )
 from realize_core.tools.base_tool import ToolCategory
-
 
 # ---------------------------------------------------------------------------
 #  Helpers

@@ -11,8 +11,9 @@ and can involve multiple agents working in sequence.
 import json
 import logging
 import uuid
+from collections import OrderedDict
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)
 
@@ -131,8 +132,9 @@ class CreativeSession:
         return "\n".join(lines)
 
 
-# Storage: {(system_key, user_id): CreativeSession}
-_sessions: dict[tuple[str, str], CreativeSession] = {}
+# Storage: bounded LRU cache {(system_key, user_id): CreativeSession}
+MAX_CACHED_SESSIONS = 500
+_sessions: OrderedDict[tuple[str, str], CreativeSession] = OrderedDict()
 _hydrated_users: set[str] = set()
 
 
@@ -178,7 +180,7 @@ def create_session(
 ) -> CreativeSession:
     """Create a new creative session."""
     session = CreativeSession(
-        id=str(uuid.uuid4())[:8],
+        id=str(uuid.uuid4())[:12],
         system_key=system_key,
         brief=brief,
         task_type=task_type,
@@ -189,6 +191,9 @@ def create_session(
         user_id=str(user_id),
     )
     _sessions[(system_key, str(user_id))] = session
+    # Evict oldest when cache exceeds limit
+    while len(_sessions) > MAX_CACHED_SESSIONS:
+        _sessions.popitem(last=False)
     session.save()
     return session
 
@@ -210,3 +215,38 @@ def end_session(system_key: str, user_id: str):
         except Exception:
             pass
         logger.info(f"Ended session {session.id}")
+
+
+def cleanup_stale_sessions(max_age_hours: int = 24):
+    """
+    Remove sessions older than max_age_hours from both memory and DB.
+
+    Should be called periodically (e.g. on server startup or via a cron task).
+    """
+    cutoff = datetime.now() - timedelta(hours=max_age_hours)
+    cutoff_str = cutoff.strftime("%Y-%m-%d %H:%M:%S")
+
+    # Clean DB first
+    removed_db = 0
+    try:
+        with _db_ctx() as conn:
+            cursor = conn.execute(
+                "DELETE FROM sessions WHERE updated_at < ?", (cutoff_str,)
+            )
+            removed_db = cursor.rowcount or 0
+    except Exception as e:
+        logger.debug(f"Failed to clean stale sessions from DB: {e}")
+
+    # Clean memory cache
+    stale_keys = []
+    for key, session in _sessions.items():
+        ts = session.updated_at or session.created_at
+        if ts and ts < cutoff_str:
+            stale_keys.append(key)
+    for key in stale_keys:
+        _sessions.pop(key, None)
+
+    total = removed_db + len(stale_keys)
+    if total:
+        logger.info(f"Cleaned up {total} stale sessions (DB: {removed_db}, memory: {len(stale_keys)})")
+    return total

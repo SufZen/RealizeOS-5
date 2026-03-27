@@ -5,13 +5,29 @@ Extends the original classify_task() with support for:
 - Image generation, video generation, audio, spreadsheet, code
 - Modality detection for routing to specialized providers
 - Confidence scoring for classification
+- Edge case handling (short messages, code patterns)
 """
 
 import logging
+import re
 from dataclasses import dataclass
 from enum import Enum
 
 logger = logging.getLogger(__name__)
+
+# Regex pattern for detecting code-like content in messages
+_CODE_PATTERNS = re.compile(
+    r"```|"                     # Fenced code blocks
+    r"\bdef\s+\w+\s*\(|"       # Python function definitions
+    r"\bfunction\s+\w+\s*\(|"  # JavaScript function definitions
+    r"\bimport\s+\w+|"         # Import statements
+    r"\bclass\s+\w+|"          # Class definitions
+    r"\bconst\s+\w+\s*=|"      # JS const declarations
+    r"\breturn\s+|"            # Return statements
+    r"\bfor\s+\w+\s+in\s+|"   # Python for loops
+    r"\bif\s*\(.+\)\s*{",      # C-style if blocks
+    re.IGNORECASE,
+)
 
 
 class Modality(Enum):
@@ -174,7 +190,12 @@ def classify_task_advanced(message: str, system_key: str = None) -> TaskClassifi
     Classify a user message into a multi-modal task type.
 
     This extends the original classify_task() with modality detection,
-    confidence scoring, and multi-modal support.
+    confidence scoring, multi-modal support, and edge case handling.
+
+    Edge cases handled:
+    - Very short messages (< 10 chars) → simple with high confidence
+    - Code patterns detected via regex → boost code score
+    - Empty messages → simple
 
     Args:
         message: The user's message text
@@ -183,6 +204,16 @@ def classify_task_advanced(message: str, system_key: str = None) -> TaskClassifi
     Returns:
         TaskClassification with task_type, modality, tier, and confidence
     """
+    # Edge case: empty or very short messages → simple
+    if not message or len(message.strip()) < 10:
+        return TaskClassification(
+            task_type="simple",
+            modality=Modality.TEXT,
+            tier=1,
+            confidence=0.9,
+            requires_tools=False,
+        )
+
     msg_lower = message.lower()
 
     # Score each modality
@@ -195,6 +226,11 @@ def classify_task_advanced(message: str, system_key: str = None) -> TaskClassifi
     scores["code"] = _keyword_score(msg_lower, CODE_KEYWORDS)
     scores["spreadsheet"] = _keyword_score(msg_lower, SPREADSHEET_KEYWORDS)
     scores["vision"] = _keyword_score(msg_lower, VISION_KEYWORDS)
+
+    # Code pattern detection boost — if regex finds code-like syntax,
+    # boost the code score even if no keywords matched
+    if _CODE_PATTERNS.search(message):
+        scores["code"] = max(scores["code"], 0.15) + 0.10
 
     # Legacy task types
     legacy = _get_legacy_keywords()

@@ -98,6 +98,18 @@ export default function PipelineBuilderPage() {
   const [testResult, setTestResult] = useState<string | null>(null)
   const [testing, setTesting] = useState(false)
 
+  // Warn user about unsaved changes when navigating away
+  useEffect(() => {
+    const hasUnsavedChanges = pipeline.steps.length > 0 && saveStatus !== 'saved'
+    const handler = (e: BeforeUnloadEvent) => {
+      if (hasUnsavedChanges) {
+        e.preventDefault()
+      }
+    }
+    window.addEventListener('beforeunload', handler)
+    return () => window.removeEventListener('beforeunload', handler)
+  }, [pipeline.steps.length, saveStatus])
+
   /* ---- Step CRUD ---- */
 
   const addStep = useCallback((type: StepType) => {

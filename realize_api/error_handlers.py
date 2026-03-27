@@ -10,6 +10,7 @@ Provides:
 
 import logging
 import re
+import sqlite3
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -161,10 +162,38 @@ async def handle_generic_error(request: Request, exc: Exception) -> JSONResponse
     return _error_response(500, "internal_error", "Internal server error")
 
 
+async def handle_file_not_found(request: Request, exc: FileNotFoundError) -> JSONResponse:
+    """Handle missing file/resource errors."""
+    logger.warning("File not found on %s %s: %s", request.method, request.url.path, exc)
+    return _error_response(404, "not_found", "Requested resource not found")
+
+
+async def handle_permission_error(request: Request, exc: PermissionError) -> JSONResponse:
+    """Handle OS-level permission errors."""
+    logger.error("Permission denied on %s %s: %s", request.method, request.url.path, exc)
+    return _error_response(403, "permission_denied", "Insufficient filesystem permissions")
+
+
+async def handle_db_error(request: Request, exc: sqlite3.OperationalError) -> JSONResponse:
+    """Handle SQLite operational errors (locked DB, disk full, etc.)."""
+    logger.error("Database error on %s %s: %s", request.method, request.url.path, exc, exc_info=True)
+    return _error_response(503, "database_error", "Database temporarily unavailable")
+
+
+async def handle_timeout_error(request: Request, exc: TimeoutError) -> JSONResponse:
+    """Handle async timeout errors."""
+    logger.warning("Timeout on %s %s", request.method, request.url.path)
+    return _error_response(504, "timeout", "Request timed out")
+
+
 def register_error_handlers(app: FastAPI) -> None:
     """Register all custom exception handlers on a FastAPI app."""
     app.add_exception_handler(RealizeError, handle_realize_error)
     app.add_exception_handler(RequestValidationError, handle_validation_error)
+    app.add_exception_handler(FileNotFoundError, handle_file_not_found)
+    app.add_exception_handler(PermissionError, handle_permission_error)
+    app.add_exception_handler(sqlite3.OperationalError, handle_db_error)
+    app.add_exception_handler(TimeoutError, handle_timeout_error)
     app.add_exception_handler(Exception, handle_generic_error)
 
 

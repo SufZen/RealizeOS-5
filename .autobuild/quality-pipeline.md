@@ -69,8 +69,8 @@ AutoBuild uses one score for two different decisions.
 
 ### Branch Retention
 
-- Improved or maintained score and no CRITICAL security finding → keep the branch state
-- Lower score or CRITICAL security finding → discard the branch state
+- Improved or maintained score and no CRITICAL security finding → **keep** the branch state (`git add . && git commit -m "autobuild: iteration complete"`)
+- Lower score or CRITICAL security finding → **discard** the branch state (`git reset --hard HEAD && git clean -fd`)
 
 ### Delivery Readiness
 

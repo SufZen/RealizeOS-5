@@ -312,7 +312,27 @@ class RBACManager:
 
     # ---- YAML loading ----
 
-    def load_from_yaml(self, yaml_path: str | Path) -> int:
+    def validate_role_permissions(self, role: RBACRole) -> list[str]:
+        """
+        Validate that all permissions in a role are known.
+
+        Returns:
+            List of unknown permission strings (empty if all valid).
+        """
+        unknown = [p for p in role.permissions if p not in PERMISSIONS]
+        if unknown:
+            logger.warning(
+                "Role '%s' has unknown permissions: %s",
+                role.name,
+                unknown,
+            )
+        return unknown
+
+    def load_from_yaml(
+        self,
+        yaml_path: str | Path,
+        validate_permissions: bool = True,
+    ) -> int:
         """
         Load custom roles from a YAML file.
 
@@ -337,6 +357,10 @@ class RBACManager:
             inherits_from: owner
         ```
 
+        Args:
+            yaml_path: Path to the YAML file.
+            validate_permissions: If True, warn on unknown permission strings.
+
         Returns:
             Number of roles loaded.
         """
@@ -354,8 +378,22 @@ class RBACManager:
         with open(path, encoding="utf-8") as f:
             config = yaml.safe_load(f) or {}
 
+        # Validate top-level structure
+        if not isinstance(config, dict):
+            logger.warning("RBAC config is not a dict — skipping")
+            return 0
+
+        roles_section = config.get("roles", {})
+        if not isinstance(roles_section, dict):
+            logger.warning("RBAC 'roles' key is not a dict — skipping")
+            return 0
+
         count = 0
-        for name, role_def in config.get("roles", {}).items():
+        for name, role_def in roles_section.items():
+            if not isinstance(role_def, dict):
+                logger.warning("Skipping role '%s' — definition is not a dict", name)
+                continue
+
             perms = set(role_def.get("permissions", []))
             role = RBACRole(
                 name=name,
@@ -365,6 +403,10 @@ class RBACManager:
                 system_scopes=role_def.get("system_scopes", []),
                 metadata=role_def.get("metadata", {}),
             )
+
+            if validate_permissions:
+                self.validate_role_permissions(role)
+
             self.register_role(role)
             count += 1
 

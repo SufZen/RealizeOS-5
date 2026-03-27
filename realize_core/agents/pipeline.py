@@ -15,6 +15,7 @@ the pipeline logic pure and testable.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 from collections.abc import Awaitable, Callable
@@ -155,6 +156,17 @@ async def execute_pipeline(
     context = context or {}
     guardrail_configs = guardrail_configs or {}
 
+    # Auto-populate guardrail_configs from stages if missing
+    for stage in stages:
+        if stage.agent_key not in guardrail_configs and stage.guardrails:
+            guardrail_configs[stage.agent_key] = stage.guardrails
+
+    # Validate no circular agent dependencies
+    agent_sequence = [s.agent_key for s in stages]
+    for i in range(len(agent_sequence) - 1):
+        if agent_sequence[i] == agent_sequence[i + 1]:
+            logger.warning("Adjacent duplicate agent '%s' in pipeline", agent_sequence[i])
+
     state = PipelineState(
         pipeline_id=pipeline_id,
         stages=stages,
@@ -179,10 +191,59 @@ async def execute_pipeline(
 
         # Dev-QA retry loop
         while True:
+            # Check guardrails on input
+            agent_guardrails = guardrail_configs.get(stage.agent_key, [])
+            input_violations = check_guardrails(current_input, agent_guardrails, context)
+            if has_strict_violations(input_violations):
+                logger.warning(
+                    "Pipeline %s: strict guardrail violation on INPUT in stage '%s'",
+                    pipeline_id,
+                    stage.name,
+                )
+                state.results.append(
+                    StageResult(
+                        stage_name=stage.name,
+                        agent_key=stage.agent_key,
+                        error=f"Input guardrail violation: {input_violations[0].guardrail_name}",
+                        duration_ms=0,
+                        retry_count=retry_count,
+                        metadata={"violations": [v.guardrail_name for v in input_violations]},
+                    )
+                )
+                state.status = PipelineStatus.FAILED
+                state.error = f"Input guardrail violation: {input_violations[0].guardrail_name}"
+                state.completed_at = time.time()
+                return state
+
             start_time = time.time()
 
             try:
-                output = await stage_executor(stage, current_input, context)
+                timeout = getattr(stage, "timeout_seconds", 0) or 0
+                coro = stage_executor(stage, current_input, context)
+                if timeout > 0:
+                    output = await asyncio.wait_for(coro, timeout=timeout)
+                else:
+                    output = await coro
+            except TimeoutError:
+                logger.error(
+                    "Pipeline %s: stage '%s' timed out after %ds",
+                    pipeline_id,
+                    stage.name,
+                    timeout,
+                )
+                state.results.append(
+                    StageResult(
+                        stage_name=stage.name,
+                        agent_key=stage.agent_key,
+                        error=f"Timed out after {timeout}s",
+                        duration_ms=(time.time() - start_time) * 1000,
+                        retry_count=retry_count,
+                    )
+                )
+                state.status = PipelineStatus.FAILED
+                state.error = f"Stage '{stage.name}' timed out"
+                state.completed_at = time.time()
+                return state
             except Exception as exc:
                 logger.error(
                     "Pipeline %s: stage '%s' failed: %s",
@@ -201,11 +262,13 @@ async def execute_pipeline(
                 )
 
                 # Create incident handoff
+                incident_context = dict(context)
+                incident_context.update({"error": str(exc), "stage": stage.name})
                 incident = HandoffData(
                     source_agent=stage.agent_key,
                     target_agent="incident_handler",
                     handoff_type=HandoffType.INCIDENT,
-                    context={"error": str(exc), "stage": stage.name},
+                    context=incident_context,
                 )
                 result = process_handoff(incident)
                 state.handoff_history.append(result)
@@ -258,18 +321,21 @@ async def execute_pipeline(
                 ),
                 handoff_type=stage.handoff_type,
                 payload={"output": output, "input": current_input},
+                context=dict(context),
                 retry_count=retry_count,
                 max_retries=max_retries,
             )
 
             # Handle QA fail (verdict parsing)
             if verdict == Verdict.FAIL:
+                qa_context = dict(context)
+                qa_context.update({"feedback": output})
                 handoff = HandoffData(
                     source_agent=handoff.source_agent,
                     target_agent=handoff.target_agent,
                     handoff_type=HandoffType.QA_FAIL,
                     payload=handoff.payload,
-                    context={"feedback": output},
+                    context=qa_context,
                     retry_count=retry_count,
                     max_retries=max_retries,
                 )

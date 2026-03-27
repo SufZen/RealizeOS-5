@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import logging
 import shutil
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -54,7 +54,7 @@ class TemplateManifest:
         self.tags = tags or []
         self.requires = requires or []
         self.metadata = metadata or {}
-        self.created_at = datetime.now(timezone.utc)
+        self.created_at = datetime.now(UTC)
 
     def to_dict(self) -> dict[str, Any]:
         return {

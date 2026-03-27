@@ -94,6 +94,8 @@ class AgentPersona(BaseModel):
     model_config = {"extra": "allow"}
 
 
+_persona_cache: dict[Path, tuple[float, AgentPersona]] = {}
+
 def load_persona(path: Path | str) -> AgentPersona | None:
     """
     Load a persona from a YAML file.
@@ -112,6 +114,12 @@ def load_persona(path: Path | str) -> AgentPersona | None:
         logger.debug("Persona file not found: %s", path)
         return None
 
+    mtime = path.stat().st_mtime
+    if path in _persona_cache:
+        cached_mtime, cached_persona = _persona_cache[path]
+        if cached_mtime == mtime:
+            return cached_persona
+
     try:
         content = path.read_text(encoding="utf-8")
         data = yaml.safe_load(content)
@@ -124,10 +132,12 @@ def load_persona(path: Path | str) -> AgentPersona | None:
     if "name" not in data:
         data["name"] = path.stem.replace("-", " ").replace("_", " ").title()
 
-    return AgentPersona(**data)
+    persona = AgentPersona(**data)
+    _persona_cache[path] = (mtime, persona)
+    return persona
 
 
-def load_persona_from_dict(data: dict[str, Any]) -> AgentPersona | None:
+def load_persona_from_dict(data: dict[str, Any] | str | None) -> AgentPersona | None:
     """
     Load a persona from a dictionary (e.g. embedded in agent YAML).
 
@@ -230,6 +240,13 @@ def resolve_persona(
         if companion_path.exists():
             logger.debug("Loading companion persona file for agent '%s'", agent_def.key)
             return load_persona(companion_path)
+
+        # 2b. Try persona string key as filename
+        if isinstance(persona_data, str) and persona_data:
+            alt_path = agents_dir / f"{persona_data}.persona.yaml"
+            if alt_path.exists():
+                logger.debug("Loading companion persona file via string key '%s'", persona_data)
+                return load_persona(alt_path)
 
     # 3. No persona found
     logger.debug("No persona found for agent '%s', using fallback", agent_def.key)

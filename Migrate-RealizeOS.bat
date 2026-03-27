@@ -8,7 +8,7 @@ title RealizeOS V5 - Data Migration Wizard
 net session >nul 2>&1
 if !errorlevel! neq 0 (
     echo Requesting Administrator privileges...
-    powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process cmd.exe -ArgumentList '/c \"\"%~f0\"\"' -Verb RunAs"
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process cmd.exe -ArgumentList '/c \"\""%~f0\"\"' -Verb RunAs"
     exit /b
 )
 
@@ -28,9 +28,12 @@ echo or another device into this installation.
 echo.
 echo What will be migrated:
 echo   - FABRIC knowledge files (systems/ directory)
-echo   - Configuration (.env, realize-os.yaml)
-echo   - Databases (activity logs, conversations, KB index)
+echo   - Shared knowledge base (shared/ directory)
+echo   - Configuration (.env, realize-os.yaml, setup.yaml)
+echo   - Databases and memory (data/ directory, *.db files)
+echo   - Audit logs (data/audit/)
 echo   - Credentials (.credentials/ directory)
+echo   - Custom plugins (plugins/ directory)
 echo.
 
 :: --------------------------------------------------------------------------
@@ -69,14 +72,18 @@ if not exist "!SOURCE!" (
 :: 4. Scan Source for Migratable Data
 :: --------------------------------------------------------------------------
 echo.
-echo [1/4] Scanning source directory...
+echo [1/5] Scanning source directory...
 echo.
 
 set "HAS_SYSTEMS=0"
+set "HAS_SHARED=0"
+set "HAS_DATA=0"
 set "HAS_ENV=0"
 set "HAS_CONFIG=0"
+set "HAS_SETUP=0"
 set "HAS_CREDS=0"
 set "HAS_DBS=0"
+set "HAS_PLUGINS=0"
 set "DB_COUNT=0"
 set "FOUND_ANYTHING=0"
 
@@ -88,6 +95,31 @@ if exist "!SOURCE!\systems" (
     set "VENTURE_COUNT=0"
     for /d %%v in ("!SOURCE!\systems\*") do set /a VENTURE_COUNT+=1
     echo   [FOUND] FABRIC knowledge: !VENTURE_COUNT! venture(s^) in systems/
+)
+
+:: Check for shared KB
+if exist "!SOURCE!\shared" (
+    set "HAS_SHARED=1"
+    set "FOUND_ANYTHING=1"
+    echo   [FOUND] Shared knowledge base: shared/
+)
+
+:: Check for data directory (memory, audit, storage)
+if exist "!SOURCE!\data" (
+    set "HAS_DATA=1"
+    set "FOUND_ANYTHING=1"
+    set "DATA_ITEMS="
+    if exist "!SOURCE!\data\memory.db" set "DATA_ITEMS=memory.db "
+    if exist "!SOURCE!\data\audit" set "DATA_ITEMS=!DATA_ITEMS!audit/ "
+    if exist "!SOURCE!\data\storage" set "DATA_ITEMS=!DATA_ITEMS!storage/ "
+    echo   [FOUND] Data directory: !DATA_ITEMS!
+)
+
+:: Check for plugins
+if exist "!SOURCE!\plugins" (
+    set "HAS_PLUGINS=1"
+    set "FOUND_ANYTHING=1"
+    echo   [FOUND] Custom plugins: plugins/
 )
 
 :: Check for .env
@@ -104,6 +136,13 @@ if exist "!SOURCE!\realize-os.yaml" (
     echo   [FOUND] System config: realize-os.yaml
 )
 
+:: Check for setup.yaml
+if exist "!SOURCE!\setup.yaml" (
+    set "HAS_SETUP=1"
+    set "FOUND_ANYTHING=1"
+    echo   [FOUND] Setup config: setup.yaml
+)
+
 :: Check for credentials
 if exist "!SOURCE!\.credentials" (
     set "HAS_CREDS=1"
@@ -111,7 +150,7 @@ if exist "!SOURCE!\.credentials" (
     echo   [FOUND] Credentials: .credentials/
 )
 
-:: Check for databases
+:: Check for databases (root-level)
 for %%f in ("!SOURCE!\*.db" "!SOURCE!\*.sqlite" "!SOURCE!\*.sqlite3") do (
     if exist "%%f" (
         set "HAS_DBS=1"
@@ -119,7 +158,7 @@ for %%f in ("!SOURCE!\*.db" "!SOURCE!\*.sqlite" "!SOURCE!\*.sqlite3") do (
         set /a DB_COUNT+=1
     )
 )
-if "!HAS_DBS!"=="1" echo   [FOUND] Databases: !DB_COUNT! file(s^)
+if "!HAS_DBS!"=="1" echo   [FOUND] Root databases: !DB_COUNT! file(s^)
 
 :: Nothing found?
 if "!FOUND_ANYTHING!"=="0" (
@@ -196,7 +235,7 @@ if /I not "!GO!"=="Y" (
 :: 7. Execute Migration
 :: --------------------------------------------------------------------------
 echo.
-echo [2/4] Migrating data...
+echo [2/5] Migrating data...
 set "MIGRATED=0"
 set "SKIPPED=0"
 
@@ -211,6 +250,50 @@ if "!HAS_SYSTEMS!"=="1" (
     )
     set /a MIGRATED+=1
     echo       [OK] FABRIC systems migrated.
+)
+
+:: Migrate shared KB
+if "!HAS_SHARED!"=="1" (
+    echo.
+    echo   Migrating shared knowledge base...
+    if not exist "shared" mkdir "shared"
+    if "!CONFLICT_MODE!"=="skip" (
+        xcopy /s /e /y /q /d "!SOURCE!\shared\*" "shared\" >nul 2>&1
+    ) else (
+        xcopy /s /e /y /q "!SOURCE!\shared\*" "shared\" >nul 2>&1
+    )
+    set /a MIGRATED+=1
+    echo       [OK] Shared KB migrated.
+)
+
+:: Migrate data directory
+if "!HAS_DATA!"=="1" (
+    echo.
+    echo   Migrating data directory (memory, audit, storage)...
+    if not exist "data" mkdir "data"
+    if not exist "data\audit" mkdir "data\audit"
+    if not exist "data\storage" mkdir "data\storage"
+    if "!CONFLICT_MODE!"=="skip" (
+        xcopy /s /e /y /q /d "!SOURCE!\data\*" "data\" >nul 2>&1
+    ) else (
+        xcopy /s /e /y /q "!SOURCE!\data\*" "data\" >nul 2>&1
+    )
+    set /a MIGRATED+=1
+    echo       [OK] Data directory migrated.
+)
+
+:: Migrate plugins
+if "!HAS_PLUGINS!"=="1" (
+    echo.
+    echo   Migrating custom plugins...
+    if not exist "plugins" mkdir "plugins"
+    if "!CONFLICT_MODE!"=="skip" (
+        xcopy /s /e /y /q /d "!SOURCE!\plugins\*" "plugins\" >nul 2>&1
+    ) else (
+        xcopy /s /e /y /q "!SOURCE!\plugins\*" "plugins\" >nul 2>&1
+    )
+    set /a MIGRATED+=1
+    echo       [OK] Plugins migrated.
 )
 
 :: Migrate .env
@@ -271,6 +354,24 @@ if "!HAS_CONFIG!"=="1" (
     )
 )
 
+:: Migrate setup.yaml
+if "!HAS_SETUP!"=="1" (
+    if exist "setup.yaml" (
+        if "!CONFLICT_MODE!"=="skip" (
+            echo       [SKIP] setup.yaml already exists.
+            set /a SKIPPED+=1
+        ) else (
+            copy /y "!SOURCE!\setup.yaml" ".\" >nul 2>&1
+            set /a MIGRATED+=1
+            echo       [OK] setup.yaml migrated.
+        )
+    ) else (
+        copy /y "!SOURCE!\setup.yaml" ".\" >nul 2>&1
+        set /a MIGRATED+=1
+        echo       [OK] setup.yaml migrated.
+    )
+)
+
 :: Migrate credentials
 if "!HAS_CREDS!"=="1" (
     echo.
@@ -281,10 +382,10 @@ if "!HAS_CREDS!"=="1" (
     echo       [OK] Credentials migrated.
 )
 
-:: Migrate databases
+:: Migrate root-level databases
 if "!HAS_DBS!"=="1" (
     echo.
-    echo   Migrating databases...
+    echo   Migrating root databases...
     for %%f in ("!SOURCE!\*.db" "!SOURCE!\*.sqlite" "!SOURCE!\*.sqlite3") do (
         if exist "%%f" (
             set "DB_NAME=%%~nxf"
@@ -305,10 +406,22 @@ if "!HAS_DBS!"=="1" (
 )
 
 :: --------------------------------------------------------------------------
-:: 8. Rebuild KB Index
+:: 8. Run Database Migrations (schema compatibility)
 :: --------------------------------------------------------------------------
 echo.
-echo [3/4] Rebuilding knowledge base index...
+echo [3/5] Running database migrations for schema compatibility...
+python cli.py migrate >nul 2>&1
+if !errorlevel! equ 0 (
+    echo       [OK] Database schema updated to current version.
+) else (
+    echo       [WARNING] Migration had issues. Run 'python cli.py migrate' manually.
+)
+
+:: --------------------------------------------------------------------------
+:: 9. Rebuild KB Index
+:: --------------------------------------------------------------------------
+echo.
+echo [4/5] Rebuilding knowledge base index...
 python cli.py index >nul 2>&1
 if !errorlevel! equ 0 (
     echo       [OK] KB index rebuilt.
@@ -317,10 +430,10 @@ if !errorlevel! equ 0 (
 )
 
 :: --------------------------------------------------------------------------
-:: 9. Completion
+:: 10. Completion
 :: --------------------------------------------------------------------------
 echo.
-echo [4/4] Finalizing...
+echo [5/5] Finalizing...
 echo.
 color 0A
 echo ==============================================================================
@@ -329,6 +442,14 @@ echo ===========================================================================
 echo.
 echo   Items migrated: !MIGRATED!
 echo   Items skipped:  !SKIPPED!
+echo.
+echo Migrated data includes:
+echo   - FABRIC knowledge (systems/)
+echo   - Shared KB (shared/)
+echo   - Data directory (data/ — memory, audit, storage)
+echo   - Custom plugins (plugins/)
+echo   - Configuration files
+echo   - Databases
 echo.
 echo Your data has been successfully migrated to this installation.
 echo Start RealizeOS to verify everything works correctly.

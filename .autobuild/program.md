@@ -79,6 +79,9 @@ Execute the selected build program. Read the appropriate program file:
 | `overnight` | `programs/overnight-build.md` — follow its instructions |
 | `optimize` | `programs/optimization-loop.md` — follow its instructions |
 
+**At the start of each implementation iteration:**
+- You MUST read `results/results.tsv` to understand past failures, adjust your approach, and prevent infinite loops.
+
 **After each implementation iteration, run the Quality Pipeline:**
 
 1. Read `quality-pipeline.md`
@@ -87,8 +90,8 @@ Execute the selected build program. Read the appropriate program file:
 4. Log the result to `results/results.tsv`
 
 **Two Decisions After Each Iteration:**
-- **Retention decision:** If Quality Score improved or maintained and there is no CRITICAL security failure → **KEEP** the branch state
-- **Retention decision:** If Quality Score decreased or a CRITICAL security failure is present → **DISCARD** the branch state
+- **Retention decision:** If Quality Score improved or maintained and there is no CRITICAL security failure → **KEEP** the branch state (`git add . && git commit -m "autobuild: iteration complete"`)
+- **Retention decision:** If Quality Score decreased or a CRITICAL security failure is present → **DISCARD** the branch state (`git reset --hard HEAD && git clean -fd`)
 - **Readiness decision:** Score `>= 80` is ready to deliver, `60-79` is acceptable with notes, `< 60` is not ready for delivery
 
 ---
@@ -150,6 +153,7 @@ Generate `evaluation/latest-review.md` with:
 - Test Writer: [X tests added, coverage now Y%]
 
 ## Experiment Log (if iterative/overnight)
+> **Note:** Generate this table strictly by reading the actual entries in `results/results.tsv`. Do not rely on memory or hallucinate past iterations.
 | Approach | Score | Status | Key Insight |
 |----------|-------|--------|-------------|
 | approach-1 | 78 | discarded | [why] |
@@ -175,14 +179,9 @@ Present this to the human for final evaluation.
 
 After human approval (or after overnight run completes):
 
-1. **Update project learnings** — Append to `results/learnings.md`:
-   ```markdown
-   ## [Date]: [Intent Name]
-   - What worked: [patterns, approaches, tools that helped]
-   - What didn't work: [approaches discarded and why]
-   - Gotchas: [unexpected issues encountered]
-   - Quality insight: [which checks caught real problems]
-   ```
+1. **Update project learnings** — Read, synthesize, and categorize learnings into `results/learnings.md` without duplicating existing knowledge:
+   - Place new insights into the appropriate sections defined in the template (e.g., Architecture Patterns, Anti-Patterns & Gotchas, Resolved Intents).
+   - Do not simply append a raw log; keep the document dense and high-signal.
 
 2. **Update shared learnings** — If a systematic pattern was discovered (not project-specific), append to `sharedlearnings.md`:
    ```markdown

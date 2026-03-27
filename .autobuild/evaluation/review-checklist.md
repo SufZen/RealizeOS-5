@@ -1,53 +1,46 @@
 # Review Checklist
 
-> Used during Phase 5 (EVALUATE) for structured human review.
+> Used during Phase 5 (EVALUATE) for structured, deterministic objective review by AI and human evaluators.
 
-## Code Quality
+## The 7 Dimensions of Quality
 
-- [ ] **Correctness** — Does the code do what the intent specified?
-- [ ] **Completeness** — Are all acceptance criteria met?
-- [ ] **Edge cases** — Are boundary conditions handled?
-- [ ] **Error handling** — Are errors caught and handled meaningfully?
-- [ ] **Readability** — Can another developer understand this in 5 minutes?
-- [ ] **Maintainability** — Is the code easy to modify later?
-- [ ] **No dead code** — No unused variables, functions, or imports?
+### 1. Correctness
+- [ ] **Intent Mapping**: 100% of explicit `should do` statements from the system intent map to successful test assertions.
+- [ ] **No regressions**: 0 tests in the existing suite fail after integrating the artifact.
 
-## Consistency
+### 2. Completeness
+- [ ] **Acceptance Criteria**: 100% of acceptance criteria defined in the issue/intent have a corresponding TRUE testable outcome.
+- [ ] **No ToDos**: 0 `TODO`, `FIXME`, or stub functions (`pass`, `NotImplementedError`) remain in the deployed code artifact.
 
-- [ ] **Naming** — Follows project conventions from project-context.md?
-- [ ] **Patterns** — Matches existing patterns in the codebase?
-- [ ] **Style** — Formatted according to project standards?
-- [ ] **Documentation** — Non-obvious logic has comments/docstrings?
+### 3. Edge Cases
+- [ ] **Null/Empty Handling**: Inputs containing `null`, `undefined`, `[]`, or empty strings `""` are explicitly guarded against or handled via test cases.
+- [ ] **Boundary Limits**: Extreme integer boundaries (0, -1, MaxInt) and over-length strings are explicitly covered by tests.
 
-## Security
+### 4. Error Handling
+- [ ] **Typed Errors**: 100% of I/O boundaries and cross-network calls are wrapped in `try/catch` (or error-tuples).
+- [ ] **Meaningful Messages**: Errors returned to users omit stack traces but contain precise, documented error codes.
+- [ ] **No Silent Failures**: 0 instances of empty `catch` blocks or intentionally swallowed exceptions without explicit audit logging.
 
-- [ ] **No secrets** — No hardcoded API keys, passwords, tokens?
-- [ ] **Input validation** — All user inputs validated?
-- [ ] **Auth/Authz** — New endpoints properly protected?
-- [ ] **Dependencies** — No known vulnerabilities in new/updated deps?
+### 5. Readability
+- [ ] **Lint Compliance**: 0 unresolved warnings or errors from the codebase's configured linter.
+- [ ] **Formatting**: Code strictly passes automated format validators (e.g., Prettier/Black) with 0 deviations.
+- [ ] **Descriptive Naming**: 0 single-letter variables exist (except standard loop indices `i`, `j`, or math coordinates `x`, `y`, `z`).
 
-## Testing
+### 6. Maintainability
+- [ ] **Complexity Limits**: 0 functions have a cyclomatic complexity > 10.
+- [ ] **Nesting Limits**: 0 code blocks exceed 3 levels of nested indentation (`if` inside `for` inside `if`).
+- [ ] **Docstrings**: 100% of exported public functions/classes have standard JSDoc/Docstring header documentation.
 
-- [ ] **Coverage** — New/changed code has tests?
-- [ ] **Meaningful** — Tests verify behavior, not just execution?
-- [ ] **Isolation** — Tests don't depend on external services or order?
-- [ ] **Green** — All tests passing?
+### 7. No Dead Code
+- [ ] **Unused Imports**: 0 unused library or file imports detected by AST static analysis.
+- [ ] **Unreachable Logic**: 0 lines of unreachable code (e.g., code after a `return` or unconditional `throw`).
+- [ ] **Unused Variables**: 0 declared variables remain unread/unassigned in their scope.
 
-## Architecture
+## Overall Assessment & Strict Threshold Guard
 
-- [ ] **Boundaries** — Respects module/layer boundaries?
-- [ ] **No anti-patterns** — Avoids patterns listed in project-context.md?
-- [ ] **Consistency** — Uses the same abstractions as similar code?
-- [ ] **No scope creep** — Only changes what the intent specified?
-
-## Performance
-
-- [ ] **No N+1** — No unintentional N+1 query patterns?
-- [ ] **No blocking** — No blocking calls in async contexts?
-- [ ] **Efficient** — No obviously wasteful algorithms or data structures?
-
-## Overall Assessment
-
-- **Quality Score:** ___/100
-- **Verdict:** APPROVE / REQUEST CHANGES / NEEDS DISCUSSION
-- **Summary:** <!-- brief human assessment -->
+- **Quality Score:** ___ / 100
+  *(Algorithm: Start at 100. Deduct 5 points for every unchecked box across all checklists.)*
+- **Verdict Guarantees:** 
+  - If Score >= 80 and 0 Critical Security Box fail: **APPROVE**
+  - If Score < 80: **REJECTED** (Any iterative code artifact scoring < 80 is strictly flagged and fails evaluation. NO EXCEPTIONS.)
+- **Summary:** <!-- List exactly which objective dimensions caused deductions -->

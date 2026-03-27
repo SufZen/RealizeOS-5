@@ -12,11 +12,8 @@ work together as a cohesive system:
 from __future__ import annotations
 
 import asyncio
-from pathlib import Path
 
-import pytest
 import yaml
-
 from realize_core.tools.approval import ApprovalStatus
 
 
@@ -64,8 +61,8 @@ class TestFullAgentLifecycle:
     def test_tool_gating_with_persona(self):
         """Tools are correctly gated based on persona allowlist."""
         from realize_core.agents.persona import AgentPersona
-        from realize_core.tools.gating import gate_tools_for_persona, check_tool_access
         from realize_core.tools.base_tool import BaseTool, ToolCategory, ToolResult, ToolSchema
+        from realize_core.tools.gating import check_tool_access, gate_tools_for_persona
 
         class StubTool(BaseTool):
             def __init__(self, n):
@@ -140,7 +137,6 @@ class TestFullAgentLifecycle:
         """End-to-end: persona + goal + gating + approval + messaging."""
         from realize_core.agents.persona import AgentPersona, persona_to_prompt
         from realize_core.prompt.goal import goal_to_prompt
-        from realize_core.tools.gating import gate_tools_for_persona
         from realize_core.tools.approval import ApprovalTool
         from realize_core.tools.messaging import MessageTool
 
@@ -193,8 +189,8 @@ class TestTemplateToSession:
 
     def test_template_install_and_brand_load(self, tmp_path):
         """Install a template and verify brand profile loads."""
-        from realize_core.templates.marketplace import install_template
         from realize_core.prompt.brand import load_brand_profile
+        from realize_core.templates.marketplace import install_template
 
         # Create a template
         src = tmp_path / "src"
@@ -225,8 +221,8 @@ class TestTemplateToSession:
 
     def test_template_install_and_agent_persona(self, tmp_path):
         """Installed template agents can be loaded as personas."""
-        from realize_core.templates.marketplace import install_template
         from realize_core.agents.persona import AgentPersona
+        from realize_core.templates.marketplace import install_template
 
         src = tmp_path / "src"
         src.mkdir()
@@ -260,7 +256,7 @@ class TestEvalWithGating:
 
     def test_eval_suite_runs(self):
         """Run eval suite and verify report generation."""
-        from realize_core.eval.harness import EvalCase, EvalSuite, EvalRunner
+        from realize_core.eval.harness import EvalCase, EvalRunner, EvalSuite
 
         suite = EvalSuite("Integration Test", cases=[
             EvalCase(

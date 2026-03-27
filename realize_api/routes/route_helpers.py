@@ -5,6 +5,7 @@ These helpers are used by multiple route modules (dashboard, ventures, etc.)
 to avoid duplication and ensure consistent behavior.
 """
 
+import asyncio
 import logging
 from pathlib import Path
 
@@ -34,7 +35,9 @@ def analyze_fabric(kb_path: Path, sys_conf: dict) -> dict:
     }
 
     analysis = {}
-    present = 0
+    dirs_exist = 0
+    dirs_with_content = 0
+    total = len(fabric_dirs)
     for label, rel_path in fabric_dirs.items():
         full_path = kb_path / rel_path if rel_path else None
         exists = full_path is not None and full_path.exists()
@@ -43,12 +46,16 @@ def analyze_fabric(kb_path: Path, sys_conf: dict) -> dict:
             "exists": exists,
             "file_count": file_count,
         }
-        if exists and file_count > 0:
-            present += 1
+        if exists:
+            dirs_exist += 1
+            if file_count > 0:
+                dirs_with_content += 1
 
+    # completeness = structure presence; content_completeness = files present
     return {
         "directories": analysis,
-        "completeness": round(present / 6 * 100),
+        "completeness": round(dirs_exist / total * 100) if total else 0,
+        "content_completeness": round(dirs_with_content / total * 100) if total else 0,
     }
 
 
@@ -113,3 +120,25 @@ def get_skills(kb_path: Path, sys_conf: dict) -> list[dict]:
         pass
 
     return skills
+
+
+# ---------------------------------------------------------------------------
+# Async wrappers — use these in route handlers to avoid blocking the event loop
+# ---------------------------------------------------------------------------
+
+
+
+async def analyze_fabric_async(kb_path: Path, sys_conf: dict) -> dict:
+    """Async wrapper for analyze_fabric (filesystem I/O)."""
+    return await asyncio.to_thread(analyze_fabric, kb_path, sys_conf)
+
+
+async def count_skills_async(kb_path: Path, sys_conf: dict) -> int:
+    """Async wrapper for count_skills (filesystem I/O)."""
+    return await asyncio.to_thread(count_skills, kb_path, sys_conf)
+
+
+async def get_skills_async(kb_path: Path, sys_conf: dict) -> list[dict]:
+    """Async wrapper for get_skills (filesystem + YAML I/O)."""
+    return await asyncio.to_thread(get_skills, kb_path, sys_conf)
+

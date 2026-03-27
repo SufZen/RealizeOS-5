@@ -23,6 +23,7 @@ import { cn } from '@/lib/utils'
 import { ThemeProvider } from '@/components/theme-provider'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { TourProvider } from '@/components/tour-provider'
+import { ToastProvider } from '@/components/ui/toast'
 import { Skeleton, SkeletonCard } from '@/components/ui/skeleton'
 
 const OverviewPage = lazy(() => import('@/pages/overview'))
@@ -292,15 +293,19 @@ export default function App() {
 
   return (
     <ThemeProvider>
+      <ToastProvider>
       <BrowserRouter>
         <TourProvider>
         <ErrorBoundary>
+        <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:z-[60] focus:top-4 focus:left-4 focus:px-4 focus:py-2 focus:rounded-lg focus:bg-brand-400 focus:text-black focus:text-sm focus:font-medium">
+          Skip to content
+        </a>
         <div className="flex h-screen bg-background">
           <DesktopSidebar />
           <div className="flex flex-1 flex-col overflow-hidden">
             <MobileHeader onToggle={() => setMobileOpen(true)} />
             <MobileSheet open={mobileOpen} onClose={() => setMobileOpen(false)} />
-            <main className="flex-1 overflow-y-auto p-6">
+            <main id="main-content" className="flex-1 overflow-y-auto p-6">
               <ErrorBoundaryWithLocation>
               <Suspense fallback={<PageSkeleton />}>
                 <Routes>
@@ -331,6 +336,7 @@ export default function App() {
         </ErrorBoundary>
         </TourProvider>
       </BrowserRouter>
+      </ToastProvider>
     </ThemeProvider>
   )
 }

@@ -8,8 +8,10 @@ Supports:
 - Trigger integration (webhook, cron, manual)
 """
 
+import asyncio
 import logging
 import time
+from collections import Counter
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
@@ -199,6 +201,10 @@ def load_workflow(yaml_path: str | Path) -> WorkflowDefinition | None:
         try:
             node_type = NodeType(node_data.get("type", "prompt"))
         except ValueError:
+            logger.warning(
+                "Unknown node type '%s' in workflow, defaulting to PROMPT",
+                node_data.get("type"),
+            )
             node_type = NodeType.PROMPT
 
         nodes.append(
@@ -254,14 +260,27 @@ class WorkflowRunner:
     Supports variable substitution between steps.
     """
 
-    def __init__(self, method_registry: MethodRegistry | None = None):
+    _node_handlers: dict[NodeType, Callable]
+    _max_execution_secs: int
+    _max_visits_per_node: int
+
+    def __init__(
+        self,
+        method_registry: MethodRegistry | None = None,
+        max_execution_secs: int = 300,
+        max_visits_per_node: int = 100,
+    ):
         self._method_registry = method_registry or MethodRegistry()
+        self._max_execution_secs = max_execution_secs
+        self._max_visits_per_node = max_visits_per_node
         self._node_handlers: dict[NodeType, Callable] = {
             NodeType.PROMPT: self._run_prompt,
             NodeType.TOOL: self._run_tool,
             NodeType.METHOD: self._run_method,
             NodeType.CONDITION: self._run_condition,
             NodeType.TRANSFORM: self._run_transform,
+            NodeType.LOOP: self._run_loop,
+            NodeType.PARALLEL: self._run_parallel,
         }
 
     async def execute(
@@ -288,8 +307,29 @@ class WorkflowRunner:
 
         node_map = workflow.node_map
         current_id = workflow.entry_node
+        visit_counts: Counter[str] = Counter()
 
         while current_id and ctx.status == WorkflowStatus.RUNNING:
+            # Timeout guard
+            elapsed = time.time() - ctx.started_at
+            if elapsed > self._max_execution_secs:
+                ctx.error = (
+                    f"Workflow timed out after {int(elapsed)}s "
+                    f"(limit: {self._max_execution_secs}s)"
+                )
+                ctx.status = WorkflowStatus.FAILED
+                break
+
+            # Infinite-loop guard
+            visit_counts[current_id] += 1
+            if visit_counts[current_id] > self._max_visits_per_node:
+                ctx.error = (
+                    f"Node '{current_id}' visited {visit_counts[current_id]} times — "
+                    f"possible infinite loop (limit: {self._max_visits_per_node})"
+                )
+                ctx.status = WorkflowStatus.FAILED
+                break
+
             node = node_map.get(current_id)
             if not node:
                 ctx.error = f"Node '{current_id}' not found"
@@ -300,7 +340,10 @@ class WorkflowRunner:
             logger.info(f"Workflow '{workflow.name}': executing node '{current_id}' ({node.node_type.value})")
 
             try:
-                result = await self._execute_node(node, ctx)
+                result = await asyncio.wait_for(
+                    self._execute_node(node, ctx),
+                    timeout=self._max_execution_secs,
+                )
                 ctx.results.append(
                     {
                         "node_id": current_id,
@@ -318,6 +361,10 @@ class WorkflowRunner:
                 else:
                     current_id = node.next_node
 
+            except TimeoutError:
+                ctx.error = f"Node '{current_id}' timed out"
+                ctx.status = WorkflowStatus.FAILED
+                break
             except Exception as e:
                 logger.error(f"Node '{current_id}' failed: {e}", exc_info=True)
                 if node.on_error:
@@ -345,13 +392,13 @@ class WorkflowRunner:
     async def _run_prompt(self, node: WorkflowNode, ctx: WorkflowContext) -> dict:
         """Execute a prompt node — send to LLM."""
         prompt = self._substitute(node.config.get("prompt", ""), ctx.variables)
-        node.config.get("model", "")
+        model = node.config.get("model", "")
 
         # Import and call LLM
         try:
             from realize_core.llm.router import route_and_query
 
-            response = await route_and_query(prompt)
+            response = await route_and_query(prompt, model=model) if model else await route_and_query(prompt)
         except Exception:
             response = f"[LLM unavailable] Prompt: {prompt[:200]}"
 
@@ -403,6 +450,42 @@ class WorkflowRunner:
         expression = node.config.get("expression", "")
         result = self._substitute(expression, ctx.variables)
         return {"output": result}
+
+    async def _run_loop(self, node: WorkflowNode, ctx: WorkflowContext) -> dict:
+        """Execute a loop node — iterate over items."""
+        items_key = node.config.get("items", "")
+
+        max_iterations = node.config.get("max_iterations", 50)
+
+        items = ctx.variables.get(items_key, [])
+        if isinstance(items, dict) and "output" in items:
+            items = items["output"]
+        if isinstance(items, str):
+            items = items.split(",")
+
+        results = []
+        for i, item in enumerate(items[:max_iterations]):
+            ctx.variables["_loop_item"] = item
+            ctx.variables["_loop_index"] = i
+            results.append(str(item))
+
+        return {"output": results, "iterations": len(results)}
+
+    async def _run_parallel(self, node: WorkflowNode, ctx: WorkflowContext) -> dict:
+        """Execute parallel branches (stub — runs sequentially for safety)."""
+        branches = node.config.get("branches", [])
+        if not branches:
+            return {"output": "No branches defined"}
+
+        logger.warning(
+            "Parallel node '%s' running branches sequentially (parallel execution not yet implemented)",
+            node.id,
+        )
+        results = []
+        for branch_id in branches:
+            results.append(branch_id)
+
+        return {"output": results, "branches": len(results)}
 
     def _substitute(self, template: str, variables: dict) -> str:
         """

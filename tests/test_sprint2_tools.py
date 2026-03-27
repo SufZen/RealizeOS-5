@@ -360,11 +360,11 @@ class TestToolRegistryExpanded:
         assert r1 is r2
 
     def test_auto_discover_has_new_modules(self):
-        """Verify the known_modules list includes gws_cli_tool and google_sheets_tool."""
+        """Verify the known_modules list includes gws_cli_tool and google_sheets."""
         import inspect
 
         from realize_core.tools.tool_registry import ToolRegistry
 
         source = inspect.getsource(ToolRegistry.auto_discover)
         assert "realize_core.tools.gws_cli_tool" in source
-        assert "realize_core.tools.google_sheets_tool" in source
+        assert "realize_core.tools.google_sheets" in source

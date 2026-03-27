@@ -28,17 +28,34 @@ systems:
       orchestrator: [plan, help, think, prioritize]
 
 features:
-  review_pipeline: true
-  auto_memory: true
-  proactive_mode: true
-  cross_system: false
+  agents_v2: true          # V2 agent system
+  skills_detection: true   # Auto-detect skills from conversation
+  skills_v2: true          # V2 skill format with enhanced metadata
+  creative_sessions: true  # Multi-turn creative workflows
+  evolution: true          # Self-improvement engine
+  extensions: true         # Extension system
+  kb_indexing: true        # Knowledge base search indexing
+  audit_logging: true      # Security audit trail
+  agent_lifecycle: true    # Agent lifecycle hooks
+  heartbeats: true         # Agent heartbeat monitoring
+  mcp: true                # MCP tool server protocol
+  approval_gates: true     # Human-in-the-loop approval gates
 
-llm:
-  default_model: claude-sonnet
-  routing:
-    simple: gemini-flash
-    content: claude-sonnet
-    complex: claude-opus
+routing:
+  default_class: flash            # Default routing class
+  classes:
+    flash:
+      provider: google
+      model: gemini-2.0-flash-001
+    sonnet:
+      provider: anthropic
+      model: claude-3-5-sonnet-20241022
+    opus:
+      provider: anthropic
+      model: claude-3-opus-20240229
+    strategy:
+      provider: anthropic
+      model: claude-3-5-sonnet-20241022  # For strategic/planning tasks
 
 channels:
   - type: api
@@ -105,19 +122,61 @@ At least one provider must be configured. The router automatically falls back to
 
 ## Environment Variables
 
-At least one LLM provider API key is required. All other variables are optional.
+```bash
+# LLM API Keys
+ANTHROPIC_API_KEY=sk-ant-...    # Required for Claude models
+GOOGLE_API_KEY=AIzaSy...         # Required for Gemini models
+OPENAI_API_KEY=sk-...            # Optional, for GPT models
+OLLAMA_HOST=http://localhost:11434  # Optional, for local models
 
-See `.env.example` for the full list with descriptions.
+# API Security
+REALIZE_API_KEY=                 # API key for simple auth
+REALIZE_JWT_SECRET=              # JWT signing secret
+REALIZE_JWT_ENABLED=false        # Enable JWT authentication
 
-### Model Overrides
+# Telegram Bot
+TELEGRAM_BOT_TOKEN=              # Bot token from @BotFather
 
-Override default model IDs via environment:
+# WhatsApp (Business API)
+WHATSAPP_API_TOKEN=              # WhatsApp API token
+WHATSAPP_PHONE_NUMBER_ID=        # Phone number ID
+WHATSAPP_VERIFY_TOKEN=           # Webhook verification token
+
+# Twilio (Voice/SMS)
+TWILIO_ACCOUNT_SID=              # Twilio account SID
+TWILIO_AUTH_TOKEN=               # Twilio auth token
+TWILIO_PHONE_NUMBER=             # Twilio phone number
+
+# Stripe (Financial tools)
+STRIPE_SECRET_KEY=               # Stripe secret key
+
+# Web Search
+BRAVE_API_KEY=                   # Brave Search API key
+```
+
+## Developer Mode
+
+Developer mode provides tools for AI-assisted development:
+
+```yaml
+# In realize-os.yaml
+developer_mode:
+  enabled: false
+  allowed_roles: [admin, owner]
+  auto_snapshot: true
+```
+
+CLI commands:
 
 ```bash
-GEMINI_FLASH_MODEL=gemini-2.5-flash
-CLAUDE_SONNET_MODEL=claude-sonnet-4-6-20260217
-CLAUDE_OPUS_MODEL=claude-opus-4-6-20260205
+python cli.py devmode setup      # Generate AI tool context files
+python cli.py devmode check      # Run system health check
+python cli.py devmode scaffold   # Scaffold new extensions
+python cli.py devmode snapshot   # Create a git safety snapshot
+python cli.py devmode rollback   # Rollback to a previous snapshot
 ```
+
+See [Architecture: Developer Mode](architecture.md) for details.
 
 ## Extending the System
 

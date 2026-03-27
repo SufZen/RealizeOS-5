@@ -11,9 +11,14 @@ import logging
 import sqlite3
 from contextlib import contextmanager
 from datetime import datetime, timedelta
+from difflib import SequenceMatcher
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
+
+# Retention policy defaults
+MEMORY_RETENTION_DAYS = 90
+MEMORY_MIN_PER_CATEGORY = 50
 
 # Database path — configurable
 DB_PATH: Path | None = None
@@ -33,9 +38,12 @@ def _get_conn() -> sqlite3.Connection:
     """Get a SQLite connection with row factory."""
     db_path = _resolve_db_path()
     db_path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(str(db_path))
+    conn = sqlite3.connect(str(db_path), timeout=10)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA foreign_keys=ON")
+    conn.execute("PRAGMA busy_timeout=5000")
+    conn.execute("PRAGMA synchronous=NORMAL")
     return conn
 
 
@@ -80,6 +88,14 @@ def init_db():
             CREATE TRIGGER IF NOT EXISTS memories_ad AFTER DELETE ON memories BEGIN
                 INSERT INTO memories_fts(memories_fts, rowid, content, system_key, category)
                 VALUES ('delete', old.id, old.content, old.system_key, old.category);
+            END
+        """)
+        conn.execute("""
+            CREATE TRIGGER IF NOT EXISTS memories_au AFTER UPDATE ON memories BEGIN
+                INSERT INTO memories_fts(memories_fts, rowid, content, system_key, category)
+                VALUES ('delete', old.id, old.content, old.system_key, old.category);
+                INSERT INTO memories_fts(rowid, content, system_key, category)
+                VALUES (new.id, new.content, new.system_key, new.category);
             END
         """)
         conn.execute("""
@@ -140,8 +156,19 @@ def init_db():
 
 
 def store_memory(system_key: str, category: str, content: str, tags: list[str] = None):
-    """Store a memory record."""
+    """Store a memory record, skipping near-duplicates."""
     with db_connection() as conn:
+        # Duplicate detection: check for very similar content in same system/category
+        existing = conn.execute(
+            "SELECT content FROM memories WHERE system_key = ? AND category = ? "
+            "ORDER BY created_at DESC LIMIT 20",
+            (system_key, category),
+        ).fetchall()
+        for row in existing:
+            if SequenceMatcher(None, content, row["content"]).ratio() > 0.85:
+                logger.debug("Skipping near-duplicate memory: %s...", content[:50])
+                return
+
         conn.execute(
             "INSERT INTO memories (system_key, category, content, tags, created_at) VALUES (?, ?, ?, ?, ?)",
             (system_key, category, content, json.dumps(tags or []), datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
@@ -224,3 +251,57 @@ def get_usage_stats(tenant_id: str = "default", days: int = 30) -> dict:
         }
     except Exception:
         return {"total_calls": 0, "total_input_tokens": 0, "total_output_tokens": 0, "total_cost_usd": 0.0}
+
+
+def prune_old_memories(
+    retention_days: int = MEMORY_RETENTION_DAYS,
+    min_per_category: int = MEMORY_MIN_PER_CATEGORY,
+) -> int:
+    """
+    Remove memories older than retention_days, keeping at least
+    min_per_category entries per system_key/category pair.
+
+    Returns:
+        Number of records deleted.
+    """
+    cutoff = (datetime.now() - timedelta(days=retention_days)).strftime("%Y-%m-%d %H:%M:%S")
+    deleted = 0
+
+    try:
+        with db_connection() as conn:
+            # Find system_key/category pairs with old rows
+            pairs = conn.execute(
+                "SELECT DISTINCT system_key, category FROM memories "
+                "WHERE created_at < ?",
+                (cutoff,),
+            ).fetchall()
+
+            for pair in pairs:
+                sk, cat = pair["system_key"], pair["category"]
+                # Count total entries for this pair
+                total = conn.execute(
+                    "SELECT COUNT(*) as c FROM memories WHERE system_key = ? AND category = ?",
+                    (sk, cat),
+                ).fetchone()["c"]
+
+                if total <= min_per_category:
+                    continue  # Keep minimum entries
+
+                # Delete oldest entries beyond the minimum, older than cutoff
+                deletable = total - min_per_category
+                result = conn.execute(
+                    "DELETE FROM memories WHERE id IN ("
+                    "  SELECT id FROM memories "
+                    "  WHERE system_key = ? AND category = ? AND created_at < ? "
+                    "  ORDER BY created_at ASC LIMIT ?"
+                    ")",
+                    (sk, cat, cutoff, deletable),
+                )
+                deleted += result.rowcount
+
+        if deleted:
+            logger.info("Pruned %d old memories (retention=%d days)", deleted, retention_days)
+    except Exception as e:
+        logger.warning("Memory pruning failed: %s", e)
+
+    return deleted

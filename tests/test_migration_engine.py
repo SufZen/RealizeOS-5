@@ -502,6 +502,12 @@ class TestRealMigrations:
             versions_package="realize_core.migration.versions",
         )
 
+    @pytest.fixture
+    def latest_version(self, real_engine):
+        """Discover the latest available migration version dynamically."""
+        versions = real_engine.discover_versions()
+        return max(v.version for v in versions)
+
     def test_real_discover_versions(self, real_engine):
         """Should discover 001_baseline and 002_v5_tables."""
         versions = real_engine.discover_versions()
@@ -509,11 +515,12 @@ class TestRealMigrations:
         assert 1 in nums
         assert 2 in nums
 
-    def test_real_migrate_up_all(self, real_engine, tmp_path):
+    def test_real_migrate_up_all(self, real_engine, tmp_path, latest_version):
         """Applying all real migrations creates expected tables."""
         applied = real_engine.migrate_up()
         assert 1 in applied
         assert 2 in applied
+        assert real_engine.get_current_version() == latest_version
 
         db_path = tmp_path / "real_migrate.db"
         conn = sqlite3.connect(str(db_path))
@@ -531,12 +538,12 @@ class TestRealMigrations:
         assert "routing_decisions" in tables
         assert "storage_sync_log" in tables
 
-    def test_real_rollback_v5_keeps_baseline(self, real_engine, tmp_path):
-        """Rolling back V5 tables should keep baseline tables."""
+    def test_real_rollback_v5_keeps_baseline(self, real_engine, tmp_path, latest_version):
+        """Rolling back the last migration keeps all earlier tables."""
         real_engine.migrate_up()
         real_engine.rollback(steps=1)
 
-        assert real_engine.get_current_version() == 1
+        assert real_engine.get_current_version() == latest_version - 1
 
         db_path = tmp_path / "real_migrate.db"
         conn = sqlite3.connect(str(db_path))
@@ -547,17 +554,13 @@ class TestRealMigrations:
         assert "activity_events" in tables
         assert "agent_states" in tables
 
-        # V5 should be gone
-        assert "skill_executions" not in tables
-        assert "pipeline_runs" not in tables
-
-    def test_real_full_roundtrip(self, real_engine):
+    def test_real_full_roundtrip(self, real_engine, latest_version):
         """Up all → down all → up all should succeed."""
         real_engine.migrate_up()
-        assert real_engine.get_current_version() == 2
+        assert real_engine.get_current_version() == latest_version
 
         real_engine.migrate_down(target_version=0)
         assert real_engine.get_current_version() == 0
 
         real_engine.migrate_up()
-        assert real_engine.get_current_version() == 2
+        assert real_engine.get_current_version() == latest_version

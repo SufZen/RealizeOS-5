@@ -96,3 +96,57 @@ def is_safe_input(text: str, channel: str = "dashboard", config: dict = None) ->
     """Quick check — returns True if input passes sanitization without injection detection."""
     result = sanitize_input(text, channel, config)
     return not result["injection_detected"]
+
+
+class PathTraversalError(Exception):
+    """Raised when a path traversal attempt is detected."""
+
+
+def sanitize_path(
+    user_path: str,
+    allowed_root: str,
+    allow_absolute: bool = False,
+) -> str:
+    """
+    Validate and sanitize a file path against traversal attacks.
+
+    Args:
+        user_path: The user-supplied path string.
+        allowed_root: The absolute root directory paths must stay within.
+        allow_absolute: If False (default), reject absolute paths from users.
+
+    Returns:
+        The resolved, safe absolute path as a string.
+
+    Raises:
+        PathTraversalError: If the path is unsafe.
+    """
+    import os
+    from pathlib import Path
+
+    # Reject null bytes (can truncate filenames on some systems)
+    if "\x00" in user_path:
+        raise PathTraversalError("Null byte detected in path")
+
+    # Reject obvious traversal patterns
+    normalized = user_path.replace("\\", "/")
+    if ".." in normalized.split("/"):
+        raise PathTraversalError("Path traversal (..) detected")
+
+    # Reject absolute paths unless explicitly allowed
+    if not allow_absolute and os.path.isabs(user_path):
+        raise PathTraversalError("Absolute paths are not allowed")
+
+    # Resolve the full path
+    root = Path(allowed_root).resolve()
+    full_path = (root / user_path).resolve()
+
+    # Ensure the resolved path is still under the allowed root
+    try:
+        full_path.relative_to(root)
+    except ValueError:
+        raise PathTraversalError(
+            f"Path '{user_path}' resolves outside allowed root"
+        )
+
+    return str(full_path)

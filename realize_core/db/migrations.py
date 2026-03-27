@@ -18,9 +18,8 @@ Migration compatibility shim for RealizeOS.
 
 import logging
 import sqlite3
-import warnings
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable, Optional
 
 from realize_core.db.schema import get_connection, init_schema
 
@@ -183,7 +182,7 @@ def get_current_version(conn: sqlite3.Connection) -> int:
         return 0
 
 
-def run_migrations(db_path: Optional[Path] = None):
+def run_migrations(db_path: Path | None = None):
     """
     Run all pending migrations.
 

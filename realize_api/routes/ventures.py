@@ -19,6 +19,7 @@ import logging
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request
+from pydantic import BaseModel
 
 from realize_api.routes.route_helpers import (
     analyze_fabric,
@@ -29,6 +30,13 @@ from realize_api.routes.route_helpers import (
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+
+class CreateVentureBody(BaseModel):
+    """Request body for venture creation."""
+    key: str
+    name: str = ""
+    description: str = ""
 
 
 @router.get("/ventures")
@@ -116,12 +124,11 @@ async def list_venture_skills(venture_key: str, request: Request):
 
 
 @router.post("/ventures")
-async def create_venture(request: Request):
+async def create_venture(body: CreateVentureBody, request: Request):
     """Create a new venture with FABRIC scaffolding."""
-    body = await request.json()
-    key = body.get("key", "").strip()
-    name = body.get("name", "").strip()
-    description = body.get("description", "").strip()
+    key = body.key.strip()
+    name = body.name.strip() if body.name else ""
+    description = body.description.strip() if body.description else ""
 
     if not key:
         raise HTTPException(status_code=400, detail="Venture key is required")
@@ -203,7 +210,13 @@ async def export_venture(venture_key: str, request: Request):
     from realize_core.plugins.venture_io import export_venture as _export
 
     export_dir = Path(tempfile.mkdtemp())
-    zip_path = _export(kb_path, systems[venture_key], venture_key, export_dir)
+    output_path = export_dir / f"{venture_key}.zip"
+    zip_path = _export(
+        venture_key=venture_key,
+        kb_path=kb_path,
+        output_path=output_path,
+        sys_conf=systems[venture_key],
+    )
 
     if not zip_path or not zip_path.exists():
         raise HTTPException(status_code=500, detail="Export failed")

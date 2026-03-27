@@ -10,6 +10,10 @@
 
 ## Workflow
 
+### Step 0: Setup
+
+1. Create and checkout the working branch: `git checkout -b autobuild/[intent-name]`
+
 ### Step 1: Implement
 
 Invoke the **Builder Agent** (`agents/builder.md`):
@@ -30,7 +34,7 @@ Invoke the **Quality Scorer** (`agents/quality-scorer.md`):
 - Have the Builder Agent fix the issues
 - Re-run the quality pipeline
 - Repeat up to 3 times
-- If still failing after 3 attempts → escalate to human
+- If still failing after 3 attempts → `git reset --hard` to the last known good state and escalate to human. Do not leave the branch in a broken state.
 
 ### Step 3: Sub-Agent Reviews
 

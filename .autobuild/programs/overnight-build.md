@@ -52,13 +52,19 @@ REPEAT FOREVER:
      - Compute new quality score
 
   5. Decision:
-     IF new_score >= best_score AND no CRITICAL security issue:
+     IF new_score > best_score AND no CRITICAL security issue:
         → git commit with message: "autobuild-overnight: [what changed] — score: [new_score]"
         → Update best_score
         → Log: [timestamp] [score] [keep] [description]
+     ELSE IF new_score == best_score AND no CRITICAL security issue:
+        → git commit with message: "autobuild-overnight: [lateral change] — score: [new_score]"
+        → Log: [timestamp] [score] [lateral] [description]
      ELSE:
-        → git reset --hard HEAD
+        → git reset --hard HEAD && git clean -fd
         → Log: [timestamp] [score] [discard] [description]
+
+     IF best_score == 100:
+        → Log "perfect score reached" and stop
 
      Delivery readiness bands:
        → score >= 80 = ready to deliver
@@ -66,9 +72,9 @@ REPEAT FOREVER:
        → score < 60 = not ready yet
 
   6. Check plateau:
-     IF last 5 iterations were all discarded:
+     IF last 5 iterations were not strictly improving (discarded or lateral):
         → Try a fundamentally different approach
-        → If 10 consecutive discards, log "plateau reached" and stop
+        → If 10 consecutive non-improving iterations, log "plateau reached" and stop
 
   7. CONTINUE (go back to step 1)
 ```

@@ -13,13 +13,49 @@ Architecture Note:
     independently of the tool registry interface.
 """
 
+import ipaddress
 import logging
 import os
 import re
+from urllib.parse import urlparse
 
 import httpx
 
 logger = logging.getLogger(__name__)
+
+# SSRF protection
+_BLOCKED_SCHEMES = {"file", "ftp", "gopher", "data", "javascript"}
+
+
+def _validate_url(url: str) -> str | None:
+    """Validate URL for SSRF protection. Returns error or None if safe."""
+    try:
+        parsed = urlparse(url)
+    except Exception:
+        return "Invalid URL format"
+
+    scheme = (parsed.scheme or "").lower()
+    if scheme in _BLOCKED_SCHEMES:
+        return f"Blocked protocol: {scheme}://"
+    if scheme not in ("http", "https", ""):
+        return f"Unsupported protocol: {scheme}://"
+
+    hostname = parsed.hostname or ""
+    if not hostname:
+        return "No hostname in URL"
+
+    blocked_hosts = {"localhost", "metadata.google.internal", "169.254.169.254"}
+    if hostname.lower() in blocked_hosts:
+        return f"Blocked internal hostname: {hostname}"
+
+    try:
+        ip = ipaddress.ip_address(hostname)
+        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
+            return f"Blocked private/internal IP: {hostname}"
+    except ValueError:
+        pass
+
+    return None
 
 BRAVE_SEARCH_URL = "https://api.search.brave.com/res/v1/web/search"
 
@@ -126,6 +162,11 @@ async def web_fetch(url: str, max_chars: int = 8000, extract_mode: str = "auto")
     Returns:
         Dict with {url, title, content, content_length, truncated}.
     """
+    # SSRF protection
+    url_error = _validate_url(url)
+    if url_error:
+        return {"error": f"URL blocked: {url_error}", "url": url}
+
     client = _get_http_client()
     try:
         resp = await client.get(

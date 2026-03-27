@@ -12,9 +12,16 @@ import tempfile
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request
+from pydantic import BaseModel
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+
+class UpdateConnectionBody(BaseModel):
+    """Request body for updating a connection."""
+    id: str
+    value: str
 
 # All configurable connections with metadata
 CONNECTION_DEFINITIONS = [
@@ -270,11 +277,10 @@ async def get_connections():
 
 
 @router.put("/setup/connection")
-async def update_connection(request: Request):
+async def update_connection(body: UpdateConnectionBody, request: Request):
     """Update a single connection's configuration."""
-    body = await request.json()
-    conn_id = body.get("id", "").strip()
-    value = body.get("value", "").strip()
+    conn_id = body.id.strip()
+    value = body.value.strip()
 
     if not conn_id:
         raise HTTPException(status_code=400, detail="Connection ID required")

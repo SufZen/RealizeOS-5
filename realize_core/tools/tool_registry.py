@@ -53,10 +53,10 @@ class ToolRegistry:
         # Map each action to this tool
         for schema in tool.get_schemas():
             if schema.name in self._action_map:
-                logger.warning(
-                    f"Action '{schema.name}' conflicts with tool "
-                    f"'{self._action_map[schema.name].name}', "
-                    f"overriding with '{tool.name}'"
+                logger.error(
+                    f"Action name collision: '{schema.name}' claimed by both "
+                    f"'{self._action_map[schema.name].name}' and '{tool.name}'. "
+                    f"Using '{tool.name}' — fix duplicate action names!"
                 )
             self._action_map[schema.name] = tool
 
@@ -155,6 +155,22 @@ class ToolRegistry:
             },
         }
 
+    def refresh(self):
+        """
+        Clear all tools and re-discover.
+
+        Useful after hot-reload or dynamic tool extension registration.
+        """
+        old_count = self.tool_count
+        self._tools.clear()
+        self._action_map.clear()
+        self.auto_discover()
+        logger.info(
+            "Tool registry refreshed: %d → %d tools",
+            old_count,
+            self.tool_count,
+        )
+
     # -----------------------------------------------------------------------
     # Auto-discovery
     # -----------------------------------------------------------------------
@@ -180,6 +196,10 @@ class ToolRegistry:
             "realize_core.tools.pm_tools",
             "realize_core.tools.stripe_tools",
             "realize_core.tools.social",
+            "realize_core.tools.doc_generator",
+            "realize_core.tools.voice",
+            "realize_core.tools.telephony",
+            "realize_core.tools.automation",
         ]
 
         for module_name in known_modules:
@@ -200,8 +220,10 @@ class ToolRegistry:
                                 self.register(attr())
                             except Exception as e:
                                 logger.debug(f"Cannot instantiate {attr_name}: {e}")
-            except ImportError:
-                logger.debug(f"Tool module '{module_name}' not found, skipping")
+            except ImportError as e:
+                logger.info(
+                    f"Tool module '{module_name}' skipped (missing dependency: {e})"
+                )
             except Exception as e:
                 logger.warning(f"Error discovering tools in '{module_name}': {e}")
 

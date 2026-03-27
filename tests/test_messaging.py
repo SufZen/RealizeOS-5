@@ -14,9 +14,8 @@ from __future__ import annotations
 import asyncio
 
 import pytest
-
+from realize_core.tools.base_tool import ToolCategory
 from realize_core.tools.messaging import (
-    Channel,
     Message,
     MessageStatus,
     MessageStore,
@@ -24,7 +23,6 @@ from realize_core.tools.messaging import (
     MessageTool,
     get_tool,
 )
-from realize_core.tools.base_tool import ToolCategory
 
 
 def run_async(coro):

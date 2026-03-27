@@ -21,8 +21,8 @@ from __future__ import annotations
 
 import logging
 import uuid
-from datetime import datetime, timezone
-from enum import Enum
+from datetime import UTC, datetime
+from enum import StrEnum
 from typing import Any
 
 from realize_core.tools.base_tool import (
@@ -35,7 +35,7 @@ from realize_core.tools.base_tool import (
 logger = logging.getLogger(__name__)
 
 
-class MessageTarget(str, Enum):
+class MessageTarget(StrEnum):
     """Types of message targets."""
 
     AGENT = "agent"
@@ -43,7 +43,7 @@ class MessageTarget(str, Enum):
     CHANNEL = "channel"
 
 
-class MessageStatus(str, Enum):
+class MessageStatus(StrEnum):
     """Message delivery status."""
 
     SENT = "sent"
@@ -71,7 +71,7 @@ class Message:
         self.content = content
         self.system_key = system_key
         self.status = MessageStatus.SENT
-        self.created_at = datetime.now(timezone.utc)
+        self.created_at = datetime.now(UTC)
         self.delivered_at: datetime | None = None
         self.read_at: datetime | None = None
         self.metadata = metadata or {}
@@ -137,7 +137,7 @@ class Channel:
         self.system_key = system_key
         self.created_by = created_by
         self.subscribers: set[str] = {created_by}
-        self.created_at = datetime.now(timezone.utc)
+        self.created_at = datetime.now(UTC)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -221,7 +221,7 @@ class MessageStore:
         """Mark a message as read."""
         for msg in self._messages:
             if msg.id == message_id and msg.read_at is None:
-                msg.read_at = datetime.now(timezone.utc)
+                msg.read_at = datetime.now(UTC)
                 msg.status = MessageStatus.READ
                 return True
         return False
@@ -231,7 +231,7 @@ class MessageStore:
         queued = self._queues.pop(agent_key, [])
         for msg in queued:
             msg.status = MessageStatus.DELIVERED
-            msg.delivered_at = datetime.now(timezone.utc)
+            msg.delivered_at = datetime.now(UTC)
         return queued
 
     def create_channel(

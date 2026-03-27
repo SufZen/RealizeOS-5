@@ -16,7 +16,19 @@
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet" />
   </head>
   <body>
+    <script>
+      // Prevent flash of wrong theme before React hydrates
+      try{var t=localStorage.getItem('realizeos_theme');if(t==='light'){document.documentElement.classList.add('light')}else if(t==='dark'||!t){document.documentElement.classList.add('dark')}}catch(e){document.documentElement.classList.add('dark')}
+    </script>
     <div id="root"></div>
+    <noscript>
+      <div style="display:flex;align-items:center;justify-content:center;height:100vh;background:#0a0a0f;color:#f3f4f6;font-family:sans-serif;text-align:center;padding:2rem">
+        <div>
+          <h1 style="font-size:1.5rem;margin-bottom:0.5rem">RealizeOS requires JavaScript</h1>
+          <p style="color:#9ca3af">Please enable JavaScript in your browser to use the dashboard.</p>
+        </div>
+      </div>
+    </noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

@@ -178,44 +178,54 @@ Reference: [Skill Authoring Guide](docs/skill-authoring.md)
 ```
 RealizeOS-5/
 ├── realize_core/                Core Python engine
-│   ├── agents/                  V2 agent system
-│   │   ├── base.py              Shared protocols (BaseAgent, AgentConfig, HandoffType)
-│   │   ├── schema.py            V1/V2 agent definition models
-│   │   ├── loader.py            Load agents from files
-│   │   ├── registry.py          AgentRegistry with hot-reload
-│   │   ├── pipeline.py          Sequential pipeline executor
-│   │   ├── guardrails.py        Safety constraints
-│   │   └── handoff.py           Handoff type handlers
-│   ├── skills/                  Skill detection and execution
-│   │   └── base.py              Shared protocols (BaseSkill, SkillFormat)
+│   ├── agents/                  V2 agent system (definitions, pipelines, handoffs, guardrails)
+│   ├── skills/                  Skill detection and execution (v1 + v2 skills)
 │   ├── tools/                   Tool SDK + implementations
 │   │   ├── base_tool.py         BaseTool, ToolSchema, ToolResult
 │   │   ├── tool_registry.py     ToolRegistry with auto-discovery
-│   │   ├── google_workspace.py  21 Gmail/Calendar/Drive tools
-│   │   ├── google_sheets.py     3 Sheets API tools
-│   │   ├── gws_cli_tool.py      Generic gws CLI shell executor
-│   │   └── google_auth.py       OAuth credential management
-│   ├── extensions/              Extension system
-│   │   ├── base.py              Shared protocols (BaseExtension)
-│   │   ├── registry.py          ExtensionRegistry lifecycle manager
-│   │   ├── loader.py            Auto-discovery from config + filesystem
-│   │   ├── cron.py              Cron scheduler (APScheduler wrapper)
-│   │   └── hooks.py             Event pub/sub system
-│   ├── llm/                     LLM abstraction + routing
-│   ├── storage/                 Pluggable storage (base.py)
-│   ├── optimizer/               Experiment tracking (base.py)
-│   ├── channels/                API, Telegram adapters
-│   ├── evolution/               Self-improvement engine
-│   └── ...
-├── realize_api/                 FastAPI REST API
-├── dashboard/                   React 19 + Vite + TypeScript
-├── realize-os-cli/              npm CLI package
+│   │   ├── google_workspace.py  Gmail, Calendar, Drive tools
+│   │   ├── google_sheets.py     Sheets API tools
+│   │   ├── stripe_tools.py      Financial tools (Stripe)
+│   │   ├── browser.py           Headless Chromium browser
+│   │   ├── web.py / web_tool.py Web search + fetch (SSRF-protected)
+│   │   ├── mcp.py               MCP protocol connector
+│   │   ├── messaging.py         Agent-to-agent messaging bus
+│   │   ├── social.py            Social media tools
+│   │   ├── telephony.py         Twilio voice/SMS
+│   │   ├── approval.py          Human-in-the-loop approval tools
+│   │   ├── gating.py            Per-agent tool access control
+│   │   └── doc_generator.py     Document generation
+│   ├── extensions/              Extension system (registry, cron, hooks)
+│   ├── llm/                     Multi-provider LLM routing (Claude, Gemini, OpenAI, Ollama)
+│   ├── prompt/                  Multi-layer prompt assembly from FABRIC knowledge base
+│   ├── security/                JWT auth, RBAC, injection scanning, audit logging, scanner
+│   ├── channels/                Channel adapters (API, Telegram, WhatsApp, Webhooks, Scheduler)
+│   ├── storage/                 Pluggable storage providers (local filesystem, S3-compatible)
+│   ├── memory/                  Persistent memory store and learning log
+│   ├── kb/                      Knowledge base indexing (FTS5 + vector embeddings)
+│   ├── db/                      SQLite database utilities + migration system
+│   ├── governance/              Approval workflows and human-in-the-loop gates
+│   ├── workflows/               Workflow engine and execution
+│   ├── pipeline/                Pipeline builder and session management
+│   ├── devmode/                 Developer mode (context gen, git safety, scaffolder)
+│   ├── eval/                    Agent evaluation harness (YAML-based behavioral tests)
+│   ├── evolution/               Self-improvement: gap detection, skill suggestion
+│   ├── migration/               Data migration engine
+│   ├── media/                   Media handling and processing
+│   ├── ingestion/               Data ingestion pipelines
+│   ├── scheduler/               Agent lifecycle management and heartbeat
+│   ├── optimizer/               Experiment tracking
+│   ├── utils/                   Shared utilities (rate limiter, etc.)
+│   └── templates/               Template engine
+├── realize_api/                 FastAPI REST API (32 route modules)
+├── dashboard/                   React 19 + Vite 8 + TypeScript + Tailwind CSS 4
+│                                + TanStack Query + React Router 7
+├── realize-os-cli/              npm CLI package (@realize-os/cli)
 ├── templates/                   8 business templates
+├── scripts/                     Installation scripts (install.sh, install.ps1, deploy.sh)
 ├── tests/                       Test suite
 ├── docs/                        Documentation
 ├── .github/                     CI/CD workflows + issue templates
-├── CLAUDE.md                    Development rules and patterns
-├── project-context.md           BMAD conventions (MTH-40)
 └── README.md                    This file
 ```
 
@@ -232,10 +242,11 @@ RealizeOS-5/
 
 ### Key Patterns
 
-- **Message Flow**: `Channel → base_handler → session → skill → agent → LLM`
+- **Message Flow**: `Channel → Security Middleware → base_handler → session → skill → agent → LLM`
 - **Auto-Discovery**: Agents from `A-agents/`, skills from `R-routines/skills/`, extensions from `extensions/`
 - **Feature Flags**: Defined in `realize-os.yaml` under `features:`, accessed via `config.py:get_features()`
-- **Async-over-sync**: Google API calls wrapped with `asyncio.to_thread()`
+- **Security Stack**: Security headers → Audit → Rate limiting → Injection guard → JWT auth
+- **Async-over-sync**: Blocking I/O wrapped with `asyncio.to_thread()`
 
 ## Pull Request Process
 

@@ -104,6 +104,7 @@ class BaseLLMProvider(ABC):
         model: str | None = None,
         max_tokens: int = 4096,
         temperature: float = 0.7,
+        timeout: float = 60.0,
     ) -> LLMResponse:
         """Send a text completion request.
 
@@ -113,6 +114,7 @@ class BaseLLMProvider(ABC):
             model: Model identifier. Uses provider default if None.
             max_tokens: Maximum response tokens
             temperature: Creativity level (0.0 = deterministic, 1.0 = creative)
+            timeout: Request timeout in seconds (default 60s)
 
         Returns:
             LLMResponse with the completion result.
@@ -131,6 +133,7 @@ class BaseLLMProvider(ABC):
         tools: list[dict],
         model: str | None = None,
         max_tokens: int = 4096,
+        timeout: float = 60.0,
     ) -> LLMResponse:
         """Send a completion request with tool definitions.
 

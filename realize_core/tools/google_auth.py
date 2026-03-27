@@ -99,13 +99,28 @@ def get_credentials():
 
         if _credentials.expired and _credentials.refresh_token:
             logger.info("Access token expired, refreshing...")
-            _credentials.refresh(Request())
-            _save_tokens(_credentials, token_data, tokens_path)
+            try:
+                _credentials.refresh(Request())
+                _save_tokens(_credentials, token_data, tokens_path)
+            except Exception as refresh_err:
+                # Clear stale credentials so next call doesn't use invalid ones
+                _credentials = None
+                err_msg = str(refresh_err)
+                # Sanitize: don't log full tokens
+                if "token" in err_msg.lower() and len(err_msg) > 100:
+                    err_msg = err_msg[:100] + "..."
+                logger.error(
+                    f"Google token refresh failed (token may be revoked): {err_msg}. "
+                    f"Re-run OAuth flow to re-authorize."
+                )
+                return None
 
         logger.info("Google credentials loaded successfully")
         return _credentials
 
     except Exception as e:
+        # Don't leave invalid credentials cached
+        _credentials = None
         logger.error(f"Failed to load Google credentials: {e}", exc_info=True)
         return None
 

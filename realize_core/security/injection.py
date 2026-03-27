@@ -17,6 +17,7 @@ Threat categories:
 
 import logging
 import re
+import unicodedata
 from dataclasses import dataclass, field
 from enum import StrEnum
 
@@ -36,6 +37,7 @@ class ThreatCategory(StrEnum):
     CONTEXT_LEAKAGE = "context_leakage"
     ENCODING_BYPASS = "encoding_bypass"
     DELIMITER_INJECTION = "delimiter_injection"
+    SQL_INJECTION = "sql_injection"
 
 
 class Severity(StrEnum):
@@ -225,6 +227,31 @@ _THREAT_PATTERNS: list[ThreatPattern] = [
         "Base64 decode instruction",
         weight=1.0,
     ),
+    # --- sql_injection (HIGH) ---
+    ThreatPattern(
+        r"(?:UNION\s+(?:ALL\s+)?SELECT|DROP\s+TABLE|DELETE\s+FROM|INSERT\s+INTO|UPDATE\s+\w+\s+SET)",
+        ThreatCategory.SQL_INJECTION,
+        Severity.HIGH,
+        "SQL injection keywords detected",
+        weight=1.5,
+        is_regex=True,
+    ),
+    ThreatPattern(
+        r"(?:';\s*--|'\s+OR\s+'1'\s*=\s*'1|'\s+OR\s+1\s*=\s*1)",
+        ThreatCategory.SQL_INJECTION,
+        Severity.HIGH,
+        "SQL injection payload pattern",
+        weight=2.0,
+        is_regex=True,
+    ),
+    ThreatPattern(
+        r"(?:EXEC(?:UTE)?\s*\(|xp_cmdshell|WAITFOR\s+DELAY)",
+        ThreatCategory.SQL_INJECTION,
+        Severity.CRITICAL,
+        "SQL injection command execution attempt",
+        weight=2.5,
+        is_regex=True,
+    ),
 ]
 
 # Pre-compile patterns
@@ -263,6 +290,9 @@ def scan_injection(text: str, sensitivity: float = 0.5) -> InjectionResult:
     max_sev = Severity.LOW
 
     text_lower = text.lower()
+
+    # Normalize Unicode to catch homoglyph attacks (e.g. ⅰgnore → ignore)
+    text_lower = unicodedata.normalize("NFKC", text_lower)
 
     for compiled, tp in _COMPILED_PATTERNS:
         matches = compiled.findall(text_lower)

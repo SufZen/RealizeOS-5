@@ -43,7 +43,7 @@ realize-api    | INFO: Uvicorn running on http://0.0.0.0:8080
 
 ## Step 4: Open Dashboard
 
-Open your browser to **http://localhost:3000**
+Open your browser to **http://localhost:8080**
 
 The dashboard shows:
 - 🏢 **Ventures** — Your business configurations
@@ -69,6 +69,8 @@ python cli.py init --template consulting
 
 Available templates: `consulting`, `agency`, `portfolio`, `saas`, `ecommerce`, `accounting`, `coaching`, `freelance`
 
+> 💡 **Tip:** Use `python cli.py setup` for an interactive wizard that handles configuration, dashboard setup, and template selection in one step.
+
 ---
 
 ## Without Docker (Manual Setup)
@@ -90,7 +92,9 @@ cp .env.example .env
 python cli.py serve
 ```
 
-Dashboard: http://localhost:3000 · API: http://localhost:8080
+Dashboard: http://localhost:8080 (built static) · Vite dev: http://localhost:5173 · API: http://localhost:8080
+
+> 🔧 **Troubleshooting:** Run `python cli.py doctor` to diagnose installation issues.
 
 ---
 
@@ -99,4 +103,5 @@ Dashboard: http://localhost:3000 · API: http://localhost:8080
 - 📖 [Architecture Overview](docs/architecture.md) — Understand FABRIC and the engine
 - 🛠️ [Configuration Guide](docs/configuration.md) — Customize your setup
 - 🏗️ [Self-Hosting Guide](docs/self-hosting-guide.md) — Production deployment
+- 🛡️ [API Reference](docs/api-reference.md) — Full REST API documentation
 - 🤝 [Contributing](CONTRIBUTING.md) — Join the community

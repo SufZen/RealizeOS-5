@@ -15,6 +15,7 @@ Endpoints:
 
 import logging
 import uuid
+from collections import OrderedDict
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
@@ -26,11 +27,11 @@ from realize_core.agents.schema import V1AgentDef, V2AgentDef
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-# Module-level registry instance (initialized on first request or reload)
-_registry: AgentRegistry | None = None
+
 
 # In-memory pipeline state store (keyed by pipeline_id)
-_pipeline_states: dict = {}
+_MAX_PIPELINE_STATES = 1000
+_pipeline_states: OrderedDict = OrderedDict()
 
 
 # ---------------------------------------------------------------------------
@@ -86,9 +87,9 @@ class PipelineExecuteBody(BaseModel):
 
 def _get_registry(request: Request) -> AgentRegistry:
     """Get or initialize the agent registry from app state."""
-    global _registry
-    if _registry is None:
-        _registry = AgentRegistry()
+    registry = getattr(request.app.state, "agent_registry", None)
+    if registry is None:
+        registry = AgentRegistry()
         # Load agents from all system directories
         systems = getattr(request.app.state, "systems", {})
         kb_path = getattr(request.app.state, "kb_path", None)
@@ -96,8 +97,9 @@ def _get_registry(request: Request) -> AgentRegistry:
             for sys_key, sys_conf in systems.items():
                 agents_dir = kb_path / sys_conf.get("agents_dir", f"systems/{sys_key}/A-agents")
                 if agents_dir.is_dir():
-                    _registry.load_from_directory(agents_dir)
-    return _registry
+                    registry.load_from_directory(agents_dir)
+        request.app.state.agent_registry = registry
+    return registry
 
 
 def _agent_to_dict(agent: V1AgentDef | V2AgentDef) -> dict:
@@ -337,6 +339,8 @@ async def execute_pipeline_endpoint(body: PipelineExecuteBody, request: Request)
     )
 
     _pipeline_states[pipeline_id] = state
+    if len(_pipeline_states) > _MAX_PIPELINE_STATES:
+        _pipeline_states.popitem(last=False)
 
     return {
         "pipeline_id": pipeline_id,

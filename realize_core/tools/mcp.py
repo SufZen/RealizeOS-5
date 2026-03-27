@@ -134,6 +134,23 @@ class MCPServerConnection:
             "tool_names": self.get_tool_names(),
         }
 
+    async def health_check(self) -> bool:
+        """
+        Probe whether the MCP server session is still alive.
+
+        Returns True if the session responds, False otherwise.
+        """
+        if not self._connected or not self.session:
+            return False
+        try:
+            # list_tools is a lightweight probe
+            await self.session.list_tools()
+            return True
+        except Exception as e:
+            logger.warning(f"MCP health check failed for '{self.name}': {e}")
+            self._connected = False
+            return False
+
 
 class MCPClientHub:
     """Manages connections to multiple MCP servers."""
@@ -174,9 +191,25 @@ class MCPClientHub:
         tasks = [self._connect_with_timeout(s) for s in self.servers.values() if s.enabled]
         if tasks:
             results = await asyncio.gather(*tasks, return_exceptions=True)
-            connected = sum(1 for r in results if r is True)
-            logger.info(f"MCP: {connected}/{len(tasks)} servers connected")
+            self._connected_count = sum(1 for r in results if r is True)
+            self._total_count = len(tasks)
+            logger.info(f"MCP: {self._connected_count}/{self._total_count} servers connected")
         self._initialized = True
+
+    @property
+    def connected_count(self) -> int:
+        """Number of servers that successfully connected."""
+        return getattr(self, "_connected_count", 0)
+
+    @property
+    def total_count(self) -> int:
+        """Total number of servers that were attempted."""
+        return getattr(self, "_total_count", 0)
+
+    @property
+    def fully_initialized(self) -> bool:
+        """True only if all servers connected successfully."""
+        return self._initialized and self.connected_count == self.total_count
 
     async def _connect_with_timeout(self, server: MCPServerConnection, timeout: int = 30) -> bool:
         try:

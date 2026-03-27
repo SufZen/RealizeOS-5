@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo, useEffect } from 'react'
 import { useDebounce } from '@/hooks/use-debounce'
 import {
   Puzzle,
@@ -398,6 +398,15 @@ function AddIntegrationModal({ available, onClose, onAdded }: AddIntegrationModa
   const [adding, setAdding] = useState<string | null>(null)
   const [apiKey, setApiKey] = useState('')
   const [selectedProvider, setSelectedProvider] = useState<AvailableIntegration | null>(null)
+
+  // Close modal on Escape key
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    document.addEventListener('keydown', handleEscape)
+    return () => document.removeEventListener('keydown', handleEscape)
+  }, [onClose])
 
   const filtered = useMemo(() => {
     if (!searchQuery) return available

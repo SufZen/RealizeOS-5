@@ -12,10 +12,11 @@ via the API or dashboard. Each request has a configurable timeout.
 
 from __future__ import annotations
 
+import json
 import logging
 import uuid
-from datetime import datetime, timedelta, timezone
-from enum import Enum
+from datetime import UTC, datetime, timedelta
+from enum import StrEnum
 from typing import Any
 
 from realize_core.tools.base_tool import (
@@ -28,7 +29,7 @@ from realize_core.tools.base_tool import (
 logger = logging.getLogger(__name__)
 
 
-class ApprovalAction(str, Enum):
+class ApprovalAction(StrEnum):
     """Types of approval requests an agent can make."""
 
     REQUEST_DECISION = "request_decision"
@@ -36,7 +37,7 @@ class ApprovalAction(str, Enum):
     REQUEST_INPUT = "request_input"
 
 
-class ApprovalStatus(str, Enum):
+class ApprovalStatus(StrEnum):
     """Status of an approval request."""
 
     PENDING = "pending"
@@ -70,7 +71,7 @@ class ApprovalRequest:
         self.status = ApprovalStatus.PENDING
         self.response: str | None = None
         self.responded_by: str | None = None
-        self.created_at = datetime.now(timezone.utc)
+        self.created_at = datetime.now(UTC)
         self.expires_at = self.created_at + timedelta(seconds=timeout_seconds)
         self.responded_at: datetime | None = None
         self.metadata = metadata or {}
@@ -79,7 +80,7 @@ class ApprovalRequest:
     def is_expired(self) -> bool:
         return (
             self.status == ApprovalStatus.PENDING
-            and datetime.now(timezone.utc) > self.expires_at
+            and datetime.now(UTC) > self.expires_at
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -182,7 +183,7 @@ class ApprovalStore:
         req.status = status
         req.response = response
         req.responded_by = responded_by
-        req.responded_at = datetime.now(timezone.utc)
+        req.responded_at = datetime.now(UTC)
 
         if self._db_path:
             self._persist_resolution(req)
@@ -208,38 +209,112 @@ class ApprovalStore:
         try:
             import sqlite3
 
-            conn = sqlite3.connect(self._db_path)
-            conn.execute(
-                """INSERT OR REPLACE INTO approval_requests
-                   (id, action, description, agent_key, system_key, session_id,
-                    options, status, response, responded_by,
-                    created_at, expires_at, responded_at, metadata)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (
-                    request.id,
-                    request.action.value,
-                    request.description,
-                    request.agent_key,
-                    request.system_key,
-                    request.session_id,
-                    ",".join(request.options),
-                    request.status.value,
-                    request.response,
-                    request.responded_by,
-                    request.created_at.isoformat(),
-                    request.expires_at.isoformat(),
-                    request.responded_at.isoformat() if request.responded_at else None,
-                    str(request.metadata),
-                ),
-            )
-            conn.commit()
-            conn.close()
+            with sqlite3.connect(self._db_path) as conn:
+                conn.execute(
+                    """INSERT OR REPLACE INTO approval_requests
+                       (id, action, description, agent_key, system_key, session_id,
+                        options, status, response, responded_by,
+                        created_at, expires_at, responded_at, metadata)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (
+                        request.id,
+                        request.action.value,
+                        request.description,
+                        request.agent_key,
+                        request.system_key,
+                        request.session_id,
+                        ",".join(request.options),
+                        request.status.value,
+                        request.response,
+                        request.responded_by,
+                        request.created_at.isoformat(),
+                        request.expires_at.isoformat(),
+                        request.responded_at.isoformat() if request.responded_at else None,
+                        json.dumps(request.metadata),
+                    ),
+                )
         except Exception as e:
             logger.warning("Failed to persist approval request: %s", e)
 
     def _persist_resolution(self, request: ApprovalRequest):
         """Update resolution in database."""
         self._persist(request)
+
+    def cleanup_expired(self) -> int:
+        """
+        Clean up expired pending approvals from the in-memory store.
+
+        Returns:
+            Number of expired requests cleaned up.
+        """
+        expired_ids = []
+        for req_id, req in self._requests.items():
+            if req.is_expired:
+                req.status = ApprovalStatus.EXPIRED
+                expired_ids.append(req_id)
+                if self._db_path:
+                    self._persist(req)
+
+        for req_id in expired_ids:
+            del self._requests[req_id]
+
+        if expired_ids:
+            logger.info("Cleaned up %d expired approval requests", len(expired_ids))
+        return len(expired_ids)
+
+    def load_from_db(self) -> int:
+        """
+        Restore pending approval requests from the database.
+
+        Call during startup to recover state after a restart.
+
+        Returns:
+            Number of requests restored.
+        """
+        if not self._db_path:
+            return 0
+        try:
+            import sqlite3
+
+            with sqlite3.connect(self._db_path) as conn:
+                conn.row_factory = sqlite3.Row
+                rows = conn.execute(
+                    "SELECT * FROM approval_requests WHERE status = 'pending'"
+                ).fetchall()
+
+            count = 0
+            for row in rows:
+                try:
+                    metadata = json.loads(row["metadata"]) if row["metadata"] else {}
+                except (json.JSONDecodeError, TypeError):
+                    metadata = {}
+
+                req = ApprovalRequest(
+                    action=ApprovalAction(row["action"]),
+                    description=row["description"],
+                    agent_key=row["agent_key"],
+                    system_key=row["system_key"],
+                    session_id=row["session_id"] or "",
+                    options=row["options"].split(",") if row["options"] else [],
+                    metadata=metadata,
+                )
+                req.id = row["id"]
+                req.created_at = datetime.fromisoformat(row["created_at"])
+                req.expires_at = datetime.fromisoformat(row["expires_at"])
+
+                if req.is_expired:
+                    req.status = ApprovalStatus.EXPIRED
+                    self._persist(req)
+                else:
+                    self._requests[req.id] = req
+                    count += 1
+
+            if count:
+                logger.info("Restored %d pending approval requests from DB", count)
+            return count
+        except Exception as e:
+            logger.warning("Failed to load approvals from DB: %s", e)
+            return 0
 
 
 # ---------------------------------------------------------------------------

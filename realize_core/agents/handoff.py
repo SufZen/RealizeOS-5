@@ -17,10 +17,22 @@ applying type-specific logic (retry counting, escalation triggers, etc.).
 from __future__ import annotations
 
 import logging
+from collections import deque
 
 from realize_core.agents.base import HandoffData, HandoffType
 
 logger = logging.getLogger(__name__)
+
+# Bounded audit log for persistent handoff history
+_audit_log: deque[HandoffResult] = deque(maxlen=1000)
+
+def get_audit_log() -> list[HandoffResult]:
+    """Retrieve the recent handoff audit history."""
+    return list(_audit_log)
+
+def clear_audit_log() -> None:
+    """Clear the handoff audit history (useful for testing)."""
+    _audit_log.clear()
 
 
 # ---------------------------------------------------------------------------
@@ -114,6 +126,7 @@ def handle_qa_fail(handoff: HandoffData) -> HandoffResult:
             payload=handoff.payload,
             artifacts=handoff.artifacts,
             context={**handoff.context, "escalation_reason": "max_retries_exhausted"},
+            history=handoff.history,
             retry_count=handoff.retry_count,
             max_retries=handoff.max_retries,
         )
@@ -221,7 +234,46 @@ def process_handoff(handoff: HandoffData) -> HandoffResult:
     Raises:
         ValueError: If the handoff type is not recognised.
     """
+    # Circular handoff detection
+    if len(_audit_log) > 0 and handoff.handoff_type != HandoffType.QA_FAIL:
+        last_result = _audit_log[-1]
+        last_h = last_result.handoff
+        # If A -> B, and now B -> A for the same pipeline run (simplistic global check here)
+        if (last_h.source_agent == handoff.target_agent and
+            last_h.target_agent == handoff.source_agent and
+            handoff.source_agent != "incident_handler" and
+            handoff.target_agent != "incident_handler"):
+
+            logger.error(
+                "Circular handoff detected: %s -> %s -> %s",
+                last_h.source_agent,
+                last_h.target_agent,
+                handoff.target_agent,
+            )
+
+            escalated = HandoffData(
+                source_agent=handoff.source_agent,
+                target_agent=handoff.target_agent,
+                handoff_type=HandoffType.ESCALATION,
+                payload=handoff.payload,
+                artifacts=handoff.artifacts,
+                context={**handoff.context, "escalation_reason": "circular_handoff_detected"},
+                history=handoff.history,
+                retry_count=handoff.retry_count,
+                max_retries=handoff.max_retries,
+            )
+            result = HandoffResult(
+                handoff=escalated,
+                action="escalate",
+                message=f"Circular handoff deteced: {handoff.source_agent} <-> {handoff.target_agent}"
+            )
+            _audit_log.append(result)
+            return result
+
     handler = _HANDLERS.get(handoff.handoff_type)
     if handler is None:
         raise ValueError(f"Unknown handoff type: {handoff.handoff_type}")
-    return handler(handoff)
+
+    result = handler(handoff)
+    _audit_log.append(result)
+    return result

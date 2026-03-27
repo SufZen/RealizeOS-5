@@ -14,6 +14,9 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
+# Maximum PDF file size (50MB)
+MAX_PDF_SIZE = 50 * 1024 * 1024
+
 
 async def extract_from_url(url: str, max_chars: int = 15000) -> dict:
     """
@@ -81,6 +84,17 @@ def extract_from_pdf(file_path: Path, max_chars: int = 30000) -> dict:
     Returns:
         {title, content, pages, char_count, extracted_at}
     """
+    # File size guard
+    try:
+        file_size = file_path.stat().st_size
+        if file_size > MAX_PDF_SIZE:
+            return {
+                "error": f"PDF too large ({file_size} bytes, limit {MAX_PDF_SIZE})",
+                "path": str(file_path),
+            }
+    except OSError as e:
+        return {"error": f"Cannot access file: {e}", "path": str(file_path)}
+
     text_parts = []
     pages = 0
 

@@ -94,6 +94,17 @@ export function register(program: Command) {
       console.log(chalk.dim(`   Target: ${targetDir}`));
       console.log();
 
+      // Check Docker availability (warning only — user can install later)
+      try {
+        const { execa: execaFn } = await import("execa");
+        await execaFn("docker", ["compose", "version"]);
+      } catch {
+        console.log(chalk.yellow("⚠  Docker Compose not detected."));
+        console.log(chalk.dim("   Install Docker Desktop: https://docker.com"));
+        console.log(chalk.dim("   You'll need it before running 'npx realize-os start'"));
+        console.log();
+      }
+
       // 1. Create directories
       spinner.start("Creating project structure...");
       const dirs = [

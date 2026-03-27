@@ -11,12 +11,9 @@ Covers:
 - Truncation for long goals
 """
 
-from pathlib import Path
 
 import pytest
-
-from realize_core.prompt.goal import load_goal, goal_to_prompt, _read_goal
-
+from realize_core.prompt.goal import _read_goal, goal_to_prompt, load_goal
 
 # ---------------------------------------------------------------------------
 #  Fixtures

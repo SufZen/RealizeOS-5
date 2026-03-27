@@ -31,6 +31,13 @@ from realize_api.routes import (
     routing,
     security,
     settings,
+    settings_llm,
+    settings_memory,
+    settings_reports,
+    settings_security,
+    settings_skills,
+    settings_tools,
+    settings_trust,
     setup,
     storage_settings,
     systems,
@@ -286,6 +293,13 @@ def create_app() -> FastAPI:
     app.include_router(approvals.router, prefix="/api", tags=["Approvals"])
     app.include_router(evolution.router, prefix="/api", tags=["Evolution"])
     app.include_router(settings.router, prefix="/api", tags=["Settings"])
+    app.include_router(settings_llm.router, prefix="/api", tags=["Settings LLM"])
+    app.include_router(settings_memory.router, prefix="/api", tags=["Settings Memory"])
+    app.include_router(settings_reports.router, prefix="/api", tags=["Settings Reports"])
+    app.include_router(settings_security.router, prefix="/api", tags=["Settings Security"])
+    app.include_router(settings_skills.router, prefix="/api", tags=["Settings Skills"])
+    app.include_router(settings_tools.router, prefix="/api", tags=["Settings Tools"])
+    app.include_router(settings_trust.router, prefix="/api", tags=["Settings Trust"])
     app.include_router(webhooks.router, prefix="/api", tags=["Webhooks"])
     app.include_router(setup.router, prefix="/api", tags=["Setup"])
     # Sprint 3 — V2 API routes

@@ -202,20 +202,22 @@ def scaffold_venture(project_root: str | Path, key: str, name: str = "", descrip
         description: Optional description for the venture.
 
     Returns:
-        Dict with counts of created dirs and files.
+        Dict with 'created' bool, counts, and optional 'error' string.
     """
     root = Path(project_root)
     name = name or key.replace("-", " ").replace("_", " ").title()
     venture_dir = root / "systems" / key
-    stats = {"dirs_created": 0, "files_created": 0}
+    stats = {"created": False, "dirs_created": 0, "files_created": 0}
 
     if venture_dir.exists():
-        raise FileExistsError(f"Venture directory already exists: {venture_dir}")
+        stats["error"] = f"Venture directory already exists: {venture_dir}"
+        return stats
 
     # Find the template source (realize_lite/systems/my-business-1/)
     template_src = _find_venture_template()
     if not template_src:
-        raise FileNotFoundError("Venture template not found. Expected realize_lite/systems/my-business-1/")
+        stats["error"] = "Venture template not found. Expected realize_lite/systems/my-business-1/"
+        return stats
 
     # Copy the full FABRIC structure
     for item in template_src.rglob("*"):
@@ -232,13 +234,14 @@ def scaffold_venture(project_root: str | Path, key: str, name: str = "", descrip
     # Update realize-os.yaml to include the new venture
     _add_venture_to_config(root, key, name, description)
 
+    stats["created"] = True
     logger.info(f"Venture '{key}' scaffolded: {stats['dirs_created']} dirs, {stats['files_created']} files")
     return stats
 
 
 def delete_venture(project_root: str | Path, key: str, confirm_name: str = "") -> bool:
     """
-    Delete a venture directory and remove it from realize-os.yaml.
+    Delete a venture directory, clean up DB references, and remove from config.
 
     Args:
         project_root: Root directory of the project.
@@ -257,6 +260,9 @@ def delete_venture(project_root: str | Path, key: str, confirm_name: str = "") -
     if not venture_dir.exists():
         raise FileNotFoundError(f"Venture directory not found: {venture_dir}")
 
+    # Clean up DB references (sessions, activity) before removing files
+    _cleanup_venture_db_references(key)
+
     # Remove directory
     shutil.rmtree(venture_dir)
     logger.info(f"Deleted venture directory: {venture_dir}")
@@ -265,6 +271,35 @@ def delete_venture(project_root: str | Path, key: str, confirm_name: str = "") -
     _remove_venture_from_config(root, key)
 
     return True
+
+
+def _cleanup_venture_db_references(venture_key: str):
+    """Remove DB records associated with a deleted venture."""
+    try:
+        from realize_core.memory.store import db_connection
+
+        with db_connection() as conn:
+            # Clean up sessions for this venture
+            conn.execute("DELETE FROM sessions WHERE system_key = ?", (venture_key,))
+            # Clean up conversation history
+            try:
+                conn.execute(
+                    "DELETE FROM conversations WHERE system_key = ?",
+                    (venture_key,),
+                )
+            except Exception:
+                pass  # Table may not exist
+            # Clean up activity log
+            try:
+                conn.execute(
+                    "DELETE FROM activity_log WHERE venture_key = ?",
+                    (venture_key,),
+                )
+            except Exception:
+                pass  # Table may not exist
+        logger.info(f"Cleaned up DB references for venture '{venture_key}'")
+    except Exception as e:
+        logger.warning(f"DB cleanup for venture '{venture_key}' failed: {e}")
 
 
 def list_ventures(project_root: str | Path) -> list[dict]:

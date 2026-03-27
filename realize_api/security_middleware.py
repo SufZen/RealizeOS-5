@@ -25,6 +25,7 @@ logger = logging.getLogger(__name__)
 # Paths that bypass ALL security middleware (health probes, docs, static)
 _PUBLIC_PATHS = frozenset({
     "/health", "/status", "/docs", "/openapi.json", "/redoc",
+    "/api/health", "/api/status",
     "/favicon.svg", "/icons.svg",
 })
 
@@ -146,6 +147,20 @@ class InjectionGuardMiddleware(BaseHTTPMiddleware):
                             request.url.path,
                             result.risk_score,
                         )
+                        # Audit log needs_review events for security review
+                        try:
+                            from realize_core.security.audit import get_audit_logger
+                            audit = get_audit_logger()
+                            audit.log(
+                                user_id="system",
+                                action="injection_needs_review",
+                                outcome="flagged",
+                                details=f"Score: {result.risk_score:.2f}, path: {request.url.path}",
+                                ip_address=request.client.host if request.client else "",
+                                severity="warning",
+                            )
+                        except Exception:
+                            pass
             except Exception as exc:
                 # Fail open — don't block requests if scanning itself breaks
                 logger.debug("Injection scan failed: %s", exc)
@@ -239,6 +254,7 @@ class JWTAuthMiddleware(BaseHTTPMiddleware):
             from realize_core.security.jwt_auth import (
                 InvalidTokenError,
                 TokenExpiredError,
+                TokenRevokedError,
                 extract_bearer_token,
                 verify_token,
             )
@@ -262,6 +278,11 @@ class JWTAuthMiddleware(BaseHTTPMiddleware):
                 status_code=401,
                 content={"error": "invalid_token", "message": str(exc)},
             )
+        except TokenRevokedError:
+            return JSONResponse(
+                status_code=401,
+                content={"error": "token_revoked", "message": "This token has been revoked."},
+            )
         except Exception as exc:
             logger.debug("JWT verification failed: %s", exc)
             return JSONResponse(
@@ -270,3 +291,32 @@ class JWTAuthMiddleware(BaseHTTPMiddleware):
             )
 
         return await call_next(request)
+
+
+# ---------------------------------------------------------------------------
+# 5. Security Headers Middleware
+# ---------------------------------------------------------------------------
+
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """
+    Add standard security response headers to every API response.
+
+    Headers:
+    - X-Content-Type-Options: nosniff
+    - X-Frame-Options: DENY
+    - X-XSS-Protection: 1; mode=block
+    - Referrer-Policy: strict-origin-when-cross-origin
+    - Permissions-Policy: geolocation=(), camera=(), microphone=()
+    """
+
+    async def dispatch(self, request: Request, call_next) -> Response:
+        response = await call_next(request)
+
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Permissions-Policy"] = "geolocation=(), camera=(), microphone=()"
+
+        return response

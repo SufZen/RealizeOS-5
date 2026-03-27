@@ -186,6 +186,7 @@
             display: flex;
             gap: 1rem;
             margin-top: 1rem;
+            flex-wrap: wrap;
         }
 
         .btn {
@@ -263,6 +264,16 @@
             border: 1px solid var(--border);
         }
 
+        .tip-box {
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            border-radius: 8px;
+            padding: 0.75rem 1rem;
+            margin-top: 0.75rem;
+            font-size: 0.9rem;
+            color: #6ee7b7;
+        }
+
         @keyframes fadeInDown {
             from { opacity: 0; transform: translateY(-30px); }
             to { opacity: 1; transform: translateY(0); }
@@ -298,19 +309,19 @@
         <div class="glass-panel">
             <div class="stepper" id="stepper">
                 
-                <!-- Step 1 -->
+                <!-- Step 1: Python -->
                 <div class="step active" id="step1" onclick="activateStep(1)">
                     <div class="step-circle" id="circle1">1</div>
                     <div class="step-content">
                         <h3>Download Python</h3>
-                        <p>RealizeOS relies on Python to run its AI features. If you already have it installed, you can skip this step!</p>
-                        <p>If not, download logic is simple: go to the official Python website, download the latest version, and <strong>crucially, make sure you check the box that says "Add Python to PATH" during installation.</strong></p>
+                        <p>RealizeOS relies on Python to run its AI features. If you already have Python 3.11 or higher installed, you can skip this step!</p>
+                        <p>If not, go to the official Python website, download <strong>Python 3.12+</strong>, and <strong>crucially, make sure you check the box that says "Add Python to PATH" during installation.</strong></p>
                         
                         <div class="btn-group">
                             <a href="https://www.python.org/downloads/" target="_blank" style="text-decoration: none;">
                                 <button class="btn">
                                     <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
-                                    Download Python 3
+                                    Download Python 3.12+
                                 </button>
                             </a>
                             <button class="btn outline" onclick="completeStep(1, event)">I already have Python</button>
@@ -318,16 +329,36 @@
                     </div>
                 </div>
 
-                <!-- Step 2 -->
+                <!-- Step 2: Node.js (optional, for dashboard) -->
                 <div class="step" id="step2" onclick="activateStep(2)">
                     <div class="step-circle" id="circle2">2</div>
                     <div class="step-content">
+                        <h3>Install Node.js (for Dashboard)</h3>
+                        <p>The RealizeOS dashboard is a modern React app that needs Node.js 18+ to build. This is <strong>optional</strong> — the backend API works without it.</p>
+                        <p>Download and install Node.js LTS from the official website. The installer handles everything automatically.</p>
+                        
+                        <div class="btn-group">
+                            <a href="https://nodejs.org/en/download/" target="_blank" style="text-decoration: none;">
+                                <button class="btn">
+                                    <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+                                    Download Node.js LTS
+                                </button>
+                            </a>
+                            <button class="btn outline" onclick="completeStep(2, event)">Skip / I have Node.js</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 3: Extract -->
+                <div class="step" id="step3" onclick="activateStep(3)">
+                    <div class="step-circle" id="circle3">3</div>
+                    <div class="step-content">
                         <h3>Extract RealizeOS</h3>
-                        <p>Find the RealizeOS folder you downloaded (likely an extracted `.zip` file on your computer).</p>
+                        <p>Find the RealizeOS folder you downloaded (likely an extracted <code>.zip</code> file on your computer).</p>
                         <p>Simply extract the contents anywhere on your hard drive. Your <code>Desktop</code> or <code>Documents</code> folder is perfectly fine!</p>
                         
                         <div class="btn-group">
-                            <button class="btn" onclick="completeStep(2, event)">
+                            <button class="btn" onclick="completeStep(3, event)">
                                 <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
                                 Done, Extracted!
                             </button>
@@ -335,16 +366,40 @@
                     </div>
                 </div>
 
-                <!-- Step 3 -->
-                <div class="step" id="step3" onclick="activateStep(3)">
-                    <div class="step-circle" id="circle3">3</div>
+                <!-- Step 4: Configure -->
+                <div class="step" id="step4" onclick="activateStep(4)">
+                    <div class="step-circle" id="circle4">4</div>
+                    <div class="step-content">
+                        <h3>Configure API Keys</h3>
+                        <p>RealizeOS needs at least one LLM provider API key to function. You have two options:</p>
+                        <p><strong>Option A (Recommended):</strong> Open a terminal in the RealizeOS folder and run:</p>
+                        <div class="code-block">python cli.py setup</div>
+                        <p style="margin-top: 1rem;">This interactive wizard will guide you through configuration, install dependencies, and build the dashboard.</p>
+                        <p><strong>Option B (Manual):</strong> Copy <code>.env.example</code> to <code>.env</code> and fill in your API keys with a text editor.</p>
+                        
+                        <div class="btn-group">
+                            <button class="btn" onclick="completeStep(4, event)">
+                                <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+                                Done, Configured!
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 5: Launch -->
+                <div class="step" id="step5" onclick="activateStep(5)">
+                    <div class="step-circle" id="circle5">5</div>
                     <div class="step-content">
                         <h3>Launch the System</h3>
-                        <p>Everything is ready. Instead of relying on complicated terminal commands, we designed a simple one-click launcher for you.</p>
+                        <p>Everything is ready. We designed a simple one-click launcher for you.</p>
                         <p>Open your extracted RealizeOS folder and <strong>double-click the file named:</strong></p>
                         <div class="code-block">start-realizeos.bat</div>
-                        <p style="margin-top: 1rem; font-size: 0.9rem;"><em>(The very first time you click this, it may take 1-2 minutes to automatically download standard AI dependencies directly in the background. Please be patient while it initializes!)</em></p>
+                        <p style="margin-top: 1rem;"><em>(The very first time you click this, it may take 1-2 minutes to automatically download standard AI dependencies in the background. Please be patient!)</em></p>
                         
+                        <div class="tip-box">
+                            💡 <strong>Tip:</strong> You can also run <code>python cli.py serve</code> from a terminal for more control.
+                        </div>
+
                         <div class="btn-group">
                             <button class="btn" id="finishBtn" onclick="finish(event)">
                                 <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
@@ -362,6 +417,11 @@
                         <p>The system is now running locally on your computer. When you launch the .bat file, RealizeOS will load an icon into your system tray and serve the dashboard directly on your local browser.</p>
                         <p>You can access the dashboard manually any time at:</p>
                         <a href="http://localhost:8080" target="_blank" style="font-size: 1.25rem; font-weight: bold; margin-top: 0.5rem; display: inline-block;">http://localhost:8080</a>
+                        <div class="tip-box" style="margin-top: 1rem;">
+                            📋 <strong>Useful commands:</strong><br>
+                            <code>python cli.py doctor</code> — diagnose your installation<br>
+                            <code>python cli.py setup</code> — re-run the setup wizard
+                        </div>
                     </div>
                 </div>
 
@@ -401,9 +461,9 @@
         function finish(event) {
             if (event) event.stopPropagation();
             
-            // Complete step 3
-            document.getElementById('step3').classList.add('completed');
-            document.getElementById('step3').classList.remove('active');
+            // Complete step 5
+            document.getElementById('step5').classList.add('completed');
+            document.getElementById('step5').classList.remove('active');
             
             // Show Success Msg
             document.getElementById('success-state').classList.remove('hidden');

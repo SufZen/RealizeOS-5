@@ -94,6 +94,16 @@ def reconfigure(config: dict) -> BaseStorageProvider:
     Resets singletons and creates new provider(s).
     """
     global _primary, _sync_manager
+
+    # Close old sync manager's DB connection to prevent leaks
+    if _sync_manager is not None:
+        try:
+            if hasattr(_sync_manager, 'db_conn') and _sync_manager.db_conn:
+                _sync_manager.db_conn.close()
+                logger.debug("Closed old sync manager DB connection")
+        except Exception as exc:
+            logger.debug("Failed to close old sync DB: %s", exc)
+
     _primary = None
     _sync_manager = None
     return get_storage_provider(config)

@@ -109,11 +109,20 @@ def detect_format(path: Path | str) -> str:
 
 # Regex to match markdown headers like: ## Role, ## Core Capabilities
 _MD_HEADER_RE = re.compile(r"^##\s+(.+)$", re.MULTILINE)
+_FRONTMATTER_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n", re.DOTALL)
 
 
 def _load_v1(path: Path) -> V1AgentDef:
     """Parse a V1 markdown agent file into a V1AgentDef."""
     content = path.read_text(encoding="utf-8")
+    if not content.strip():
+        raise ValueError(f"Empty agent file: {path}")
+
+    # Strip YAML frontmatter if present
+    fm_match = _FRONTMATTER_RE.match(content)
+    if fm_match:
+        content = content[fm_match.end():]
+
     key = path.stem.replace("-", "_")
 
     # Extract name from top-level heading

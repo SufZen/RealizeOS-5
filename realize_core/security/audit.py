@@ -13,8 +13,10 @@ Provides:
 import json
 import logging
 import os
+import shutil
 import time
 from dataclasses import asdict, dataclass, field
+from datetime import datetime
 from pathlib import Path
 from threading import Lock
 
@@ -72,15 +74,21 @@ class AuditLogger:
         self,
         max_entries: int = 10000,
         log_dir: str | Path | None = None,
+        max_log_size_mb: int = 10,
+        max_log_files: int = 30,
     ):
         self._entries: list[AuditEvent] = []
         self._max_entries = max_entries
         self._lock = Lock()
         self._log_file: Path | None = None
+        self._log_dir: Path | None = None
+        self._max_log_size = max_log_size_mb * 1024 * 1024  # Convert to bytes
+        self._max_log_files = max_log_files
 
         # Set up file logging
         if log_dir:
-            self._log_file = Path(log_dir) / "audit.jsonl"
+            self._log_dir = Path(log_dir)
+            self._log_file = self._log_dir / "audit.jsonl"
             self._log_file.parent.mkdir(parents=True, exist_ok=True)
 
     # ---- Logging ----
@@ -132,6 +140,7 @@ class AuditLogger:
         # Persist to file (best-effort)
         if self._log_file:
             try:
+                self._rotate_log_if_needed()
                 with open(self._log_file, "a", encoding="utf-8") as f:
                     f.write(event.to_json() + "\n")
             except OSError as exc:
@@ -157,6 +166,36 @@ class AuditLogger:
             )
 
         return event
+
+    def _rotate_log_if_needed(self) -> None:
+        """Rotate the log file if it exceeds the max size."""
+        if not self._log_file or not self._log_file.exists():
+            return
+        try:
+            if self._log_file.stat().st_size >= self._max_log_size:
+                ts = datetime.now().strftime("%Y%m%d-%H%M%S")
+                archive_name = self._log_file.parent / f"audit-{ts}.jsonl"
+                shutil.move(str(self._log_file), str(archive_name))
+                logger.info("Rotated audit log → %s", archive_name.name)
+                self._prune_old_logs()
+        except OSError as exc:
+            logger.warning("Audit log rotation failed: %s", exc)
+
+    def _prune_old_logs(self) -> None:
+        """Remove old rotated log files beyond the retention limit."""
+        if not self._log_dir:
+            return
+        archives = sorted(
+            self._log_dir.glob("audit-*.jsonl"),
+            key=lambda p: p.stat().st_mtime,
+            reverse=True,
+        )
+        for old_file in archives[self._max_log_files:]:
+            try:
+                old_file.unlink()
+                logger.info("Pruned old audit log: %s", old_file.name)
+            except OSError:
+                pass
 
     # ---- Convenience methods ----
 

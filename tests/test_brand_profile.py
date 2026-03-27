@@ -14,14 +14,12 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-
 from realize_core.prompt.brand import (
     BrandProfile,
     brand_to_prompt,
     load_brand_profile,
     resolve_brand,
 )
-
 
 # ---------------------------------------------------------------------------
 # BrandProfile model

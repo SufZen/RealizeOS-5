@@ -13,17 +13,15 @@ Covers:
 """
 
 import pytest
-
 from realize_core.prompt.brief import (
-    generate_session_brief,
-    get_or_generate_brief,
-    clear_brief_cache,
     _build_activity_section,
-    _build_tasks_section,
     _build_approvals_section,
     _build_kb_changes_section,
+    _build_tasks_section,
+    clear_brief_cache,
+    generate_session_brief,
+    get_or_generate_brief,
 )
-
 
 # ---------------------------------------------------------------------------
 #  Fixtures
@@ -223,7 +221,7 @@ class TestBriefCaching:
         assert brief1 != brief2
 
     def test_clear_cache(self, sample_tasks):
-        brief1 = get_or_generate_brief("session-1", "test", pending_tasks=sample_tasks)
+        _ = get_or_generate_brief("session-1", "test", pending_tasks=sample_tasks)
         clear_brief_cache()
         brief2 = get_or_generate_brief("session-1", "test")
         assert brief2 == ""  # No tasks provided after cache clear

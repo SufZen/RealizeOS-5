@@ -152,19 +152,27 @@ class AgentRegistry:
 
     def reload(self) -> int:
         """
-        Re-scan all previously loaded directories and refresh.
+        Re-scan all previously loaded directories and refresh atomically.
 
         Returns:
             Total number of agents after reload.
         """
         with self._lock:
             dirs = list(self._source_dirs)
-            self._agents.clear()
 
-        total = 0
+        new_agents: dict[str, AgentDef] = {}
         for d in dirs:
-            total += self.load_from_directory(d)
+            agents = load_agents_from_directory(d)
+            for agent in agents:
+                if agent.key in new_agents:
+                    logger.warning("Duplicate agent key '%s' — overwriting", agent.key)
+                new_agents[agent.key] = agent
 
+        with self._lock:
+            self._agents = new_agents
+            self._load_timestamp = time.time()
+
+        total = len(new_agents)
         logger.info("Registry reloaded: %d agents from %d directories", total, len(dirs))
         return total
 
@@ -185,3 +193,15 @@ class AgentRegistry:
         """Directories that have been loaded."""
         with self._lock:
             return list(self._source_dirs)
+
+    def health(self) -> dict:
+        """Return diagnostic health information for the registry."""
+        with self._lock:
+            return {
+                "agent_count": len(self._agents),
+                "v1_count": len(self.v1_agents()),
+                "v2_count": len(self.v2_agents()),
+                "source_dirs": [str(d) for d in self._source_dirs],
+                "last_load_timestamp": self._load_timestamp,
+                "uptime_seconds": time.time() - self._load_timestamp if self._load_timestamp else 0.0,
+            }

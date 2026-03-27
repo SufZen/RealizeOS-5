@@ -110,6 +110,7 @@ class RoutingEngine:
         self._defaults: dict[str, str] = {}
         self._fallbacks: dict[str, list[str]] = {}
         self._cost_log: list[CostRecord] = []
+        self._cost_log_max_size = 10_000  # Prevent unbounded memory growth
         self._loaded = False
 
         if config_path:
@@ -348,6 +349,9 @@ class RoutingEngine:
             cost_usd=cost,
         )
         self._cost_log.append(record)
+        # FIFO eviction: cap the log to prevent unbounded memory growth
+        if len(self._cost_log) > self._cost_log_max_size:
+            self._cost_log = self._cost_log[-self._cost_log_max_size:]
         return record
 
     def get_cost_summary(self, last_n: int | None = None) -> dict:
@@ -377,6 +381,11 @@ class RoutingEngine:
             "by_modality": {k: round(v, 6) for k, v in sorted(by_modality.items())},
             "record_count": len(records),
         }
+
+    def get_hourly_cost(self) -> float:
+        """Get total cost from the last 60 minutes (for dashboard reporting)."""
+        cutoff = time.time() - 3600.0
+        return sum(r.cost_usd for r in self._cost_log if r.timestamp > cutoff)
 
     @property
     def models(self) -> dict[str, ModelCapability]:

@@ -8,9 +8,35 @@ own formatting, authentication, and transport — but delegates all intelligence
 
 import abc
 import logging
+import re
+import uuid
 from dataclasses import dataclass, field
 
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# XSS sanitisation — strip dangerous HTML from outbound text
+# ---------------------------------------------------------------------------
+
+_DANGEROUS_TAG_RE = re.compile(
+    r"<\s*/?\s*(script|iframe|object|embed|form|base|link|meta|style)\b[^>]*>",
+    re.IGNORECASE,
+)
+_EVENT_HANDLER_RE = re.compile(r"\bon\w+\s*=", re.IGNORECASE)
+_JAVASCRIPT_URI_RE = re.compile(r"javascript\s*:", re.IGNORECASE)
+
+
+def _sanitize_text(text: str) -> str:
+    """Strip script/iframe tags, event handlers, and javascript: URIs."""
+    text = _DANGEROUS_TAG_RE.sub("", text)
+    text = _EVENT_HANDLER_RE.sub("", text)
+    text = _JAVASCRIPT_URI_RE.sub("", text)
+    return text
+
+
+def _generate_message_id() -> str:
+    """Generate a short unique message ID."""
+    return uuid.uuid4().hex[:16]
 
 
 @dataclass
@@ -19,6 +45,7 @@ class IncomingMessage:
 
     user_id: str
     text: str
+    message_id: str = ""  # Auto-generated if empty
     system_key: str = ""  # Which system to route to (if known)
     channel: str = "api"  # Channel identifier (telegram, api, slack, etc.)
     topic_id: str = ""  # Thread/topic ID (for forums, groups)
@@ -28,6 +55,10 @@ class IncomingMessage:
     file_name: str = ""  # Attached file name
     metadata: dict = field(default_factory=dict)  # Channel-specific metadata
 
+    def __post_init__(self):
+        if not self.message_id:
+            self.message_id = _generate_message_id()
+
 
 @dataclass
 class OutgoingMessage:
@@ -35,9 +66,14 @@ class OutgoingMessage:
 
     text: str
     user_id: str
+    message_id: str = ""  # Auto-generated if empty
     channel: str = "api"
     metadata: dict = field(default_factory=dict)  # Channel-specific metadata
     files: list = field(default_factory=list)  # Attached files to send back
+
+    def __post_init__(self):
+        if not self.message_id:
+            self.message_id = _generate_message_id()
 
 
 class BaseChannel(abc.ABC):
@@ -80,6 +116,19 @@ class BaseChannel(abc.ABC):
         """
         return ""
 
+    def health_check(self) -> dict:
+        """
+        Return channel health status.
+
+        Override in subclasses to add channel-specific health indicators.
+        Returns dict with at minimum: {"name": str, "healthy": bool, "details": dict}
+        """
+        return {
+            "name": self.channel_name,
+            "healthy": True,
+            "details": {},
+        }
+
     async def handle_incoming(self, message: IncomingMessage) -> OutgoingMessage:
         """
         Process an incoming message through the RealizeOS engine.
@@ -102,7 +151,7 @@ class BaseChannel(abc.ABC):
         )
 
         return OutgoingMessage(
-            text=response_text,
+            text=_sanitize_text(response_text),
             user_id=message.user_id,
             channel=self.channel_name,
         )

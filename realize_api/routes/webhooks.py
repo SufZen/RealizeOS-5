@@ -40,18 +40,19 @@ async def receive_webhook(source: str, request: Request):
 
     # Verify webhook secret if configured
     webhook_secret = config.get("features", {}).get("webhook_secret", "")
+    body_bytes = await request.body()
     if webhook_secret:
         signature = request.headers.get("X-Webhook-Signature", "")
-        body_bytes = await request.body()
-        expected = hmac.new(webhook_secret.encode(), body_bytes, hashlib.sha256).hexdigest()
+        expected = hmac.HMAC(webhook_secret.encode(), body_bytes, hashlib.sha256).hexdigest()
         if not hmac.compare_digest(signature, expected):
             raise HTTPException(status_code=401, detail="Invalid webhook signature")
 
     try:
-        body = await request.json()
+        import json as _json
+        body = _json.loads(body_bytes)
     except Exception as exc:
         logger.debug("Webhook JSON parse failed, using raw body: %s", exc)
-        body = {"raw": (await request.body()).decode("utf-8", errors="replace")[:2000]}
+        body = {"raw": body_bytes.decode("utf-8", errors="replace")[:2000]}
 
     # Build event record
     event = {
