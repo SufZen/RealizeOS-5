@@ -21,6 +21,7 @@ env/
 .env
 .env.local
 .env.*.local
+.storage-config.json
 
 # IDE
 .vscode/
@@ -37,6 +38,7 @@ Thumbs.db
 *.db
 *.sqlite
 *.sqlite3
+data/
 
 # Node / Dashboard
 dashboard/node_modules/
@@ -92,6 +94,17 @@ desktop.ini
 # Production configs (never commit)
 realize-os.yaml
 !realize-os.example.yaml
+
+# AutoBuild results (dev artifacts)
+.autobuild/results/
+
+# Pytest output files
+pytest_output.txt
+pytest_full_output.txt
+pytest_pipeline_output.txt
+
+# Linter caches
+.ruff_cache/
 
 # Temporary launch strategy files
 launch-strategy.*
