@@ -4,6 +4,7 @@ Gemini LLM Provider: Wraps the existing gemini_client module behind BaseLLMProvi
 Supports text and vision via Google's Gemini API.
 """
 
+import asyncio
 import logging
 
 from realize_core.llm.base_provider import (
@@ -64,8 +65,9 @@ class GeminiProvider(BaseLLMProvider):
         model: str | None = None,
         max_tokens: int = 4096,
         temperature: float = 0.7,
+        timeout: float = 60.0,
     ) -> LLMResponse:
-        """Text completion via Gemini API."""
+        """Text completion via Gemini API with timeout enforcement."""
         from google import genai
 
         from realize_core.llm.gemini_client import _get_client
@@ -81,14 +83,17 @@ class GeminiProvider(BaseLLMProvider):
                 role = "user" if msg["role"] == "user" else "model"
                 contents.append(genai.types.Content(role=role, parts=[genai.types.Part(text=msg["content"])]))
 
-            response = await client.aio.models.generate_content(
-                model=model,
-                contents=contents,
-                config=genai.types.GenerateContentConfig(
-                    system_instruction=system_prompt,
-                    max_output_tokens=max_tokens,
-                    temperature=temperature,
+            response = await asyncio.wait_for(
+                client.aio.models.generate_content(
+                    model=model,
+                    contents=contents,
+                    config=genai.types.GenerateContentConfig(
+                        system_instruction=system_prompt,
+                        max_output_tokens=max_tokens,
+                        temperature=temperature,
+                    ),
                 ),
+                timeout=timeout,
             )
 
             # Extract usage
@@ -113,6 +118,15 @@ class GeminiProvider(BaseLLMProvider):
                 output_tokens=output_tokens,
                 cost_usd=cost,
                 raw=response,
+            )
+
+        except TimeoutError:
+            logger.error(f"Gemini API call timed out after {timeout}s")
+            return LLMResponse(
+                text="Request timed out. Please try again.",
+                model=model,
+                provider=self.name,
+                error="timeout",
             )
 
         except Exception as e:

@@ -21,56 +21,68 @@ logger = logging.getLogger(__name__)
 _embedder = None
 _embedder_available = None
 
+# Max file size for indexing (1 MB) — skip larger files to prevent memory issues
+MAX_INDEX_FILE_SIZE = 1_048_576
+
+# Supported file extensions for indexing
+SUPPORTED_EXTENSIONS = {"*.md", "*.yaml", "*.yml", "*.txt"}
+
 
 def _get_conn(db_path: Path) -> sqlite3.Connection:
-    """Get a SQLite connection."""
+    """Get a SQLite connection with WAL mode and busy_timeout."""
     db_path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(str(db_path))
+    conn = sqlite3.connect(str(db_path), timeout=10)
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA foreign_keys=ON")
+    conn.execute("PRAGMA busy_timeout=5000")
+    conn.execute("PRAGMA synchronous=NORMAL")
     return conn
 
 
 def _init_index_db(db_path: Path):
     """Create the index tables."""
     conn = _get_conn(db_path)
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS kb_files (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            path TEXT UNIQUE NOT NULL,
-            title TEXT,
-            system_key TEXT,
-            content TEXT,
-            embedding BLOB,
-            file_mtime REAL DEFAULT 0,
-            last_indexed TEXT
-        )
-    """)
-    conn.execute("""
-        CREATE VIRTUAL TABLE IF NOT EXISTS kb_fts
-        USING fts5(path, title, content, system_key, content='kb_files', content_rowid='id')
-    """)
-    conn.execute("""
-        CREATE TRIGGER IF NOT EXISTS kb_ai AFTER INSERT ON kb_files BEGIN
-            INSERT INTO kb_fts(rowid, path, title, content, system_key)
-            VALUES (new.id, new.path, new.title, new.content, new.system_key);
-        END
-    """)
-    conn.execute("""
-        CREATE TRIGGER IF NOT EXISTS kb_ad AFTER DELETE ON kb_files BEGIN
-            INSERT INTO kb_fts(kb_fts, rowid, path, title, content, system_key)
-            VALUES ('delete', old.id, old.path, old.title, old.content, old.system_key);
-        END
-    """)
-    conn.execute("""
-        CREATE TRIGGER IF NOT EXISTS kb_au AFTER UPDATE ON kb_files BEGIN
-            INSERT INTO kb_fts(kb_fts, rowid, path, title, content, system_key)
-            VALUES ('delete', old.id, old.path, old.title, old.content, old.system_key);
-            INSERT INTO kb_fts(rowid, path, title, content, system_key)
-            VALUES (new.id, new.path, new.title, new.content, new.system_key);
-        END
-    """)
-    conn.commit()
-    conn.close()
+    try:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS kb_files (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                path TEXT UNIQUE NOT NULL,
+                title TEXT,
+                system_key TEXT,
+                content TEXT,
+                embedding BLOB,
+                file_mtime REAL DEFAULT 0,
+                last_indexed TEXT
+            )
+        """)
+        conn.execute("""
+            CREATE VIRTUAL TABLE IF NOT EXISTS kb_fts
+            USING fts5(path, title, content, system_key, content='kb_files', content_rowid='id')
+        """)
+        conn.execute("""
+            CREATE TRIGGER IF NOT EXISTS kb_ai AFTER INSERT ON kb_files BEGIN
+                INSERT INTO kb_fts(rowid, path, title, content, system_key)
+                VALUES (new.id, new.path, new.title, new.content, new.system_key);
+            END
+        """)
+        conn.execute("""
+            CREATE TRIGGER IF NOT EXISTS kb_ad AFTER DELETE ON kb_files BEGIN
+                INSERT INTO kb_fts(kb_fts, rowid, path, title, content, system_key)
+                VALUES ('delete', old.id, old.path, old.title, old.content, old.system_key);
+            END
+        """)
+        conn.execute("""
+            CREATE TRIGGER IF NOT EXISTS kb_au AFTER UPDATE ON kb_files BEGIN
+                INSERT INTO kb_fts(kb_fts, rowid, path, title, content, system_key)
+                VALUES ('delete', old.id, old.path, old.title, old.content, old.system_key);
+                INSERT INTO kb_fts(rowid, path, title, content, system_key)
+                VALUES (new.id, new.path, new.title, new.content, new.system_key);
+            END
+        """)
+        conn.commit()
+    finally:
+        conn.close()
 
 
 def _get_embedder():
@@ -174,9 +186,24 @@ def _build_search_dirs(kb_path: Path) -> list[str]:
     return dirs
 
 
+def _is_safe_path(path: Path, root: Path) -> bool:
+    """Check that a path is within root and not a symlink loop."""
+    try:
+        resolved = path.resolve()
+        resolved.relative_to(root.resolve())
+        return True
+    except (ValueError, OSError):
+        return False
+
+
+def _escape_like(query: str) -> str:
+    """Escape special characters for SQLite LIKE patterns."""
+    return query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
 def index_kb_files(kb_root: str, db_path: Path = None, force: bool = False) -> int:
     """
-    Walk all .md files in KB directories, index their content and embeddings.
+    Walk supported files in KB directories, index their content and embeddings.
     Uses incremental indexing — only re-indexes files whose mtime changed.
 
     Args:
@@ -193,6 +220,14 @@ def index_kb_files(kb_root: str, db_path: Path = None, force: bool = False) -> i
 
     _init_index_db(db_path)
     conn = _get_conn(db_path)
+    try:
+        return _do_index(conn, kb_path, force)
+    finally:
+        conn.close()
+
+
+def _do_index(conn: sqlite3.Connection, kb_path: Path, force: bool) -> int:
+    """Internal indexing implementation with guaranteed connection cleanup."""
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     count = 0
 
@@ -210,32 +245,73 @@ def index_kb_files(kb_root: str, db_path: Path = None, force: bool = False) -> i
 
     file_data = []
     skipped = 0
+    seen_paths: set[str] = set()
 
     for search_dir in search_dirs:
         dir_path = kb_path / search_dir
         if not dir_path.exists():
             continue
 
-        for md_file in dir_path.rglob("*.md"):
-            try:
-                rel_path = str(md_file.relative_to(kb_path))
-                current_mtime = md_file.stat().st_mtime
-
-                if not force and rel_path in existing_mtimes:
-                    if current_mtime <= existing_mtimes[rel_path]:
-                        skipped += 1
+        for ext_pattern in SUPPORTED_EXTENSIONS:
+            for found_file in dir_path.rglob(ext_pattern):
+                try:
+                    # Symlink safety: ensure resolved path is within kb_path
+                    if found_file.is_symlink() and not _is_safe_path(found_file, kb_path):
+                        logger.debug("Skipping symlink outside KB root: %s", found_file)
                         continue
 
-                content = md_file.read_text(encoding="utf-8")
-                title = _extract_title(content, rel_path)
-                system_key = _detect_system(rel_path)
-                indexed_content = content[:5000]
-                file_data.append((rel_path, title, system_key, indexed_content, current_mtime))
-            except Exception as e:
-                logger.warning(f"Failed to read {md_file}: {e}")
+                    # Skip files larger than MAX_INDEX_FILE_SIZE
+                    file_size = found_file.stat().st_size
+                    if file_size > MAX_INDEX_FILE_SIZE:
+                        logger.debug("Skipping large file (%d bytes): %s", file_size, found_file)
+                        continue
+
+                    rel_path = str(found_file.relative_to(kb_path))
+
+                    # Deduplicate (a file might match multiple patterns)
+                    if rel_path in seen_paths:
+                        continue
+                    seen_paths.add(rel_path)
+
+                    current_mtime = found_file.stat().st_mtime
+
+                    if not force and rel_path in existing_mtimes:
+                        if current_mtime <= existing_mtimes[rel_path]:
+                            skipped += 1
+                            continue
+
+                    # Read with encoding error fallback
+                    try:
+                        content = found_file.read_text(encoding="utf-8")
+                    except UnicodeDecodeError:
+                        try:
+                            content = found_file.read_text(encoding="utf-8", errors="replace")
+                            logger.debug("Read with replacement chars: %s", found_file)
+                        except Exception:
+                            logger.warning("Failed to read file with any encoding: %s", found_file)
+                            continue
+
+                    title = _extract_title(content, rel_path)
+                    system_key = _detect_system(rel_path)
+                    indexed_content = content[:5000]
+                    file_data.append((rel_path, title, system_key, indexed_content, current_mtime))
+                except Exception as e:
+                    logger.warning(f"Failed to read {found_file}: {e}")
+
+    # Clean up stale entries (files that no longer exist on disk)
+    try:
+        all_indexed = conn.execute("SELECT path FROM kb_files").fetchall()
+        for row in all_indexed:
+            indexed_path = row["path"]
+            full_path = kb_path / indexed_path
+            if not full_path.exists():
+                conn.execute("DELETE FROM kb_files WHERE path = ?", (indexed_path,))
+                logger.debug("Removed stale index entry: %s", indexed_path)
+    except Exception as e:
+        logger.warning(f"Failed to clean stale entries: {e}")
 
     if not file_data:
-        conn.close()
+        conn.commit()  # Commit any stale entry deletions
         logger.info(f"KB index: 0 files changed ({skipped} unchanged)")
         return 0
 
@@ -279,7 +355,6 @@ def index_kb_files(kb_root: str, db_path: Path = None, force: bool = False) -> i
             logger.warning(f"Failed to index {rel_path}: {e}")
 
     conn.commit()
-    conn.close()
     mode = "hybrid (vector+keyword)" if embeddings_map else "keyword-only (FTS5)"
     logger.info(f"Indexed {count} KB files ({skipped} unchanged) [{mode}]")
     return count
@@ -313,17 +388,17 @@ def semantic_search(
     _init_index_db(db_path)
     conn = _get_conn(db_path)
 
-    fts_results = _fts_search(conn, query, system_key, top_k=top_k * 2)
-    query_embedding = _embed_text(query)
+    try:
+        fts_results = _fts_search(conn, query, system_key, top_k=top_k * 2)
+        query_embedding = _embed_text(query)
 
-    if query_embedding is not None:
-        vector_results = _vector_search(conn, query_embedding, system_key, top_k=top_k * 2)
-        results = _merge_hybrid(fts_results, vector_results, top_k)
+        if query_embedding is not None:
+            vector_results = _vector_search(conn, query_embedding, system_key, top_k=top_k * 2)
+            return _merge_hybrid(fts_results, vector_results, top_k)
+
+        return fts_results[:top_k]
+    finally:
         conn.close()
-        return results
-
-    conn.close()
-    return fts_results[:top_k]
 
 
 def _fts_search(conn, query: str, system_key: str = None, top_k: int = 10) -> list[dict]:
@@ -361,8 +436,13 @@ def _fts_search(conn, query: str, system_key: str = None, top_k: int = 10) -> li
         return results
 
     except sqlite3.OperationalError:
-        sql = "SELECT path, title, system_key, substr(content, 1, 200) as snippet FROM kb_files WHERE content LIKE ? OR title LIKE ?"
-        params = [f"%{query}%", f"%{query}%"]
+        # Fallback to LIKE search — escape special chars to prevent injection
+        escaped_query = _escape_like(query)
+        sql = (
+            "SELECT path, title, system_key, substr(content, 1, 200) as snippet "
+            "FROM kb_files WHERE content LIKE ? ESCAPE '\\' OR title LIKE ? ESCAPE '\\'"
+        )
+        params: list = [f"%{escaped_query}%", f"%{escaped_query}%"]
         if system_key:
             sql += " AND system_key = ?"
             params.append(system_key)

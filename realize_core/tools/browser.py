@@ -15,13 +15,60 @@ Tools:
 
 import asyncio
 import base64
+import ipaddress
 import logging
 import os
+import time
+from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
 
 BROWSER_HEADLESS = os.environ.get("BROWSER_HEADLESS", "true").lower() == "true"
 BROWSER_TIMEOUT = int(os.environ.get("BROWSER_TIMEOUT", "30"))
+MAX_SESSION_AGE = int(os.environ.get("BROWSER_MAX_SESSION_AGE", "3600"))  # 1 hour
+
+# SSRF protection: blocked protocols and private IP ranges
+_BLOCKED_SCHEMES = {"file", "ftp", "gopher", "data", "javascript"}
+
+
+def _validate_url(url: str) -> str | None:
+    """
+    Validate URL for SSRF protection.
+
+    Returns error string if blocked, None if safe.
+    """
+    try:
+        parsed = urlparse(url)
+    except Exception:
+        return "Invalid URL format"
+
+    # Block dangerous protocols
+    scheme = (parsed.scheme or "").lower()
+    if scheme in _BLOCKED_SCHEMES:
+        return f"Blocked protocol: {scheme}://"
+    if scheme not in ("http", "https", ""):
+        return f"Unsupported protocol: {scheme}://"
+
+    # Resolve hostname to check for private IPs
+    hostname = parsed.hostname or ""
+    if not hostname:
+        return "No hostname in URL"
+
+    # Block common private/internal hostnames
+    blocked_hosts = {"localhost", "metadata.google.internal", "169.254.169.254"}
+    if hostname.lower() in blocked_hosts:
+        return f"Blocked internal hostname: {hostname}"
+
+    try:
+        ip = ipaddress.ip_address(hostname)
+        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
+            return f"Blocked private/internal IP: {hostname}"
+    except ValueError:
+        # Not an IP literal — hostname is fine (DNS resolution is at browser level)
+        pass
+
+    return None
+
 
 # Browser context pool: {user_id: BrowserSession}
 _sessions: dict[str, "BrowserSession"] = {}
@@ -36,6 +83,7 @@ class BrowserSession:
         self.page = None
         self._playwright = None
         self._initialized = False
+        self._created_at = time.time()
 
     async def ensure_started(self):
         if self._initialized and self.page and not self.page.is_closed():
@@ -60,6 +108,8 @@ class BrowserSession:
         except ImportError:
             raise RuntimeError("Playwright not installed. Run: pip install playwright && playwright install chromium")
         except Exception as e:
+            # Clean up partial state to prevent zombie processes
+            await self.close()
             raise RuntimeError(f"Failed to start browser: {str(e)[:200]}")
 
     async def close(self):
@@ -80,6 +130,12 @@ class BrowserSession:
 
 
 async def _get_session(user_id: str) -> BrowserSession:
+    if user_id in _sessions:
+        session = _sessions[user_id]
+        # Check for idle timeout
+        if time.time() - session._created_at > MAX_SESSION_AGE:
+            logger.info(f"Session for user {user_id} expired (max age {MAX_SESSION_AGE}s)")
+            await close_session(user_id)
     if user_id not in _sessions:
         _sessions[user_id] = BrowserSession()
     session = _sessions[user_id]
@@ -108,6 +164,11 @@ async def cleanup_all_sessions():
 
 
 async def browser_navigate(url: str, user_id: str = "0") -> dict:
+    # SSRF protection: validate URL before opening
+    url_error = _validate_url(url)
+    if url_error:
+        return {"error": f"URL blocked: {url_error}", "url": url}
+
     session = await _get_session(user_id)
     try:
         await session.page.goto(url, wait_until="domcontentloaded")

@@ -9,11 +9,49 @@ import hashlib
 import hmac
 import logging
 import os
+import time
+from collections import OrderedDict
 from typing import Any
 
 from realize_core.channels.base import BaseChannel, IncomingMessage, OutgoingMessage
 
 logger = logging.getLogger(__name__)
+
+# Maximum number of message IDs to remember for deduplication
+_DEDUP_MAX_SIZE = 10_000
+# How long (seconds) to keep a message ID for dedup
+_DEDUP_TTL = 600  # 10 minutes
+
+
+class _BoundedTTLSet:
+    """A bounded set with TTL-based expiry for message deduplication."""
+
+    def __init__(self, max_size: int = _DEDUP_MAX_SIZE, ttl: float = _DEDUP_TTL):
+        self._data: OrderedDict[str, float] = OrderedDict()
+        self._max_size = max_size
+        self._ttl = ttl
+
+    def add(self, key: str) -> bool:
+        """Add key. Returns True if it was new (not a duplicate)."""
+        now = time.time()
+        self._evict(now)
+        if key in self._data:
+            return False  # Duplicate
+        self._data[key] = now
+        if len(self._data) > self._max_size:
+            self._data.popitem(last=False)
+        return True
+
+    def _evict(self, now: float):
+        while self._data:
+            oldest_key, oldest_ts = next(iter(self._data.items()))
+            if now - oldest_ts > self._ttl:
+                self._data.popitem(last=False)
+            else:
+                break
+
+    def __len__(self) -> int:
+        return len(self._data)
 
 
 class WhatsAppChannel(BaseChannel):
@@ -47,6 +85,7 @@ class WhatsAppChannel(BaseChannel):
         self.verify_token = verify_token or os.getenv("WHATSAPP_VERIFY_TOKEN", "realize-os")
         self.app_secret = app_secret or os.getenv("WHATSAPP_APP_SECRET", "")
         self.system_key = system_key
+        self._seen_messages = _BoundedTTLSet()
 
     async def start(self):
         """WhatsApp channel is webhook-driven, start just validates config."""
@@ -90,9 +129,22 @@ class WhatsAppChannel(BaseChannel):
                     resp = await client.post(url, json=payload, headers=headers)
                     resp.raise_for_status()
                 except httpx.HTTPStatusError as e:
-                    self.logger.error(f"WhatsApp send error: {e.response.status_code} {e.response.text[:200]}")
+                    self._handle_api_error(e.response.status_code, e.response.text[:300])
                 except Exception as e:
                     self.logger.error(f"WhatsApp send error: {e}")
+
+    def _handle_api_error(self, status_code: int, body: str):
+        """Map WhatsApp API error codes to actionable log messages."""
+        if "131047" in body:
+            self.logger.error("WhatsApp rate limit exceeded — throttle outbound messages")
+        elif "131026" in body:
+            self.logger.error("WhatsApp recipient not registered on WhatsApp")
+        elif "131051" in body:
+            self.logger.error("WhatsApp media upload failed")
+        elif status_code == 401:
+            self.logger.error("WhatsApp access token invalid or expired — refresh required")
+        else:
+            self.logger.error(f"WhatsApp API error {status_code}: {body}")
 
     def format_instructions(self) -> str:
         """WhatsApp-specific formatting rules."""
@@ -104,6 +156,19 @@ class WhatsAppChannel(BaseChannel):
             "Avoid markdown headers, tables, or code blocks — WhatsApp doesn't support them. "
             "Maximum 4096 characters per message."
         )
+
+    def health_check(self) -> dict:
+        """Return WhatsApp channel health status."""
+        configured = bool(self.phone_number_id and self.access_token)
+        return {
+            "name": self.channel_name,
+            "healthy": configured,
+            "details": {
+                "configured": configured,
+                "has_app_secret": bool(self.app_secret),
+                "dedup_cache_size": len(self._seen_messages),
+            },
+        }
 
     # -----------------------------------------------------------------------
     # Webhook handling
@@ -138,6 +203,7 @@ class WhatsAppChannel(BaseChannel):
         Parse a WhatsApp webhook payload into IncomingMessage objects.
 
         A single webhook can contain multiple messages.
+        Automatically deduplicates messages by their WhatsApp message ID.
         """
         messages: list[IncomingMessage] = []
 
@@ -151,8 +217,14 @@ class WhatsAppChannel(BaseChannel):
                 contacts = {c["wa_id"]: c.get("profile", {}).get("name", "") for c in value.get("contacts", [])}
 
                 for msg in value.get("messages", []):
+                    msg_id = msg.get("id", "")
                     msg_type = msg.get("type", "")
                     wa_id = msg.get("from", "")
+
+                    # Deduplicate: skip if we've already seen this message
+                    if msg_id and not self._seen_messages.add(msg_id):
+                        self.logger.debug(f"Skipping duplicate WhatsApp message: {msg_id}")
+                        continue
 
                     if msg_type == "text":
                         messages.append(
@@ -163,7 +235,7 @@ class WhatsAppChannel(BaseChannel):
                                 channel="whatsapp",
                                 metadata={
                                     "wa_id": wa_id,
-                                    "message_id": msg.get("id", ""),
+                                    "message_id": msg_id,
                                     "timestamp": msg.get("timestamp", ""),
                                     "contact_name": contacts.get(wa_id, ""),
                                 },
@@ -182,7 +254,7 @@ class WhatsAppChannel(BaseChannel):
                                 image_media_type=image_info.get("mime_type", "image/jpeg"),
                                 metadata={
                                     "wa_id": wa_id,
-                                    "message_id": msg.get("id", ""),
+                                    "message_id": msg_id,
                                     "media_id": image_info.get("id", ""),
                                     "contact_name": contacts.get(wa_id, ""),
                                 },
@@ -191,6 +263,39 @@ class WhatsAppChannel(BaseChannel):
                     # Other types (audio, document, etc.) can be added later
 
         return messages
+
+    async def download_media(self, media_id: str) -> bytes | None:
+        """
+        Download media from WhatsApp by media ID.
+
+        Returns raw bytes of the media file, or None on failure.
+        """
+        import httpx
+
+        if not media_id or not self.access_token:
+            return None
+
+        headers = {"Authorization": f"Bearer {self.access_token}"}
+
+        try:
+            async with httpx.AsyncClient(timeout=30) as client:
+                # Step 1: Get the media URL
+                meta_resp = await client.get(
+                    f"{self.GRAPH_API_URL}/{media_id}",
+                    headers=headers,
+                )
+                meta_resp.raise_for_status()
+                media_url = meta_resp.json().get("url")
+                if not media_url:
+                    return None
+
+                # Step 2: Download the actual file
+                file_resp = await client.get(media_url, headers=headers)
+                file_resp.raise_for_status()
+                return file_resp.content
+        except Exception as e:
+            self.logger.error(f"Failed to download WhatsApp media {media_id}: {e}")
+            return None
 
 
 def _split_message(text: str, max_len: int = 4096) -> list[str]:
@@ -217,3 +322,4 @@ def _split_message(text: str, max_len: int = 4096) -> list[str]:
         text = text[split_at:].lstrip()
 
     return chunks
+

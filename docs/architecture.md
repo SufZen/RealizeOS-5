@@ -74,8 +74,8 @@ User Message
          │
          ▼
 ┌──────────────────┐
-│  Tool Execution  │  24 Google Workspace + Web Search
-│                  │  + Browser + MCP + Custom tools
+│  Tool Execution  │  Google Workspace + Stripe + MCP
+│                  │  + Browser + Web + Messaging + Approval
 └────────┬─────────┘
          │
          ▼
@@ -100,34 +100,48 @@ User Message
 | `base_handler.py` | Message processing pipeline |
 | `llm/` | Multi-provider LLM routing (Claude, Gemini, OpenAI, Ollama) |
 | `prompt/` | Multi-layer prompt assembly from FABRIC knowledge base |
-| `tools/` | Tool registry + implementations (Google Workspace, web, browser) |
-| `skills/` | YAML-based skill detection and execution |
-| `agents/` | V2 agent system — definitions, pipelines, handoffs |
-| `security/` | JWT authentication, RBAC roles, injection scanning, audit logging |
+| `tools/` | Tool registry + implementations (Google Workspace, Stripe, web, browser, MCP, messaging, social, telephony, approval, PM, docs) |
+| `skills/` | YAML-based skill detection and execution (v1 + v2) |
+| `agents/` | V2 agent system — definitions, pipelines, handoffs, guardrails |
+| `security/` | JWT authentication, RBAC (6 roles), injection scanning, audit logging, security scanner |
 | `storage/` | Pluggable storage providers (local filesystem, S3-compatible) |
+| `memory/` | Persistent memory store and learning log |
 | `scheduler/` | Agent lifecycle management and heartbeat |
-| `channels/` | Channel adapters (REST API, Telegram, WhatsApp) |
+| `channels/` | Channel adapters (REST API, Telegram, WhatsApp, Webhooks, Scheduler) |
 | `extensions/` | Extension registry, cron scheduler, event hooks |
 | `kb/` | Knowledge base indexing (FTS5 + vector embeddings) |
 | `evolution/` | Self-improvement: gap detection, skill suggestion |
 | `db/` | SQLite database utilities + migration system |
+| `governance/` | Approval workflows and human-in-the-loop gates |
+| `workflows/` | Workflow engine and execution |
+| `pipeline/` | Pipeline builder and session management |
+| `devmode/` | Developer mode (context generation, git safety, scaffolder, health check) |
+| `eval/` | Agent evaluation harness (YAML-based behavioral tests) |
+| `migration/` | Data migration engine |
+| `media/` | Media handling and processing |
+| `ingestion/` | Data ingestion pipelines |
+| `utils/` | Shared utilities (rate limiter, etc.) |
 
 ### `realize_api/` — FastAPI REST API
 
 | Component | Purpose |
 |-----------|---------|
 | `main.py` | Application factory, CORS, lifespan |
-| `routes/` | API endpoints (chat, systems, activity, setup, storage) |
-| `middleware/` | Security middleware chain (JWT → RBAC → rate limiting) |
+| `routes/` | 32 route modules (chat, auth, ventures, agents, workflows, approvals, extensions, webhooks, settings, security, devmode, etc.) |
+| `middleware/` | API key middleware |
+| `security_middleware.py` | 5-layer security stack (SecurityHeaders, Audit, RateLimit, InjectionGuard, JWT) |
 | `error_handlers.py` | Structured error responses with secret redaction |
 
 ### `dashboard/` — React Frontend
 
-React 19 + Vite + TypeScript + Tailwind CSS dashboard providing:
+React 19 + Vite 8 + TypeScript + Tailwind CSS 4 dashboard providing:
 - Real-time activity feed (SSE)
-- Venture management
-- Agent monitoring
+- Venture management (CRUD)
+- Agent monitoring and configuration
 - Chat interface
+- Settings management (LLM, security, tools, storage, memory)
+- State management with TanStack Query v5
+- Client-side routing with React Router v7
 
 ## Multi-LLM Routing
 
@@ -144,15 +158,18 @@ Providers are auto-discovered at startup from installed SDKs and configured API 
 ## Security Architecture
 
 ```
-Request → JWT Verification → RBAC Role Check → Rate Limiting
-    → Injection Scanning → Request Processing → Audit Logging
+Request → Security Headers → Audit Log → Rate Limiting
+    → Injection Scanning → JWT Verification → RBAC Role Check
+    → Request Processing → Response
 ```
 
-- **JWT**: HMAC-SHA256 tokens with role claims
-- **RBAC**: YAML-defined roles (owner, admin, user, guest)
-- **Injection Scanner**: Pattern-based + heuristic prompt injection detection
-- **Audit Log**: SQLite-backed activity log with SSE streaming
+- **Security Headers**: Content-Security-Policy, X-Frame-Options, etc. on all responses
+- **JWT**: HMAC-SHA256 tokens with role claims, refresh flow, token revocation
+- **RBAC**: 6 built-in roles (owner, admin, operator, user, viewer, guest) + custom YAML roles
+- **Injection Scanner**: Pattern-based + heuristic + Unicode normalization defense
+- **Audit Log**: JSONL persistent files with SSE streaming
 - **Secret Redaction**: Automatic in error responses and logs
+- **Security Scanner**: Automated posture checks at startup (API keys, JWT config, middleware, storage, DB permissions)
 
 ## Database
 

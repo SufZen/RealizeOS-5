@@ -15,7 +15,6 @@ import { useApi } from '@/hooks/use-api'
 import { AgentStatusBadge, type AgentStatus } from '@/components/agent-status-badge'
 import { OrgChart } from '@/components/org-chart'
 import { KBBrowser } from '@/components/kb-browser'
-import { useApi as useApiRaw } from '@/hooks/use-api'
 import { cn } from '@/lib/utils'
 
 interface FabricDir {
@@ -118,7 +117,7 @@ interface OrgTreeResponse {
 }
 
 function OrgChartSection({ ventureKey, agents }: { ventureKey: string; agents: Agent[] }) {
-  const { data } = useApiRaw<OrgTreeResponse>(`/ventures/${ventureKey}/org-tree`)
+  const { data } = useApi<OrgTreeResponse>(`/ventures/${ventureKey}/org-tree`)
 
   if (!data || data.tree.length === 0) return null
 

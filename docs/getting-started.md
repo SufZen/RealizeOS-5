@@ -25,23 +25,18 @@ Best for: Technical users, teams, businesses wanting the complete engine.
 
 **Setup time:** 30 minutes
 
-```bash
-# 1. Download, unzip, and install
-cd realize-os
-pip install -r requirements.txt
+### Full Edition Setup
 
-# 2. Initialize from a template
-python cli.py init --template consulting
+1. Clone the repository
+2. Copy `.env.example` to `.env` and add your API keys
+3. Run `python cli.py setup` (interactive wizard) or `python cli.py init --template consulting`
+4. Start: `python cli.py serve`
+5. Open http://localhost:8080
 
-# 3. Configure
-cp .env.example .env
-# Edit .env with your API keys
+> 💡 **Tip:** Use `python cli.py doctor` to diagnose any installation issues.
 
-# 4. Start the API server
-python cli.py serve
-```
-
-See [Full Guide](full-guide.md) for the complete walkthrough.
+> 📖 Full setup: [QUICKSTART.md](../QUICKSTART.md) | [Self-Hosting Guide](self-hosting-guide.md)
+> 🐳 Docker: [QUICKSTART.md](../QUICKSTART.md#step-1-pull--run)
 
 > **Tip:** You can also use the Venture Wizard in the Lite vault's `shared/venture-worksheet.md` to quickly define your venture identity and voice, then copy the generated files into your Full system's `F-foundations/` directory.
 
@@ -60,7 +55,9 @@ Each system's knowledge base follows the FABRIC structure:
 - **C-creations/** — Deliverables and outputs
 
 ### Agents
-Agents are AI team members with specialized roles. Each agent is defined by a markdown file that describes their expertise, personality, and working methods. The system automatically routes messages to the right agent.
+
+Specialized AI agents handle different aspects of your business:
+- Each agent has a SOUL persona, defined scope, preferred tools, and output format. Each agent is defined by a markdown file that describes their expertise, personality, and working methods. The system automatically routes messages to the right agent.
 
 Default agents:
 - **Orchestrator** — General coordinator and router
@@ -74,25 +71,24 @@ Skills are YAML-defined workflows that chain multiple steps together:
 - **v2 skills** — Multi-step workflows with tools, conditions, and human-in-the-loop steps
 
 ### Multi-LLM Routing
-RealizeOS automatically routes each request to the optimal AI model based on task complexity. Default routing:
-- Simple/quick tasks → Gemini Flash (fast, cheap)
-- Content/reasoning → Claude Sonnet (balanced)
-- Complex/strategic → Claude Opus (powerful)
+
+RealizeOS routes to different models based on task complexity:
+- **Flash** (Gemini) — Fast responses for simple queries
+- **Strategy** (Claude Sonnet) — Planning and strategic tasks
+- **Opus** (Claude Opus) — Complex reasoning and advanced problem-solving
 
 The provider registry supports Claude, Gemini, OpenAI, and Ollama. Available providers are auto-discovered at startup — configure any combination via API keys in `.env`.
 
 ## Quick API Test
 
-After starting the server:
+Quick test:
 
 ```bash
+# If using API key auth:
 curl -X POST http://localhost:8080/api/chat \
   -H "Content-Type: application/json" \
-  -d '{
-    "message": "Help me draft a strategy for Q2",
-    "system_key": "consulting",
-    "user_id": "test-user"
-  }'
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -d '{"message": "Hello!", "system_key": "consulting"}'
 ```
 
 ## Next Steps

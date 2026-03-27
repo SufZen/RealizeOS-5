@@ -39,6 +39,13 @@ class ProviderRegistry:
 
         if model_keys:
             for key, model_id in model_keys.items():
+                if key in self._model_map and self._model_map[key] != provider.name:
+                    logger.warning(
+                        f"Model key '{key}' already registered to provider "
+                        f"'{self._model_map[key]}', skipping re-registration "
+                        f"by '{provider.name}'"
+                    )
+                    continue
                 self._model_map[key] = provider.name
 
         logger.info(

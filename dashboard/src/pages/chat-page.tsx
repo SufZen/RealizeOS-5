@@ -150,7 +150,7 @@ export default function ChatPage() {
   const ventures = venturesData?.ventures || []
 
   return (
-    <div className="flex flex-col h-[calc(100vh-6rem)]">
+    <div className="flex flex-col h-[calc(100vh-3rem)] -m-6 p-6">
       {/* Header */}
       <div className="flex items-center justify-between gap-4 pb-4 border-b border-border shrink-0">
         <h1 className="text-2xl font-bold text-foreground">Chat</h1>
@@ -223,7 +223,7 @@ export default function ChatPage() {
         )}
 
         {messages.map((msg, i) => (
-          <ChatMessage key={i} msg={msg} />
+          <ChatMessage key={`${msg.timestamp}-${msg.role}-${i}`} msg={msg} />
         ))}
 
         {sending && <TypingIndicator />}

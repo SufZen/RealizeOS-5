@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Save, X, AlertCircle, Check, Trash2 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 
 interface Props {
   ventureKey: string
@@ -16,6 +17,7 @@ export function FileEditor({ ventureKey, filePath, initialContent, onClose, onSa
   const [content, setContent] = useState(initialContent)
   const [saving, setSaving] = useState(false)
   const [status, setStatus] = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
+  const [showConfirmDelete, setShowConfirmDelete] = useState(false)
   const isDirty = content !== initialContent
   const isYaml = filePath.endsWith('.yaml') || filePath.endsWith('.yml')
 
@@ -39,7 +41,7 @@ export function FileEditor({ ventureKey, filePath, initialContent, onClose, onSa
   }
 
   async function handleDelete() {
-    if (!confirm(`Delete ${filePath.split('/').pop()}? This cannot be undone.`)) return
+    setShowConfirmDelete(false)
     setSaving(true)
     try {
       await api.delete(`/ventures/${ventureKey}/kb/file?path=${encodeURIComponent(filePath)}`)
@@ -77,7 +79,7 @@ export function FileEditor({ ventureKey, filePath, initialContent, onClose, onSa
           )}
           {onDeleted && (
             <button
-              onClick={handleDelete}
+              onClick={() => setShowConfirmDelete(true)}
               disabled={saving}
               className="p-1.5 rounded-lg text-muted-foreground hover:text-red-400 transition-colors"
               title="Delete file"
@@ -116,6 +118,15 @@ export function FileEditor({ ventureKey, filePath, initialContent, onClose, onSa
           'text-sm text-foreground font-mono leading-relaxed resize-none',
           'focus:outline-none focus:ring-1 focus:ring-brand-400',
         )}
+      />
+      <ConfirmDialog
+        isOpen={showConfirmDelete}
+        title="Delete File"
+        message={`Delete ${filePath.split('/').pop()}? This cannot be undone.`}
+        isDestructive={true}
+        confirmText="Delete"
+        onConfirm={handleDelete}
+        onCancel={() => setShowConfirmDelete(false)}
       />
     </div>
   )

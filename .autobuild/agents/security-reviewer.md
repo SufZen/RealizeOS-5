@@ -63,7 +63,13 @@ Check:
 
 ## Output Format
 
+Before producing the final review, you MUST output a `<vulnerability_analysis>` XML block to explicitly evaluate potential security issues step-by-step. 
+
 ```markdown
+<vulnerability_analysis>
+[Your step-by-step security reasoning here...]
+</vulnerability_analysis>
+
 ## Security Review — [Intent Name]
 
 **Overall: [PASS / WARNING / CRITICAL]**
@@ -84,3 +90,8 @@ Check:
 - **CRITICAL findings** → Return to Orchestrator, force go back to Phase 3
 - **WARNING findings** → Document, include in review, let human decide
 - **Clean** → PASS, proceed to next review
+
+## Anti-Patterns (NEVER DO)
+
+- ❌ DO NOT comment on code style, formatting, or missing tests. Focus EXCLUSIVELY on security vulnerabilities.
+- ❌ DO NOT recommend architectural pattern changes unless they directly fix a critical security flaw.

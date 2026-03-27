@@ -99,7 +99,7 @@ def add_message(system_key: str, user_id: str, role: str, content: str, topic_id
 
 
 def clear_history(system_key: str, user_id: str, topic_id: str = ""):
-    """Clear conversation history for a specific user and system."""
+    """Clear conversation history for a specific user, system, and topic."""
     key = (system_key, user_id, topic_id)
     _conversations[key] = []
     _hydrated.discard(key)
@@ -107,8 +107,8 @@ def clear_history(system_key: str, user_id: str, topic_id: str = ""):
     try:
         with _db_ctx() as conn:
             conn.execute(
-                "DELETE FROM conversations WHERE bot_name = ? AND user_id = ?",
-                (system_key, user_id),
+                "DELETE FROM conversations WHERE bot_name = ? AND user_id = ? AND topic_id = ?",
+                (system_key, user_id, topic_id),
             )
     except Exception as e:
         logger.warning(f"Failed to clear persisted history: {e}")
@@ -182,3 +182,44 @@ def get_last_assistant_message(system_key: str, user_id: str) -> str | None:
         if msg["role"] == "assistant":
             return msg["content"]
     return None
+
+
+def prune_old_conversations(max_rows_per_user: int = 1000) -> int:
+    """
+    Remove old conversation rows beyond a retention limit per user/system.
+
+    Returns:
+        Number of rows deleted.
+    """
+    deleted = 0
+    try:
+        with _db_ctx() as conn:
+            pairs = conn.execute(
+                "SELECT DISTINCT bot_name, user_id FROM conversations"
+            ).fetchall()
+
+            for pair in pairs:
+                bn, uid = pair["bot_name"], pair["user_id"]
+                total = conn.execute(
+                    "SELECT COUNT(*) as c FROM conversations WHERE bot_name = ? AND user_id = ?",
+                    (bn, uid),
+                ).fetchone()["c"]
+
+                if total > max_rows_per_user:
+                    excess = total - max_rows_per_user
+                    result = conn.execute(
+                        "DELETE FROM conversations WHERE id IN ("
+                        "  SELECT id FROM conversations "
+                        "  WHERE bot_name = ? AND user_id = ? "
+                        "  ORDER BY created_at ASC LIMIT ?"
+                        ")",
+                        (bn, uid, excess),
+                    )
+                    deleted += result.rowcount
+
+        if deleted:
+            logger.info("Pruned %d old conversation rows", deleted)
+    except Exception as e:
+        logger.warning("Conversation pruning failed: %s", e)
+
+    return deleted

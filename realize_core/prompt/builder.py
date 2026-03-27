@@ -23,6 +23,7 @@ Token optimization features:
 from __future__ import annotations
 
 import logging
+from collections import OrderedDict
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -31,8 +32,9 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# Cache for file contents (refreshed on reload)
-_file_cache: dict[str, str] = {}
+# Cache for file contents — LRU eviction at 200 entries to prevent unbounded growth
+_MAX_CACHE_ENTRIES = 200
+_file_cache: OrderedDict[str, str] = OrderedDict()
 
 # Default format instructions per channel
 CHANNEL_FORMAT_INSTRUCTIONS = {
@@ -88,6 +90,9 @@ def _read_kb_file(kb_path: Path, relative_path: str, max_chars: int = 6000) -> s
         try:
             content = file_path.read_text(encoding="utf-8")
             _file_cache[relative_path] = content
+            # LRU eviction: remove oldest entry when exceeding max size
+            if len(_file_cache) > _MAX_CACHE_ENTRIES:
+                _file_cache.popitem(last=False)
         except FileNotFoundError:
             logger.debug(f"KB file not found: {file_path}")
             return ""
@@ -572,7 +577,7 @@ def _build_cross_system_context(
     return "\n\n".join(parts)
 
 
-def _build_persona_layer(persona: "AgentPersona | None") -> str:
+def _build_persona_layer(persona: AgentPersona | None) -> str:
     """Build the persona prompt layer from an AgentPersona."""
     if persona is None:
         return ""
@@ -587,7 +592,7 @@ def _build_persona_layer(persona: "AgentPersona | None") -> str:
 def _build_goal_layer(kb_path: Path, system_config: dict, system_key: str) -> str:
     """Build the venture goal prompt layer."""
     try:
-        from realize_core.prompt.goal import load_goal, goal_to_prompt
+        from realize_core.prompt.goal import goal_to_prompt, load_goal
         goal_text = load_goal(kb_path, system_config, system_key)
         if goal_text:
             system_name = system_config.get("name", "")
@@ -608,7 +613,7 @@ def _build_brand_profile_layer(
     to a prompt-friendly format.
     """
     try:
-        from realize_core.prompt.brand import resolve_brand, brand_to_prompt
+        from realize_core.prompt.brand import brand_to_prompt, resolve_brand
 
         # Try loading from system_config (inline brand data)
         brand = resolve_brand(config=system_config)
@@ -640,7 +645,7 @@ def build_system_prompt(
     features: dict = None,
     all_systems: dict = None,
     token_budget: int | None = None,
-    persona_override: "AgentPersona | None" = None,
+    persona_override: AgentPersona | None = None,
 ) -> str:
     """
     Assemble the full system prompt from KB layers.

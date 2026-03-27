@@ -4,6 +4,8 @@ import { Briefcase, AlertCircle, Plus, Trash2, Download } from 'lucide-react'
 import { useApi } from '@/hooks/use-api'
 import { VentureHealthCard } from '@/components/venture-health-card'
 import { CreateVentureModal } from '@/components/create-venture-modal'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { Skeleton, SkeletonCard } from '@/components/ui/skeleton'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
 
@@ -23,16 +25,26 @@ export default function VenturesListPage() {
   const navigate = useNavigate()
   const [showCreate, setShowCreate] = useState(false)
   const [deleting, setDeleting] = useState<string | null>(null)
+  
+  // Custom dialog state
+  const [confirmDeleteKey, setConfirmDeleteKey] = useState<string | null>(null)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
-  async function handleDelete(key: string, e: React.MouseEvent) {
+  function handleDeleteClick(key: string, e: React.MouseEvent) {
     e.stopPropagation()
-    if (!confirm(`Delete venture "${key}"? This removes all FABRIC files and cannot be undone.`)) return
+    setConfirmDeleteKey(key)
+  }
+
+  async function executeDelete() {
+    if (!confirmDeleteKey) return
+    const key = confirmDeleteKey
+    setConfirmDeleteKey(null)
     setDeleting(key)
     try {
       await api.delete(`/ventures/${key}`)
       refetch()
     } catch {
-      alert('Failed to delete venture')
+      setErrorMessage('Failed to delete venture')
     } finally {
       setDeleting(null)
     }
@@ -44,7 +56,22 @@ export default function VenturesListPage() {
   }
 
   if (loading) {
-    return <div className="flex items-center justify-center h-64 text-muted-foreground">Loading ventures...</div>
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-6 w-6 rounded-full bg-brand-400/20" />
+            <Skeleton className="h-8 w-32" />
+          </div>
+          <Skeleton className="h-9 w-32 rounded-lg" />
+        </div>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <SkeletonCard key={i} />
+          ))}
+        </div>
+      </div>
+    )
   }
 
   if (error) {
@@ -58,6 +85,12 @@ export default function VenturesListPage() {
 
   return (
     <div className="space-y-6">
+      {errorMessage && (
+        <div className="bg-red-500/10 text-red-400 p-3 rounded-lg flex items-center gap-2 text-sm border border-red-500/20">
+          <AlertCircle className="h-4 w-4" />
+          {errorMessage}
+        </div>
+      )}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Briefcase className="h-6 w-6 text-brand-400" />
@@ -96,7 +129,7 @@ export default function VenturesListPage() {
                 <Download className="h-3.5 w-3.5" />
               </button>
               <button
-                onClick={(e) => handleDelete(v.key, e)}
+                onClick={(e) => handleDeleteClick(v.key, e)}
                 disabled={deleting === v.key}
                 className="p-1.5 rounded-lg bg-surface-800/80 border border-border text-muted-foreground hover:text-red-400 transition-colors"
                 title="Delete"
@@ -127,6 +160,16 @@ export default function VenturesListPage() {
         open={showCreate}
         onClose={() => setShowCreate(false)}
         onCreated={refetch}
+      />
+
+      <ConfirmDialog
+        isOpen={!!confirmDeleteKey}
+        title="Delete Venture"
+        message={`Delete venture "${confirmDeleteKey}"? This removes all FABRIC files and cannot be undone.`}
+        isDestructive={true}
+        confirmText={deleting ? "Deleting..." : "Delete Venture"}
+        onConfirm={executeDelete}
+        onCancel={() => setConfirmDeleteKey(null)}
       />
     </div>
   )

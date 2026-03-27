@@ -91,6 +91,10 @@ def start_pipeline(
 
     pipeline = get_pipeline(system_config, task_type)
 
+    # Guard: ensure pipeline is never empty
+    if not pipeline:
+        pipeline = ["orchestrator"]
+
     session = create_session(
         system_key=system_key,
         user_id=str(user_id),

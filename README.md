@@ -39,14 +39,63 @@ RealizeOS is a **self-hosted AI operations system** that gives your business a c
 
 ## Quick Start
 
+### NPX (recommended — needs Node.js 18+ & Docker)
+
+```bash
+npx @realize-os/cli init my-business
+cd my-business
+# Edit .env to add your API key(s)
+npx @realize-os/cli start
+# Dashboard at http://localhost:8080
+```
+
+### Docker (one-liner)
+
+```bash
+docker run -d -p 8080:8080 -v realizeos-data:/app/data ghcr.io/sufzen/realizeos:latest
+# Dashboard at http://localhost:8080
+```
+
+### pip (Python-native, no Docker)
+
+```bash
+pip install realize-os
+realize-os init --template consulting
+realize-os serve
+# Dashboard at http://localhost:8080
+```
+
+### Linux / macOS
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/SufZen/RealizeOS-5/main/scripts/install.sh | bash
+```
+
+### Windows (PowerShell)
+
+```powershell
+irm https://raw.githubusercontent.com/SufZen/RealizeOS-5/main/scripts/install.ps1 | iex
+```
+
+### From Source
+
 ```bash
 git clone https://github.com/SufZen/RealizeOS-5.git
 cd RealizeOS-5
 cp .env.example .env       # Add your API key(s)
-docker compose up           # Dashboard at localhost:3000
+docker compose up           # Dashboard at http://localhost:8080
 ```
 
-> 📖 Full setup guide: **[QUICKSTART.md](QUICKSTART.md)**
+| Method | Requires | Best For |
+|--------|----------|----------|
+| **NPX** | Node.js 18+ & Docker | Quickest start, scaffolds project directory |
+| **Docker** | Docker | Isolated, reproducible, production-ready |
+| **pip** | Python 3.11+ | Python devs, local development without Docker |
+| **curl** | bash + Docker | Server deployment, CI/CD scripting |
+| **PowerShell** | Windows + Docker | Non-technical Windows users |
+| **Source** | Python + Node.js | Contributing, customization |
+
+> 📖 Full setup guide: **[QUICKSTART.md](QUICKSTART.md)** · Self-hosting: **[docs/self-hosting-guide.md](docs/self-hosting-guide.md)**
 
 ## Features
 
@@ -78,9 +127,10 @@ Providers auto-discovered at startup. Supports **Claude**, **Gemini**, **OpenAI*
 ### 🔧 Agent System (V2)
 
 - **Composable agents** with scope, inputs, outputs, guardrails, and tools
-- **Pipelines** — sequential execution with Dev-QA retry loops
+- **Pipelines** — sequential execution with Dev-QA retry loops and circular dependency detection
 - **7 handoff types** — standard, QA-pass, QA-fail, escalation, phase-gate, sprint, incident
 - **Hot-reload** — filesystem-watched agent registry
+- **Tool gating** — per-agent allowlists/denylists for tool access
 
 ### 🧬 Agent Intelligence (V5)
 
@@ -106,14 +156,24 @@ Providers auto-discovered at startup. Supports **Claude**, **Gemini**, **OpenAI*
 | `integration` | Backend sync | CRM, analytics |
 | `hook` | Event reactions | Notifications, logging |
 
-### 🛠️ 24 Google Workspace Tools
+### 🛠️ Tool Ecosystem
 
-| Service | Tools | Capabilities |
-|---------|-------|-------------|
+| Category | Tools | Capabilities |
+|----------|-------|-------------|
 | **Gmail** | 8 | Search, read, send, draft, reply, forward, triage, label |
 | **Calendar** | 4 | List, create, update, find free time |
 | **Drive** | 9 | Search, list, read, create, append, upload, download, permissions, move |
 | **Sheets** | 3 | Read, append, create |
+| **Stripe** | Financial | Charges, subscriptions, invoices with safety guards |
+| **Browser** | Web automation | Headless Chromium page interaction |
+| **Web** | Search + fetch | Brave API search, page scraping with SSRF protection |
+| **MCP** | Protocol | Connect to any MCP-compatible tool server |
+| **Messaging** | Agent bus | Agent-to-agent, human notifications, channel broadcasts |
+| **Social** | Publishing | Social media content posting |
+| **Telephony** | Voice | Twilio-powered voice/SMS |
+| **PM** | Project mgmt | Task tracking, status reporting |
+| **Docs** | Generation | Document and report generation |
+| **Approval** | Governance | Human-in-the-loop approval workflows |
 
 ### 📋 Business Templates
 
@@ -127,18 +187,23 @@ python cli.py init --template consulting
 
 ### 🛡️ Security & Governance
 
-- JWT authentication with RBAC (owner, admin, user, guest)
-- Prompt injection scanner (pattern + heuristic detection)
-- Human-in-the-loop approval gates for consequential actions
-- SQLite-backed audit logging with SSE streaming
-- Secret redaction in error responses
+- **5-layer security middleware**: Security headers → Audit logging → Rate limiting → Injection guard → JWT auth
+- **JWT authentication** with HMAC-SHA256 tokens and refresh flow
+- **RBAC** with 6 roles: owner, admin, operator, user, viewer, guest (+ custom YAML roles)
+- **Prompt injection scanner** — pattern + heuristic + Unicode normalization defense
+- **Human-in-the-loop** approval gates for consequential actions
+- **Audit logging** — JSONL persistent logs with SSE streaming
+- **Secret redaction** in error responses and logs
+- **Built-in security scanner** — automated posture checks at startup
 
 ## Architecture
 
 ```
-User → Channel (API/Telegram/CLI) → Security → Base Handler
-  → LLM Router (Flash/Sonnet/Opus) → Prompt Builder (FABRIC context)
-  → Tool Execution → Extensions → Evolution Engine → Response
+User → Channel (API/Telegram/WhatsApp/Webhooks)
+  → Security (Headers → Audit → Rate Limit → Injection Guard → JWT)
+  → Base Handler → LLM Router (Flash/Sonnet/Opus)
+  → Prompt Builder (FABRIC context) → Tool Execution
+  → Extensions → Governance → Evolution Engine → Response
 ```
 
 > 📖 Deep dive: **[docs/architecture.md](docs/architecture.md)**
@@ -147,12 +212,21 @@ User → Channel (API/Telegram/CLI) → Security → Base Handler
 
 ```bash
 python cli.py init --template NAME           # Initialize from template
+python cli.py init --setup setup.yaml        # Initialize from setup file
 python cli.py serve [--port PORT] [--reload] # Start API + dashboard
 python cli.py bot                            # Start Telegram bot
 python cli.py status                         # Show system status
 python cli.py index                          # Rebuild KB search index
 python cli.py venture create --key KEY       # Create new venture
+python cli.py venture delete --key KEY       # Delete a venture
 python cli.py venture list                   # List ventures
+python cli.py setup                          # Interactive setup wizard
+python cli.py doctor                         # Diagnose installation issues
+python cli.py devmode setup                  # Generate AI tool context files
+python cli.py devmode check                  # Run system health check
+python cli.py devmode scaffold --name NAME   # Scaffold a new extension
+python cli.py devmode snapshot               # Create a git safety snapshot
+python cli.py devmode rollback --tag TAG     # Rollback to a snapshot
 ```
 
 ## API
@@ -166,7 +240,21 @@ python cli.py venture list                   # List ventures
 | GET | `/api/systems/{key}/skills` | List skills |
 | POST | `/api/systems/reload` | Hot-reload configuration |
 | GET | `/api/activity/stream` | SSE activity feed |
-| GET | `/health` | Health check |
+| POST | `/api/auth/token` | Generate JWT access + refresh tokens |
+| POST | `/api/auth/refresh` | Refresh an expired access token |
+| `CRUD` | `/api/ventures/*` | Venture management |
+| `CRUD` | `/api/ventures/{key}/agents/*` | Per-venture agent management |
+| `CRUD` | `/api/ventures/{key}/kb/*` | Per-venture knowledge base |
+| `CRUD` | `/api/workflows/*` | Workflow management |
+| `CRUD` | `/api/approvals/*` | Approval request management |
+| `CRUD` | `/api/extensions/*` | Extension management |
+| `CRUD` | `/api/webhooks/*` | Webhook management |
+| GET | `/api/settings/*` | System settings (LLM, security, tools, memory, etc.) |
+| GET | `/api/security/scan` | Run security posture scan |
+| GET | `/api/evolution/*` | Self-improvement suggestions |
+| GET | `/api/devmode/*` | Developer mode status |
+| GET | `/api/health` | Health check |
+| GET | `/status` | Detailed system status |
 
 ## Documentation
 
@@ -183,9 +271,9 @@ python cli.py venture list                   # List ventures
 
 ## Requirements
 
-- **Python 3.11+**
+- **Python 3.11+** (3.12+ recommended)
 - At least one LLM API key (Anthropic, Google, OpenAI, or Ollama)
-- Docker (optional, for containerized deployment)
+- Docker 24.0+ (optional, for containerized deployment)
 - Node.js 20+ (optional, for dashboard development)
 
 ## Community

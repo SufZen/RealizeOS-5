@@ -67,8 +67,8 @@ def export_venture(
             "exported_by": "RealizeOS 5",
         }
         zf.writestr("manifest.json", json.dumps(manifest, indent=2))
+        file_count = len(zf.namelist())
 
-    file_count = len(zipfile.ZipFile(output_path).namelist())
     logger.info(f"Exported venture '{venture_key}' to {output_path} ({file_count} files)")
     return output_path
 
@@ -141,6 +141,6 @@ def _should_exclude(file_path: Path) -> bool:
         if pattern.startswith("*"):
             if name.endswith(pattern[1:]):
                 return True
-        elif name == pattern or name in EXCLUDE_PATTERNS:
+        elif name == pattern:
             return True
     return any(part in EXCLUDE_PATTERNS for part in file_path.parts)

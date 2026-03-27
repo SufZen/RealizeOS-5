@@ -31,9 +31,11 @@ Present approaches to human for selection (unless overnight mode).
 
 ### Step 2: Implement Each Approach
 
+Ensure the base branch is explicitly created and locked: `git checkout -b autobuild/[intent-name] main` (if it does not exist) or `git checkout autobuild/[intent-name]` (if it does).
+
 For each approach:
 
-1. Create branch: `autobuild/[intent-name]/approach-[N]`
+1. Create approach branch from base: `git checkout -b autobuild/[intent-name]/approach-[N] autobuild/[intent-name]`
 2. Invoke **Builder Agent** — implement the approach
 3. Invoke **Quality Scorer** — run full pipeline
 4. Invoke **Security Reviewer** — check for vulnerabilities
@@ -67,8 +69,9 @@ On the winning branch:
 1. Invoke **Architecture Reviewer**
 2. Invoke **Test Writer**
 3. Invoke **Quality Scorer** (final)
-4. Merge winning branch into `autobuild/[intent-name]`
-5. Clean up approach branches
+4. Checkout base branch: `git checkout autobuild/[intent-name]`
+5. Merge winning branch deterministically: `git merge --ff-only autobuild/[intent-name]/approach-[WINNER]`
+6. Clean up approach branches
 
 ### Step 5: Present
 

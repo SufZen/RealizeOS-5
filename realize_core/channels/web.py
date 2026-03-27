@@ -12,9 +12,12 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any
 
-from realize_core.channels.base import BaseChannel, IncomingMessage, OutgoingMessage
+from realize_core.channels.base import BaseChannel, IncomingMessage, OutgoingMessage, _sanitize_text
 
 logger = logging.getLogger(__name__)
+
+# Maximum idle time before a WebSocket client is considered stale (seconds)
+_STALE_CLIENT_TIMEOUT = 300  # 5 minutes
 
 
 @dataclass
@@ -25,7 +28,13 @@ class WebSocketClient:
     user_id: str
     connected_at: float = field(default_factory=time.time)
     last_active: float = field(default_factory=time.time)
+    sequence: int = 0  # Outbound message sequence counter
     metadata: dict[str, Any] = field(default_factory=dict)
+
+    def next_sequence(self) -> int:
+        """Return and increment the outbound sequence number."""
+        self.sequence += 1
+        return self.sequence
 
 
 class WebChannel(BaseChannel):
@@ -57,12 +66,15 @@ class WebChannel(BaseChannel):
         target_id = message.metadata.get("client_id")
         if target_id and target_id in self._ws_send_callbacks:
             send_fn = self._ws_send_callbacks[target_id]
+            client = self._ws_clients.get(target_id)
+            seq = client.next_sequence() if client else 0
             try:
                 await send_fn(
                     json.dumps(
                         {
                             "type": "message",
-                            "text": message.text,
+                            "seq": seq,
+                            "text": _sanitize_text(message.text),
                             "metadata": message.metadata,
                         }
                     )
@@ -81,6 +93,22 @@ class WebChannel(BaseChannel):
             "Use code blocks with language tags for code. "
             "Tables are supported. Keep responses well-structured."
         )
+
+    def health_check(self) -> dict:
+        """Return web channel health with connected/stale client counts."""
+        now = time.time()
+        stale = sum(
+            1 for c in self._ws_clients.values()
+            if (now - c.last_active) > _STALE_CLIENT_TIMEOUT
+        )
+        return {
+            "name": self.channel_name,
+            "healthy": True,
+            "details": {
+                "connected_clients": len(self._ws_clients),
+                "stale_clients": stale,
+            },
+        }
 
     # -----------------------------------------------------------------------
     # REST endpoint (same pattern as APIChannel)
@@ -145,6 +173,22 @@ class WebChannel(BaseChannel):
         self._ws_send_callbacks.pop(client_id, None)
         self.logger.info(f"WebSocket client disconnected: {client_id}")
 
+    async def cleanup_stale_clients(self) -> int:
+        """
+        Disconnect clients that have been idle longer than _STALE_CLIENT_TIMEOUT.
+
+        Returns the number of clients disconnected.
+        """
+        now = time.time()
+        stale_ids = [
+            cid for cid, client in self._ws_clients.items()
+            if (now - client.last_active) > _STALE_CLIENT_TIMEOUT
+        ]
+        for cid in stale_ids:
+            self.logger.info(f"Reaping stale WebSocket client: {cid}")
+            await self.disconnect_client(cid)
+        return len(stale_ids)
+
     async def handle_ws_message(self, client_id: str, raw_data: str) -> str | None:
         """
         Handle an incoming WebSocket message.
@@ -168,7 +212,7 @@ class WebChannel(BaseChannel):
         msg_type = data.get("type", "chat")
 
         if msg_type == "ping":
-            return json.dumps({"type": "pong"})
+            return json.dumps({"type": "pong", "ts": time.time()})
 
         if msg_type == "chat":
             message = IncomingMessage(
@@ -181,6 +225,8 @@ class WebChannel(BaseChannel):
 
             response = await self.handle_incoming(message)
 
+            seq = client.next_sequence()
+
             # Send via callback
             send_fn = self._ws_send_callbacks.get(client_id)
             if send_fn:
@@ -188,13 +234,14 @@ class WebChannel(BaseChannel):
                     json.dumps(
                         {
                             "type": "message",
-                            "text": response.text,
+                            "seq": seq,
+                            "text": _sanitize_text(response.text),
                         }
                     )
                 )
                 return None  # Already sent
 
-            return json.dumps({"type": "message", "text": response.text})
+            return json.dumps({"type": "message", "seq": seq, "text": _sanitize_text(response.text)})
 
         return json.dumps({"type": "error", "error": f"Unknown message type: {msg_type}"})
 
@@ -212,4 +259,6 @@ class WebChannel(BaseChannel):
             "user_id": client.user_id,
             "connected_at": client.connected_at,
             "last_active": client.last_active,
+            "sequence": client.sequence,
         }
+

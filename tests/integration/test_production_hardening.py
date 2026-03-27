@@ -12,12 +12,9 @@ from __future__ import annotations
 
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
-from pathlib import Path
 
-import pytest
-
-from realize_core.tools.approval import ApprovalTool, ApprovalStatus
-from realize_core.tools.messaging import MessageTool, MessageStore
+from realize_core.tools.approval import ApprovalStatus, ApprovalTool
+from realize_core.tools.messaging import MessageStore, MessageTool
 
 
 def run_async(coro):

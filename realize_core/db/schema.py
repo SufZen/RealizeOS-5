@@ -52,6 +52,8 @@ def get_connection(db_path: Path = None, retries: int = 3) -> sqlite3.Connection
             conn.row_factory = sqlite3.Row
             conn.execute("PRAGMA journal_mode=WAL")
             conn.execute("PRAGMA foreign_keys=ON")
+            conn.execute("PRAGMA busy_timeout=5000")
+            conn.execute("PRAGMA synchronous=NORMAL")
             return conn
         except sqlite3.OperationalError as e:
             if "locked" in str(e).lower() or "busy" in str(e).lower():

@@ -11,7 +11,6 @@ Covers:
 from __future__ import annotations
 
 import pytest
-
 from realize_core.agents.persona import AgentPersona
 from realize_core.tools.base_tool import BaseTool, ToolCategory, ToolResult, ToolSchema
 from realize_core.tools.gating import (
@@ -19,7 +18,6 @@ from realize_core.tools.gating import (
     gate_tools_for_persona,
     get_gated_schemas,
 )
-
 
 # ---------------------------------------------------------------------------
 # Stub tools for testing

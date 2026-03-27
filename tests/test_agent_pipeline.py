@@ -4,10 +4,18 @@ Tests for the pipeline executor — sequential execution, Dev-QA retry, escalati
 
 import pytest
 from realize_core.agents.base import HandoffType, PipelineStage
+from realize_core.agents.handoff import _audit_log
 from realize_core.agents.pipeline import (
     PipelineStatus,
     execute_pipeline,
 )
+
+
+@pytest.fixture(autouse=True)
+def clear_audit_log():
+    """Clear global audit log before each test to prevent circular handoff false positives."""
+    _audit_log.clear()
+    yield
 
 # ---------------------------------------------------------------------------
 # Helpers

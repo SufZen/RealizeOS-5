@@ -20,7 +20,11 @@ class APIKeyMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next):
         # Skip auth for health endpoints and docs
-        if request.url.path in ("/health", "/status", "/docs", "/openapi.json", "/redoc"):
+        skip_paths = {
+            "/health", "/status", "/docs", "/openapi.json", "/redoc",
+            "/api/health", "/api/status",
+        }
+        if request.url.path in skip_paths:
             return await call_next(request)
 
         # Check API key

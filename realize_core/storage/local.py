@@ -23,6 +23,9 @@ from realize_core.storage.base import (
 
 logger = logging.getLogger(__name__)
 
+# Maximum file size for writes (100MB)
+MAX_FILE_SIZE = 100 * 1024 * 1024
+
 
 class LocalStorageProvider(BaseStorageProvider):
     """
@@ -147,6 +150,12 @@ class LocalStorageProvider(BaseStorageProvider):
         metadata: dict[str, str] | None = None,
     ) -> StorageObject:
         """Write raw bytes to the local filesystem."""
+        # Enforce file size limit
+        if len(data) > MAX_FILE_SIZE:
+            raise ValueError(
+                f"File size {len(data)} bytes exceeds limit of {MAX_FILE_SIZE} bytes"
+            )
+
         path = self._resolve(key)
 
         # Ensure parent directory exists

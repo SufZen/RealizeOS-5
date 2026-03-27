@@ -4,6 +4,7 @@ Claude LLM Provider: Wraps the existing claude_client module behind BaseLLMProvi
 Supports text, vision, and tool use via Anthropic's Claude API.
 """
 
+import asyncio
 import logging
 
 from realize_core.llm.base_provider import (
@@ -76,8 +77,9 @@ class ClaudeProvider(BaseLLMProvider):
         model: str | None = None,
         max_tokens: int = 4096,
         temperature: float = 0.7,
+        timeout: float = 60.0,
     ) -> LLMResponse:
-        """Text completion via Claude API."""
+        """Text completion via Claude API with timeout enforcement."""
         import anthropic
 
         from realize_core.llm.claude_client import _log_usage
@@ -90,12 +92,15 @@ class ClaudeProvider(BaseLLMProvider):
 
             client = _get_client()
 
-            response = await client.messages.create(
-                model=model,
-                max_tokens=max_tokens,
-                temperature=temperature,
-                system=system_prompt,
-                messages=messages,
+            response = await asyncio.wait_for(
+                client.messages.create(
+                    model=model,
+                    max_tokens=max_tokens,
+                    temperature=temperature,
+                    system=system_prompt,
+                    messages=messages,
+                ),
+                timeout=timeout,
             )
 
             input_tokens = getattr(response.usage, "input_tokens", 0)
@@ -132,6 +137,15 @@ class ClaudeProvider(BaseLLMProvider):
                 error=str(e),
             )
 
+        except TimeoutError:
+            logger.error(f"Claude API call timed out after {timeout}s")
+            return LLMResponse(
+                text="Request timed out. Please try again.",
+                model=model,
+                provider=self.name,
+                error="timeout",
+            )
+
         except Exception as e:
             logger.error(f"Unexpected error calling Claude: {e}", exc_info=True)
             return LLMResponse(
@@ -148,6 +162,7 @@ class ClaudeProvider(BaseLLMProvider):
         tools: list[dict],
         model: str | None = None,
         max_tokens: int = 4096,
+        timeout: float = 60.0,
     ) -> LLMResponse:
         """Tool-use completion via Claude API."""
         from realize_core.llm.claude_client import call_claude_with_tools

@@ -1,8 +1,7 @@
-import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { LayoutDashboard, Users, Briefcase, AlertCircle, Plug, ArrowRight, ShieldCheck } from 'lucide-react'
 import { useApi } from '@/hooks/use-api'
-import { api } from '@/lib/api'
+import { Skeleton, SkeletonCard, SkeletonText } from '@/components/ui/skeleton'
 import { VentureHealthCard } from '@/components/venture-health-card'
 import { ActivityFeed, type ActivityEvent } from '@/components/activity-feed'
 
@@ -31,13 +30,46 @@ function StatCard({ label, value, icon: Icon }: { label: string; value: number; 
 }
 
 export default function OverviewPage() {
-  const { data, loading, error } = useApi<DashboardData>('/dashboard')
+  // Pool every 30s
+  const { data, loading, error } = useApi<DashboardData>('/dashboard', 30000, 30000)
   const navigate = useNavigate()
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-muted-foreground">Loading dashboard...</div>
+      <div className="space-y-8 animate-in fade-in duration-500">
+        <div>
+          <Skeleton className="h-8 w-48 mb-2" />
+          <Skeleton className="h-4 w-64" />
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="rounded-xl border border-border bg-card p-4">
+              <div className="flex items-center justify-between mb-2">
+                <Skeleton className="h-3 w-16" />
+                <Skeleton className="h-4 w-4 rounded-full" />
+              </div>
+              <Skeleton className="h-8 w-12" />
+            </div>
+          ))}
+        </div>
+
+        <div className="grid gap-6 md:grid-cols-2">
+          <div className="space-y-4">
+            <Skeleton className="h-6 w-32" />
+            <div className="grid gap-4">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <SkeletonCard key={i} />
+              ))}
+            </div>
+          </div>
+          <div className="space-y-4">
+            <Skeleton className="h-6 w-32" />
+            <div className="rounded-xl border border-border bg-card p-6">
+              <SkeletonText lines={10} />
+            </div>
+          </div>
+        </div>
       </div>
     )
   }
@@ -138,16 +170,13 @@ export default function OverviewPage() {
   )
 }
 
-function SecurityPostureWidget() {
-  const [scan, setScan] = useState<{
-    passed: number; warnings: number; critical: number; total: number
-  } | null>(null)
+interface SecurityStatusData {
+  scan: { passed: number; warnings: number; critical: number; total: number } | null
+}
 
-  useEffect(() => {
-    api.get<{ scan: typeof scan }>('/security/status')
-      .then(res => { if (res.scan) setScan(res.scan) })
-      .catch(() => {})
-  }, [])
+function SecurityPostureWidget() {
+  const { data } = useApi<SecurityStatusData>('/security/status')
+  const scan = data?.scan
 
   if (!scan) return null
 

@@ -4,41 +4,14 @@
 
 ```
 User Message
-    │
-    ▼
-┌─────────────────┐
-│  Channel Layer   │  (API, Telegram, etc.)
-└────────┬────────┘
-         │
-    ▼
-┌─────────────────┐
-│  Base Handler    │  Message processing pipeline
-│  1. Session?     │  → Check active creative session
-│  2. Skill?       │  → Auto-detect and execute skills
-│  3. Route        │  → Select agent, classify task
-└────────┬────────┘
-         │
-    ▼
-┌─────────────────┐
-│  LLM Router      │  Task classification → model selection
-│  Simple → Flash   │
-│  Content → Sonnet │
-│  Complex → Opus   │
-└────────┬────────┘
-         │
-    ▼
-┌─────────────────┐
-│  Prompt Builder   │  Multi-layer assembly from KB
-│  Identity → Vent. │
-│  → Agent → Context│
-│  → Memory → Session│
-│  → Format         │
-└────────┬────────┘
-         │
-    ▼
-┌─────────────────┐
-│  Tools Layer      │  Google, Web, Browser, MCP
-└─────────────────┘
+  → Channel Adapter (API / Telegram / WhatsApp / Webhooks)
+  → Security Middleware (Headers → Audit → Rate Limit → Injection Guard → JWT)
+  → Base Handler (session management)
+  → Skill Detection → Agent Selection
+  → Prompt Builder (multi-layer FABRIC context injection)
+  → LLM Router (Flash / Sonnet / Strategy / Opus)
+  → Tool Execution (Workspace, Stripe, Web, MCP, etc.)
+  → Governance (approval gates) → Response
 ```
 
 ## The Multi-Layer Prompt
@@ -71,18 +44,36 @@ Sessions persist across messages so you can iterate naturally.
 
 ## Self-Evolution
 
-RealizeOS learns and improves over time:
+RealizeOS learns and improves over time. Key features:
 
-1. **Interaction Tracking** — Every request is logged with metadata
-2. **Gap Detection** — Finds unhandled patterns, repeated ad-hoc requests
-3. **Skill Suggestion** — Auto-generates skill YAML for detected gaps
-4. **Prompt Refinement** — Suggests agent prompt improvements from feedback
+- **Gap Detection** — Identifies missing capabilities from conversation patterns
+- **Skill Generation** — Proposes new skill YAML from detected gaps
+- **Performance Tracking** — Monitors which agents/skills perform well
+
+## Governance
+
+The governance system provides human oversight for consequential actions:
+
+- **Approval Gates** — Configurable checkpoints requiring human approval before execution
+- **Audit Logging** — JSONL persistent logs of all system actions with SSE streaming
+- **Tool Gating** — Per-agent allowlists/denylists for tool access
+- **RBAC** — 6 built-in roles (owner, admin, operator, user, viewer, guest)
+
+## Developer Mode
+
+Developer mode provides tools for AI-assisted system development:
+
+- **Context Generation** — Generate AI tool context files for your system
+- **Git Safety** — Snapshot and rollback for safe experimentation
+- **Scaffolder** — Generate extension/tool/agent boilerplate
+- **Health Check** — Verify system configuration and dependencies
 
 All changes require user approval before being applied.
 
 ## Multi-System Architecture
 
 Each system is isolated with its own:
+
 - Knowledge base (FABRIC directories)
 - Agent definitions
 - Venture voice rules
@@ -93,11 +84,18 @@ Cross-system context is available when `cross_system: true` is set in your `real
 
 ## Tool Integration
 
-RealizeOS can use external tools during conversations:
+Tools extend the OS's capabilities beyond conversation:
 
-- **Google Workspace** — Gmail (search, read, send, draft), Calendar (list, create, update, free time), Drive (search, read, create)
-- **Web** — Search (Brave API) and fetch/read web pages
-- **Browser** — Headless Chromium for page interaction
-- **MCP** — Connect to any MCP-compatible tool server
+- **Google Workspace** — Gmail, Calendar, Drive, Sheets
+- **Web Tools** — Search (Brave API), page fetch, browser automation
+- **MCP** — Protocol for connecting to external tool servers
+- **Stripe** — Charges, subscriptions, invoices with safety guards
+- **Messaging** — Agent-to-agent communication, human notifications
+- **Telephony** — Twilio-powered voice/SMS
+- **Social** — Social media publishing
+- **Approval** — Human-in-the-loop approval workflows
+- **Custom Tools** — BaseTool SDK for building new capabilities
 
 Tools are activated based on task classification. Write operations (sending emails, creating events) always require confirmation.
+
+> 📖 See [Architecture](architecture.md) for full technical details.

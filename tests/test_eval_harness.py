@@ -13,7 +13,6 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-
 from realize_core.eval.harness import (
     EvalCase,
     EvalDimension,
@@ -24,7 +23,6 @@ from realize_core.eval.harness import (
     load_eval_suite,
     score_eval_case,
 )
-
 
 # ---------------------------------------------------------------------------
 # Models

@@ -5,12 +5,14 @@ Supports:
 - Webhook registration with optional secret-based verification
 - Payload transformation to IncomingMessage
 - Routing webhooks through the engine as system messages
+- Outgoing webhook delivery with retry logic
 """
 
 import hashlib
 import hmac
 import logging
 import time
+from collections import OrderedDict
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -18,6 +20,30 @@ from typing import Any
 from realize_core.channels.base import BaseChannel, IncomingMessage, OutgoingMessage
 
 logger = logging.getLogger(__name__)
+
+# Replay attack prevention settings
+_TIMESTAMP_TOLERANCE = 300  # 5 minutes
+_NONCE_MAX_SIZE = 10_000
+
+
+class _BoundedNonceSet:
+    """Bounded set to track seen nonces for replay-attack prevention."""
+
+    def __init__(self, max_size: int = _NONCE_MAX_SIZE):
+        self._data: OrderedDict[str, float] = OrderedDict()
+        self._max_size = max_size
+
+    def check_and_add(self, nonce: str) -> bool:
+        """Returns True if nonce is new (not a replay). False if seen before."""
+        if nonce in self._data:
+            return False
+        self._data[nonce] = time.time()
+        if len(self._data) > self._max_size:
+            self._data.popitem(last=False)
+        return True
+
+    def __len__(self) -> int:
+        return len(self._data)
 
 
 @dataclass
@@ -81,6 +107,7 @@ class WebhookChannel(BaseChannel):
         super().__init__("webhook")
         self.system_key = system_key
         self._endpoints: dict[str, WebhookEndpoint] = {}
+        self._seen_nonces = _BoundedNonceSet()
 
     async def start(self):
         """Webhook channel is driven by HTTP server."""
@@ -99,6 +126,18 @@ class WebhookChannel(BaseChannel):
             "take appropriate action. Respond with a structured summary "
             "of what happened and any actions taken."
         )
+
+    def health_check(self) -> dict:
+        """Return webhook channel health status."""
+        return {
+            "name": self.channel_name,
+            "healthy": True,
+            "details": {
+                "total_endpoints": self.endpoint_count,
+                "enabled_endpoints": sum(1 for ep in self._endpoints.values() if ep.enabled),
+                "nonce_cache_size": len(self._seen_nonces),
+            },
+        }
 
     # -----------------------------------------------------------------------
     # Endpoint management
@@ -177,6 +216,8 @@ class WebhookChannel(BaseChannel):
         payload: dict[str, Any],
         body_bytes: bytes = b"",
         signature: str = "",
+        timestamp: float = 0.0,
+        nonce: str = "",
     ) -> OutgoingMessage | None:
         """
         Process an incoming webhook.
@@ -186,6 +227,8 @@ class WebhookChannel(BaseChannel):
             payload: Parsed JSON payload
             body_bytes: Raw body bytes (for signature verification)
             signature: The signature header value
+            timestamp: Unix timestamp from webhook headers (replay prevention)
+            nonce: Unique delivery ID (replay prevention)
 
         Returns:
             OutgoingMessage if processed, None if rejected
@@ -199,8 +242,31 @@ class WebhookChannel(BaseChannel):
             self.logger.info(f"Webhook endpoint '{endpoint_name}' is disabled")
             return None
 
-        # Verify signature
-        if body_bytes and signature:
+        # Replay attack prevention: reject stale timestamps
+        if timestamp:
+            age = abs(time.time() - timestamp)
+            if age > _TIMESTAMP_TOLERANCE:
+                self.logger.warning(
+                    f"Webhook timestamp too old ({age:.0f}s): {endpoint_name}"
+                )
+                return None
+
+        # Replay attack prevention: reject duplicate nonces
+        if nonce:
+            if not self._seen_nonces.check_and_add(nonce):
+                self.logger.warning(f"Webhook replay detected (duplicate nonce): {endpoint_name}")
+                return None
+
+        # Verify signature — require it if endpoint has a secret
+        if endpoint.secret:
+            if not signature:
+                self.logger.warning(f"Webhook missing signature for secured endpoint: {endpoint_name}")
+                return None
+            if not endpoint.verify_signature(body_bytes, signature):
+                self.logger.warning(f"Webhook signature verification failed: {endpoint_name}")
+                return None
+        elif body_bytes and signature:
+            # No secret but signature provided — verify anyway
             if not endpoint.verify_signature(body_bytes, signature):
                 self.logger.warning(f"Webhook signature verification failed: {endpoint_name}")
                 return None
@@ -225,6 +291,59 @@ class WebhookChannel(BaseChannel):
         response = await self.handle_incoming(message)
         return response
 
+    # -----------------------------------------------------------------------
+    # Outgoing webhook delivery
+    # -----------------------------------------------------------------------
+
+    async def deliver_outgoing(
+        self,
+        url: str,
+        payload: dict[str, Any],
+        secret: str = "",
+        max_retries: int = 3,
+        timeout: float = 10.0,
+    ) -> bool:
+        """
+        Deliver an outgoing webhook with retry logic.
+
+        Args:
+            url: Target URL
+            payload: JSON payload to send
+            secret: Optional HMAC secret for signing
+            max_retries: Number of retries on failure
+            timeout: HTTP timeout in seconds
+
+        Returns:
+            True if delivered successfully, False otherwise
+        """
+        import json as json_mod
+
+        import httpx
+
+        body = json_mod.dumps(payload, separators=(",", ":")).encode()
+        headers: dict[str, str] = {"Content-Type": "application/json"}
+
+        if secret:
+            sig = hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
+            headers["X-Signature-256"] = f"sha256={sig}"
+
+        for attempt in range(1, max_retries + 1):
+            try:
+                async with httpx.AsyncClient(timeout=timeout) as client:
+                    resp = await client.post(url, content=body, headers=headers)
+                    resp.raise_for_status()
+                    return True
+            except Exception as e:
+                self.logger.warning(
+                    f"Outgoing webhook to {url} failed (attempt {attempt}/{max_retries}): {e}"
+                )
+                if attempt < max_retries:
+                    import asyncio
+                    await asyncio.sleep(2 ** attempt)  # Exponential backoff
+
+        self.logger.error(f"Outgoing webhook to {url} failed after {max_retries} attempts")
+        return False
+
     @property
     def endpoint_count(self) -> int:
         return len(self._endpoints)
@@ -243,3 +362,4 @@ class WebhookChannel(BaseChannel):
                 for name, ep in self._endpoints.items()
             },
         }
+

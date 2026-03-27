@@ -13,8 +13,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
 # Root of the project
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 
@@ -60,7 +58,7 @@ class TestModuleImports:
         assert AgentPersona is not None
 
     def test_import_goal(self):
-        from realize_core.prompt.goal import load_goal, goal_to_prompt
+        from realize_core.prompt.goal import goal_to_prompt
         assert goal_to_prompt is not None
 
     def test_import_brief(self):
@@ -68,7 +66,7 @@ class TestModuleImports:
         assert generate_session_brief is not None
 
     def test_import_brand(self):
-        from realize_core.prompt.brand import BrandProfile, brand_to_prompt
+        from realize_core.prompt.brand import BrandProfile
         assert BrandProfile is not None
 
     def test_import_approval(self):
@@ -76,7 +74,7 @@ class TestModuleImports:
         assert ApprovalTool is not None
 
     def test_import_gating(self):
-        from realize_core.tools.gating import gate_tools_for_persona, check_tool_access
+        from realize_core.tools.gating import gate_tools_for_persona
         assert gate_tools_for_persona is not None
 
     def test_import_messaging(self):
@@ -84,11 +82,11 @@ class TestModuleImports:
         assert MessageTool is not None
 
     def test_import_eval_harness(self):
-        from realize_core.eval.harness import EvalRunner, EvalSuite, EvalCase
+        from realize_core.eval.harness import EvalRunner
         assert EvalRunner is not None
 
     def test_import_template_marketplace(self):
-        from realize_core.templates.marketplace import TemplateRegistry, TemplateManifest
+        from realize_core.templates.marketplace import TemplateRegistry
         assert TemplateRegistry is not None
 
     def test_import_builder(self):
@@ -96,7 +94,7 @@ class TestModuleImports:
         assert build_system_prompt is not None
 
     def test_import_migrations(self):
-        from realize_core.db.migrations import MIGRATIONS, run_migrations
+        from realize_core.db.migrations import MIGRATIONS
         assert len(MIGRATIONS) >= 3
         assert max(MIGRATIONS.keys()) == 4
 
@@ -112,8 +110,8 @@ class TestFeatureInventory:
     def test_phase2_features(self):
         """Phase 2: Agent Intelligence Layer."""
         from realize_core.agents.persona import AgentPersona, persona_to_prompt
-        from realize_core.prompt.goal import goal_to_prompt
         from realize_core.prompt.brief import generate_session_brief
+        from realize_core.prompt.goal import goal_to_prompt
 
         # Persona creation
         p = AgentPersona(name="Test", role="Tester")
@@ -128,9 +126,8 @@ class TestFeatureInventory:
 
     def test_phase3_features(self):
         """Phase 3: Coordination & Control."""
-        from realize_core.tools.approval import ApprovalTool
-        from realize_core.tools.gating import gate_tools_for_persona
         from realize_core.prompt.brand import BrandProfile, brand_to_prompt
+        from realize_core.tools.approval import ApprovalTool
 
         # Approval tool
         tool = ApprovalTool()
@@ -142,9 +139,9 @@ class TestFeatureInventory:
 
     def test_phase4_features(self):
         """Phase 4: Ecosystem & Scale."""
-        from realize_core.tools.messaging import MessageTool
         from realize_core.eval.harness import EvalRunner, EvalSuite
         from realize_core.templates.marketplace import TemplateRegistry
+        from realize_core.tools.messaging import MessageTool
 
         # Messaging
         tool = MessageTool()
@@ -173,7 +170,7 @@ class TestSchemaVersion:
         assert max(MIGRATIONS.keys()) == 4
 
     def test_migration_completeness(self, tmp_path):
-        from realize_core.db.migrations import run_migrations, get_current_version
+        from realize_core.db.migrations import get_current_version, run_migrations
         from realize_core.db.schema import get_connection
 
         db_path = tmp_path / "test.db"

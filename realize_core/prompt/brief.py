@@ -14,7 +14,7 @@ for the session duration to avoid regeneration on subsequent messages.
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -198,7 +198,7 @@ def _query_recent_audit(
     try:
         import sqlite3
 
-        cutoff = datetime.now(timezone.utc) - timedelta(hours=lookback_hours)
+        cutoff = datetime.now(UTC) - timedelta(hours=lookback_hours)
         cutoff_str = cutoff.isoformat()
 
         conn = sqlite3.connect(db_path)

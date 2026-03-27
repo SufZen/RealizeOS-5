@@ -46,12 +46,12 @@ FOR iteration IN 1..budget:
      - Also run quality pipeline (optimization must not break tests/security)
   
   5. Decision:
-     IF metric_improved AND quality score improved or held steady AND no CRITICAL security issue:
+     IF metric_improved (strictly `<` or `>` depending on direction) AND quality score improved or held steady AND no CRITICAL security issue:
        → git commit: "autobuild-optimize: [what] — metric: [new_value] (+[delta])"
        → Log: keep
      ELSE:
-       → git reset
-       → Log: discard + reason (metric worse / quality dropped)
+       → git reset --hard HEAD && git clean -fd
+       → Log: discard + reason (metric worse / lateral / quality dropped)
 
      Readiness bands:
        → score >= 80 = ready to deliver
@@ -93,4 +93,4 @@ FOR iteration IN 1..budget:
 - Quality must not regress and CRITICAL security issues are never allowed
 - Security checks must still pass
 - Each optimization must be its own commit (easy to revert individually)
-- If 5 consecutive iterations show no improvement → stop and report (diminishing returns)
+- If 5 consecutive iterations show no strict improvement → stop and report (diminishing returns)

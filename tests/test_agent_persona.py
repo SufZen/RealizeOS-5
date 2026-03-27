@@ -10,12 +10,10 @@ Covers:
 - Graceful fallback for missing personas
 """
 
-import textwrap
 from pathlib import Path
 
 import pytest
 import yaml
-
 from realize_core.agents.persona import (
     AgentPersona,
     load_persona,
@@ -23,7 +21,6 @@ from realize_core.agents.persona import (
     persona_to_prompt,
     resolve_persona,
 )
-
 
 # ---------------------------------------------------------------------------
 #  Fixtures

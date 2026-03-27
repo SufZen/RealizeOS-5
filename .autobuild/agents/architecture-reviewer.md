@@ -53,7 +53,13 @@ Check:
 
 ## Output Format
 
+Before producing the final review, you MUST output an `<architectural_analysis>` XML block to explicitly evaluate potential structural issues and pattern violations step-by-step.
+
 ```markdown
+<architectural_analysis>
+[Your step-by-step architectural reasoning here...]
+</architectural_analysis>
+
 ## Architecture Review — [Intent Name]
 
 **Overall: [COMPLIANT / MINOR ISSUES / VIOLATIONS]**
@@ -80,3 +86,8 @@ Check:
 - **Architectural violation** (wrong layer, broken boundary) → Return to Orchestrator, Phase 3
 - **Minor deviation** (naming, style) → Document, let human decide
 - **Suggestion** (refactoring opportunity, better pattern) → Document as non-blocking
+
+## Anti-Patterns (NEVER DO)
+
+- ❌ DO NOT comment on security vulnerabilities. Let the Security Reviewer handle that.
+- ❌ DO NOT comment on missing tests or test coverage. Let the Test Writer handle that.

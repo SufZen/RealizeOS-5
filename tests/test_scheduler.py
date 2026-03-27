@@ -111,10 +111,11 @@ class TestScheduleAPI:
             pytest.skip("FastAPI not installed")
 
         from fastapi.testclient import TestClient
-        from realize_api.routes import ventures
+        from realize_api.routes import venture_agents, ventures
 
         app = FastAPI()
         app.include_router(ventures.router, prefix="/api")
+        app.include_router(venture_agents.router, prefix="/api")
         app.state.systems = {
             "v1": {
                 "name": "Test",

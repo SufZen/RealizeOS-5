@@ -2,7 +2,7 @@
 # RealizeOS Deploy Script
 # Usage: ./scripts/deploy.sh [--build-dashboard] [--docker]
 
-set -e
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"

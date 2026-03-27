@@ -17,7 +17,7 @@ from __future__ import annotations
 import logging
 import re
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -79,7 +79,7 @@ class EvalResult:
         self.passed: bool = False
         self.duration_ms: float = 0
         self.errors: list[str] = []
-        self.created_at = datetime.now(timezone.utc)
+        self.created_at = datetime.now(UTC)
 
     @property
     def overall_score(self) -> float:
@@ -118,7 +118,7 @@ class EvalReport:
     def __init__(self, suite_name: str, results: list[EvalResult] | None = None):
         self.suite_name = suite_name
         self.results = results or []
-        self.created_at = datetime.now(timezone.utc)
+        self.created_at = datetime.now(UTC)
 
     @property
     def pass_rate(self) -> float:

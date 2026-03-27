@@ -13,9 +13,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
 import yaml
-
 from realize_core.templates.marketplace import (
     TemplateManifest,
     TemplateRegistry,
@@ -23,7 +21,6 @@ from realize_core.templates.marketplace import (
     load_template_manifest,
     validate_template,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers

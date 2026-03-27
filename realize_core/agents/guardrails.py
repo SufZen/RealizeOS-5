@@ -177,8 +177,9 @@ def check_guardrails(
     """
     violations: list[GuardrailViolation] = []
 
+    safe_context: dict[str, Any] = context if context is not None else {}
     for guardrail in guardrails:
-        violation = _evaluate_guardrail(text, guardrail, context or {})
+        violation = _evaluate_guardrail(text, guardrail, safe_context)
         if violation:
             violations.append(violation)
 
@@ -188,6 +189,16 @@ def check_guardrails(
             "Guardrail check found %d violation(s) (%d strict)",
             len(violations),
             strict_count,
+            extra={
+                "guardrail_violations": [
+                    {
+                        "name": v.guardrail_name,
+                        "enforcement": v.enforcement,
+                        "detail": v.detail,
+                    }
+                    for v in violations
+                ]
+            },
         )
 
     return violations
@@ -206,8 +217,8 @@ def _evaluate_guardrail(
     # Check for common safety patterns based on guardrail description
     description_lower = guardrail.description.lower()
 
-    # Pattern: "never share confidential data" → check for email/phone/SSN patterns
-    if "confidential" in description_lower or "sensitive" in description_lower:
+    # 1. Sensitive Data / PII
+    if any(kw in description_lower for kw in ["confidential", "sensitive", "pii", "personal"]):
         if _contains_sensitive_data(text):
             return GuardrailViolation(
                 guardrail_name=guardrail.name,
@@ -216,7 +227,37 @@ def _evaluate_guardrail(
                 detail="Output may contain sensitive data patterns",
             )
 
-    # Pattern: "confirm before sending" → advisory, always pass
+    # 2. Profanity / Toxicity
+    if any(kw in description_lower for kw in ["profan", "toxic", "respectful", "clean"]):
+        if _contains_profanity(text):
+            return GuardrailViolation(
+                guardrail_name=guardrail.name,
+                description=guardrail.description,
+                enforcement=guardrail.enforcement,
+                detail="Output contains prohibited language or toxic phrasing",
+            )
+
+    # 3. Competitor Mentions
+    if any(kw in description_lower for kw in ["competitor", "rival"]):
+        if _contains_competitor(text, context.get("competitors", [])):
+            return GuardrailViolation(
+                guardrail_name=guardrail.name,
+                description=guardrail.description,
+                enforcement=guardrail.enforcement,
+                detail="Output contains mentions of restricted competitors",
+            )
+
+    # 4. JSON Format restriction
+    if any(kw in description_lower for kw in ["json", "format"]):
+        if not _is_valid_json(text):
+            return GuardrailViolation(
+                guardrail_name=guardrail.name,
+                description=guardrail.description,
+                enforcement=guardrail.enforcement,
+                detail="Output is not valid JSON format",
+            )
+
+    # 5. Advisory / Confirmation
     if "confirm" in description_lower and "before" in description_lower:
         # This is an advisory that requires human confirmation
         # It doesn't block content, just flags it
@@ -241,6 +282,39 @@ def _contains_sensitive_data(text: str) -> bool:
     if re.search(r"\b\d{4}[- ]?\d{4}[- ]?\d{4}[- ]?\d{4}\b", text):
         return True
     return False
+
+
+def _contains_profanity(text: str) -> bool:
+    """Basic profanity check."""
+    bad_words = ["fuck", "shit", "asshole", "bitch", "cunt"]
+    return any(re.search(r"\b" + kw + r"\b", text, re.IGNORECASE) for kw in bad_words)
+
+
+def _contains_competitor(text: str, competitors: list[str]) -> bool:
+    """Check for mentions of competitors from context."""
+    if not competitors:
+        return False
+    text_lower = text.lower()
+    return any(kw.lower() in text_lower for kw in competitors)
+
+
+def _is_valid_json(text: str) -> bool:
+    """Check if the text is valid JSON (handling markdown wrappers)."""
+    import json
+    try:
+        cleaned = text.strip()
+        if cleaned.startswith("```json"):
+            cleaned = cleaned.split("```json", 1)[1]
+            if "```" in cleaned:
+                cleaned = cleaned.rsplit("```", 1)[0]
+        elif cleaned.startswith("```"):
+            cleaned = cleaned.split("```", 1)[1]
+            if "```" in cleaned:
+                cleaned = cleaned.rsplit("```", 1)[0]
+        json.loads(cleaned.strip())
+        return True
+    except Exception:
+        return False
 
 
 def has_strict_violations(violations: list[GuardrailViolation]) -> bool:

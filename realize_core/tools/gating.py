@@ -23,9 +23,9 @@ logger = logging.getLogger(__name__)
 
 
 def gate_tools_for_persona(
-    all_tools: list["BaseTool"],
-    persona: "AgentPersona | None",
-) -> list["BaseTool"]:
+    all_tools: list[BaseTool],
+    persona: AgentPersona | None,
+) -> list[BaseTool]:
     """
     Filter tools based on persona allow/deny lists.
 
@@ -75,8 +75,8 @@ def gate_tools_for_persona(
 
 
 def get_gated_schemas(
-    all_tools: list["BaseTool"],
-    persona: "AgentPersona | None",
+    all_tools: list[BaseTool],
+    persona: AgentPersona | None,
 ) -> list[dict]:
     """
     Get Claude-format tool schemas filtered by persona gating.
@@ -94,7 +94,7 @@ def get_gated_schemas(
 
 def check_tool_access(
     tool_name: str,
-    persona: "AgentPersona | None",
+    persona: AgentPersona | None,
 ) -> tuple[bool, str]:
     """
     Check if a specific tool is accessible for the given persona.

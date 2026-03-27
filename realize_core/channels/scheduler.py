@@ -5,9 +5,12 @@ Supports:
 - YAML-defined scheduled jobs
 - Cron-expression-like scheduling (simplified)
 - Task routing through the channel system
+- Circuit breaker for repeatedly failing jobs
+- State persistence across restarts
 """
 
 import asyncio
+import json
 import logging
 import time
 from collections.abc import Callable, Coroutine
@@ -16,6 +19,9 @@ from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger(__name__)
+
+# Maximum consecutive failures before auto-disabling a job
+_MAX_CONSECUTIVE_FAILURES = 5
 
 
 @dataclass
@@ -29,6 +35,8 @@ class ScheduledJob:
     enabled: bool = True
     last_run: float = 0.0
     run_count: int = 0
+    consecutive_failures: int = 0
+    last_error: str = ""
     user_id: str = "scheduler"
     metadata: dict[str, Any] = field(default_factory=dict)
 
@@ -94,6 +102,10 @@ class CronScheduler:
 
     Runs jobs at defined intervals, routing them through the engine
     as if a user had sent the message.
+
+    Features:
+    - Circuit breaker: auto-disables jobs after consecutive failures
+    - State persistence: save/load job state for restart recovery
     """
 
     def __init__(self):
@@ -121,10 +133,12 @@ class CronScheduler:
         return self._jobs.pop(name, None) is not None
 
     def enable_job(self, name: str) -> bool:
-        """Enable a job."""
+        """Enable a job and reset its failure counter."""
         job = self._jobs.get(name)
         if job:
             job.enabled = True
+            job.consecutive_failures = 0
+            job.last_error = ""
             return True
         return False
 
@@ -215,7 +229,7 @@ class CronScheduler:
             await asyncio.sleep(10)
 
     async def _execute_job(self, job: ScheduledJob):
-        """Execute a single scheduled job."""
+        """Execute a single scheduled job with circuit breaker logic."""
         if not self._handler:
             logger.warning(f"No handler set, skipping job '{job.name}'")
             return
@@ -231,12 +245,95 @@ class CronScheduler:
                 system_key=job.system_key,
                 channel="scheduler",
             )
+            # Reset failure counter on success
+            job.consecutive_failures = 0
+            job.last_error = ""
         except Exception as e:
-            logger.error(f"Scheduled job '{job.name}' failed: {e}", exc_info=True)
+            job.consecutive_failures += 1
+            job.last_error = str(e)[:200]
+            logger.error(
+                f"Scheduled job '{job.name}' failed "
+                f"({job.consecutive_failures}/{_MAX_CONSECUTIVE_FAILURES}): {e}",
+                exc_info=True,
+            )
+
+            # Circuit breaker: auto-disable after too many failures
+            if job.consecutive_failures >= _MAX_CONSECUTIVE_FAILURES:
+                job.enabled = False
+                logger.error(
+                    f"Circuit breaker: auto-disabled job '{job.name}' "
+                    f"after {_MAX_CONSECUTIVE_FAILURES} consecutive failures"
+                )
+
+    # -----------------------------------------------------------------------
+    # State persistence
+    # -----------------------------------------------------------------------
+
+    def save_state(self, path: str | Path):
+        """Save scheduler state to a JSON file for restart recovery."""
+        state = {}
+        for name, job in self._jobs.items():
+            state[name] = {
+                "last_run": job.last_run,
+                "run_count": job.run_count,
+                "consecutive_failures": job.consecutive_failures,
+                "last_error": job.last_error,
+                "enabled": job.enabled,
+            }
+
+        p = Path(path)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(json.dumps(state, indent=2), encoding="utf-8")
+        logger.info(f"Scheduler state saved to {path}")
+
+    def load_state(self, path: str | Path):
+        """Load scheduler state from a JSON file."""
+        p = Path(path)
+        if not p.exists():
+            return
+
+        try:
+            state = json.loads(p.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError) as e:
+            logger.warning(f"Failed to load scheduler state: {e}")
+            return
+
+        for name, data in state.items():
+            job = self._jobs.get(name)
+            if job:
+                job.last_run = data.get("last_run", 0.0)
+                job.run_count = data.get("run_count", 0)
+                job.consecutive_failures = data.get("consecutive_failures", 0)
+                job.last_error = data.get("last_error", "")
+                # Only restore disabled state from persistence (don't re-enable)
+                if not data.get("enabled", True):
+                    job.enabled = False
+
+        logger.info(f"Scheduler state loaded from {path}")
+
+    # -----------------------------------------------------------------------
+    # Health & status
+    # -----------------------------------------------------------------------
 
     @property
     def job_count(self) -> int:
         return len(self._jobs)
+
+    def health_check(self) -> dict:
+        """Return scheduler health status."""
+        failing_jobs = [
+            name for name, job in self._jobs.items()
+            if job.consecutive_failures > 0
+        ]
+        return {
+            "name": "scheduler",
+            "healthy": self._running,
+            "details": {
+                "running": self._running,
+                "total_jobs": self.job_count,
+                "failing_jobs": failing_jobs,
+            },
+        }
 
     def status_summary(self) -> dict:
         """Get status of all scheduled jobs."""
@@ -250,6 +347,8 @@ class CronScheduler:
                     "run_count": job.run_count,
                     "is_due": job.is_due,
                     "next_run_in": round(job.next_run_in),
+                    "consecutive_failures": job.consecutive_failures,
+                    "last_error": job.last_error,
                 }
                 for name, job in self._jobs.items()
             },
@@ -269,3 +368,4 @@ def get_scheduler() -> CronScheduler:
     if _scheduler is None:
         _scheduler = CronScheduler()
     return _scheduler
+

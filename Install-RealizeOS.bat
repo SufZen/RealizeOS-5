@@ -8,7 +8,7 @@ title RealizeOS V5 - Interactive Setup Wizard
 net session >nul 2>&1
 if !errorlevel! neq 0 (
     echo Requesting Administrator privileges...
-    powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process cmd.exe -ArgumentList '/c \"\"%~f0\"\"' -Verb RunAs"
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process cmd.exe -ArgumentList '/c \"\""%~f0\"\"' -Verb RunAs"
     exit /b
 )
 
@@ -29,9 +29,12 @@ echo.
 echo RealizeOS is an advanced, self-evolving AI Operations System built for
 echo absolute control, privacy, and performance. This installer will:
 echo.
-echo   - Check and install Python (if you don't have it)
+echo   - Check and install Python 3.12+ (if you don't have it)
+echo   - Check for Node.js (needed for the dashboard)
 echo   - Download the latest RealizeOS package from GitHub
 echo   - Install all necessary dependencies safely
+echo   - Build the React dashboard for local use
+echo   - Run database migrations
 echo   - Create a desktop shortcut to launch your local dashboard
 echo.
 
@@ -46,7 +49,8 @@ echo By proceeding, you agree to use RealizeOS responsibly.
 echo RealizeOS is provided "AS IS" without warranty of any kind.
 echo You are responsible for your own API keys and token costs.
 echo.
-echo Core engine: MIT License
+echo License: Business Source License 1.1 (BSL 1.1)
+echo Full text: https://github.com/SufZen/RealizeOS-5/blob/main/LICENSE
 echo.
 echo ------------------------------------------------------------------------------
 :EULA_PROMPT
@@ -92,18 +96,20 @@ if not exist "!INSTALL_DIR!" (
 :: --------------------------------------------------------------------------
 :: 5. Check Python
 :: --------------------------------------------------------------------------
-echo [1/4] Checking for Python...
+echo [1/7] Checking for Python...
 
 where python >nul 2>&1
 if !errorlevel! equ 0 (
-    echo       [OK] Python is already installed.
+    :: Verify version is 3.11+
+    for /f "tokens=2 delims= " %%v in ('python --version 2^>^&1') do set "PY_VER=%%v"
+    echo       [OK] Python !PY_VER! is installed.
     goto :PYTHON_READY
 )
 
-echo       [!] Python not found. Downloading Python 3.11...
+echo       [!] Python not found. Downloading Python 3.12...
 set "PY_INSTALLER=!TEMP!\python_installer.exe"
 
-powershell -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri 'https://www.python.org/ftp/python/3.11.8/python-3.11.8-amd64.exe' -OutFile '!PY_INSTALLER!'"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri 'https://www.python.org/ftp/python/3.12.8/python-3.12.8-amd64.exe' -OutFile '!PY_INSTALLER!'"
 
 if not exist "!PY_INSTALLER!" (
     echo       [ERROR] Failed to download Python.
@@ -116,7 +122,7 @@ echo       [!] Installing Python silently (this may take 1-2 minutes)...
 "!PY_INSTALLER!" /quiet InstallAllUsers=0 PrependPath=1 Include_test=0
 
 :: Refresh PATH for the current session
-set "PATH=!LOCALAPPDATA!\Programs\Python\Python311\Scripts;!LOCALAPPDATA!\Programs\Python\Python311;!PATH!"
+set "PATH=!LOCALAPPDATA!\Programs\Python\Python312\Scripts;!LOCALAPPDATA!\Programs\Python\Python312;!PATH!"
 
 where python >nul 2>&1
 if !errorlevel! neq 0 (
@@ -131,10 +137,33 @@ echo       [OK] Python installed successfully!
 :PYTHON_READY
 
 :: --------------------------------------------------------------------------
-:: 6. Download RealizeOS
+:: 6. Check Node.js (for dashboard)
 :: --------------------------------------------------------------------------
 echo.
-echo [2/4] Downloading RealizeOS from GitHub...
+echo [2/7] Checking for Node.js (required for dashboard)...
+
+set "HAS_NODE=0"
+where node >nul 2>&1
+if !errorlevel! equ 0 (
+    for /f "tokens=1 delims=v" %%v in ('node --version 2^>^&1') do set "NODE_VER=%%v"
+    echo       [OK] Node.js is installed.
+    set "HAS_NODE=1"
+) else (
+    echo       [!] Node.js not found.
+    echo       The dashboard requires Node.js 18+ to build.
+    echo       Download from: https://nodejs.org/en/download/
+    echo.
+    echo       You can install Node.js later and run:
+    echo         cd dashboard ^&^& npx pnpm install ^&^& npx pnpm build
+    echo.
+    echo       The backend API will still work without the dashboard.
+)
+
+:: --------------------------------------------------------------------------
+:: 7. Download RealizeOS
+:: --------------------------------------------------------------------------
+echo.
+echo [3/7] Downloading RealizeOS from GitHub...
 set "ZIP_FILE=!TEMP!\RealizeOS-main.zip"
 
 powershell -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri 'https://github.com/SufZen/RealizeOS-5/archive/refs/heads/main.zip' -OutFile '!ZIP_FILE!'"
@@ -158,10 +187,10 @@ if !ZIP_SIZE! LSS 1000 (
 )
 
 :: --------------------------------------------------------------------------
-:: 7. Extract
+:: 8. Extract
 :: --------------------------------------------------------------------------
 echo.
-echo [3/4] Extracting system files...
+echo [4/7] Extracting system files...
 set "TEMP_EXTRACT=!TEMP!\RealizeOS_Temp"
 if exist "!TEMP_EXTRACT!" rmdir /s /q "!TEMP_EXTRACT!"
 
@@ -180,6 +209,9 @@ xcopy /s /e /y /q "!TEMP_EXTRACT!\RealizeOS-5-main\*" "!INSTALL_DIR!\" >nul
 if exist "!TEMP_EXTRACT!\RealizeOS-5-main\.env.example" (
     copy /y "!TEMP_EXTRACT!\RealizeOS-5-main\.env.example" "!INSTALL_DIR!\" >nul 2>&1
 )
+if exist "!TEMP_EXTRACT!\RealizeOS-5-main\.gitignore" (
+    copy /y "!TEMP_EXTRACT!\RealizeOS-5-main\.gitignore" "!INSTALL_DIR!\" >nul 2>&1
+)
 
 :: Cleanup temp files
 rmdir /s /q "!TEMP_EXTRACT!" 2>nul
@@ -187,10 +219,36 @@ del /f /q "!ZIP_FILE!" 2>nul
 echo       [OK] Files extracted to !INSTALL_DIR!
 
 :: --------------------------------------------------------------------------
-:: 8. Install Dependencies
+:: 9. Create required directories
 :: --------------------------------------------------------------------------
 echo.
-echo [4/4] Installing dependencies (this may take a few minutes)...
+echo [5/7] Creating required directories...
+
+if not exist "!INSTALL_DIR!\data" mkdir "!INSTALL_DIR!\data"
+if not exist "!INSTALL_DIR!\data\audit" mkdir "!INSTALL_DIR!\data\audit"
+if not exist "!INSTALL_DIR!\data\storage" mkdir "!INSTALL_DIR!\data\storage"
+if not exist "!INSTALL_DIR!\shared" mkdir "!INSTALL_DIR!\shared"
+if not exist "!INSTALL_DIR!\ventures" mkdir "!INSTALL_DIR!\ventures"
+if not exist "!INSTALL_DIR!\plugins" mkdir "!INSTALL_DIR!\plugins"
+if not exist "!INSTALL_DIR!\systems" mkdir "!INSTALL_DIR!\systems"
+
+echo       [OK] Directories created (data, shared, ventures, plugins, systems).
+
+:: --------------------------------------------------------------------------
+:: 10. Create .env from .env.example if needed
+:: --------------------------------------------------------------------------
+if not exist "!INSTALL_DIR!\.env" (
+    if exist "!INSTALL_DIR!\.env.example" (
+        copy /y "!INSTALL_DIR!\.env.example" "!INSTALL_DIR!\.env" >nul 2>&1
+        echo       [OK] Created .env from .env.example (edit this to add your API keys).
+    )
+)
+
+:: --------------------------------------------------------------------------
+:: 11. Install Python Dependencies
+:: --------------------------------------------------------------------------
+echo.
+echo [6/7] Installing Python dependencies (this may take a few minutes)...
 cd /d "!INSTALL_DIR!"
 python -m pip install --upgrade pip >nul 2>&1
 python -m pip install -r requirements.txt
@@ -198,11 +256,63 @@ python -m pip install -r requirements.txt
 if !errorlevel! neq 0 (
     echo       [WARNING] Some dependencies had issues. The system will try to resolve on launch.
 ) else (
-    echo       [OK] All dependencies installed successfully!
+    echo       [OK] All Python dependencies installed successfully!
 )
 
 :: --------------------------------------------------------------------------
-:: 9. Create Desktop Shortcut
+:: 12. Run Database Migrations
+:: --------------------------------------------------------------------------
+echo.
+echo       Running database migrations...
+python cli.py migrate >nul 2>&1
+if !errorlevel! equ 0 (
+    echo       [OK] Database schema is up to date.
+) else (
+    echo       [--] Migration skipped (will auto-run on first launch).
+)
+
+:: --------------------------------------------------------------------------
+:: 13. Build Dashboard (if Node.js available)
+:: --------------------------------------------------------------------------
+echo.
+echo [7/7] Building the dashboard...
+
+if "!HAS_NODE!"=="1" (
+    where pnpm >nul 2>&1
+    if !errorlevel! neq 0 (
+        echo       [..] Installing pnpm...
+        npm install -g pnpm >nul 2>&1
+    )
+
+    where pnpm >nul 2>&1
+    if !errorlevel! equ 0 (
+        if exist "!INSTALL_DIR!\dashboard\package.json" (
+            echo       [..] Installing dashboard dependencies...
+            cd /d "!INSTALL_DIR!\dashboard"
+            pnpm install >nul 2>&1
+            echo       [..] Building dashboard (this may take 1-2 minutes)...
+            pnpm build >nul 2>&1
+            if !errorlevel! equ 0 (
+                echo       [OK] Dashboard built successfully!
+            ) else (
+                echo       [WARNING] Dashboard build had issues. You can rebuild later:
+                echo                 cd dashboard ^&^& pnpm install ^&^& pnpm build
+            )
+            cd /d "!INSTALL_DIR!"
+        ) else (
+            echo       [--] Dashboard source not found. Skipping.
+        )
+    ) else (
+        echo       [--] pnpm not available. Install it later: npm install -g pnpm
+    )
+) else (
+    echo       [--] Skipped (Node.js not found). Install Node.js 18+ to enable the dashboard.
+    echo           Download: https://nodejs.org
+    echo           Then run: cd dashboard ^&^& npx pnpm install ^&^& npx pnpm build
+)
+
+:: --------------------------------------------------------------------------
+:: 14. Create Desktop Shortcut
 :: --------------------------------------------------------------------------
 echo.
 echo Creating Desktop shortcut...
@@ -214,12 +324,12 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command "$ws = New-Object -ComObj
 echo       [OK] Shortcut created on Desktop.
 
 :: --------------------------------------------------------------------------
-:: 10. Write VERSION File
+:: 15. Write VERSION File
 :: --------------------------------------------------------------------------
 echo.
 echo Writing version info...
 if exist "!INSTALL_DIR!\VERSION" (
-    set /p INSTALLED_VER=<"!INSTALL_DIR!\VERSION"
+    set /p INSTALLED_VER<"!INSTALL_DIR!\VERSION"
     echo       [OK] Version: !INSTALLED_VER!
 ) else (
     echo 5.0.0> "!INSTALL_DIR!\VERSION"
@@ -227,7 +337,7 @@ if exist "!INSTALL_DIR!\VERSION" (
 )
 
 :: --------------------------------------------------------------------------
-:: 11. Completion
+:: 16. Completion
 :: --------------------------------------------------------------------------
 echo.
 color 0A
@@ -241,6 +351,10 @@ echo.
 echo A shortcut "Start RealizeOS" is now on your Desktop.
 echo Double-click it anytime to launch the system.
 echo.
+echo IMPORTANT — Next step:
+echo   Edit .env to add your API keys (at least one LLM provider).
+echo   Or run: python cli.py setup   (interactive configuration wizard)
+echo.
 echo Also included:
 echo   - Update-RealizeOS.bat   (check for and install updates)
 echo   - Migrate-RealizeOS.bat  (migrate data from another installation)
@@ -253,6 +367,8 @@ set /p "OPEN_GUIDE=Would you like to open the User Guide? (Y/N): "
 if /I "!OPEN_GUIDE!"=="Y" (
     if exist "!INSTALL_DIR!\docs\user-guide.html" (
         start "" "!INSTALL_DIR!\docs\user-guide.html"
+    ) else if exist "!INSTALL_DIR!\docs\quick-install.html" (
+        start "" "!INSTALL_DIR!\docs\quick-install.html"
     )
 )
 

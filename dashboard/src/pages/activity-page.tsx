@@ -13,12 +13,14 @@ interface ActivityResponse {
   offset: number
 }
 
-function isActivityEvent(data: Record<string, unknown>): data is ActivityEvent {
+function isActivityEvent(data: unknown): data is ActivityEvent {
+  if (!data || typeof data !== 'object') return false
+  const d = data as Record<string, unknown>
   return (
-    typeof data.id === 'string' &&
-    typeof data.action === 'string' &&
-    typeof data.actor_id === 'string' &&
-    typeof data.created_at === 'string'
+    typeof d.id === 'string' &&
+    typeof d.action === 'string' &&
+    typeof d.actor_id === 'string' &&
+    typeof d.created_at === 'string'
   )
 }
 

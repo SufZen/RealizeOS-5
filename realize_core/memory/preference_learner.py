@@ -13,13 +13,17 @@ as an additional context layer.
 """
 
 import logging
+import time
 from collections import Counter
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
-# In-memory cache of learned preferences per user
-_preference_cache: dict[str, dict] = {}
+# Cache TTL in seconds (1 hour)
+_CACHE_TTL = 3600
+
+# In-memory cache of learned preferences per user: {key: (timestamp, prefs)}
+_preference_cache: dict[str, tuple[float, dict]] = {}
 
 
 def analyze_preferences(system_key: str, user_id: str = "dashboard-user") -> dict:
@@ -30,7 +34,10 @@ def analyze_preferences(system_key: str, user_id: str = "dashboard-user") -> dic
     """
     cache_key = f"{system_key}:{user_id}"
     if cache_key in _preference_cache:
-        return _preference_cache[cache_key]
+        cached_time, cached_prefs = _preference_cache[cache_key]
+        if (time.time() - cached_time) < _CACHE_TTL:
+            return cached_prefs
+        # Expired — fall through to recompute
 
     try:
         from realize_core.memory.conversation import get_history_with_timestamps
@@ -43,7 +50,7 @@ def analyze_preferences(system_key: str, user_id: str = "dashboard-user") -> dic
         return {}
 
     user_msgs = [m for m in history if m.get("role") == "user"]
-    [m for m in history if m.get("role") == "assistant"]
+
 
     prefs = {}
 
@@ -125,7 +132,7 @@ def analyze_preferences(system_key: str, user_id: str = "dashboard-user") -> dic
             prefs["uses_emoji"] = True
 
     # Cache result
-    _preference_cache[cache_key] = prefs
+    _preference_cache[cache_key] = (time.time(), prefs)
     return prefs
 
 

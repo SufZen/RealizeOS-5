@@ -10,11 +10,92 @@ V5 additions:
 - Benchmark-based model selection via BenchmarkCache (cost-benefit scoring)
 - LiteLLM fallback: 50+ providers available when primary providers fail
 - Routing strategies: balanced, cost_optimized, quality_first, speed_first
+- Rate limit enforcement (sliding window, configurable per minute)
+- Cost limit enforcement ($X/hour cap with automatic rejection)
 """
 
 import logging
+import time
+from collections import deque
 
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Rate & Cost Limit Tracking (sliding window)
+# ---------------------------------------------------------------------------
+
+# Sliding window of request timestamps for rate limiting
+_request_timestamps: deque[float] = deque()
+
+# Sliding window of (timestamp, cost_usd) for cost tracking
+_cost_window: deque[tuple[float, float]] = deque()
+
+
+def _check_rate_limit() -> bool:
+    """Check if we're within the rate limit. Returns True if request is allowed."""
+    from realize_core.config import RATE_LIMIT_PER_MINUTE
+
+    now = time.time()
+    cutoff = now - 60.0
+
+    # Evict old entries
+    while _request_timestamps and _request_timestamps[0] < cutoff:
+        _request_timestamps.popleft()
+
+    if len(_request_timestamps) >= RATE_LIMIT_PER_MINUTE:
+        logger.warning(
+            f"Rate limit exceeded: {len(_request_timestamps)}/{RATE_LIMIT_PER_MINUTE} "
+            f"requests in the last 60s"
+        )
+        return False
+
+    _request_timestamps.append(now)
+    return True
+
+
+def _check_cost_limit() -> bool:
+    """Check if we're within the hourly cost limit. Returns True if request is allowed."""
+    from realize_core.config import COST_LIMIT_PER_HOUR_USD
+
+    now = time.time()
+    cutoff = now - 3600.0
+
+    # Evict old entries
+    while _cost_window and _cost_window[0][0] < cutoff:
+        _cost_window.popleft()
+
+    hourly_cost = sum(cost for _, cost in _cost_window)
+    if hourly_cost >= COST_LIMIT_PER_HOUR_USD:
+        logger.warning(
+            f"Cost limit exceeded: ${hourly_cost:.4f} >= ${COST_LIMIT_PER_HOUR_USD:.2f}/hour"
+        )
+        return False
+
+    return True
+
+
+def _record_cost(cost_usd: float) -> None:
+    """Record a cost entry for the hourly cost tracker."""
+    if cost_usd > 0:
+        _cost_window.append((time.time(), cost_usd))
+
+
+def get_hourly_cost() -> float:
+    """Get the total cost in the last hour (for dashboard reporting)."""
+    now = time.time()
+    cutoff = now - 3600.0
+    while _cost_window and _cost_window[0][0] < cutoff:
+        _cost_window.popleft()
+    return sum(cost for _, cost in _cost_window)
+
+
+def get_rate_count() -> int:
+    """Get the number of requests in the last minute (for dashboard reporting)."""
+    now = time.time()
+    cutoff = now - 60.0
+    while _request_timestamps and _request_timestamps[0] < cutoff:
+        _request_timestamps.popleft()
+    return len(_request_timestamps)
 
 # Keywords that signal each task complexity level
 COMPLEX_KEYWORDS = {
@@ -76,7 +157,6 @@ CONTENT_KEYWORDS = {
     "article",
     "content",
     "copy",
-    "draft",
     "headline",
     "caption",
     "thread",
@@ -308,7 +388,7 @@ async def route_to_llm(
     messages: list[dict],
     task_type: str,
     system_key: str = "",
-    max_retries: int = 2,
+    max_retries: int = 3,
     use_benchmark: bool = False,
     strategy: str = "balanced",
 ) -> str:
@@ -335,6 +415,19 @@ async def route_to_llm(
     Returns:
         LLM response text
     """
+    # ── Rate & Cost limit enforcement ──────────────────────────────
+    if not _check_rate_limit():
+        return (
+            "I'm currently handling too many requests. "
+            "Please wait a moment and try again."
+        )
+
+    if not _check_cost_limit():
+        return (
+            "The hourly cost limit has been reached. "
+            "Please wait or contact your administrator to adjust the limit."
+        )
+
     # Optionally use benchmark-based selection
     if use_benchmark:
         benchmark_model = select_model_by_benchmark(task_type, strategy)
@@ -364,6 +457,7 @@ async def route_to_llm(
                     model=model_id,
                 )
                 if response.ok:
+                    _record_cost(response.cost_usd)
                     return response.text
                 logger.warning(f"Provider {provider.name} error: {response.error}")
             except Exception as e:
@@ -391,6 +485,7 @@ async def route_to_llm(
                     messages=messages,
                 )
                 if fb_response.ok:
+                    _record_cost(fb_response.cost_usd)
                     logger.info(f"Fallback succeeded with {fallback_name}")
                     return fb_response.text
                 logger.warning(f"Fallback {fallback_name} error: {fb_response.error}")
@@ -421,6 +516,19 @@ async def route_to_llm(
         return await call_gemini_flash(system_prompt, messages)
 
 
+# Module-level LiteLLM provider singleton (avoids creating new instances per call)
+_litellm_provider = None
+
+
+def _get_litellm_provider():
+    """Get or create the LiteLLM provider singleton."""
+    global _litellm_provider
+    if _litellm_provider is None:
+        from realize_core.llm.litellm_provider import LiteLLMProvider
+        _litellm_provider = LiteLLMProvider()
+    return _litellm_provider
+
+
 async def _try_litellm_completion(
     system_prompt: str,
     messages: list[dict],
@@ -433,9 +541,7 @@ async def _try_litellm_completion(
     This is a soft fallback — callers can continue to other providers.
     """
     try:
-        from realize_core.llm.litellm_provider import LiteLLMProvider
-
-        provider = LiteLLMProvider()
+        provider = _get_litellm_provider()
         if not provider.is_available():
             return None
 
@@ -445,6 +551,7 @@ async def _try_litellm_completion(
             model=model,
         )
         if response.ok:
+            _record_cost(response.cost_usd)
             return response.text
         logger.warning(f"LiteLLM completion error: {response.error}")
         return None

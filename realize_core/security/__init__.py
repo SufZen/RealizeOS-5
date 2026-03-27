@@ -167,8 +167,26 @@ class UserManager:
             return False
         return user.has_permission(perm)
 
-    def update_role(self, user_id: str, new_role: str) -> bool:
-        """Change a user's role."""
+    def update_role(
+        self, user_id: str, new_role: str, caller_role: str | None = None
+    ) -> bool:
+        """Change a user's role.
+
+        Args:
+            user_id: The user whose role to change.
+            new_role: The new role to assign.
+            caller_role: Role of the caller (if provided, must be 'owner' or 'admin').
+        """
+        # Authorization: only owner/admin can change roles
+        if caller_role is not None and caller_role not in ("owner", "admin"):
+            logger.warning(
+                "Privilege escalation blocked: caller_role='%s' tried to set user '%s' to '%s'",
+                caller_role,
+                user_id,
+                new_role,
+            )
+            return False
+
         user = self._users.get(user_id)
         if not user or new_role not in ROLES:
             return False
