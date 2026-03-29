@@ -129,10 +129,20 @@ jobs:
         working-directory: realize-os-cli
         run: npm version ${{ steps.version.outputs.version }} --no-git-tag-version --allow-same-version
 
+      - name: Verify npm auth
+        working-directory: realize-os-cli
+        continue-on-error: true
+        run: |
+          echo "Registry URL: $(npm config get registry)"
+          echo "Token set: ${NODE_AUTH_TOKEN:+yes}"
+          npm whoami 2>&1 || echo "whoami failed"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
       - name: Publish to npm
         working-directory: realize-os-cli
-        continue-on-error: true  # Non-blocking: may fail if @realize-os org not yet created on npm
-        run: npm publish --access public
+        continue-on-error: true
+        run: npm publish --access public 2>&1
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
