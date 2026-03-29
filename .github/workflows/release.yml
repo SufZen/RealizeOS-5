@@ -129,20 +129,20 @@ jobs:
         working-directory: realize-os-cli
         run: npm version ${{ steps.version.outputs.version }} --no-git-tag-version --allow-same-version
 
-      - name: Verify npm auth
+      - name: Debug npm publish
         working-directory: realize-os-cli
-        continue-on-error: true
         run: |
-          echo "Registry URL: $(npm config get registry)"
-          echo "Token set: ${NODE_AUTH_TOKEN:+yes}"
-          npm whoami 2>&1 || echo "whoami failed"
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      - name: Publish to npm
-        working-directory: realize-os-cli
-        continue-on-error: true
-        run: npm publish --access public 2>&1
+          echo "=== npm config ==="
+          npm config list
+          echo "=== npm whoami ==="
+          npm whoami || echo "WHOAMI FAILED"
+          echo "=== .npmrc contents ==="
+          cat ~/.npmrc 2>/dev/null || echo "no .npmrc"
+          cat .npmrc 2>/dev/null || echo "no local .npmrc"
+          echo "=== package.json name ==="
+          node -e "console.log(require('./package.json').name)"
+          echo "=== npm publish attempt ==="
+          npm publish --access public --verbose 2>&1 || echo "PUBLISH FAILED WITH EXIT CODE $?"
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
