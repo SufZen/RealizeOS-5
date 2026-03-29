@@ -131,6 +131,7 @@ jobs:
 
       - name: Publish to npm
         working-directory: realize-os-cli
+        continue-on-error: true  # Non-blocking: may fail if @realize-os org not yet created on npm
         run: npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
