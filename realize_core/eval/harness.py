@@ -202,11 +202,13 @@ def load_eval_suite(path: Path) -> EvalSuite | None:
         for case_data in data.get("cases", []):
             dimensions = []
             for dim in case_data.get("dimensions", []):
-                dimensions.append(EvalDimension(
-                    name=dim.get("name", "unknown"),
-                    weight=dim.get("weight", 1.0),
-                    description=dim.get("description", ""),
-                ))
+                dimensions.append(
+                    EvalDimension(
+                        name=dim.get("name", "unknown"),
+                        weight=dim.get("weight", 1.0),
+                        description=dim.get("description", ""),
+                    )
+                )
 
             case = EvalCase(
                 name=case_data.get("name", "unnamed"),

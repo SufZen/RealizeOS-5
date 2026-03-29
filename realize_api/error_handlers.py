@@ -142,10 +142,7 @@ async def handle_realize_error(request: Request, exc: RealizeError) -> JSONRespo
 async def handle_validation_error(request: Request, exc: RequestValidationError) -> JSONResponse:
     """Handle Pydantic / FastAPI validation errors with structured output."""
     errors = exc.errors()
-    detail = "; ".join(
-        f"{'.'.join(str(loc) for loc in e.get('loc', []))}: {e.get('msg', 'invalid')}"
-        for e in errors
-    )
+    detail = "; ".join(f"{'.'.join(str(loc) for loc in e.get('loc', []))}: {e.get('msg', 'invalid')}" for e in errors)
     logger.warning("Validation error on %s %s: %s", request.method, request.url.path, detail)
     return _error_response(422, "validation_error", detail)
 

@@ -246,9 +246,7 @@ class WebhookChannel(BaseChannel):
         if timestamp:
             age = abs(time.time() - timestamp)
             if age > _TIMESTAMP_TOLERANCE:
-                self.logger.warning(
-                    f"Webhook timestamp too old ({age:.0f}s): {endpoint_name}"
-                )
+                self.logger.warning(f"Webhook timestamp too old ({age:.0f}s): {endpoint_name}")
                 return None
 
         # Replay attack prevention: reject duplicate nonces
@@ -334,12 +332,11 @@ class WebhookChannel(BaseChannel):
                     resp.raise_for_status()
                     return True
             except Exception as e:
-                self.logger.warning(
-                    f"Outgoing webhook to {url} failed (attempt {attempt}/{max_retries}): {e}"
-                )
+                self.logger.warning(f"Outgoing webhook to {url} failed (attempt {attempt}/{max_retries}): {e}")
                 if attempt < max_retries:
                     import asyncio
-                    await asyncio.sleep(2 ** attempt)  # Exponential backoff
+
+                    await asyncio.sleep(2**attempt)  # Exponential backoff
 
         self.logger.error(f"Outgoing webhook to {url} failed after {max_retries} attempts")
         return False
@@ -362,4 +359,3 @@ class WebhookChannel(BaseChannel):
                 for name, ep in self._endpoints.items()
             },
         }
-

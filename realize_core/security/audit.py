@@ -190,7 +190,7 @@ class AuditLogger:
             key=lambda p: p.stat().st_mtime,
             reverse=True,
         )
-        for old_file in archives[self._max_log_files:]:
+        for old_file in archives[self._max_log_files :]:
             try:
                 old_file.unlink()
                 logger.info("Pruned old audit log: %s", old_file.name)

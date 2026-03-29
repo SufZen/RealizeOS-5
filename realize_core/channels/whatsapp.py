@@ -322,4 +322,3 @@ def _split_message(text: str, max_len: int = 4096) -> list[str]:
         text = text[split_at:].lstrip()
 
     return chunks
-

@@ -160,8 +160,7 @@ def store_memory(system_key: str, category: str, content: str, tags: list[str] =
     with db_connection() as conn:
         # Duplicate detection: check for very similar content in same system/category
         existing = conn.execute(
-            "SELECT content FROM memories WHERE system_key = ? AND category = ? "
-            "ORDER BY created_at DESC LIMIT 20",
+            "SELECT content FROM memories WHERE system_key = ? AND category = ? ORDER BY created_at DESC LIMIT 20",
             (system_key, category),
         ).fetchall()
         for row in existing:
@@ -271,8 +270,7 @@ def prune_old_memories(
         with db_connection() as conn:
             # Find system_key/category pairs with old rows
             pairs = conn.execute(
-                "SELECT DISTINCT system_key, category FROM memories "
-                "WHERE created_at < ?",
+                "SELECT DISTINCT system_key, category FROM memories WHERE created_at < ?",
                 (cutoff,),
             ).fetchall()
 

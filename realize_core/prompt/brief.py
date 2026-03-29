@@ -54,9 +54,7 @@ def generate_session_brief(
     sections: list[str] = []
 
     # Section 1: Recent Activity (from audit log or provided entries)
-    activity_section = _build_activity_section(
-        recent_audit_entries, db_path, system_key, lookback_hours
-    )
+    activity_section = _build_activity_section(recent_audit_entries, db_path, system_key, lookback_hours)
     if activity_section:
         sections.append(activity_section)
 

@@ -167,9 +167,7 @@ class UserManager:
             return False
         return user.has_permission(perm)
 
-    def update_role(
-        self, user_id: str, new_role: str, caller_role: str | None = None
-    ) -> bool:
+    def update_role(self, user_id: str, new_role: str, caller_role: str | None = None) -> bool:
         """Change a user's role.
 
         Args:

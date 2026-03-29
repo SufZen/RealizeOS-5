@@ -172,4 +172,3 @@ class TelegramChannel(BaseChannel):
                     await update.message.reply_text(chunk)
                 except Exception as e:
                     self.logger.error(f"Telegram reply failed: {e}")
-

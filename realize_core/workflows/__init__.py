@@ -313,10 +313,7 @@ class WorkflowRunner:
             # Timeout guard
             elapsed = time.time() - ctx.started_at
             if elapsed > self._max_execution_secs:
-                ctx.error = (
-                    f"Workflow timed out after {int(elapsed)}s "
-                    f"(limit: {self._max_execution_secs}s)"
-                )
+                ctx.error = f"Workflow timed out after {int(elapsed)}s (limit: {self._max_execution_secs}s)"
                 ctx.status = WorkflowStatus.FAILED
                 break
 

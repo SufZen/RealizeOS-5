@@ -146,6 +146,7 @@ def run_security_scan(project_root: Path = None, config: dict = None) -> dict:
     # 14. Injection guard module available
     try:
         from realize_core.security.injection import scan_injection  # noqa: F401
+
         check("Injection guard", True, "Prompt injection scanner active")
     except Exception:
         check("Injection guard", False, "Could not load injection scanner module")
@@ -155,6 +156,7 @@ def run_security_scan(project_root: Path = None, config: dict = None) -> dict:
     if storage_config_path.exists():
         try:
             import json
+
             sc = json.loads(storage_config_path.read_text(encoding="utf-8"))
             provider = sc.get("provider", "local")
             check("Storage provider", True, f"Provider: {provider}")
@@ -179,6 +181,7 @@ def run_security_scan(project_root: Path = None, config: dict = None) -> dict:
                 st = dp.stat()
                 # On Unix, check if file is world-readable
                 import stat
+
                 is_world_readable = bool(st.st_mode & stat.S_IROTH)
                 check(
                     f"DB file permissions ({dp.name})",
@@ -208,4 +211,3 @@ def run_security_scan(project_root: Path = None, config: dict = None) -> dict:
         "checks": checks,
         "scanned_at": __import__("datetime").datetime.now().isoformat(),
     }
-

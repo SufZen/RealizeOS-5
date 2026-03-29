@@ -445,7 +445,9 @@ def _current_failures_for_block(
 
     if definition.key == "foundation":
         if not workspace["config_exists"]:
-            findings.append("Missing realize-os.yaml, so startup falls back to defaults instead of a declared workspace.")
+            findings.append(
+                "Missing realize-os.yaml, so startup falls back to defaults instead of a declared workspace."
+            )
         if workspace["unconfigured_system_dirs"]:
             findings.append(
                 "FABRIC systems exist on disk but are not registered in realize-os.yaml: "
@@ -457,8 +459,14 @@ def _current_failures_for_block(
             findings.append(str(dashboard_build["message"]))
 
     elif definition.key == "security":
-        if not os.getenv("REALIZE_API_KEY") and os.getenv("REALIZE_JWT_ENABLED", "").lower() not in ("true", "1", "yes"):
-            findings.append("Neither REALIZE_API_KEY nor JWT auth is enabled, so local runs default to a low-friction trust model.")
+        if not os.getenv("REALIZE_API_KEY") and os.getenv("REALIZE_JWT_ENABLED", "").lower() not in (
+            "true",
+            "1",
+            "yes",
+        ):
+            findings.append(
+                "Neither REALIZE_API_KEY nor JWT auth is enabled, so local runs default to a low-friction trust model."
+            )
         try:
             from realize_core.security.scanner import run_security_scan
 
@@ -472,29 +480,45 @@ def _current_failures_for_block(
 
     elif definition.key == "data":
         if not workspace["configured_system_count"] and workspace["discovered_system_dirs"]:
-            findings.append("Knowledge directories exist, but none are active in config, so KB and memory behavior cannot be trusted for live usage.")
+            findings.append(
+                "Knowledge directories exist, but none are active in config, so KB and memory behavior cannot be trusted for live usage."
+            )
         if not workspace["has_runtime_databases"]:
-            findings.append("Runtime databases are not present yet, so restart/migration recovery has not been exercised in this workspace.")
+            findings.append(
+                "Runtime databases are not present yet, so restart/migration recovery has not been exercised in this workspace."
+            )
 
     elif definition.key == "runtime":
         if workspace["configured_system_count"] == 0:
-            findings.append("No configured systems are loaded, so core orchestration cannot be exercised against a real venture.")
+            findings.append(
+                "No configured systems are loaded, so core orchestration cannot be exercised against a real venture."
+            )
         if not config.get("features", {}).get("proactive_mode", True):
-            findings.append("Proactive mode is disabled, which changes scheduler and lifecycle behavior from the default runtime path.")
+            findings.append(
+                "Proactive mode is disabled, which changes scheduler and lifecycle behavior from the default runtime path."
+            )
 
     elif definition.key == "llm":
         if not workspace["has_provider"]:
-            findings.append("No providers are configured, so routing, fallback, and agent-quality checks are currently theoretical only.")
+            findings.append(
+                "No providers are configured, so routing, fallback, and agent-quality checks are currently theoretical only."
+            )
 
     elif definition.key == "tools":
         if not os.getenv("BRAVE_API_KEY"):
-            findings.append("Web search is not configured, so web-tool audit coverage will miss live credential and quota behavior.")
+            findings.append(
+                "Web search is not configured, so web-tool audit coverage will miss live credential and quota behavior."
+            )
         if os.getenv("BROWSER_ENABLED", "").lower() not in ("true", "1", "yes"):
-            findings.append("Browser tooling is disabled by environment, so browser automation paths need explicit enablement before live audit.")
+            findings.append(
+                "Browser tooling is disabled by environment, so browser automation paths need explicit enablement before live audit."
+            )
 
     elif definition.key == "api":
         if workspace["configured_system_count"] == 0:
-            findings.append("API contracts are test-covered, but this workspace has no active systems loaded through config.")
+            findings.append(
+                "API contracts are test-covered, but this workspace has no active systems loaded through config."
+            )
 
     elif definition.key == "operator":
         if dashboard_build and not dashboard_build["ok"]:
@@ -502,9 +526,13 @@ def _current_failures_for_block(
         if not has_frontend_tests:
             findings.append("No dedicated dashboard test files were found under dashboard/src.")
         if workspace["partially_initialized"]:
-            findings.append("CLI/operator surfaces need to communicate partial initialization clearly in this workspace.")
+            findings.append(
+                "CLI/operator surfaces need to communicate partial initialization clearly in this workspace."
+            )
 
-    return findings or ["No blocking issue detected from static audit signals; validate this block against a live configured instance."]
+    return findings or [
+        "No blocking issue detected from static audit signals; validate this block against a live configured instance."
+    ]
 
 
 def build_audit_report(root: Path | None = None, quick: bool = False) -> AuditReport:

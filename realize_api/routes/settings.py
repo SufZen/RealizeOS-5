@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 class FeatureUpdateRequest(BaseModel):
     features: dict[str, bool] = Field(..., description="Dictionary of feature flags to update")
 
+
 class GateUpdateRequest(BaseModel):
     gates: dict[str, Any] = Field(..., description="Dictionary of governance gates to update")
 

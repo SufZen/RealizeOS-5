@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 
 class StorageConfig(BaseModel):
     """Storage configuration model."""
+
     provider: str = "local"  # "local" | "s3"
     s3_bucket: str = ""
     s3_region: str = "us-east-1"
@@ -82,7 +83,7 @@ async def get_storage_config(request: Request):
             "ventures": venture_count,
             "total_size_bytes": total_size,
             "storage_path": str(systems_dir),
-        }
+        },
     }
 
 
@@ -157,10 +158,12 @@ async def export_data(request: Request):
         export_dir.mkdir(exist_ok=True)
 
         from datetime import datetime
+
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         zip_name = f"realizeos-export-{timestamp}"
         zip_path = shutil.make_archive(
-            str(export_dir / zip_name), "zip",
+            str(export_dir / zip_name),
+            "zip",
             root_dir=str(base_dir),
             base_dir=None,
         )

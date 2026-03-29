@@ -115,17 +115,23 @@ class TestLoadEvalSuite:
 
     def test_load_custom(self, tmp_path):
         import yaml
+
         suite_yaml = tmp_path / "eval.yaml"
-        suite_yaml.write_text(yaml.dump({
-            "name": "Test Suite",
-            "cases": [
+        suite_yaml.write_text(
+            yaml.dump(
                 {
-                    "name": "greeting",
-                    "prompt": "Say hi",
-                    "expected_patterns": ["hi", "hello"],
-                },
-            ],
-        }), encoding="utf-8")
+                    "name": "Test Suite",
+                    "cases": [
+                        {
+                            "name": "greeting",
+                            "prompt": "Say hi",
+                            "expected_patterns": ["hi", "hello"],
+                        },
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
         suite = load_eval_suite(suite_yaml)
         assert suite is not None
         assert len(suite.cases) == 1
@@ -197,13 +203,16 @@ class TestEvalRunner:
 
     def test_run_with_mock_agent(self):
         runner = EvalRunner()
-        suite = EvalSuite("test", cases=[
-            EvalCase(
-                name="greeting",
-                prompt="Hello",
-                expected_patterns=["hello", "hi"],
-            ),
-        ])
+        suite = EvalSuite(
+            "test",
+            cases=[
+                EvalCase(
+                    name="greeting",
+                    prompt="Hello",
+                    expected_patterns=["hello", "hi"],
+                ),
+            ],
+        )
         report = runner.run_suite(suite, agent_fn=lambda p: f"hi there, you said: {p}")
         assert len(report.results) == 1
         assert report.results[0].passed is True
@@ -217,9 +226,12 @@ class TestEvalRunner:
 
     def test_agent_error_handling(self):
         runner = EvalRunner()
-        suite = EvalSuite("fail", cases=[
-            EvalCase(name="crash", prompt="Fail"),
-        ])
+        suite = EvalSuite(
+            "fail",
+            cases=[
+                EvalCase(name="crash", prompt="Fail"),
+            ],
+        )
 
         def bad_agent(prompt):
             raise RuntimeError("Agent crashed")

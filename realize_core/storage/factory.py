@@ -98,7 +98,7 @@ def reconfigure(config: dict) -> BaseStorageProvider:
     # Close old sync manager's DB connection to prevent leaks
     if _sync_manager is not None:
         try:
-            if hasattr(_sync_manager, 'db_conn') and _sync_manager.db_conn:
+            if hasattr(_sync_manager, "db_conn") and _sync_manager.db_conn:
                 _sync_manager.db_conn.close()
                 logger.debug("Closed old sync manager DB connection")
         except Exception as exc:

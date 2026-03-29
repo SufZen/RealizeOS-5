@@ -41,6 +41,7 @@ class SetupRequest(BaseModel):
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _get_root() -> Path:
     """Get the project root directory."""
     return Path.cwd()
@@ -92,12 +93,14 @@ async def get_devmode_status(request: Request) -> dict[str, Any]:
     for key, tool_info in tools_config.items():
         ctx_file = tool_info.get("context_file", "")
         if ctx_file and (root / ctx_file).exists():
-            connected_tools.append({
-                "key": key,
-                "name": tool_info["name"],
-                "context_file": ctx_file,
-                "active": True,
-            })
+            connected_tools.append(
+                {
+                    "key": key,
+                    "name": tool_info["name"],
+                    "context_file": ctx_file,
+                    "active": True,
+                }
+            )
 
     # Get latest snapshot
     last_snapshot = None
@@ -234,12 +237,7 @@ async def get_modification_history() -> dict[str, Any]:
         return {"snapshots": []}
 
     snapshots = git.list_snapshots()
-    return {
-        "snapshots": [
-            {"tag": s.tag, "timestamp": s.timestamp, "message": s.message}
-            for s in snapshots[:20]
-        ]
-    }
+    return {"snapshots": [{"tag": s.tag, "timestamp": s.timestamp, "message": s.message} for s in snapshots[:20]]}
 
 
 @router.get("/protection")

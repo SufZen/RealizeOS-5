@@ -28,7 +28,6 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
-
 # In-memory pipeline state store (keyed by pipeline_id)
 _MAX_PIPELINE_STATES = 1000
 _pipeline_states: OrderedDict = OrderedDict()

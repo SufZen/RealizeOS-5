@@ -49,6 +49,7 @@ async def receive_webhook(source: str, request: Request):
 
     try:
         import json as _json
+
         body = _json.loads(body_bytes)
     except Exception as exc:
         logger.debug("Webhook JSON parse failed, using raw body: %s", exc)

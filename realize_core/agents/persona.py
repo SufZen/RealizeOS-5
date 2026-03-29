@@ -96,6 +96,7 @@ class AgentPersona(BaseModel):
 
 _persona_cache: dict[Path, tuple[float, AgentPersona]] = {}
 
+
 def load_persona(path: Path | str) -> AgentPersona | None:
     """
     Load a persona from a YAML file.

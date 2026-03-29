@@ -88,7 +88,9 @@ class GitSafety:
     def list_snapshots(self) -> list[Snapshot]:
         """List all devmode snapshots."""
         result = self._run(
-            "tag", "-l", f"{self.TAG_PREFIX}*",
+            "tag",
+            "-l",
+            f"{self.TAG_PREFIX}*",
             "--sort=-creatordate",
             "--format=%(refname:short)|%(creatordate:iso-strict)|%(subject)",
             check=False,

@@ -220,9 +220,7 @@ class TestFTS5SafeSearch:
         ]
         for query in dangerous_queries:
             # Should not raise, should return empty or safe results
-            results = semantic_search(
-                query, db_path=db_path, kb_root=str(kb_with_mixed_files)
-            )
+            results = semantic_search(query, db_path=db_path, kb_root=str(kb_with_mixed_files))
             assert isinstance(results, list)
 
 
@@ -304,9 +302,7 @@ class TestKBIndexerRobustness:
         db_path = tmp_path / "test.db"
         _init_index_db(db_path)
         conn = _get_conn(db_path)
-        triggers = conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='trigger'"
-        ).fetchall()
+        triggers = conn.execute("SELECT name FROM sqlite_master WHERE type='trigger'").fetchall()
         trigger_names = {r["name"] for r in triggers}
         conn.close()
         assert "kb_au" in trigger_names, "FTS UPDATE trigger should exist"
@@ -390,9 +386,7 @@ class TestMemoryFTSTrigger:
         from realize_core.memory.store import _get_conn
 
         conn = _get_conn()
-        triggers = conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='trigger'"
-        ).fetchall()
+        triggers = conn.execute("SELECT name FROM sqlite_master WHERE type='trigger'").fetchall()
         trigger_names = {r["name"] for r in triggers}
         conn.close()
         assert "memories_au" in trigger_names, "FTS UPDATE trigger for memories should exist"

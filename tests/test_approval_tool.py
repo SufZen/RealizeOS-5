@@ -244,11 +244,16 @@ class TestApprovalTool:
             assert "input_schema" in schema
 
     def test_request_decision(self, tool):
-        result = run_async(tool.execute("request_decision", {
-            "description": "Approve sending proposal to client",
-            "agent_key": "strategist",
-            "system_key": "agency",
-        }))
+        result = run_async(
+            tool.execute(
+                "request_decision",
+                {
+                    "description": "Approve sending proposal to client",
+                    "agent_key": "strategist",
+                    "system_key": "agency",
+                },
+            )
+        )
         assert result.success
         assert "Approval request created" in result.output
         assert result.data is not None
@@ -256,23 +261,33 @@ class TestApprovalTool:
         assert result.metadata.get("requires_human") is True
 
     def test_request_credential(self, tool):
-        result = run_async(tool.execute("request_credential", {
-            "description": "Need Stripe API key for payment processing",
-            "credential_type": "api_key",
-            "agent_key": "developer",
-            "system_key": "saas",
-        }))
+        result = run_async(
+            tool.execute(
+                "request_credential",
+                {
+                    "description": "Need Stripe API key for payment processing",
+                    "credential_type": "api_key",
+                    "agent_key": "developer",
+                    "system_key": "saas",
+                },
+            )
+        )
         assert result.success
         assert "Approval request created" in result.output
         assert result.data["action"] == "request_credential"
 
     def test_request_input(self, tool):
-        result = run_async(tool.execute("request_input", {
-            "description": "What tone should the blog post use?",
-            "prompt": "Choose: professional, casual, technical",
-            "agent_key": "writer",
-            "system_key": "agency",
-        }))
+        result = run_async(
+            tool.execute(
+                "request_input",
+                {
+                    "description": "What tone should the blog post use?",
+                    "prompt": "Choose: professional, casual, technical",
+                    "agent_key": "writer",
+                    "system_key": "agency",
+                },
+            )
+        )
         assert result.success
         assert result.data["action"] == "request_input"
 
@@ -288,21 +303,31 @@ class TestApprovalTool:
 
     def test_store_access(self, tool):
         """Tool provides access to its store for API integration."""
-        run_async(tool.execute("request_decision", {
-            "description": "Test store access",
-            "agent_key": "test",
-            "system_key": "test",
-        }))
+        run_async(
+            tool.execute(
+                "request_decision",
+                {
+                    "description": "Test store access",
+                    "agent_key": "test",
+                    "system_key": "test",
+                },
+            )
+        )
         pending = tool.store.get_pending()
         assert len(pending) == 1
 
     def test_request_with_options(self, tool):
-        result = run_async(tool.execute("request_decision", {
-            "description": "Choose deployment target",
-            "options": ["staging", "production"],
-            "agent_key": "devops",
-            "system_key": "saas",
-        }))
+        result = run_async(
+            tool.execute(
+                "request_decision",
+                {
+                    "description": "Choose deployment target",
+                    "options": ["staging", "production"],
+                    "agent_key": "devops",
+                    "system_key": "saas",
+                },
+            )
+        )
         assert result.success
         assert result.data["options"] == ["staging", "production"]
 

@@ -517,7 +517,9 @@ def main():
     # audit
     audit_parser = subparsers.add_parser("audit", help="Run the structured audit playbook")
     audit_parser.add_argument("--directory", "-d", default=".", help="Project root directory")
-    audit_parser.add_argument("--quick", action="store_true", help="Skip slower checks such as the dashboard build probe")
+    audit_parser.add_argument(
+        "--quick", action="store_true", help="Skip slower checks such as the dashboard build probe"
+    )
     audit_parser.add_argument("--format", choices=["text", "json"], default="text", help="Output format")
 
     # index

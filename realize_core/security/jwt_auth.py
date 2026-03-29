@@ -202,8 +202,7 @@ def _check_secret_strength(secret: str) -> None:
 
     if is_dev_secret and is_production:
         raise WeakSecretError(
-            "Cannot use default dev secret in production. "
-            "Set REALIZE_JWT_SECRET to a 32+ character random string."
+            "Cannot use default dev secret in production. Set REALIZE_JWT_SECRET to a 32+ character random string."
         )
 
     if len(secret) < MIN_SECRET_LENGTH:
@@ -262,9 +261,7 @@ def _validate_header(header_b64: str) -> None:
         raise InvalidTokenError("Algorithm 'none' is not allowed — possible alg:none attack")
 
     if alg != _ALLOWED_ALGORITHM:
-        raise InvalidTokenError(
-            f"Unsupported algorithm '{alg}' — only '{_ALLOWED_ALGORITHM}' is accepted"
-        )
+        raise InvalidTokenError(f"Unsupported algorithm '{alg}' — only '{_ALLOWED_ALGORITHM}' is accepted")
 
 
 # ---------------------------------------------------------------------------
@@ -471,9 +468,7 @@ def refresh_access_token(
 
     # Enforce max refresh chain length to prevent indefinite sessions
     if claims.refresh_count >= max_chain:
-        raise InvalidTokenError(
-            f"Refresh chain limit reached ({max_chain}). Please re-authenticate."
-        )
+        raise InvalidTokenError(f"Refresh chain limit reached ({max_chain}). Please re-authenticate.")
 
     return create_token(
         user_id=claims.sub,

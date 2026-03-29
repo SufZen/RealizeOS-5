@@ -11,7 +11,6 @@ Covers:
 - Truncation for long goals
 """
 
-
 import pytest
 from realize_core.prompt.goal import _read_goal, goal_to_prompt, load_goal
 

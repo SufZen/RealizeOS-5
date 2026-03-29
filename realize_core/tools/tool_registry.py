@@ -186,10 +186,10 @@ class ToolRegistry:
         # NOTE: Module names must match actual filenames in realize_core/tools/
         known_modules = [
             "realize_core.tools.web_tool",
-            "realize_core.tools.google_workspace",       # was google_workspace_tool
-            "realize_core.tools.browser",                 # was browser_tool
+            "realize_core.tools.google_workspace",  # was google_workspace_tool
+            "realize_core.tools.browser",  # was browser_tool
             "realize_core.tools.gws_cli_tool",
-            "realize_core.tools.google_sheets",           # was google_sheets_tool
+            "realize_core.tools.google_sheets",  # was google_sheets_tool
             "realize_core.tools.approval",
             "realize_core.tools.messaging",
             # Optional tools — may not have required dependencies
@@ -221,9 +221,7 @@ class ToolRegistry:
                             except Exception as e:
                                 logger.debug(f"Cannot instantiate {attr_name}: {e}")
             except ImportError as e:
-                logger.info(
-                    f"Tool module '{module_name}' skipped (missing dependency: {e})"
-                )
+                logger.info(f"Tool module '{module_name}' skipped (missing dependency: {e})")
             except Exception as e:
                 logger.warning(f"Error discovering tools in '{module_name}': {e}")
 

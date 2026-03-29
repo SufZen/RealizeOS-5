@@ -560,17 +560,26 @@ class TestWhatsAppDeduplication:
     def test_duplicate_message_skipped(self):
         ch = WhatsAppChannel(phone_number_id="123", access_token="tok")
         payload = {
-            "entry": [{
-                "changes": [{
-                    "value": {
-                        "contacts": [{"wa_id": "1234", "profile": {"name": "Test"}}],
-                        "messages": [
-                            {"id": "wamid.abc123", "type": "text", "from": "1234",
-                             "text": {"body": "Hello"}, "timestamp": "123"},
-                        ],
-                    }
-                }]
-            }]
+            "entry": [
+                {
+                    "changes": [
+                        {
+                            "value": {
+                                "contacts": [{"wa_id": "1234", "profile": {"name": "Test"}}],
+                                "messages": [
+                                    {
+                                        "id": "wamid.abc123",
+                                        "type": "text",
+                                        "from": "1234",
+                                        "text": {"body": "Hello"},
+                                        "timestamp": "123",
+                                    },
+                                ],
+                            }
+                        }
+                    ]
+                }
+            ]
         }
 
         # First parse — should return 1 message
@@ -586,17 +595,26 @@ class TestWhatsAppDeduplication:
 
         def make_payload(msg_id):
             return {
-                "entry": [{
-                    "changes": [{
-                        "value": {
-                            "contacts": [{"wa_id": "1234", "profile": {"name": "T"}}],
-                            "messages": [
-                                {"id": msg_id, "type": "text", "from": "1234",
-                                 "text": {"body": "Hi"}, "timestamp": "1"},
-                            ],
-                        }
-                    }]
-                }]
+                "entry": [
+                    {
+                        "changes": [
+                            {
+                                "value": {
+                                    "contacts": [{"wa_id": "1234", "profile": {"name": "T"}}],
+                                    "messages": [
+                                        {
+                                            "id": msg_id,
+                                            "type": "text",
+                                            "from": "1234",
+                                            "text": {"body": "Hi"},
+                                            "timestamp": "1",
+                                        },
+                                    ],
+                                }
+                            }
+                        ]
+                    }
+                ]
             }
 
         msgs1 = ch.parse_webhook(make_payload("id-1"))
@@ -768,12 +786,14 @@ class TestSchedulerStatePersistence:
 
         # Create new scheduler, add same job, load state
         s2 = CronScheduler()
-        s2.add_job(ScheduledJob(
-            name="persist-test",
-            system_key="biz",
-            message="hello",
-            interval_seconds=3600,
-        ))
+        s2.add_job(
+            ScheduledJob(
+                name="persist-test",
+                system_key="biz",
+                message="hello",
+                interval_seconds=3600,
+            )
+        )
         s2.load_state(state_file)
 
         loaded_job = s2._jobs["persist-test"]

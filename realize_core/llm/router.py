@@ -44,8 +44,7 @@ def _check_rate_limit() -> bool:
 
     if len(_request_timestamps) >= RATE_LIMIT_PER_MINUTE:
         logger.warning(
-            f"Rate limit exceeded: {len(_request_timestamps)}/{RATE_LIMIT_PER_MINUTE} "
-            f"requests in the last 60s"
+            f"Rate limit exceeded: {len(_request_timestamps)}/{RATE_LIMIT_PER_MINUTE} requests in the last 60s"
         )
         return False
 
@@ -66,9 +65,7 @@ def _check_cost_limit() -> bool:
 
     hourly_cost = sum(cost for _, cost in _cost_window)
     if hourly_cost >= COST_LIMIT_PER_HOUR_USD:
-        logger.warning(
-            f"Cost limit exceeded: ${hourly_cost:.4f} >= ${COST_LIMIT_PER_HOUR_USD:.2f}/hour"
-        )
+        logger.warning(f"Cost limit exceeded: ${hourly_cost:.4f} >= ${COST_LIMIT_PER_HOUR_USD:.2f}/hour")
         return False
 
     return True
@@ -96,6 +93,7 @@ def get_rate_count() -> int:
     while _request_timestamps and _request_timestamps[0] < cutoff:
         _request_timestamps.popleft()
     return len(_request_timestamps)
+
 
 # Keywords that signal each task complexity level
 COMPLEX_KEYWORDS = {
@@ -417,16 +415,10 @@ async def route_to_llm(
     """
     # ── Rate & Cost limit enforcement ──────────────────────────────
     if not _check_rate_limit():
-        return (
-            "I'm currently handling too many requests. "
-            "Please wait a moment and try again."
-        )
+        return "I'm currently handling too many requests. Please wait a moment and try again."
 
     if not _check_cost_limit():
-        return (
-            "The hourly cost limit has been reached. "
-            "Please wait or contact your administrator to adjust the limit."
-        )
+        return "The hourly cost limit has been reached. Please wait or contact your administrator to adjust the limit."
 
     # Optionally use benchmark-based selection
     if use_benchmark:
@@ -525,6 +517,7 @@ def _get_litellm_provider():
     global _litellm_provider
     if _litellm_provider is None:
         from realize_core.llm.litellm_provider import LiteLLMProvider
+
         _litellm_provider = LiteLLMProvider()
     return _litellm_provider
 

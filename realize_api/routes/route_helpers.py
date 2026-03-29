@@ -127,7 +127,6 @@ def get_skills(kb_path: Path, sys_conf: dict) -> list[dict]:
 # ---------------------------------------------------------------------------
 
 
-
 async def analyze_fabric_async(kb_path: Path, sys_conf: dict) -> dict:
     """Async wrapper for analyze_fabric (filesystem I/O)."""
     return await asyncio.to_thread(analyze_fabric, kb_path, sys_conf)
@@ -141,4 +140,3 @@ async def count_skills_async(kb_path: Path, sys_conf: dict) -> int:
 async def get_skills_async(kb_path: Path, sys_conf: dict) -> list[dict]:
     """Async wrapper for get_skills (filesystem + YAML I/O)."""
     return await asyncio.to_thread(get_skills, kb_path, sys_conf)
-

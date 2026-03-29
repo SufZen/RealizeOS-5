@@ -121,7 +121,7 @@ def _load_v1(path: Path) -> V1AgentDef:
     # Strip YAML frontmatter if present
     fm_match = _FRONTMATTER_RE.match(content)
     if fm_match:
-        content = content[fm_match.end():]
+        content = content[fm_match.end() :]
 
     key = path.stem.replace("-", "_")
 

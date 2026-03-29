@@ -20,8 +20,10 @@ logger = logging.getLogger(__name__)
 
 class UpdateConnectionBody(BaseModel):
     """Request body for updating a connection."""
+
     id: str
     value: str
+
 
 # All configurable connections with metadata
 CONNECTION_DEFINITIONS = [

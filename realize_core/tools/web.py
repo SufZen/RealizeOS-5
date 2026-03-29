@@ -57,6 +57,7 @@ def _validate_url(url: str) -> str | None:
 
     return None
 
+
 BRAVE_SEARCH_URL = "https://api.search.brave.com/res/v1/web/search"
 
 _http_client: httpx.AsyncClient | None = None

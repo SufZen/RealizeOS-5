@@ -351,7 +351,7 @@ class RoutingEngine:
         self._cost_log.append(record)
         # FIFO eviction: cap the log to prevent unbounded memory growth
         if len(self._cost_log) > self._cost_log_max_size:
-            self._cost_log = self._cost_log[-self._cost_log_max_size:]
+            self._cost_log = self._cost_log[-self._cost_log_max_size :]
         return record
 
     def get_cost_summary(self, last_n: int | None = None) -> dict:

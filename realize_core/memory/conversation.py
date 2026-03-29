@@ -194,9 +194,7 @@ def prune_old_conversations(max_rows_per_user: int = 1000) -> int:
     deleted = 0
     try:
         with _db_ctx() as conn:
-            pairs = conn.execute(
-                "SELECT DISTINCT bot_name, user_id FROM conversations"
-            ).fetchall()
+            pairs = conn.execute("SELECT DISTINCT bot_name, user_id FROM conversations").fetchall()
 
             for pair in pairs:
                 bn, uid = pair["bot_name"], pair["user_id"]

@@ -299,9 +299,7 @@ def verify_webhook_signature(
 
     try:
         # Parse the Stripe-Signature header
-        parts = dict(
-            kv.split("=", 1) for kv in signature_header.split(",") if "=" in kv
-        )
+        parts = dict(kv.split("=", 1) for kv in signature_header.split(",") if "=" in kv)
         timestamp = parts.get("t", "")
         sig_v1 = parts.get("v1", "")
 

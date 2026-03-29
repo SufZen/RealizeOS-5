@@ -34,6 +34,7 @@ logger = logging.getLogger(__name__)
 
 class CreateVentureBody(BaseModel):
     """Request body for venture creation."""
+
     key: str
     name: str = ""
     description: str = ""

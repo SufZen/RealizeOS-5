@@ -39,7 +39,11 @@ def clear_cache():
 @pytest.fixture
 def sample_audit_entries():
     return [
-        {"action": "message_sent", "details": "Reply to customer inquiry about pricing", "timestamp": "2026-03-26T14:00:00"},
+        {
+            "action": "message_sent",
+            "details": "Reply to customer inquiry about pricing",
+            "timestamp": "2026-03-26T14:00:00",
+        },
         {"action": "kb_update", "details": "Updated pricing FAQ", "timestamp": "2026-03-26T13:30:00"},
         {"action": "tool_call", "details": "CRM lookup for client Acme Corp", "timestamp": "2026-03-26T12:00:00"},
     ]
@@ -147,8 +151,7 @@ class TestActivitySection:
 
     def test_limits_to_5(self):
         entries = [
-            {"action": f"action_{i}", "details": f"details_{i}", "timestamp": "2026-03-26T10:00:00"}
-            for i in range(8)
+            {"action": f"action_{i}", "details": f"details_{i}", "timestamp": "2026-03-26T10:00:00"} for i in range(8)
         ]
         section = _build_activity_section(entries, None, "test", 24)
         assert "...and 3 more" in section

@@ -17,15 +17,15 @@ logger = logging.getLogger(__name__)
 
 # Regex pattern for detecting code-like content in messages
 _CODE_PATTERNS = re.compile(
-    r"```|"                     # Fenced code blocks
-    r"\bdef\s+\w+\s*\(|"       # Python function definitions
+    r"```|"  # Fenced code blocks
+    r"\bdef\s+\w+\s*\(|"  # Python function definitions
     r"\bfunction\s+\w+\s*\(|"  # JavaScript function definitions
-    r"\bimport\s+\w+|"         # Import statements
-    r"\bclass\s+\w+|"          # Class definitions
-    r"\bconst\s+\w+\s*=|"      # JS const declarations
-    r"\breturn\s+|"            # Return statements
-    r"\bfor\s+\w+\s+in\s+|"   # Python for loops
-    r"\bif\s*\(.+\)\s*{",      # C-style if blocks
+    r"\bimport\s+\w+|"  # Import statements
+    r"\bclass\s+\w+|"  # Class definitions
+    r"\bconst\s+\w+\s*=|"  # JS const declarations
+    r"\breturn\s+|"  # Return statements
+    r"\bfor\s+\w+\s+in\s+|"  # Python for loops
+    r"\bif\s*\(.+\)\s*{",  # C-style if blocks
     re.IGNORECASE,
 )
 

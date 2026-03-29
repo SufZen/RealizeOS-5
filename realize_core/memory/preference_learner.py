@@ -51,7 +51,6 @@ def analyze_preferences(system_key: str, user_id: str = "dashboard-user") -> dic
 
     user_msgs = [m for m in history if m.get("role") == "user"]
 
-
     prefs = {}
 
     # 1. Response length preference

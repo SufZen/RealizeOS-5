@@ -183,12 +183,17 @@ class TestMessageTool:
         assert names == {"send_message", "read_messages", "list_conversations", "create_channel"}
 
     def test_send_message(self, tool):
-        result = run_async(tool.execute("send_message", {
-            "target": "agent:analyst",
-            "content": "Status update",
-            "agent_key": "writer",
-            "system_key": "agency",
-        }))
+        result = run_async(
+            tool.execute(
+                "send_message",
+                {
+                    "target": "agent:analyst",
+                    "content": "Status update",
+                    "agent_key": "writer",
+                    "system_key": "agency",
+                },
+            )
+        )
         assert result.success
         assert "Message sent" in result.output
 
@@ -198,31 +203,46 @@ class TestMessageTool:
 
     def test_read_messages(self, tool):
         # Send then read
-        run_async(tool.execute("send_message", {
-            "target": "agent:analyst",
-            "content": "Read me",
-            "agent_key": "writer",
-        }))
+        run_async(
+            tool.execute(
+                "send_message",
+                {
+                    "target": "agent:analyst",
+                    "content": "Read me",
+                    "agent_key": "writer",
+                },
+            )
+        )
         result = run_async(tool.execute("read_messages", {"agent_key": "analyst"}))
         assert result.success
         assert "1 message(s)" in result.output
 
     def test_list_conversations(self, tool):
-        run_async(tool.execute("send_message", {
-            "target": "agent:analyst",
-            "content": "Hello",
-            "agent_key": "writer",
-        }))
+        run_async(
+            tool.execute(
+                "send_message",
+                {
+                    "target": "agent:analyst",
+                    "content": "Hello",
+                    "agent_key": "writer",
+                },
+            )
+        )
         result = run_async(tool.execute("list_conversations", {"agent_key": "analyst"}))
         assert result.success
         assert "1 conversation(s)" in result.output
 
     def test_create_channel(self, tool):
-        result = run_async(tool.execute("create_channel", {
-            "name": "team-updates",
-            "agent_key": "writer",
-            "system_key": "agency",
-        }))
+        result = run_async(
+            tool.execute(
+                "create_channel",
+                {
+                    "name": "team-updates",
+                    "agent_key": "writer",
+                    "system_key": "agency",
+                },
+            )
+        )
         assert result.success
         assert "Channel 'team-updates' created" in result.output
 
@@ -247,6 +267,7 @@ class TestFactory:
 
     def test_registry_integration(self):
         from realize_core.tools.tool_registry import ToolRegistry
+
         registry = ToolRegistry()
         tool = get_tool()
         assert registry.register(tool) is True
@@ -256,22 +277,23 @@ class TestFactory:
 class TestMigrationV4:
     def test_migration_registered(self):
         from realize_core.db.migrations import MIGRATIONS
+
         assert 4 in MIGRATIONS
 
     def test_tables_created(self, tmp_path):
         import sqlite3
+
         db_path = tmp_path / "test.db"
         conn = sqlite3.connect(str(db_path))
         conn.execute("CREATE TABLE IF NOT EXISTS schema_version (version INTEGER PRIMARY KEY)")
         conn.execute("INSERT INTO schema_version VALUES (3)")
         conn.commit()
         from realize_core.db.migrations import MIGRATIONS
+
         MIGRATIONS[4](conn)
         conn.commit()
 
-        tables = conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table'"
-        ).fetchall()
+        tables = conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
         table_names = {row[0] for row in tables}
         assert "agent_messages" in table_names
         assert "message_channels" in table_names

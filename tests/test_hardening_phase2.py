@@ -135,6 +135,7 @@ class TestStorageFactory:
     def _reset(self):
         """Reset factory singletons between tests."""
         import realize_core.storage.factory as f
+
         f._primary = None
         f._sync_manager = None
 
@@ -226,9 +227,7 @@ class TestMigrationV2:
         MIGRATIONS[2](conn)
 
         # Verify table exists
-        cursor = conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name='storage_sync_log'"
-        )
+        cursor = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='storage_sync_log'")
         assert cursor.fetchone() is not None
 
     def test_migration_creates_indexes(self):

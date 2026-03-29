@@ -583,6 +583,7 @@ def _build_persona_layer(persona: AgentPersona | None) -> str:
         return ""
     try:
         from realize_core.agents.persona import persona_to_prompt
+
         return persona_to_prompt(persona)
     except Exception as e:
         logger.warning("Failed to build persona layer: %s", e)
@@ -593,6 +594,7 @@ def _build_goal_layer(kb_path: Path, system_config: dict, system_key: str) -> st
     """Build the venture goal prompt layer."""
     try:
         from realize_core.prompt.goal import goal_to_prompt, load_goal
+
         goal_text = load_goal(kb_path, system_config, system_key)
         if goal_text:
             system_name = system_config.get("name", "")

@@ -22,6 +22,7 @@ import pytest
 # FIXTURES
 # ─────────────────────────────────────────────────────────────────────────
 
+
 @pytest.fixture
 def project_root(tmp_path):
     """Create a minimal project structure with realize-os.yaml."""
@@ -96,6 +97,7 @@ def sys_conf():
 # 1. VENTURE MANAGEMENT TESTS
 # ─────────────────────────────────────────────────────────────────────────
 
+
 class TestVentureScaffold:
     """Bug 1: scaffold_venture must return dict with 'created' key."""
 
@@ -103,11 +105,14 @@ class TestVentureScaffold:
         """Verify scaffold_venture returns {created: True} on success."""
         from realize_core.scaffold import scaffold_venture
 
-        with patch(
-            "realize_core.scaffold._find_venture_template",
-            return_value=template_dir,
-        ), patch(
-            "realize_core.scaffold._add_venture_to_config",
+        with (
+            patch(
+                "realize_core.scaffold._find_venture_template",
+                return_value=template_dir,
+            ),
+            patch(
+                "realize_core.scaffold._add_venture_to_config",
+            ),
         ):
             result = scaffold_venture(project_root, "new-venture", name="New Venture")
 
@@ -158,8 +163,10 @@ class TestVentureDelete:
 
         from realize_core.scaffold import delete_venture
 
-        with patch("realize_core.scaffold._cleanup_venture_db_references") as mock_cleanup, \
-             patch("realize_core.scaffold._remove_venture_from_config"):
+        with (
+            patch("realize_core.scaffold._cleanup_venture_db_references") as mock_cleanup,
+            patch("realize_core.scaffold._remove_venture_from_config"),
+        ):
             delete_venture(project_root, "to-delete", confirm_name="to-delete")
 
         mock_cleanup.assert_called_once_with("to-delete")
@@ -210,6 +217,7 @@ class TestExportResourceLeak:
 # 2. HEALTH SCORE / FABRIC ANALYSIS TESTS
 # ─────────────────────────────────────────────────────────────────────────
 
+
 class TestFabricAnalysis:
     """Bug 6: Health score must distinguish structure vs content."""
 
@@ -228,8 +236,7 @@ class TestFabricAnalysis:
     def test_populated_dirs_show_full_completeness(self, kb_path, sys_conf):
         """Dirs with files should show 100% on both scores."""
         # Add files to all dirs
-        for dirname in ["F-foundations", "A-agents", "B-brain",
-                        "R-routines", "I-insights", "C-creations"]:
+        for dirname in ["F-foundations", "A-agents", "B-brain", "R-routines", "I-insights", "C-creations"]:
             (kb_path / dirname / "sample.md").write_text("content")
 
         from realize_api.routes.route_helpers import analyze_fabric
@@ -242,6 +249,7 @@ class TestFabricAnalysis:
 # ─────────────────────────────────────────────────────────────────────────
 # 3. WORKFLOW ENGINE TESTS
 # ─────────────────────────────────────────────────────────────────────────
+
 
 class TestWorkflowTimeout:
     """Bug 7: Workflow execution must have a timeout."""
@@ -369,6 +377,7 @@ class TestWorkflowLoadWarning:
 # 4. PIPELINE & SESSION TESTS
 # ─────────────────────────────────────────────────────────────────────────
 
+
 class TestSessionCleanup:
     """Bug 12: Stale sessions must be cleaned up."""
 
@@ -432,9 +441,11 @@ class TestEmptyPipelineGuard:
         """Verify empty pipeline list is guarded."""
         from realize_core.pipeline.creative import start_pipeline
 
-        with patch("realize_core.pipeline.creative.detect_task_type", return_value="general"), \
-             patch("realize_core.pipeline.creative.get_pipeline", return_value=[]), \
-             patch("realize_core.pipeline.creative.create_session") as mock_create:
+        with (
+            patch("realize_core.pipeline.creative.detect_task_type", return_value="general"),
+            patch("realize_core.pipeline.creative.get_pipeline", return_value=[]),
+            patch("realize_core.pipeline.creative.create_session") as mock_create,
+        ):
             # Should not raise IndexError
             mock_create.return_value = MagicMock()
             start_pipeline(
@@ -455,6 +466,7 @@ class TestEmptyPipelineGuard:
 # ─────────────────────────────────────────────────────────────────────────
 # 5. CROSS-CUTTING: SHOULD_EXCLUDE FIX
 # ─────────────────────────────────────────────────────────────────────────
+
 
 class TestShouldExclude:
     """Bug 5: _should_exclude simplified logic."""

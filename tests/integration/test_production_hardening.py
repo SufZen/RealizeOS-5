@@ -34,12 +34,17 @@ class TestConcurrentSessions:
         tool = ApprovalTool()
 
         def make_request(i):
-            result = run_async(tool.execute("request_decision", {
-                "agent_key": f"agent_{i}",
-                "system_key": "test",
-                "description": f"Approval request #{i}",
-                "options": ["yes", "no"],
-            }))
+            result = run_async(
+                tool.execute(
+                    "request_decision",
+                    {
+                        "agent_key": f"agent_{i}",
+                        "system_key": "test",
+                        "description": f"Approval request #{i}",
+                        "options": ["yes", "no"],
+                    },
+                )
+            )
             return result
 
         with ThreadPoolExecutor(max_workers=10) as executor:
@@ -55,11 +60,16 @@ class TestConcurrentSessions:
         tool = MessageTool(store=store)
 
         def send_message(i):
-            result = run_async(tool.execute("send_message", {
-                "target": "agent:receiver",
-                "content": f"Message from agent {i}",
-                "agent_key": f"sender_{i}",
-            }))
+            result = run_async(
+                tool.execute(
+                    "send_message",
+                    {
+                        "target": "agent:receiver",
+                        "content": f"Message from agent {i}",
+                        "agent_key": f"sender_{i}",
+                    },
+                )
+            )
             return result
 
         with ThreadPoolExecutor(max_workers=10) as executor:
@@ -77,17 +87,27 @@ class TestConcurrentSessions:
         tool = MessageTool()
 
         def writer(i):
-            return run_async(tool.execute("send_message", {
-                "target": "agent:reader",
-                "content": f"Msg {i}",
-                "agent_key": f"w_{i}",
-            }))
+            return run_async(
+                tool.execute(
+                    "send_message",
+                    {
+                        "target": "agent:reader",
+                        "content": f"Msg {i}",
+                        "agent_key": f"w_{i}",
+                    },
+                )
+            )
 
         def reader():
-            return run_async(tool.execute("read_messages", {
-                "agent_key": "reader",
-                "limit": 5,
-            }))
+            return run_async(
+                tool.execute(
+                    "read_messages",
+                    {
+                        "agent_key": "reader",
+                        "limit": 5,
+                    },
+                )
+            )
 
         with ThreadPoolExecutor(max_workers=6) as executor:
             write_futures = [executor.submit(writer, i) for i in range(5)]
@@ -161,10 +181,15 @@ class TestErrorRecovery:
 
     def test_messaging_empty_content(self):
         tool = MessageTool()
-        result = run_async(tool.execute("send_message", {
-            "target": "agent:test",
-            "content": "",
-        }))
+        result = run_async(
+            tool.execute(
+                "send_message",
+                {
+                    "target": "agent:test",
+                    "content": "",
+                },
+            )
+        )
         assert not result.success
 
     def test_approval_resolve_nonexistent(self):
@@ -193,11 +218,13 @@ class TestMemorySafety:
         from realize_core.tools.messaging import Message
 
         for i in range(100):
-            store.send(Message(
-                sender=f"sender_{i}",
-                target="agent:receiver",
-                content=f"Message {i}",
-            ))
+            store.send(
+                Message(
+                    sender=f"sender_{i}",
+                    target="agent:receiver",
+                    content=f"Message {i}",
+                )
+            )
 
         inbox = store.get_inbox("receiver", limit=10)
         assert len(inbox) == 10  # Bounded
@@ -206,12 +233,17 @@ class TestMemorySafety:
         """Approval store handles many pending requests."""
         tool = ApprovalTool()
         for i in range(50):
-            run_async(tool.execute("request_decision", {
-                "agent_key": f"agent_{i}",
-                "system_key": "test",
-                "description": f"Q{i}?",
-                "options": ["y", "n"],
-            }))
+            run_async(
+                tool.execute(
+                    "request_decision",
+                    {
+                        "agent_key": f"agent_{i}",
+                        "system_key": "test",
+                        "description": f"Q{i}?",
+                        "options": ["y", "n"],
+                    },
+                )
+            )
 
         pending = tool.store.get_pending()
         assert len(pending) == 50  # All stored correctly
@@ -234,9 +266,7 @@ class TestMigrationCompleteness:
         run_migrations(db_path)
         conn = get_connection(db_path)
 
-        tables = conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
-        ).fetchall()
+        tables = conn.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name").fetchall()
         table_names = {row[0] for row in tables}
 
         # V1-V2 tables

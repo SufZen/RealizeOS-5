@@ -50,7 +50,7 @@ def scaffold_extension(
     manifest = f"""name: {name}
 version: "1.0.0"
 type: {ext_type}
-description: "{description or f'A {ext_type} extension for RealizeOS'}"
+description: "{description or f"A {ext_type} extension for RealizeOS"}"
 author: ""
 entry_point: "extensions.{module_name}.{class_name}"
 dependencies: []
@@ -59,7 +59,7 @@ dependencies: []
 
     # 2. __init__.py with extension class
     init_code = f'''"""
-{name} — {description or f'A {ext_type} extension for RealizeOS.'}
+{name} — {description or f"A {ext_type} extension for RealizeOS."}
 """
 
 from __future__ import annotations
@@ -78,7 +78,7 @@ logger = logging.getLogger(__name__)
 
 class {class_name}:
     """
-    {description or f'{ext_type.capitalize()} extension for RealizeOS.'}
+    {description or f"{ext_type.capitalize()} extension for RealizeOS."}
 
     Implements the BaseExtension protocol for auto-discovery
     and lifecycle management.
@@ -89,7 +89,7 @@ class {class_name}:
             name="{name}",
             version="1.0.0",
             extension_type=ExtensionType.{ext_type.upper()},
-            description="{description or f'A {ext_type} extension'}",
+            description="{description or f"A {ext_type} extension"}",
         )
 
     @property
@@ -122,7 +122,7 @@ class {class_name}:
     # 3. README.md
     readme = f"""# {name}
 
-{description or f'A {ext_type} extension for RealizeOS.'}
+{description or f"A {ext_type} extension for RealizeOS."}
 
 ## Installation
 
@@ -184,6 +184,8 @@ class Test{class_name}:
 
     logger.info(
         "Scaffolded extension '%s' (type=%s) at %s",
-        name, ext_type, ext_dir,
+        name,
+        ext_type,
+        ext_dir,
     )
     return ext_dir

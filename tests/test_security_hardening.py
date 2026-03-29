@@ -34,11 +34,20 @@ class TestJWTHardening:
 
         # Craft a token with alg:none
         header = _b64_encode(json.dumps({"alg": "none", "typ": "JWT"}).encode())
-        payload = _b64_encode(json.dumps({
-            "sub": "attacker", "role": "owner", "exp": int(time.time()) + 3600,
-            "iat": int(time.time()), "iss": "realize-os", "jti": "test123",
-            "scopes": ["*"], "token_type": "access",
-        }).encode())
+        payload = _b64_encode(
+            json.dumps(
+                {
+                    "sub": "attacker",
+                    "role": "owner",
+                    "exp": int(time.time()) + 3600,
+                    "iat": int(time.time()),
+                    "iss": "realize-os",
+                    "jti": "test123",
+                    "scopes": ["*"],
+                    "token_type": "access",
+                }
+            ).encode()
+        )
         fake_token = f"{header}.{payload}."
 
         with pytest.raises(InvalidTokenError, match="[Aa]lgorithm.*none"):
@@ -53,11 +62,20 @@ class TestJWTHardening:
         )
 
         header = _b64_encode(json.dumps({"alg": "RS256", "typ": "JWT"}).encode())
-        payload = _b64_encode(json.dumps({
-            "sub": "attacker", "role": "owner", "exp": int(time.time()) + 3600,
-            "iat": int(time.time()), "iss": "realize-os", "jti": "test456",
-            "scopes": [], "token_type": "access",
-        }).encode())
+        payload = _b64_encode(
+            json.dumps(
+                {
+                    "sub": "attacker",
+                    "role": "owner",
+                    "exp": int(time.time()) + 3600,
+                    "iat": int(time.time()),
+                    "iss": "realize-os",
+                    "jti": "test456",
+                    "scopes": [],
+                    "token_type": "access",
+                }
+            ).encode()
+        )
         fake_token = f"{header}.{payload}.fakesig"
 
         with pytest.raises(InvalidTokenError, match="[Uu]nsupported algorithm"):
@@ -111,11 +129,14 @@ class TestJWTHardening:
         """Dev fallback secret should raise in production mode."""
         from realize_core.security.jwt_auth import WeakSecretError, create_token
 
-        with patch.dict(os.environ, {
-            "REALIZE_ENV": "production",
-            "REALIZE_JWT_SECRET": "",
-            "REALIZE_API_KEY": "",
-        }):
+        with patch.dict(
+            os.environ,
+            {
+                "REALIZE_ENV": "production",
+                "REALIZE_JWT_SECRET": "",
+                "REALIZE_API_KEY": "",
+            },
+        ):
             with pytest.raises(WeakSecretError, match="dev secret"):
                 create_token("user1")
 
@@ -130,8 +151,12 @@ class TestJWTHardening:
         secret = "a-secure-secret-that-is-long-enough!!"
         # Create a refresh token already at the chain limit
         refresh = create_token(
-            "user1", role="user", token_type="refresh",
-            ttl_seconds=3600, secret=secret, refresh_count=720,
+            "user1",
+            role="user",
+            token_type="refresh",
+            ttl_seconds=3600,
+            secret=secret,
+            refresh_count=720,
         )
 
         with pytest.raises(InvalidTokenError, match="chain limit"):
@@ -147,8 +172,12 @@ class TestJWTHardening:
 
         secret = "a-secure-secret-that-is-long-enough!!"
         refresh = create_token(
-            "user1", role="user", token_type="refresh",
-            ttl_seconds=3600, secret=secret, refresh_count=5,
+            "user1",
+            role="user",
+            token_type="refresh",
+            ttl_seconds=3600,
+            secret=secret,
+            refresh_count=5,
         )
 
         new_access = refresh_access_token(refresh, secret=secret)

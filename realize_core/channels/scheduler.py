@@ -252,8 +252,7 @@ class CronScheduler:
             job.consecutive_failures += 1
             job.last_error = str(e)[:200]
             logger.error(
-                f"Scheduled job '{job.name}' failed "
-                f"({job.consecutive_failures}/{_MAX_CONSECUTIVE_FAILURES}): {e}",
+                f"Scheduled job '{job.name}' failed ({job.consecutive_failures}/{_MAX_CONSECUTIVE_FAILURES}): {e}",
                 exc_info=True,
             )
 
@@ -321,10 +320,7 @@ class CronScheduler:
 
     def health_check(self) -> dict:
         """Return scheduler health status."""
-        failing_jobs = [
-            name for name, job in self._jobs.items()
-            if job.consecutive_failures > 0
-        ]
+        failing_jobs = [name for name, job in self._jobs.items() if job.consecutive_failures > 0]
         return {
             "name": "scheduler",
             "healthy": self._running,
@@ -368,4 +364,3 @@ def get_scheduler() -> CronScheduler:
     if _scheduler is None:
         _scheduler = CronScheduler()
     return _scheduler
-

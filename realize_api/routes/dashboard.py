@@ -73,4 +73,3 @@ async def get_dashboard_overview(request: Request):
         "recent_activity": recent_activity,
         "agent_summary": agent_summary,
     }
-

@@ -78,10 +78,7 @@ class ApprovalRequest:
 
     @property
     def is_expired(self) -> bool:
-        return (
-            self.status == ApprovalStatus.PENDING
-            and datetime.now(UTC) > self.expires_at
-        )
+        return self.status == ApprovalStatus.PENDING and datetime.now(UTC) > self.expires_at
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -278,9 +275,7 @@ class ApprovalStore:
 
             with sqlite3.connect(self._db_path) as conn:
                 conn.row_factory = sqlite3.Row
-                rows = conn.execute(
-                    "SELECT * FROM approval_requests WHERE status = 'pending'"
-                ).fetchall()
+                rows = conn.execute("SELECT * FROM approval_requests WHERE status = 'pending'").fetchall()
 
             count = 0
             for row in rows:
@@ -467,9 +462,7 @@ class ApprovalTool(BaseTool):
 
         return ToolResult.ok(
             output=(
-                f"⏳ Approval request created (ID: {request.id}). "
-                f"Waiting for operator response. "
-                f"Request: {description}"
+                f"⏳ Approval request created (ID: {request.id}). Waiting for operator response. Request: {description}"
             ),
             data=request.to_dict(),
             requires_human=True,

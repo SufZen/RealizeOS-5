@@ -10,6 +10,7 @@ from fastapi import APIRouter, Request
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
+
 @router.post("/reports/morning-briefing")
 async def trigger_morning_briefing(request: Request):
     """Generate a morning briefing on demand."""

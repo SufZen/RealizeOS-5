@@ -24,13 +24,16 @@ def registry():
 def test_registry_atomic_reload(temp_agent_dir, registry):
     """Test registry reload atomicity under concurrent mock load."""
     agent1_path = temp_agent_dir / "agent1.yaml"
-    agent1_path.write_text("name: Agent 1\nkey: a1\ndescription: Test\ninputs: []\noutputs: []\ntools: []\ncritical_rules: []")
+    agent1_path.write_text(
+        "name: Agent 1\nkey: a1\ndescription: Test\ninputs: []\noutputs: []\ntools: []\ncritical_rules: []"
+    )
 
     registry.load_from_directory(temp_agent_dir)
     assert "a1" in registry
 
     # We will simulate concurrent reads while reloading
     errors = []
+
     def reader():
         for _ in range(100):
             try:
@@ -43,7 +46,9 @@ def test_registry_atomic_reload(temp_agent_dir, registry):
 
     # background writer adding agent 2
     agent2_path = temp_agent_dir / "agent2.yaml"
-    agent2_path.write_text("name: Agent 2\nkey: a2\ndescription: Test\ninputs: []\noutputs: []\ntools: []\ncritical_rules: []")
+    agent2_path.write_text(
+        "name: Agent 2\nkey: a2\ndescription: Test\ninputs: []\noutputs: []\ntools: []\ncritical_rules: []"
+    )
 
     t = threading.Thread(target=reader)
     t.start()
@@ -65,23 +70,11 @@ async def test_circular_handoff_detection():
 
     # Simulate sequence a -> b -> a
     process_handoff(
-        HandoffData(
-            source_agent="a",
-            target_agent="b",
-            handoff_type=HandoffType.STANDARD,
-            context={},
-            history=[]
-        )
+        HandoffData(source_agent="a", target_agent="b", handoff_type=HandoffType.STANDARD, context={}, history=[])
     )
 
     result = process_handoff(
-        HandoffData(
-            source_agent="b",
-            target_agent="a",
-            handoff_type=HandoffType.STANDARD,
-            context={},
-            history=[]
-        )
+        HandoffData(source_agent="b", target_agent="a", handoff_type=HandoffType.STANDARD, context={}, history=[])
     )
 
     # The circular check should escalate
@@ -93,9 +86,7 @@ async def test_circular_handoff_detection():
 async def test_pipeline_timeout():
     """Test pipeline stage timeout enforcement."""
     # We will simulate an executor that sleeps for 5 seconds, and a pipeline max_duration of 1 sec.
-    stages = [
-        PipelineStage(name="slow_stage", agent_key="a1", handoff_type=HandoffType.STANDARD)
-    ]
+    stages = [PipelineStage(name="slow_stage", agent_key="a1", handoff_type=HandoffType.STANDARD)]
 
     async def slow_executor(stage, input_text, context):
         await asyncio.sleep(2.0)
@@ -116,4 +107,3 @@ async def test_pipeline_timeout():
     assert "timed out" in state.error.lower()
     assert state.results[0].error is not None
     assert "Timed out" in state.results[0].error
-

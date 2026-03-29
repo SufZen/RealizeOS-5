@@ -55,46 +55,57 @@ class TestModuleImports:
 
     def test_import_persona(self):
         from realize_core.agents.persona import AgentPersona
+
         assert AgentPersona is not None
 
     def test_import_goal(self):
         from realize_core.prompt.goal import goal_to_prompt
+
         assert goal_to_prompt is not None
 
     def test_import_brief(self):
         from realize_core.prompt.brief import generate_session_brief
+
         assert generate_session_brief is not None
 
     def test_import_brand(self):
         from realize_core.prompt.brand import BrandProfile
+
         assert BrandProfile is not None
 
     def test_import_approval(self):
         from realize_core.tools.approval import ApprovalTool
+
         assert ApprovalTool is not None
 
     def test_import_gating(self):
         from realize_core.tools.gating import gate_tools_for_persona
+
         assert gate_tools_for_persona is not None
 
     def test_import_messaging(self):
         from realize_core.tools.messaging import MessageTool
+
         assert MessageTool is not None
 
     def test_import_eval_harness(self):
         from realize_core.eval.harness import EvalRunner
+
         assert EvalRunner is not None
 
     def test_import_template_marketplace(self):
         from realize_core.templates.marketplace import TemplateRegistry
+
         assert TemplateRegistry is not None
 
     def test_import_builder(self):
         from realize_core.prompt.builder import build_system_prompt
+
         assert build_system_prompt is not None
 
     def test_import_migrations(self):
         from realize_core.db.migrations import MIGRATIONS
+
         assert len(MIGRATIONS) >= 3
         assert max(MIGRATIONS.keys()) == 4
 
@@ -167,6 +178,7 @@ class TestSchemaVersion:
 
     def test_latest_version(self):
         from realize_core.db.migrations import MIGRATIONS
+
         assert max(MIGRATIONS.keys()) == 4
 
     def test_migration_completeness(self, tmp_path):

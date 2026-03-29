@@ -110,8 +110,7 @@ def get_credentials():
                 if "token" in err_msg.lower() and len(err_msg) > 100:
                     err_msg = err_msg[:100] + "..."
                 logger.error(
-                    f"Google token refresh failed (token may be revoked): {err_msg}. "
-                    f"Re-run OAuth flow to re-authorize."
+                    f"Google token refresh failed (token may be revoked): {err_msg}. Re-run OAuth flow to re-authorize."
                 )
                 return None
 

@@ -301,6 +301,7 @@ def _contains_competitor(text: str, competitors: list[str]) -> bool:
 def _is_valid_json(text: str) -> bool:
     """Check if the text is valid JSON (handling markdown wrappers)."""
     import json
+
     try:
         cleaned = text.strip()
         if cleaned.startswith("```json"):

@@ -230,9 +230,7 @@ def cleanup_stale_sessions(max_age_hours: int = 24):
     removed_db = 0
     try:
         with _db_ctx() as conn:
-            cursor = conn.execute(
-                "DELETE FROM sessions WHERE updated_at < ?", (cutoff_str,)
-            )
+            cursor = conn.execute("DELETE FROM sessions WHERE updated_at < ?", (cutoff_str,))
             removed_db = cursor.rowcount or 0
     except Exception as e:
         logger.debug(f"Failed to clean stale sessions from DB: {e}")

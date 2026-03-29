@@ -23,11 +23,19 @@ from starlette.responses import JSONResponse, Response
 logger = logging.getLogger(__name__)
 
 # Paths that bypass ALL security middleware (health probes, docs, static)
-_PUBLIC_PATHS = frozenset({
-    "/health", "/status", "/docs", "/openapi.json", "/redoc",
-    "/api/health", "/api/status",
-    "/favicon.svg", "/icons.svg",
-})
+_PUBLIC_PATHS = frozenset(
+    {
+        "/health",
+        "/status",
+        "/docs",
+        "/openapi.json",
+        "/redoc",
+        "/api/health",
+        "/api/status",
+        "/favicon.svg",
+        "/icons.svg",
+    }
+)
 
 
 def _is_public(path: str) -> bool:
@@ -150,6 +158,7 @@ class InjectionGuardMiddleware(BaseHTTPMiddleware):
                         # Audit log needs_review events for security review
                         try:
                             from realize_core.security.audit import get_audit_logger
+
                             audit = get_audit_logger()
                             audit.log(
                                 user_id="system",

@@ -81,7 +81,8 @@ def check_yaml_config(root: Path) -> CheckResult:
 
         if missing:
             return CheckResult(
-                "Config File", CheckStatus.WARN,
+                "Config File",
+                CheckStatus.WARN,
                 f"Missing keys: {', '.join(missing)}",
             )
 
@@ -108,7 +109,8 @@ def check_env_file(root: Path) -> CheckResult:
     env_path = root / ".env"
     if not env_path.exists():
         return CheckResult(
-            "Environment", CheckStatus.WARN,
+            "Environment",
+            CheckStatus.WARN,
             ".env not found — copy .env.example to .env",
         )
 
@@ -121,13 +123,13 @@ def check_env_file(root: Path) -> CheckResult:
     # Check for at least one LLM key
     llm_keys = ("ANTHROPIC_API_KEY", "GOOGLE_AI_API_KEY", "OPENAI_API_KEY")
     has_llm = any(
-        any(line.startswith(k + "=") and len(line.split("=", 1)[1].strip()) > 5 for line in lines)
-        for k in llm_keys
+        any(line.startswith(k + "=") and len(line.split("=", 1)[1].strip()) > 5 for line in lines) for k in llm_keys
     )
 
     if not has_llm:
         return CheckResult(
-            "Environment", CheckStatus.WARN,
+            "Environment",
+            CheckStatus.WARN,
             "No LLM API key configured",
             "Set at least one of: ANTHROPIC_API_KEY, GOOGLE_AI_API_KEY, OPENAI_API_KEY",
         )
@@ -162,7 +164,8 @@ def check_core_imports(root: Path) -> CheckResult:
 
     if broken:
         return CheckResult(
-            "Core Imports", CheckStatus.FAIL,
+            "Core Imports",
+            CheckStatus.FAIL,
             f"{len(broken)} import(s) broken",
             "\n   ".join(broken[:5]),
         )
@@ -187,7 +190,8 @@ def check_tests(root: Path) -> CheckResult:
         else:
             last_line = result.stdout.strip().splitlines()[-1] if result.stdout.strip() else ""
             return CheckResult(
-                "Test Suite", CheckStatus.FAIL,
+                "Test Suite",
+                CheckStatus.FAIL,
                 last_line or "Tests failed",
                 result.stderr[:200] if result.stderr else "",
             )
@@ -217,7 +221,8 @@ def check_dashboard_types(root: Path) -> CheckResult:
         else:
             error_count = result.stdout.count("error TS")
             return CheckResult(
-                "Dashboard", CheckStatus.WARN,
+                "Dashboard",
+                CheckStatus.WARN,
                 f"{error_count} TypeScript error(s)",
                 result.stdout[:300] if result.stdout else "",
             )

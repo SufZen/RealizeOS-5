@@ -145,8 +145,6 @@ def sanitize_path(
     try:
         full_path.relative_to(root)
     except ValueError:
-        raise PathTraversalError(
-            f"Path '{user_path}' resolves outside allowed root"
-        )
+        raise PathTraversalError(f"Path '{user_path}' resolves outside allowed root")
 
     return str(full_path)

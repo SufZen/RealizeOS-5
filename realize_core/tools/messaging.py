@@ -198,10 +198,7 @@ class MessageStore:
         """Get messages for an agent (direct + channel subscriptions)."""
         msgs = []
         for msg in self._messages:
-            is_direct = (
-                msg.target_type == MessageTarget.AGENT
-                and msg.target_id == agent_key
-            )
+            is_direct = msg.target_type == MessageTarget.AGENT and msg.target_id == agent_key
             is_subscriber = False
             if msg.target_type == MessageTarget.CHANNEL:
                 # Find channel by name (keys are "system_key:name")
@@ -235,7 +232,10 @@ class MessageStore:
         return queued
 
     def create_channel(
-        self, name: str, system_key: str, created_by: str,
+        self,
+        name: str,
+        system_key: str,
+        created_by: str,
     ) -> Channel:
         """Create a named channel."""
         channel_key = f"{system_key}:{name}"
@@ -258,10 +258,7 @@ class MessageStore:
         """Get a list of conversations (unique senders) for an agent."""
         conversations: dict[str, dict[str, Any]] = {}
         for msg in self._messages:
-            is_direct = (
-                msg.target_type == MessageTarget.AGENT
-                and msg.target_id == agent_key
-            )
+            is_direct = msg.target_type == MessageTarget.AGENT and msg.target_id == agent_key
             if is_direct:
                 key = msg.sender
                 if key not in conversations:

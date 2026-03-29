@@ -44,6 +44,7 @@ class TestToolRegistry:
         _registry = ToolRegistry.__new__(ToolRegistry)  # noqa: F841
         # We need to check the hardcoded list includes the modules we added
         import inspect
+
         source = inspect.getsource(ToolRegistry.auto_discover)
         required = [
             "doc_generator",
@@ -87,6 +88,7 @@ class TestApprovalSystem:
 
         # Verify that JSON serialization logic exists in _persist
         import inspect
+
         source = inspect.getsource(ApprovalStore._persist)
         assert "json.dumps" in source, "_persist must use json.dumps for metadata"
 
@@ -205,9 +207,7 @@ class TestStripeSafety:
 
         # Build signature the same way Stripe does
         signed_payload = f"{timestamp}.{payload.decode()}"
-        expected_sig = hmac.new(
-            secret.encode(), signed_payload.encode(), hashlib.sha256
-        ).hexdigest()
+        expected_sig = hmac.new(secret.encode(), signed_payload.encode(), hashlib.sha256).hexdigest()
         sig_header = f"t={timestamp},v1={expected_sig}"
 
         assert verify_webhook_signature(payload, sig_header, secret) is True
@@ -215,18 +215,13 @@ class TestStripeSafety:
     def test_verify_webhook_signature_invalid(self):
         from realize_core.tools.stripe_tools import verify_webhook_signature
 
-        assert (
-            verify_webhook_signature(b"payload", "t=12345,v1=bad_sig", "whsec_test")
-            is False
-        )
+        assert verify_webhook_signature(b"payload", "t=12345,v1=bad_sig", "whsec_test") is False
 
     def test_verify_webhook_signature_no_secret(self):
         from realize_core.tools.stripe_tools import verify_webhook_signature
 
         with patch.dict(os.environ, {"STRIPE_WEBHOOK_SECRET": ""}):
-            assert (
-                verify_webhook_signature(b"payload", "t=12345,v1=sig", None) is False
-            )
+            assert verify_webhook_signature(b"payload", "t=12345,v1=sig", None) is False
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -355,9 +350,7 @@ class TestMCPHealth:
     async def test_health_check_fails_when_disconnected(self):
         from realize_core.tools.mcp import MCPServerConnection
 
-        server = MCPServerConnection(
-            name="test", command="echo", args=[], env={}, enabled=True
-        )
+        server = MCPServerConnection(name="test", command="echo", args=[], env={}, enabled=True)
         assert await server.health_check() is False
 
     def test_hub_connected_count_properties(self):
@@ -401,11 +394,10 @@ class TestGoogleAuth:
         import inspect
 
         import realize_core.tools.google_auth as gauth
+
         source = inspect.getsource(gauth.get_credentials)
         # Must clear _credentials on Exception
-        assert "_credentials = None" in source, (
-            "get_credentials must set _credentials = None on refresh failure"
-        )
+        assert "_credentials = None" in source, "get_credentials must set _credentials = None on refresh failure"
         # Must not leave stale credentials
         assert "Re-run OAuth flow" in source or "re-authorize" in source.lower(), (
             "Error message should instruct user to re-authorize"

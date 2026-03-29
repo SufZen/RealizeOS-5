@@ -26,9 +26,11 @@ logger = logging.getLogger(__name__)
 # Bounded audit log for persistent handoff history
 _audit_log: deque[HandoffResult] = deque(maxlen=1000)
 
+
 def get_audit_log() -> list[HandoffResult]:
     """Retrieve the recent handoff audit history."""
     return list(_audit_log)
+
 
 def clear_audit_log() -> None:
     """Clear the handoff audit history (useful for testing)."""
@@ -239,11 +241,12 @@ def process_handoff(handoff: HandoffData) -> HandoffResult:
         last_result = _audit_log[-1]
         last_h = last_result.handoff
         # If A -> B, and now B -> A for the same pipeline run (simplistic global check here)
-        if (last_h.source_agent == handoff.target_agent and
-            last_h.target_agent == handoff.source_agent and
-            handoff.source_agent != "incident_handler" and
-            handoff.target_agent != "incident_handler"):
-
+        if (
+            last_h.source_agent == handoff.target_agent
+            and last_h.target_agent == handoff.source_agent
+            and handoff.source_agent != "incident_handler"
+            and handoff.target_agent != "incident_handler"
+        ):
             logger.error(
                 "Circular handoff detected: %s -> %s -> %s",
                 last_h.source_agent,
@@ -265,7 +268,7 @@ def process_handoff(handoff: HandoffData) -> HandoffResult:
             result = HandoffResult(
                 handoff=escalated,
                 action="escalate",
-                message=f"Circular handoff deteced: {handoff.source_agent} <-> {handoff.target_agent}"
+                message=f"Circular handoff deteced: {handoff.source_agent} <-> {handoff.target_agent}",
             )
             _audit_log.append(result)
             return result

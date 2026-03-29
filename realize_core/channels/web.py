@@ -97,10 +97,7 @@ class WebChannel(BaseChannel):
     def health_check(self) -> dict:
         """Return web channel health with connected/stale client counts."""
         now = time.time()
-        stale = sum(
-            1 for c in self._ws_clients.values()
-            if (now - c.last_active) > _STALE_CLIENT_TIMEOUT
-        )
+        stale = sum(1 for c in self._ws_clients.values() if (now - c.last_active) > _STALE_CLIENT_TIMEOUT)
         return {
             "name": self.channel_name,
             "healthy": True,
@@ -181,8 +178,7 @@ class WebChannel(BaseChannel):
         """
         now = time.time()
         stale_ids = [
-            cid for cid, client in self._ws_clients.items()
-            if (now - client.last_active) > _STALE_CLIENT_TIMEOUT
+            cid for cid, client in self._ws_clients.items() if (now - client.last_active) > _STALE_CLIENT_TIMEOUT
         ]
         for cid in stale_ids:
             self.logger.info(f"Reaping stale WebSocket client: {cid}")
@@ -261,4 +257,3 @@ class WebChannel(BaseChannel):
             "last_active": client.last_active,
             "sequence": client.sequence,
         }
-

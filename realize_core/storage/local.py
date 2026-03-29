@@ -152,9 +152,7 @@ class LocalStorageProvider(BaseStorageProvider):
         """Write raw bytes to the local filesystem."""
         # Enforce file size limit
         if len(data) > MAX_FILE_SIZE:
-            raise ValueError(
-                f"File size {len(data)} bytes exceeds limit of {MAX_FILE_SIZE} bytes"
-            )
+            raise ValueError(f"File size {len(data)} bytes exceeds limit of {MAX_FILE_SIZE} bytes")
 
         path = self._resolve(key)
 
