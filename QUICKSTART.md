@@ -31,7 +31,7 @@ GOOGLE_AI_API_KEY=AIza-your-key-here
 ## Step 3: Launch
 
 ```bash
-docker compose up
+docker compose up --build
 ```
 
 Wait for the output:

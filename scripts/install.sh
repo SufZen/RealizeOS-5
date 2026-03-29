@@ -322,7 +322,43 @@ GITIGNORE_EOF
 
     # Pull and start
     info "Pulling Docker image: ${DOCKER_IMAGE}:${VERSION}..."
-    docker compose pull
+    if docker compose pull 2>/dev/null; then
+        ok "Image pulled successfully"
+    else
+        warn "Pre-built image not available. Building from source instead..."
+        info "Cloning RealizeOS repository..."
+
+        if ! command_exists git; then
+            fail "git is required to build from source. Install from https://git-scm.com"
+        fi
+
+        git clone --depth 1 "https://github.com/${REPO}.git" _build_src 2>/dev/null || \
+            fail "Could not clone repository. Check your internet connection."
+
+        # Copy build files into the project directory
+        cp _build_src/Dockerfile .
+        cp _build_src/requirements.txt .
+        cp _build_src/.env.example .env.example.repo 2>/dev/null || true
+        cp -r _build_src/realize_core _build_src/realize_api _build_src/realize_lite .
+        cp -r _build_src/templates _build_src/cli.py .
+        cp -r _build_src/dashboard . 2>/dev/null || true
+
+        rm -rf _build_src
+
+        # Update compose to use local build context
+        if [ -f "docker-compose.yml" ]; then
+            # Replace the image line with a build context
+            sed -i.bak '/^[[:space:]]*image:/d' docker-compose.yml
+            sed -i.bak 's|services:|services:\n|' docker-compose.yml
+            # Insert build directive after container_name
+            sed -i.bak '/container_name: realizeos-api/a\    build: .' docker-compose.yml
+            rm -f docker-compose.yml.bak
+        fi
+
+        info "Building Docker image locally (this may take a few minutes)..."
+        docker compose build || fail "Docker build failed. Check the output above."
+        ok "Local build completed"
+    fi
 
     info "Starting RealizeOS..."
     docker compose up -d
