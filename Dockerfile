@@ -62,7 +62,8 @@ COPY cli.py .
 COPY .env.example .
 
 # Copy built dashboard static assets from Stage 1
-COPY --from=dashboard-builder /build/dist/ ./static/
+# Vite outputs to '../static' relative to the dashboard dir (see vite.config.ts)
+COPY --from=dashboard-builder /static/ ./static/
 
 # Create persistent directories
 RUN mkdir -p /app/data /app/shared /app/systems
