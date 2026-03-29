@@ -129,20 +129,9 @@ jobs:
         working-directory: realize-os-cli
         run: npm version ${{ steps.version.outputs.version }} --no-git-tag-version --allow-same-version
 
-      - name: Debug npm publish
+      - name: Publish to npm
         working-directory: realize-os-cli
-        run: |
-          echo "=== npm config ==="
-          npm config list
-          echo "=== npm whoami ==="
-          npm whoami || echo "WHOAMI FAILED"
-          echo "=== .npmrc contents ==="
-          cat ~/.npmrc 2>/dev/null || echo "no .npmrc"
-          cat .npmrc 2>/dev/null || echo "no local .npmrc"
-          echo "=== package.json name ==="
-          node -e "console.log(require('./package.json').name)"
-          echo "=== npm publish attempt ==="
-          npm publish --access public --verbose 2>&1 || echo "PUBLISH FAILED WITH EXIT CODE $?"
+        run: npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
