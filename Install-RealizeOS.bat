@@ -8,7 +8,7 @@ title RealizeOS V5 - Interactive Setup Wizard
 net session >nul 2>&1
 if !errorlevel! neq 0 (
     echo Requesting Administrator privileges...
-    powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process cmd.exe -ArgumentList '/c \"\""%~f0\"\"' -Verb RunAs"
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process cmd.exe -ArgumentList '/c \"%~f0\"' -Verb RunAs"
     exit /b
 )
 
@@ -181,6 +181,16 @@ for %%A in ("!ZIP_FILE!") do set "ZIP_SIZE=%%~zA"
 if !ZIP_SIZE! LSS 1000 (
     echo       [ERROR] Downloaded file is too small - download may have failed.
     echo       The repository may be private. Please contact the developer for access.
+    del /f /q "!ZIP_FILE!" 2>nul
+    pause
+    exit /b 1
+)
+
+:: Validate the zip is actually a zip archive, not a 404 HTML page
+powershell -NoProfile -Command "try { Add-Type -AssemblyName System.IO.Compression.FileSystem; [IO.Compression.ZipFile]::OpenRead('!ZIP_FILE!').Dispose(); exit 0 } catch { exit 1 }"
+if !errorlevel! neq 0 (
+    echo       [ERROR] Downloaded file is not a valid archive.
+    echo       The repository may be private or the URL may have changed.
     del /f /q "!ZIP_FILE!" 2>nul
     pause
     exit /b 1

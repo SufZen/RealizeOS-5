@@ -281,7 +281,58 @@ __pycache__/
 
     # Pull and start
     Write-Status "Pulling Docker image: ${DockerImage}:${Version}..."
-    docker compose pull
+    $pullSuccess = $true
+    try {
+        docker compose pull 2>$null
+        if ($LASTEXITCODE -ne 0) { $pullSuccess = $false }
+    }
+    catch {
+        $pullSuccess = $false
+    }
+
+    if (-not $pullSuccess) {
+        Write-Warn "Pre-built image not available. Building from source instead..."
+
+        if (-not (Test-Command "git")) {
+            Write-Fail "git is required to build from source. Install from https://git-scm.com"
+        }
+
+        Write-Status "Cloning RealizeOS repository..."
+        git clone --depth 1 "https://github.com/$Repo.git" _build_src 2>$null
+        if ($LASTEXITCODE -ne 0) {
+            Write-Fail "Could not clone repository. Check your internet connection."
+        }
+
+        # Copy build files into the project directory
+        Copy-Item "_build_src\Dockerfile" "." -Force
+        Copy-Item "_build_src\requirements.txt" "." -Force
+        Copy-Item "_build_src\.env.example" ".env.example.repo" -Force -ErrorAction SilentlyContinue
+        Copy-Item "_build_src\realize_core" "." -Recurse -Force
+        Copy-Item "_build_src\realize_api" "." -Recurse -Force
+        Copy-Item "_build_src\realize_lite" "." -Recurse -Force
+        Copy-Item "_build_src\templates" "." -Recurse -Force
+        Copy-Item "_build_src\cli.py" "." -Force
+        Copy-Item "_build_src\dashboard" "." -Recurse -Force -ErrorAction SilentlyContinue
+
+        Remove-Item "_build_src" -Recurse -Force
+
+        # Update compose to use local build context
+        if (Test-Path "docker-compose.yml") {
+            $compose = Get-Content "docker-compose.yml" -Raw
+            $compose = $compose -replace '(?m)^\s*image:.*$', '    build: .'
+            $compose | Set-Content "docker-compose.yml" -Encoding UTF8
+        }
+
+        Write-Status "Building Docker image locally (this may take a few minutes)..."
+        docker compose build
+        if ($LASTEXITCODE -ne 0) {
+            Write-Fail "Docker build failed. Check the output above."
+        }
+        Write-Ok "Local build completed"
+    }
+    else {
+        Write-Ok "Image pulled successfully"
+    }
 
     Write-Status "Starting RealizeOS..."
     docker compose up -d

@@ -1,6 +1,6 @@
 [build-system]
 requires = ["setuptools>=68.0", "wheel"]
-build-backend = "setuptools.backends._legacy:_Backend"
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "realize-os"
@@ -44,7 +44,7 @@ gws = ["google-api-python-client>=2.100.0", "google-auth-oauthlib>=1.2.0"]
 dev = ["pytest", "pytest-asyncio", "pytest-cov", "ruff", "bandit[toml]"]
 
 [project.scripts]
-realize-os = "cli:main"
+realize-os = "realize_core.cli_main:main"
 
 [project.urls]
 Homepage = "https://github.com/SufZen/RealizeOS-5"

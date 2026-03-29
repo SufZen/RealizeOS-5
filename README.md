@@ -39,61 +39,66 @@ RealizeOS is a **self-hosted AI operations system** that gives your business a c
 
 ## Quick Start
 
-### NPX (recommended — needs Node.js 18+ & Docker)
+### From Source (recommended first install)
 
-```bash
+`ash
+git clone https://github.com/SufZen/RealizeOS-5.git
+cd RealizeOS-5
+cp .env.example .env       # Add your API key(s)
+docker compose up --build   # Dashboard at http://localhost:8080
+`
+
+> **No Docker?** Use the Python-native method below.
+
+### pip (Python-native, no Docker)
+
+`ash
+pip install realize-os
+realize-os init --template consulting
+realize-os serve
+# Dashboard at http://localhost:8080
+`
+
+> Requires **Python 3.11+**. Works on Windows, macOS, and Linux.
+
+### Linux / macOS (one-liner)
+
+`ash
+curl -fsSL https://raw.githubusercontent.com/SufZen/RealizeOS-5/main/scripts/install.sh | bash
+`
+
+### Windows (PowerShell, one-liner)
+
+`powershell
+irm https://raw.githubusercontent.com/SufZen/RealizeOS-5/main/scripts/install.ps1 | iex
+`
+
+### NPX (scaffolds a new project)
+
+`ash
 npx @realize-os/cli init my-business
 cd my-business
 # Edit .env to add your API key(s)
 npx @realize-os/cli start
 # Dashboard at http://localhost:8080
-```
+`
 
-### Docker (one-liner)
+> Requires **Node.js 18+** and **Docker**.
 
-```bash
+### Docker (standalone container)
+
+`ash
 docker run -d -p 8080:8080 -v realizeos-data:/app/data ghcr.io/sufzen/realizeos:latest
 # Dashboard at http://localhost:8080
-```
-
-### pip (Python-native, no Docker)
-
-```bash
-pip install realize-os
-realize-os init --template consulting
-realize-os serve
-# Dashboard at http://localhost:8080
-```
-
-### Linux / macOS
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/SufZen/RealizeOS-5/main/scripts/install.sh | bash
-```
-
-### Windows (PowerShell)
-
-```powershell
-irm https://raw.githubusercontent.com/SufZen/RealizeOS-5/main/scripts/install.ps1 | iex
-```
-
-### From Source
-
-```bash
-git clone https://github.com/SufZen/RealizeOS-5.git
-cd RealizeOS-5
-cp .env.example .env       # Add your API key(s)
-docker compose up           # Dashboard at http://localhost:8080
-```
+`
 
 | Method | Requires | Best For |
 |--------|----------|----------|
-| **NPX** | Node.js 18+ & Docker | Quickest start, scaffolds project directory |
-| **Docker** | Docker | Isolated, reproducible, production-ready |
+| **Source** | Git + Docker (or Python 3.11+) | Contributing, customization, first-time users |
 | **pip** | Python 3.11+ | Python devs, local development without Docker |
-| **curl** | bash + Docker | Server deployment, CI/CD scripting |
-| **PowerShell** | Windows + Docker | Non-technical Windows users |
-| **Source** | Python + Node.js | Contributing, customization |
+| **curl/PS1** | bash/PowerShell + Docker | Server deployment, CI/CD scripting |
+| **NPX** | Node.js 18+ & Docker | Quickest scaffolding of a new project |
+| **Docker** | Docker | Isolated, reproducible, production-ready |
 
 > 📖 Full setup guide: **[QUICKSTART.md](QUICKSTART.md)** · Self-hosting: **[docs/self-hosting-guide.md](docs/self-hosting-guide.md)**
 

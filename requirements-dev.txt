@@ -2,3 +2,6 @@
 pytest
 pytest-asyncio
 pytest-cov
+setuptools>=68.0
+build
+wheel
