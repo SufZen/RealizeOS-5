@@ -57,8 +57,8 @@ def get_credentials():
     try:
         from google.auth.transport.requests import Request
         from google.oauth2.credentials import Credentials
-    except ImportError:
-        logger.debug("google-auth not installed, Google tools unavailable")
+    except BaseException:
+        logger.debug("google-auth not available, Google tools unavailable")
         return None
 
     if _credentials and _credentials.valid:

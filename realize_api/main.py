@@ -65,12 +65,12 @@ async def lifespan(app: FastAPI):
     # Startup
     logger.info("RealizeOS API starting up...")
 
-    from realize_core.config import build_systems_dict, load_config
+    from realize_core.config import KB_PATH, build_systems_dict, load_config
 
     config = load_config()
     app.state.config = config
-    app.state.systems = build_systems_dict(config)
-    app.state.kb_path = Path(config.get("kb_path", "."))
+    app.state.kb_path = KB_PATH
+    app.state.systems = build_systems_dict(config, KB_PATH)
     app.state.shared_config = config.get(
         "shared",
         {

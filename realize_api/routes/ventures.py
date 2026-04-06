@@ -152,7 +152,7 @@ async def create_venture(body: CreateVentureBody, request: Request):
 
     config = load_config()
     request.app.state.config = config
-    request.app.state.systems = build_systems_dict(config)
+    request.app.state.systems = build_systems_dict(config, kb_path)
 
     try:
         from realize_core.activity.logger import log_event

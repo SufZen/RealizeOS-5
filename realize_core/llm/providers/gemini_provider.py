@@ -55,7 +55,8 @@ class GeminiProvider(BaseLLMProvider):
             from realize_core.config import GOOGLE_AI_API_KEY
 
             return bool(GOOGLE_AI_API_KEY)
-        except ImportError:
+        except BaseException:
+            # Catch ImportError, ModuleNotFoundError, and Rust/cffi panics
             return False
 
     async def complete(

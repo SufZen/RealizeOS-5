@@ -48,9 +48,15 @@ class ProviderRegistry:
                     continue
                 self._model_map[key] = provider.name
 
+        try:
+            avail = provider.is_available()
+            n_models = len(provider.list_models())
+        except BaseException:
+            avail = False
+            n_models = 0
         logger.info(
             f"Registered provider: {provider.name} "
-            f"(available={provider.is_available()}, models={len(provider.list_models())})"
+            f"(available={avail}, models={n_models})"
         )
 
     def get_provider(self, model_key: str) -> BaseLLMProvider | None:
@@ -161,7 +167,7 @@ class ProviderRegistry:
                     "gemini_flash": MODELS.get("gemini_flash", "gemini-2.5-flash"),
                 },
             )
-        except Exception as e:
+        except BaseException as e:
             logger.debug(f"Gemini provider not registered: {e}")
 
         # OpenAI (stub — registers but is_available will return False without SDK/key)
