@@ -1,0 +1,20 @@
+name: deal_evaluation
+description: Investment feasibility analysis with worst-case modeling
+triggers:
+  - evaluate deal
+  - deal analysis
+  - investment analysis
+  - feasibility study
+  - run the numbers
+  - is this deal worth it
+steps:
+  - name: market_context
+    agent: market-analyst
+    description: Provide area context, comparable values, and rental benchmarks
+  - name: financial_analysis
+    agent: deal-analyst
+    description: Run ROI/IRR, worst-case scenario, sensitivity analysis
+  - name: recommendation
+    agent: deal-analyst
+    description: Produce go/no-go recommendation with key assumptions
+task_type: deals

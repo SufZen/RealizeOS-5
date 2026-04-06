@@ -1,0 +1,14 @@
+name: content_pipeline
+description: Create content through a Writer → Reviewer quality pipeline
+triggers:
+  - write a post
+  - create content
+  - draft article
+  - blog post
+  - write email
+  - create newsletter
+  - draft copy
+pipeline:
+  - writer
+  - reviewer
+task_type: content

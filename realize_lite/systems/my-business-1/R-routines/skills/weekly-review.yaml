@@ -1,0 +1,19 @@
+name: weekly_review
+description: Weekly business review and planning session
+triggers:
+  - weekly review
+  - weekly planning
+  - week in review
+  - plan the week
+  - weekly summary
+steps:
+  - name: review
+    agent: analyst
+    description: Review the past week's progress, metrics, and outcomes
+  - name: plan
+    agent: orchestrator
+    description: Identify priorities and plan next week's focus areas
+  - name: document
+    agent: writer
+    description: Write a concise weekly summary with action items
+task_type: strategy

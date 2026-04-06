@@ -63,6 +63,8 @@ docker-compose.override.yml
 
 # Systems data (user-specific ventures)
 systems/
+# But keep the template systems in realize_lite (product code)
+!realize_lite/systems/
 
 # Test artifacts
 test_bat.bat

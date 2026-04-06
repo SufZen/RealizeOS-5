@@ -182,7 +182,24 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.debug(f"Audit logger init skipped: {e}")
 
-    logger.info(f"RealizeOS API ready — {len(app.state.systems)} system(s) loaded")
+    num_systems = len(app.state.systems)
+    if num_systems == 0:
+        logger.warning(
+            "No systems configured. Run: python cli.py init --template <name> "
+            "or edit realize-os.yaml to add systems."
+        )
+
+    # Validate system configurations
+    try:
+        from realize_core.config import validate_systems
+
+        validation_warnings = validate_systems(config, app.state.kb_path)
+        for w in validation_warnings:
+            logger.warning(f"Config validation: {w}")
+    except Exception as e:
+        logger.debug(f"Config validation skipped: {e}")
+
+    logger.info(f"RealizeOS API ready — {num_systems} system(s) loaded")
     yield
 
     # Shutdown
@@ -336,6 +353,38 @@ def create_app() -> FastAPI:
             return FileResponse(static_dir / "index.html")
 
         logger.info(f"Dashboard serving from {static_dir}")
+    else:
+        logger.warning(
+            "Dashboard not built — static/ directory not found. "
+            "To build: cd dashboard && npm install && npm run build"
+        )
+
+        from fastapi.responses import HTMLResponse
+
+        @app.get("/{full_path:path}")
+        async def dashboard_not_built(full_path: str):
+            if full_path.startswith("api/"):
+                return  # Let API routes handle this
+            return HTMLResponse(
+                content=(
+                    "<!DOCTYPE html><html><head><title>RealizeOS</title>"
+                    "<style>body{font-family:system-ui,sans-serif;max-width:600px;"
+                    "margin:80px auto;padding:0 20px;color:#333;background:#fafafa}"
+                    "h1{color:#0a0a0f}code{background:#e8e8e8;padding:2px 8px;"
+                    "border-radius:4px;font-size:14px}pre{background:#1a1a2e;"
+                    "color:#e8e8e8;padding:16px;border-radius:8px;overflow-x:auto}"
+                    ".ok{color:#22c55e}</style></head><body>"
+                    "<h1>RealizeOS</h1>"
+                    "<p class='ok'>&#10003; API is running</p>"
+                    "<p>The dashboard has not been built yet. To build it:</p>"
+                    "<pre>cd dashboard\nnpm install\nnpm run build</pre>"
+                    "<p>Or start the dev server:</p>"
+                    "<pre>cd dashboard\nnpm install\nnpm run dev</pre>"
+                    "<p>The API is available at <code>/api/health</code></p>"
+                    "</body></html>"
+                ),
+                status_code=200,
+            )
 
     return app
 

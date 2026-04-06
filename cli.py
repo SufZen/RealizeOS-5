@@ -163,6 +163,18 @@ def cmd_init(args):
         shutil.copy2(env_example_local, env_file)
         print("  ✓ Created .env from .env.example — edit it to add your API keys")
 
+    # Overlay template-specific FABRIC content (e.g., templates/real-estate/)
+    # This replaces the generic agents/skills/knowledge with specialized ones
+    template_fabric = Path(__file__).parent / "templates" / template_name
+    if template_fabric.exists() and (template_fabric / "A-agents").exists():
+        venture_dir = target_dir / "systems" / "my-business-1"
+        for item in template_fabric.rglob("*"):
+            if item.is_file():
+                relative = item.relative_to(template_fabric)
+                dest = venture_dir / relative
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(item, dest)  # Overwrite generic with specialized
+
     # Create .gitignore
     gitignore_dest = target_dir / ".gitignore"
     if not gitignore_dest.exists():

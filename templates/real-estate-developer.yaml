@@ -1,0 +1,52 @@
+# RealizeOS Template: Real Estate Developer / Promoter
+# For property developers, promoters, and investment groups managing development projects.
+
+name: "My Development Company"
+
+systems:
+  - key: my-business-1
+    name: "Development Operations"
+    directory: systems/my-business-1
+
+    routing:
+      content: [writer, reviewer]
+      feasibility: [feasibility-analyst, orchestrator]
+      projects: [project-director, orchestrator]
+      capital: [capital-manager, orchestrator]
+      sales: [sales-coordinator, writer]
+      general: [orchestrator]
+
+    agent_routing:
+      feasibility-analyst: [feasibility, roi, irr, acquisition, land, due diligence, worst case, sensitivity]
+      project-director: [project, construction, timeline, phase, milestone, permit, license, contractor]
+      capital-manager: [capital, funding, investor, equity, debt, structure, SPV, fund]
+      sales-coordinator: [sales, buyer, reservation, pipeline, launch, pricing, commission]
+      writer: [content, blog, post, brochure, marketing, proposal, report]
+      reviewer: [review, check, approve, quality, compliance]
+      orchestrator: [plan, help, think, prioritize, coordinate, strategy]
+
+example_tasks:
+  - "Run a feasibility analysis for a 20-unit development in Porto"
+  - "Prepare an investor presentation for a new project"
+  - "Track construction milestones and flag delays"
+  - "Generate a sales pipeline report with conversion metrics"
+  - "Draft a capital structure proposal for a mixed-use project"
+  - "Create marketing materials for a project launch"
+  - "Analyze worst-case financial scenarios for a new acquisition"
+
+features:
+  review_pipeline: true
+  auto_memory: true
+  skills_v2: true
+
+llm:
+  default_model: claude-sonnet
+  routing:
+    simple: gemini-flash
+    content: claude-sonnet
+    analysis: claude-sonnet
+    complex: claude-opus
+
+channels:
+  - type: api
+    port: 8080

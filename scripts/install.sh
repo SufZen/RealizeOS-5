@@ -162,6 +162,21 @@ if [ "$LOCAL_MODE" = true ]; then
     info "Running database migrations..."
     python -c "from realize_core.db.migrations import run_migrations; run_migrations()" 2>/dev/null || warn "Migrations skipped"
 
+    # Build dashboard if Node.js is available
+    if command_exists node && command_exists npm; then
+        NODE_VERSION=$(node --version)
+        ok "Node.js ${NODE_VERSION} found — building dashboard..."
+        if [ -d "dashboard" ]; then
+            (cd dashboard && npm install --silent 2>/dev/null && npm run build 2>/dev/null) && \
+                ok "Dashboard built successfully" || \
+                warn "Dashboard build failed — you can build it later with: cd dashboard && npm install && npm run build"
+        fi
+    else
+        warn "Node.js not found — dashboard will not be pre-built"
+        info "Install Node.js 20+ and run: cd dashboard && npm install && npm run build"
+        info "The API will still work without the dashboard"
+    fi
+
     echo ""
     printf "${GREEN}${BOLD}✅ RealizeOS installed successfully!${NC}\n"
     echo ""

@@ -188,18 +188,26 @@ def scaffold_dev_process(project_root: str | Path, force: bool = False) -> dict:
     return stats
 
 
-def scaffold_venture(project_root: str | Path, key: str, name: str = "", description: str = "") -> dict:
+def scaffold_venture(
+    project_root: str | Path,
+    key: str,
+    name: str = "",
+    description: str = "",
+    template: str = "",
+) -> dict:
     """
     Create a new venture with full FABRIC directory structure.
 
-    Copies the template from realize_lite/systems/my-business-1/ to give users
-    a complete starting point with agents, skills, and knowledge base files.
+    Copies from a template-specific FABRIC directory if available (e.g.,
+    templates/real-estate/ for real estate), otherwise falls back to the
+    default template at realize_lite/systems/my-business-1/.
 
     Args:
         project_root: Root directory of the project (where realize-os.yaml lives)
         key: Venture key (e.g., 'my-saas-app'). Used as directory name.
         name: Display name (e.g., 'My SaaS App'). Defaults to key.title().
         description: Optional description for the venture.
+        template: Template name (e.g., 'real-estate'). If empty, uses default.
 
     Returns:
         Dict with 'created' bool, counts, and optional 'error' string.
@@ -213,8 +221,8 @@ def scaffold_venture(project_root: str | Path, key: str, name: str = "", descrip
         stats["error"] = f"Venture directory already exists: {venture_dir}"
         return stats
 
-    # Find the template source (realize_lite/systems/my-business-1/)
-    template_src = _find_venture_template()
+    # Find the template source — prefer template-specific FABRIC, then default
+    template_src = _find_venture_template(template)
     if not template_src:
         stats["error"] = "Venture template not found. Expected realize_lite/systems/my-business-1/"
         return stats
@@ -336,10 +344,25 @@ def list_ventures(project_root: str | Path) -> list[dict]:
     return ventures
 
 
-def _find_venture_template() -> Path | None:
-    """Find the venture template directory (realize_lite/systems/my-business-1/)."""
+def _find_venture_template(template: str = "") -> Path | None:
+    """
+    Find the venture template directory.
+
+    Lookup order:
+    1. templates/<template>/ (template-specific FABRIC, e.g., templates/real-estate/)
+    2. realize_lite/systems/my-business-1/ (default generic template)
+    """
+    engine_root = Path(__file__).parent.parent
+
+    # 1. Template-specific FABRIC directory
+    if template:
+        template_fabric = engine_root / "templates" / template
+        if template_fabric.exists() and (template_fabric / "A-agents").exists():
+            return template_fabric
+
+    # 2. Default template
     candidates = [
-        Path(__file__).parent.parent / "realize_lite" / "systems" / "my-business-1",
+        engine_root / "realize_lite" / "systems" / "my-business-1",
         Path(__file__).parent / "realize_lite" / "systems" / "my-business-1",
     ]
     for candidate in candidates:

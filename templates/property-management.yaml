@@ -1,0 +1,52 @@
+# RealizeOS Template: Property Management
+# For companies managing rental portfolios, short-term rentals, and building operations.
+
+name: "My Property Management Company"
+
+systems:
+  - key: my-business-1
+    name: "Property Management"
+    directory: systems/my-business-1
+
+    routing:
+      content: [writer, reviewer]
+      tenants: [tenant-coordinator, orchestrator]
+      maintenance: [maintenance-tracker, orchestrator]
+      reporting: [financial-analyst, writer]
+      owners: [owner-reporter, orchestrator]
+      general: [orchestrator]
+
+    agent_routing:
+      tenant-coordinator: [tenant, lease, rent, move-in, move-out, complaint, deposit]
+      maintenance-tracker: [maintenance, repair, plumber, electrician, inspection, work order]
+      owner-reporter: [owner, landlord, report, portfolio, performance, vacancy]
+      financial-analyst: [income, expense, budget, roi, cash flow, profit, tax]
+      writer: [content, email, letter, notice, newsletter, post]
+      reviewer: [review, check, approve, quality]
+      orchestrator: [plan, help, think, prioritize, coordinate]
+
+example_tasks:
+  - "Draft a tenant welcome package for a new move-in"
+  - "Generate monthly income reports for all property owners"
+  - "Track and schedule pending maintenance requests"
+  - "Prepare vacancy analysis and marketing plan"
+  - "Write a rent increase notice following legal requirements"
+  - "Create a quarterly portfolio performance summary"
+  - "Analyze cash flow projections for the next 12 months"
+
+features:
+  review_pipeline: true
+  auto_memory: true
+  skills_v2: true
+
+llm:
+  default_model: claude-sonnet
+  routing:
+    simple: gemini-flash
+    content: claude-sonnet
+    analysis: claude-sonnet
+    complex: claude-opus
+
+channels:
+  - type: api
+    port: 8080

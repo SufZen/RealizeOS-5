@@ -1,0 +1,12 @@
+name: social_content
+description: Real estate social media content pipeline — create, review, schedule
+triggers:
+  - social media
+  - create social post
+  - linkedin post
+  - instagram post
+  - social content
+pipeline:
+  - writer
+  - reviewer
+task_type: content

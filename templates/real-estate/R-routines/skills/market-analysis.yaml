@@ -1,0 +1,20 @@
+name: market_analysis
+description: Comparative market analysis — price benchmarks, trends, and area context
+triggers:
+  - market analysis
+  - cma
+  - comparative analysis
+  - price comparison
+  - area analysis
+  - market report
+steps:
+  - name: research
+    agent: market-analyst
+    description: Gather comparable sales, active listings, and area data
+  - name: analyze
+    agent: market-analyst
+    description: Calculate price/m² ranges, identify trends, assess market position
+  - name: report
+    agent: writer
+    description: Write a structured market analysis report
+task_type: analysis

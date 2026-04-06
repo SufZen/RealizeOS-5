@@ -1,0 +1,55 @@
+# RealizeOS Template: Real Estate Agency / Brokerage
+# For real estate agencies, brokers, and property consultants.
+
+name: "My Real Estate Business"
+
+systems:
+  - key: my-business-1
+    name: "Real Estate Operations"
+    directory: systems/my-business-1
+    locale: pt                        # pt, it, or es — loads country-specific knowledge from B-brain/
+
+    routing:
+      content: [writer, reviewer]
+      listings: [listing-specialist, reviewer]
+      analysis: [market-analyst, orchestrator]
+      deals: [deal-analyst, orchestrator]
+      operations: [operations, orchestrator]
+      research: [market-analyst]
+      general: [orchestrator]
+
+    agent_routing:
+      listing-specialist: [listing, property, photos, description, portal, idealista, imovirtual]
+      market-analyst: [market, price, valuation, compare, area, trends, cma, appraisal]
+      deal-analyst: [deal, investment, roi, irr, feasibility, acquisition, cap rate, yield]
+      writer: [content, blog, post, email, newsletter, social, brochure, article]
+      reviewer: [review, check, quality, approve, proofread]
+      operations: [client, process, document, deadline, schedule, contract, closing]
+      orchestrator: [plan, help, think, prioritize, strategy, coordinate]
+
+example_tasks:
+  - "Create a property listing for a T3 apartment in Setúbal"
+  - "Run a comparative market analysis for Lisbon city center"
+  - "Evaluate a deal — 200k purchase price, expected rental yield"
+  - "Draft a monthly market update newsletter for our client base"
+  - "Prepare an investment feasibility report with worst-case scenario"
+  - "Write social media posts for a new property launch"
+  - "Generate a client progress report on their sale pipeline"
+
+features:
+  review_pipeline: true
+  auto_memory: true
+  skills_v2: true
+
+llm:
+  default_model: claude-sonnet
+  routing:
+    simple: gemini-flash
+    content: claude-sonnet
+    analysis: claude-sonnet
+    strategy: claude-sonnet
+    complex: claude-opus
+
+channels:
+  - type: api
+    port: 8080

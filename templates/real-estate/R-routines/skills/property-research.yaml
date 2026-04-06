@@ -1,0 +1,19 @@
+name: property_research
+description: Deep property due diligence — legal status, area context, risk assessment
+triggers:
+  - research property
+  - property due diligence
+  - investigate property
+  - property background
+  - check this property
+steps:
+  - name: location
+    agent: market-analyst
+    description: Area analysis — demographics, infrastructure, development plans, comparable values
+  - name: evaluation
+    agent: deal-analyst
+    description: Financial assessment — value estimate, rental potential, risk factors
+  - name: summary
+    agent: writer
+    description: Write a structured due diligence summary
+task_type: research

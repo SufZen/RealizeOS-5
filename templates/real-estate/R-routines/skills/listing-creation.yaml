@@ -1,0 +1,19 @@
+name: listing_creation
+description: Full property listing workflow — gather data, write description, optimize for portals, review
+triggers:
+  - create listing
+  - write listing
+  - property listing
+  - list this property
+  - portal listing
+steps:
+  - name: gather
+    agent: operations
+    description: Collect property data (area, typology, features, price, photos, energy cert)
+  - name: write
+    agent: listing-specialist
+    description: Write compelling property description optimized for search
+  - name: review
+    agent: reviewer
+    description: Verify accuracy, compliance, and quality before publishing
+task_type: listings
