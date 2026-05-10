@@ -124,9 +124,9 @@ At least one provider must be configured. The router automatically falls back to
 
 ```bash
 # LLM API Keys
-ANTHROPIC_API_KEY=sk-ant-...    # Required for Claude models
-GOOGLE_API_KEY=AIzaSy...         # Required for Gemini models
-OPENAI_API_KEY=sk-...            # Optional, for GPT models
+ANTHROPIC_API_KEY=<your-key>    # Required for Claude models
+GOOGLE_API_KEY=<your-key>         # Required for Gemini models
+OPENAI_API_KEY=<your-key>         # Optional, for GPT models
 OLLAMA_HOST=http://localhost:11434  # Optional, for local models
 
 # API Security

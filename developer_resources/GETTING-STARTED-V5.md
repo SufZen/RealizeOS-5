@@ -61,8 +61,8 @@ pip install -r requirements.txt
 ```bash
 cp .env.example .env
 # Edit .env — add your API keys:
-#   ANTHROPIC_API_KEY=sk-ant-...
-#   GOOGLE_AI_API_KEY=AI...
+#   ANTHROPIC_API_KEY=<your-key>
+#   GOOGLE_AI_API_KEY=<your-key>
 ```
 
 ### 3. Initialize from a template

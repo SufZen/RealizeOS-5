@@ -23,9 +23,9 @@ cp .env.example .env
 Open `.env` and add your API key(s):
 
 ```bash
-ANTHROPIC_API_KEY=sk-ant-your-key-here
+ANTHROPIC_API_KEY=<your-anthropic-api-key>
 # and/or
-GOOGLE_AI_API_KEY=AIza-your-key-here
+GOOGLE_AI_API_KEY=<your-google-ai-api-key>
 ```
 
 ## Step 3: Launch
