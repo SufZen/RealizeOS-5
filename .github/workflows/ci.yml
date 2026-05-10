@@ -156,6 +156,9 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      - name: Create dummy .env for validation
+        run: touch .env
+
       - name: Validate Docker Compose files
         run: |
           docker compose -f docker-compose.yml config
