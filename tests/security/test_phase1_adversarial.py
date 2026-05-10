@@ -6,10 +6,8 @@ Prerequisites: Server running on localhost:8080 with a venture configured.
 """
 
 import asyncio
-import json
 import os
 import sys
-import time
 from pathlib import Path
 
 import httpx
@@ -47,29 +45,31 @@ async def run_all():
         ]
         all_blocked = True
         for payload in traversal_payloads:
-            r = await c.get(f"/api/ventures/my-business-1/kb/file", params={"path": payload})
+            r = await c.get("/api/ventures/my-business-1/kb/file", params={"path": payload})
             if r.status_code not in (400, 403, 404):
                 all_blocked = False
                 record("1.1", f"Path traversal: {payload}", False, f"Got {r.status_code}: {r.text[:100]}")
         # Also test POST/PUT with traversal paths
         for payload in ["../../evil.txt", "..\\..\\evil.txt"]:
             body = {"path": payload, "content": "pwned"}
-            r = await c.post(f"/api/ventures/my-business-1/kb/file", json=body)
+            r = await c.post("/api/ventures/my-business-1/kb/file", json=body)
             if r.status_code not in (400, 403):
                 all_blocked = False
                 record("1.1", f"Path traversal POST: {payload}", False, f"Got {r.status_code}")
-            r2 = await c.put(f"/api/ventures/my-business-1/kb/file", json=body)
+            r2 = await c.put("/api/ventures/my-business-1/kb/file", json=body)
             if r2.status_code not in (400, 403):
                 all_blocked = False
                 record("1.1", f"Path traversal PUT: {payload}", False, f"Got {r2.status_code}")
         # Test DELETE
-        r = await c.delete(f"/api/ventures/my-business-1/kb/file", params={"path": "../../.env"})
+        r = await c.delete("/api/ventures/my-business-1/kb/file", params={"path": "../../.env"})
         if r.status_code not in (400, 403, 404):
             all_blocked = False
             record("1.1", "Path traversal DELETE", False, f"Got {r.status_code}")
 
         if all_blocked:
-            record("1.1", "Path traversal (all payloads blocked)", True, f"{len(traversal_payloads)+4} payloads tested")
+            record(
+                "1.1", "Path traversal (all payloads blocked)", True, f"{len(traversal_payloads) + 4} payloads tested"
+            )
 
         # ─────────────────────────────────────────────────
         # 1.2 Injection Guard Bypass
@@ -118,12 +118,20 @@ async def run_all():
             else:
                 action = "BLOCKED" if actual_block else "ALLOWED"
                 expected = "block" if p["should_block"] else "allow"
-                record("1.2", f"Injection: '{p['msg'][:50]}...'", False,
-                       f"Expected {expected}, got {action} (score={result.risk_score})")
+                record(
+                    "1.2",
+                    f"Injection: '{p['msg'][:50]}...'",
+                    False,
+                    f"Expected {expected}, got {action} (score={result.risk_score})",
+                )
 
         pass_rate = injection_correct / injection_total
-        record("1.2", f"Injection guard accuracy ({injection_correct}/{injection_total})", 
-               pass_rate >= 0.85, f"{pass_rate:.0%} correct")
+        record(
+            "1.2",
+            f"Injection guard accuracy ({injection_correct}/{injection_total})",
+            pass_rate >= 0.85,
+            f"{pass_rate:.0%} correct",
+        )
 
         # ─────────────────────────────────────────────────
         # 1.3 Rate Limiter Concurrency
@@ -137,32 +145,38 @@ async def run_all():
         got_429 = 429 in status_codes
         count_429 = status_codes.count(429)
         count_200 = status_codes.count(200)
-        record("1.3", "Rate limiter triggers 429", got_429 or rate_limit > 50,
-               f"{count_200} allowed, {count_429} throttled out of {len(status_codes)}")
+        record(
+            "1.3",
+            "Rate limiter triggers 429",
+            got_429 or rate_limit > 50,
+            f"{count_200} allowed, {count_429} throttled out of {len(status_codes)}",
+        )
 
         # ─────────────────────────────────────────────────
         # 1.4 JWT Expired/Tampered Tokens
         # ─────────────────────────────────────────────────
         print("\n── 1.4 JWT Token Handling ──")
-        jwt_tests_pass = True
         # Tampered token
         r = await c.get("/api/dashboard", headers={"Authorization": "Bearer invalid.token.here"})
         if r.status_code == 200:
             # JWT may not be enabled — that's OK, it's opt-in
             jwt_enabled = os.getenv("REALIZE_JWT_ENABLED", "").lower() in ("true", "1")
             if jwt_enabled:
-                jwt_tests_pass = False
                 record("1.4", "Tampered JWT accepted", False, "JWT enabled but invalid token accepted")
             else:
-                record("1.4", "JWT authentication (disabled — opt-in)", True,
-                       "JWT not enabled; tokens ignored. This is expected for dev mode.")
-                jwt_tests_pass = True
+                record(
+                    "1.4",
+                    "JWT authentication (disabled — opt-in)",
+                    True,
+                    "JWT not enabled; tokens ignored. This is expected for dev mode.",
+                )
         else:
             record("1.4", "Tampered JWT rejected", r.status_code == 401, f"Got {r.status_code}")
 
         # Expired token (crafted with past exp)
         if os.getenv("REALIZE_JWT_ENABLED", "").lower() in ("true", "1"):
             import jwt as pyjwt
+
             expired_token = pyjwt.encode({"sub": "test", "exp": 0}, "wrong-secret", algorithm="HS256")
             r = await c.get("/api/dashboard", headers={"Authorization": f"Bearer {expired_token}"})
             record("1.4", "Expired JWT rejected", r.status_code == 401, f"Got {r.status_code}")
@@ -179,11 +193,14 @@ async def run_all():
         if api_key:
             # Test with wrong API key
             r_wrong = await c.get("/api/security/audit", headers={"X-API-Key": "wrong-key-12345"})
-            record("1.5", "Wrong API key rejected", r_wrong.status_code in (401, 403),
-                   f"Got {r_wrong.status_code}")
+            record("1.5", "Wrong API key rejected", r_wrong.status_code in (401, 403), f"Got {r_wrong.status_code}")
         else:
-            record("1.5", "RBAC (auth disabled in dev mode)", True,
-                   "No REALIZE_API_KEY set — RBAC not enforced in dev mode")
+            record(
+                "1.5",
+                "RBAC (auth disabled in dev mode)",
+                True,
+                "No REALIZE_API_KEY set — RBAC not enforced in dev mode",
+            )
 
         # ─────────────────────────────────────────────────
         # 1.6 Oversized Request Body
@@ -191,16 +208,16 @@ async def run_all():
         print("\n── 1.6 Oversized Request Body ──")
         # KB file endpoint has 1MB limit in PUT
         big_content = "x" * (2 * 1024 * 1024)  # 2MB
-        r = await c.put("/api/ventures/my-business-1/kb/file", 
-                       json={"path": "systems/my-business-1/B-brain/huge.md", "content": big_content})
-        record("1.6", "2MB KB file rejected (PUT)", r.status_code == 413,
-               f"Got {r.status_code}")
+        r = await c.put(
+            "/api/ventures/my-business-1/kb/file",
+            json={"path": "systems/my-business-1/B-brain/huge.md", "content": big_content},
+        )
+        record("1.6", "2MB KB file rejected (PUT)", r.status_code == 413, f"Got {r.status_code}")
 
         # Chat message has 4096 char limit
         long_msg = "x" * 5000
         r = await c.post("/api/chat", json={"message": long_msg, "system_key": "my-business-1"})
-        record("1.6", "5K char chat message rejected", r.status_code == 422,
-               f"Got {r.status_code}")
+        record("1.6", "5K char chat message rejected", r.status_code == 422, f"Got {r.status_code}")
 
         # ─────────────────────────────────────────────────
         # 1.7 SQL Injection in Parameters
@@ -217,15 +234,19 @@ async def run_all():
             r = await c.get(f"/api/ventures/{payload}")
             if r.status_code == 500:
                 sqli_all_safe = False
-                record("1.7", f"SQLi in venture key crashed: {payload[:30]}", False, f"Got 500")
+                record("1.7", f"SQLi in venture key crashed: {payload[:30]}", False, "Got 500")
             # Try as user_id in conversations
             r = await c.get(f"/api/conversations/my-business-1/{payload}")
             if r.status_code == 500:
                 sqli_all_safe = False
-                record("1.7", f"SQLi in user_id crashed: {payload[:30]}", False, f"Got 500")
+                record("1.7", f"SQLi in user_id crashed: {payload[:30]}", False, "Got 500")
         if sqli_all_safe:
-            record("1.7", f"SQL injection safe ({len(sqli_payloads)} payloads)", True,
-                   "No 500 errors — queries are parameterized")
+            record(
+                "1.7",
+                f"SQL injection safe ({len(sqli_payloads)} payloads)",
+                True,
+                "No 500 errors — queries are parameterized",
+            )
 
         # ─────────────────────────────────────────────────
         # 1.8 Audit Log Integrity
@@ -233,12 +254,10 @@ async def run_all():
         print("\n── 1.8 Audit Log Integrity ──")
         # Check that there's no DELETE endpoint for audit
         r = await c.delete("/api/security/audit")
-        record("1.8", "No audit DELETE endpoint", r.status_code in (404, 405),
-               f"Got {r.status_code}")
+        record("1.8", "No audit DELETE endpoint", r.status_code in (404, 405), f"Got {r.status_code}")
         # Check no PUT endpoint
         r = await c.put("/api/security/audit", json={"tamper": True})
-        record("1.8", "No audit PUT endpoint", r.status_code in (404, 405),
-               f"Got {r.status_code}")
+        record("1.8", "No audit PUT endpoint", r.status_code in (404, 405), f"Got {r.status_code}")
 
         # ─────────────────────────────────────────────────
         # 1.9 CORS Restricted Origins
@@ -246,18 +265,28 @@ async def run_all():
         print("\n── 1.9 CORS Configuration ──")
         cors_origins = os.getenv("CORS_ORIGINS", "*")
         if cors_origins == "*":
-            record("1.9", "CORS origins", False,
-                   f"Wildcard (*) — must restrict before production. Set CORS_ORIGINS env var.")
+            record(
+                "1.9",
+                "CORS origins",
+                False,
+                "Wildcard (*) — must restrict before production. Set CORS_ORIGINS env var.",
+            )
         else:
             # Test with a non-whitelisted origin
-            r = await c.options("/api/health", headers={
-                "Origin": "https://evil.com",
-                "Access-Control-Request-Method": "GET",
-            })
+            r = await c.options(
+                "/api/health",
+                headers={
+                    "Origin": "https://evil.com",
+                    "Access-Control-Request-Method": "GET",
+                },
+            )
             acao = r.headers.get("access-control-allow-origin", "")
-            record("1.9", "CORS rejects non-whitelisted origin", 
-                   acao != "https://evil.com",
-                   f"Allow-Origin: {acao or '(none)'}")
+            record(
+                "1.9",
+                "CORS rejects non-whitelisted origin",
+                acao != "https://evil.com",
+                f"Allow-Origin: {acao or '(none)'}",
+            )
 
         # ─────────────────────────────────────────────────
         # 1.10 Secrets Not in Config/Logs
@@ -292,8 +321,12 @@ async def run_all():
             except Exception:
                 pass
 
-        record("1.10", "No secrets in config/source", len(secrets_found) == 0,
-               f"{len(secrets_found)} issues" if secrets_found else ".env in .gitignore: {env_protected}")
+        record(
+            "1.10",
+            "No secrets in config/source",
+            len(secrets_found) == 0,
+            f"{len(secrets_found)} issues" if secrets_found else f".env in .gitignore: {env_protected}",
+        )
         for s in secrets_found:
             print(f"         ⚠️  {s}")
 
@@ -325,9 +358,9 @@ async def run_all():
     passed = sum(1 for r in RESULTS if r["passed"])
     failed = total - passed
     print(f"\n  Total: {total}  |  Passed: {passed}  |  Failed: {failed}")
-    print(f"  Pass Rate: {passed/total:.0%}")
+    print(f"  Pass Rate: {passed / total:.0%}")
     if failed:
-        print(f"\n  ❌ FAILED TESTS:")
+        print("\n  ❌ FAILED TESTS:")
         for r in RESULTS:
             if not r["passed"]:
                 print(f"     {r['id']}: {r['name']} — {r['detail']}")

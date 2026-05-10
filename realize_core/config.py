@@ -256,16 +256,9 @@ def validate_systems(config: dict, kb_path: Path = None) -> list[str]:
         # Check that routing agent references match actual agent files
         agents_dir = sys_dir / "A-agents"
         if agents_dir.exists():
-            available_agents = {
-                f.stem.replace("-", "_")
-                for f in agents_dir.glob("*.md")
-                if not f.name.startswith("_")
-            }
+            available_agents = {f.stem.replace("-", "_") for f in agents_dir.glob("*.md") if not f.name.startswith("_")}
             # Also check .yaml agent files
-            available_agents |= {
-                f.stem.replace("-", "_")
-                for f in agents_dir.glob("*.yaml")
-            }
+            available_agents |= {f.stem.replace("-", "_") for f in agents_dir.glob("*.yaml")}
 
             for route_type, agent_list in sys_conf.get("routing", {}).items():
                 if isinstance(agent_list, list):

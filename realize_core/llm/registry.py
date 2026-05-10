@@ -54,10 +54,7 @@ class ProviderRegistry:
         except BaseException:
             avail = False
             n_models = 0
-        logger.info(
-            f"Registered provider: {provider.name} "
-            f"(available={avail}, models={n_models})"
-        )
+        logger.info(f"Registered provider: {provider.name} (available={avail}, models={n_models})")
 
     def get_provider(self, model_key: str) -> BaseLLMProvider | None:
         """Get the provider for a given model key (e.g., 'claude_sonnet').

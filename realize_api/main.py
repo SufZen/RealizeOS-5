@@ -209,8 +209,7 @@ async def lifespan(app: FastAPI):
     num_systems = len(app.state.systems)
     if num_systems == 0:
         logger.warning(
-            "No systems configured. Run: python cli.py init --template <name> "
-            "or edit realize-os.yaml to add systems."
+            "No systems configured. Run: python cli.py init --template <name> or edit realize-os.yaml to add systems."
         )
 
     # Validate system configurations
@@ -386,8 +385,7 @@ def create_app() -> FastAPI:
         logger.info(f"Dashboard serving from {static_dir}")
     else:
         logger.warning(
-            "Dashboard not built — static/ directory not found. "
-            "To build: cd dashboard && npm install && npm run build"
+            "Dashboard not built — static/ directory not found. To build: cd dashboard && npm install && npm run build"
         )
 
         from fastapi.responses import HTMLResponse

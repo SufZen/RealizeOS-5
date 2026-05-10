@@ -29,8 +29,7 @@ class TestFabricTemplate:
         """FABRIC venture template must exist for scaffold_venture() to work."""
         template = REALIZE_LITE / "systems" / "my-business-1"
         assert template.exists(), (
-            f"Missing: {template}\n"
-            "scaffold_venture() cannot create new ventures without this template."
+            f"Missing: {template}\nscaffold_venture() cannot create new ventures without this template."
         )
 
     def test_template_has_all_fabric_dirs(self):
@@ -104,9 +103,7 @@ class TestTemplateYamls:
             data = yaml.safe_load(f.read_text(encoding="utf-8"))
             for system in data.get("systems", []):
                 routing = system.get("routing", {})
-                assert len(routing) > 0, (
-                    f"{f.name}: system '{system.get('key', '?')}' has no routing config"
-                )
+                assert len(routing) > 0, f"{f.name}: system '{system.get('key', '?')}' has no routing config"
 
     def test_real_estate_template_exists(self):
         """Primary market template must exist."""
@@ -138,9 +135,7 @@ class TestRealEstateTemplate:
             country_dir = brain_dir / country
             assert country_dir.exists(), f"Missing knowledge base: B-brain/{country}/"
             files = list(country_dir.glob("*.md"))
-            assert len(files) >= 2, (
-                f"B-brain/{country}/ has only {len(files)} files, expected at least 2"
-            )
+            assert len(files) >= 2, f"B-brain/{country}/ has only {len(files)} files, expected at least 2"
 
     def test_real_estate_has_skills(self):
         """Real estate template must have domain-specific skills."""
@@ -216,9 +211,7 @@ class TestScaffoldFunction:
     def test_scaffold_creates_venture(self, tmp_path):
         """scaffold_venture() must create a complete FABRIC structure."""
         # Create minimal project structure
-        (tmp_path / "realize-os.yaml").write_text(
-            "name: Test\nsystems: []\n", encoding="utf-8"
-        )
+        (tmp_path / "realize-os.yaml").write_text("name: Test\nsystems: []\n", encoding="utf-8")
 
         from realize_core.scaffold import scaffold_venture
 

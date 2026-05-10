@@ -51,33 +51,38 @@ def test_5_1_schema_migration():
         conn.row_factory = sqlite3.Row
 
         # Verify base tables exist
-        tables = [r[0] for r in conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
-        ).fetchall()]
+        tables = [
+            r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name").fetchall()
+        ]
 
         expected_tables = ["activity_events", "agent_states", "approval_queue", "schema_version"]
         missing = [t for t in expected_tables if t not in tables]
 
-        record("5.1a", "Base schema created", len(missing) == 0,
-               f"Tables: {len(tables)} found, missing: {missing or 'none'}")
+        record(
+            "5.1a",
+            "Base schema created",
+            len(missing) == 0,
+            f"Tables: {len(tables)} found, missing: {missing or 'none'}",
+        )
 
         # Run migrations
         from realize_core.db.migrations import run_migrations
+
         run_migrations(tmp)
 
         # Check version
         version = conn.execute("SELECT MAX(version) as v FROM schema_version").fetchone()["v"]
-        record("5.1b", f"Migrations applied (version={version})", version >= 2,
-               f"Schema version: {version}")
+        record("5.1b", f"Migrations applied (version={version})", version >= 2, f"Schema version: {version}")
 
         # Verify migration tables
-        tables_after = [r[0] for r in conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
-        ).fetchall()]
+        tables_after = [
+            r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name").fetchall()
+        ]
         migration_tables = ["storage_sync_log", "approval_requests", "agent_messages"]
         missing_migration = [t for t in migration_tables if t not in tables_after]
-        record("5.1c", "Migration tables created", len(missing_migration) == 0,
-               f"Missing: {missing_migration or 'none'}")
+        record(
+            "5.1c", "Migration tables created", len(missing_migration) == 0, f"Missing: {missing_migration or 'none'}"
+        )
 
         conn.close()
     finally:
@@ -87,10 +92,10 @@ def test_5_1_schema_migration():
 def test_5_2_concurrent_venture_creation():
     """5.2: 5 threads creating ventures simultaneously — no duplicates, no crashes."""
     print("\n-- 5.2 Concurrent Venture Creation --")
-    from realize_core.memory.store import DB_PATH, init_db, db_connection
-
     # Use a temp DB
     import realize_core.memory.store as store_module
+    from realize_core.memory.store import db_connection, init_db
+
     original_db = store_module.DB_PATH
     tmp_dir = Path(tempfile.mkdtemp())
     store_module.DB_PATH = tmp_dir / "concurrent_test.db"
@@ -100,6 +105,7 @@ def test_5_2_concurrent_venture_creation():
 
         def insert_memory(thread_id):
             from realize_core.memory.store import store_memory
+
             for i in range(20):
                 store_memory(
                     f"venture-{thread_id}",
@@ -119,20 +125,22 @@ def test_5_2_concurrent_venture_creation():
                 except Exception as e:
                     errors.append(str(e))
 
-        record("5.2a", "5 threads completed", len(results) == 5,
-               f"{len(results)}/5 succeeded, {len(errors)} errors")
+        record("5.2a", "5 threads completed", len(results) == 5, f"{len(results)}/5 succeeded, {len(errors)} errors")
 
         # Verify data integrity
         with db_connection() as conn:
             total = conn.execute("SELECT COUNT(*) as c FROM memories").fetchone()["c"]
             # Should have up to 100 rows (5 threads x 20), minus any duplicates
-            record("5.2b", "Data integrity after concurrent writes", total > 0,
-                   f"{total} memories stored (some may be deduped)")
+            record(
+                "5.2b",
+                "Data integrity after concurrent writes",
+                total > 0,
+                f"{total} memories stored (some may be deduped)",
+            )
 
             # Check no DB corruption
             integrity = conn.execute("PRAGMA integrity_check").fetchone()[0]
-            record("5.2c", "Database integrity check", integrity == "ok",
-                   f"PRAGMA integrity_check: {integrity}")
+            record("5.2c", "Database integrity check", integrity == "ok", f"PRAGMA integrity_check: {integrity}")
 
         if errors:
             for e in errors:
@@ -153,7 +161,7 @@ def test_5_3_backup_restore():
     store_module.DB_PATH = tmp_dir / "backup_test.db"
 
     try:
-        from realize_core.memory.store import init_db, store_memory, search_memories, db_connection
+        from realize_core.memory.store import db_connection, init_db, store_memory
 
         init_db()
 
@@ -167,23 +175,25 @@ def test_5_3_backup_restore():
         # Backup
         backup_path = tmp_dir / "backup.db"
         shutil.copy2(store_module.DB_PATH, backup_path)
-        record("5.3a", "Backup created", backup_path.exists(),
-               f"Backup size: {backup_path.stat().st_size} bytes")
+        record("5.3a", "Backup created", backup_path.exists(), f"Backup size: {backup_path.stat().st_size} bytes")
 
         # Simulate corruption by clearing the original
         with db_connection() as conn:
             conn.execute("DELETE FROM memories")
         with db_connection() as conn:
             after_delete = conn.execute("SELECT COUNT(*) as c FROM memories").fetchone()["c"]
-        record("5.3b", "Data deleted (simulating corruption)", after_delete == 0,
-               f"Rows after delete: {after_delete}")
+        record("5.3b", "Data deleted (simulating corruption)", after_delete == 0, f"Rows after delete: {after_delete}")
 
         # Restore from backup
         shutil.copy2(backup_path, store_module.DB_PATH)
         with db_connection() as conn:
             after_restore = conn.execute("SELECT COUNT(*) as c FROM memories").fetchone()["c"]
-        record("5.3c", "Data restored from backup", after_restore == before_count,
-               f"Before: {before_count}, after restore: {after_restore}")
+        record(
+            "5.3c",
+            "Data restored from backup",
+            after_restore == before_count,
+            f"Before: {before_count}, after restore: {after_restore}",
+        )
 
     finally:
         store_module.DB_PATH = original_db
@@ -193,15 +203,15 @@ def test_5_3_backup_restore():
 def test_5_4_conversation_pruning():
     """5.4: Conversation pruning at scale (5K rows per user, prune to 1K)."""
     print("\n-- 5.4 Conversation Pruning --")
+    import realize_core.memory.store as store_module
     from realize_core.memory import conversation as conv_module
 
-    import realize_core.memory.store as store_module
     original_db = store_module.DB_PATH
     tmp_dir = Path(tempfile.mkdtemp())
     store_module.DB_PATH = tmp_dir / "prune_test.db"
 
     try:
-        from realize_core.memory.store import init_db, db_connection
+        from realize_core.memory.store import db_connection, init_db
 
         init_db()
 
@@ -225,8 +235,7 @@ def test_5_4_conversation_pruning():
 
         with db_connection() as conn:
             before = conn.execute("SELECT COUNT(*) as c FROM conversations").fetchone()["c"]
-        record("5.4a", "Inserted 5K conversation rows", before == 5000,
-               f"Rows: {before}")
+        record("5.4a", "Inserted 5K conversation rows", before == 5000, f"Rows: {before}")
 
         # Prune to 1000
         start = time.time()
@@ -235,22 +244,25 @@ def test_5_4_conversation_pruning():
 
         with db_connection() as conn:
             after = conn.execute("SELECT COUNT(*) as c FROM conversations").fetchone()["c"]
-        record("5.4b", "Pruning completed", deleted == 4000,
-               f"Deleted: {deleted}, remaining: {after}, time: {elapsed:.2f}s")
+        record(
+            "5.4b",
+            "Pruning completed",
+            deleted == 4000,
+            f"Deleted: {deleted}, remaining: {after}, time: {elapsed:.2f}s",
+        )
 
         # Verify newest messages kept
         with db_connection() as conn:
-            oldest_remaining = conn.execute(
-                "SELECT MIN(created_at) as ts FROM conversations"
-            ).fetchone()["ts"]
-            newest_remaining = conn.execute(
-                "SELECT MAX(created_at) as ts FROM conversations"
-            ).fetchone()["ts"]
-        record("5.4c", "Newest messages retained", after == 1000,
-               f"Oldest remaining: {oldest_remaining}, newest: {newest_remaining}")
+            oldest_remaining = conn.execute("SELECT MIN(created_at) as ts FROM conversations").fetchone()["ts"]
+            newest_remaining = conn.execute("SELECT MAX(created_at) as ts FROM conversations").fetchone()["ts"]
+        record(
+            "5.4c",
+            "Newest messages retained",
+            after == 1000,
+            f"Oldest remaining: {oldest_remaining}, newest: {newest_remaining}",
+        )
 
-        record("5.4d", "Pruning performance", elapsed < 5.0,
-               f"{elapsed:.2f}s (target: <5s)")
+        record("5.4d", "Pruning performance", elapsed < 5.0, f"{elapsed:.2f}s (target: <5s)")
 
     finally:
         store_module.DB_PATH = original_db
@@ -276,15 +288,18 @@ def test_5_5_activity_log_query_performance():
         batch = []
         for i in range(10000):
             ts = (base_time + timedelta(seconds=i)).strftime("%Y-%m-%dT%H:%M:%S")
-            batch.append((
-                f"venture-{i % 10}",
-                "agent" if i % 2 == 0 else "user",
-                f"agent-{i % 5}",
-                "message_sent" if i % 3 == 0 else "task_completed",
-                "session", f"session-{i}",
-                f'{{"index": {i}}}',
-                ts,
-            ))
+            batch.append(
+                (
+                    f"venture-{i % 10}",
+                    "agent" if i % 2 == 0 else "user",
+                    f"agent-{i % 5}",
+                    "message_sent" if i % 3 == 0 else "task_completed",
+                    "session",
+                    f"session-{i}",
+                    f'{{"index": {i}}}',
+                    ts,
+                )
+            )
 
         conn.executemany(
             "INSERT INTO activity_events "
@@ -295,8 +310,7 @@ def test_5_5_activity_log_query_performance():
         conn.commit()
 
         total = conn.execute("SELECT COUNT(*) FROM activity_events").fetchone()[0]
-        record("5.5a", "Inserted 10K activity events", total == 10000,
-               f"Rows: {total}")
+        record("5.5a", "Inserted 10K activity events", total == 10000, f"Rows: {total}")
 
         # Query: recent events for a venture (most common dashboard query)
         start = time.time()
@@ -305,17 +319,18 @@ def test_5_5_activity_log_query_performance():
             ("venture-3",),
         ).fetchall()
         query_time = time.time() - start
-        record("5.5b", "Recent events query", query_time < 0.1 and len(rows) == 50,
-               f"{len(rows)} rows in {query_time*1000:.1f}ms (target: <100ms)")
+        record(
+            "5.5b",
+            "Recent events query",
+            query_time < 0.1 and len(rows) == 50,
+            f"{len(rows)} rows in {query_time * 1000:.1f}ms (target: <100ms)",
+        )
 
         # Query: count by action type (aggregate)
         start = time.time()
-        agg = conn.execute(
-            "SELECT action, COUNT(*) as c FROM activity_events GROUP BY action"
-        ).fetchall()
+        agg = conn.execute("SELECT action, COUNT(*) as c FROM activity_events GROUP BY action").fetchall()
         agg_time = time.time() - start
-        record("5.5c", "Aggregate query", agg_time < 0.5,
-               f"{len(agg)} action types in {agg_time*1000:.1f}ms")
+        record("5.5c", "Aggregate query", agg_time < 0.5, f"{len(agg)} action types in {agg_time * 1000:.1f}ms")
 
         conn.close()
     finally:
@@ -332,7 +347,7 @@ def test_5_6_memory_duplicate_detection():
     store_module.DB_PATH = tmp_dir / "dedup_test.db"
 
     try:
-        from realize_core.memory.store import init_db, store_memory, db_connection
+        from realize_core.memory.store import db_connection, init_db, store_memory
 
         init_db()
 
@@ -345,13 +360,10 @@ def test_5_6_memory_duplicate_detection():
         store_memory("dedup-test", "learning", "Something completely different about project timelines.")  # different
 
         with db_connection() as conn:
-            total = conn.execute(
-                "SELECT COUNT(*) as c FROM memories WHERE system_key = 'dedup-test'"
-            ).fetchone()["c"]
+            total = conn.execute("SELECT COUNT(*) as c FROM memories WHERE system_key = 'dedup-test'").fetchone()["c"]
 
         # Should have 2: original + the different one. Near-dupes should be skipped.
-        record("5.6", "Duplicate detection", total == 2,
-               f"Stored: {total} (expected 2: original + different)")
+        record("5.6", "Duplicate detection", total == 2, f"Stored: {total} (expected 2: original + different)")
 
     finally:
         store_module.DB_PATH = original_db
@@ -368,7 +380,7 @@ def test_5_7_wal_mode_contention():
     store_module.DB_PATH = tmp_dir / "wal_test.db"
 
     try:
-        from realize_core.memory.store import init_db, db_connection
+        from realize_core.memory.store import db_connection, init_db
 
         init_db()
 
@@ -382,8 +394,12 @@ def test_5_7_wal_mode_contention():
                         conn.execute(
                             "INSERT INTO memories (system_key, category, content, tags, created_at) "
                             "VALUES (?, ?, ?, '[]', ?)",
-                            (f"wal-{thread_id}", "test", f"WAL test {thread_id}-{i}",
-                             datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
+                            (
+                                f"wal-{thread_id}",
+                                "test",
+                                f"WAL test {thread_id}-{i}",
+                                datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                            ),
                         )
                 except Exception as e:
                     errors.append(f"Writer {thread_id}: {e}")
@@ -410,10 +426,10 @@ def test_5_7_wal_mode_contention():
             total = conn.execute("SELECT COUNT(*) as c FROM memories").fetchone()["c"]
             integrity = conn.execute("PRAGMA integrity_check").fetchone()[0]
 
-        record("5.7a", "10 writers + 1 reader concurrent", len(errors) == 0,
-               f"{total} rows written, {len(errors)} errors")
-        record("5.7b", "DB integrity after contention", integrity == "ok",
-               f"PRAGMA integrity_check: {integrity}")
+        record(
+            "5.7a", "10 writers + 1 reader concurrent", len(errors) == 0, f"{total} rows written, {len(errors)} errors"
+        )
+        record("5.7b", "DB integrity after contention", integrity == "ok", f"PRAGMA integrity_check: {integrity}")
 
         if errors:
             for e in errors[:5]:
@@ -434,7 +450,7 @@ def test_5_8_fts_search_accuracy():
     store_module.DB_PATH = tmp_dir / "fts_test.db"
 
     try:
-        from realize_core.memory.store import init_db, store_memory, search_memories
+        from realize_core.memory.store import init_db, search_memories, store_memory
 
         init_db()
 
@@ -455,16 +471,22 @@ def test_5_8_fts_search_accuracy():
 
         # Search for specific terms
         results_marketing = search_memories("marketing campaign lead", system_key="fts-test", limit=5)
-        record("5.8a", "FTS search: 'marketing campaign'", len(results_marketing) > 0,
-               f"Found {len(results_marketing)} results")
+        record(
+            "5.8a",
+            "FTS search: 'marketing campaign'",
+            len(results_marketing) > 0,
+            f"Found {len(results_marketing)} results",
+        )
 
         results_revenue = search_memories("revenue growth forecast", system_key="fts-test", limit=5)
-        record("5.8b", "FTS search: 'revenue growth'", len(results_revenue) > 0,
-               f"Found {len(results_revenue)} results")
+        record(
+            "5.8b", "FTS search: 'revenue growth'", len(results_revenue) > 0, f"Found {len(results_revenue)} results"
+        )
 
         results_empty = search_memories("quantum computing", system_key="fts-test", limit=5)
-        record("5.8c", "FTS search: no match", len(results_empty) == 0,
-               f"Found {len(results_empty)} results (expected 0)")
+        record(
+            "5.8c", "FTS search: no match", len(results_empty) == 0, f"Found {len(results_empty)} results (expected 0)"
+        )
 
     finally:
         store_module.DB_PATH = original_db
@@ -493,9 +515,9 @@ def main():
     passed = sum(1 for r in RESULTS if r["passed"])
     failed = total - passed
     print(f"\n  Total: {total}  |  Passed: {passed}  |  Failed: {failed}")
-    print(f"  Pass Rate: {passed/total:.0%}")
+    print(f"  Pass Rate: {passed / total:.0%}")
     if failed:
-        print(f"\n  FAILED TESTS:")
+        print("\n  FAILED TESTS:")
         for r in RESULTS:
             if not r["passed"]:
                 print(f"     {r['id']}: {r['name']} -- {r['detail']}")

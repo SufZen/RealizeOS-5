@@ -6,7 +6,6 @@ Requires: Server running on localhost:8080.
 """
 
 import asyncio
-import os
 import statistics
 import sys
 import time
@@ -57,15 +56,24 @@ async def run_all():
         else:
             p50 = p95 = p99 = 999
 
-        record("3.1a", f"50 concurrent health checks", len(successes) == 50,
-               f"{len(successes)}/50 succeeded in {elapsed:.2f}s")
-        record("3.1b", "Latency percentiles", p99 < 500,
-               f"p50={p50:.0f}ms, p95={p95:.0f}ms, p99={p99:.0f}ms (target: p99 < 500ms)")
+        record(
+            "3.1a",
+            "50 concurrent health checks",
+            len(successes) == 50,
+            f"{len(successes)}/50 succeeded in {elapsed:.2f}s",
+        )
+        record(
+            "3.1b",
+            "Latency percentiles",
+            p99 < 500,
+            f"p50={p50:.0f}ms, p95={p95:.0f}ms, p99={p99:.0f}ms (target: p99 < 500ms)",
+        )
 
         # ──────────────────────────────────────────
         # 3.2 Concurrent venture operations (10)
         # ──────────────────────────────────────────
         print("\n-- 3.2 Concurrent Venture Operations --")
+
         async def create_venture(i):
             body = {"key": f"perf-test-{i}", "name": f"Perf Test {i}", "description": f"Load test venture {i}"}
             return await c.post("/api/ventures", json=body)
@@ -76,8 +84,7 @@ async def run_all():
         v_elapsed = time.time() - start
 
         v_success = sum(1 for r in venture_results if isinstance(r, httpx.Response) and r.status_code in (200, 201))
-        record("3.2", "10 concurrent venture creates", v_success == 10,
-               f"{v_success}/10 succeeded in {v_elapsed:.2f}s")
+        record("3.2", "10 concurrent venture creates", v_success == 10, f"{v_success}/10 succeeded in {v_elapsed:.2f}s")
 
         # ──────────────────────────────────────────
         # 3.4 Many ventures — dashboard performance
@@ -87,8 +94,12 @@ async def run_all():
         start = time.time()
         r = await c.get("/api/dashboard")
         dash_latency = (time.time() - start) * 1000
-        record("3.4", "Dashboard load time", dash_latency < 3000 and r.status_code == 200,
-               f"{dash_latency:.0f}ms (target: <3000ms), status={r.status_code}")
+        record(
+            "3.4",
+            "Dashboard load time",
+            dash_latency < 3000 and r.status_code == 200,
+            f"{dash_latency:.0f}ms (target: <3000ms), status={r.status_code}",
+        )
 
         # ──────────────────────────────────────────
         # 3.6 Cold start time (measure status endpoint)
@@ -101,8 +112,7 @@ async def run_all():
             latencies_status.append((time.time() - start) * 1000)
 
         avg_status = statistics.mean(latencies_status)
-        record("3.6", "Status endpoint avg latency", avg_status < 200,
-               f"avg={avg_status:.0f}ms over 10 calls")
+        record("3.6", "Status endpoint avg latency", avg_status < 200, f"avg={avg_status:.0f}ms over 10 calls")
 
         # ──────────────────────────────────────────
         # 3.8 Sustained request throughput
@@ -118,8 +128,12 @@ async def run_all():
         sustained_elapsed = time.time() - start
         rps = sustained_ok / sustained_elapsed
 
-        record("3.8", f"Sustained throughput ({sustained_ok} requests)", rps > 50,
-               f"{rps:.0f} req/s in {sustained_elapsed:.1f}s (target: >50 req/s)")
+        record(
+            "3.8",
+            f"Sustained throughput ({sustained_ok} requests)",
+            rps > 50,
+            f"{rps:.0f} req/s in {sustained_elapsed:.1f}s (target: >50 req/s)",
+        )
 
         # ──────────────────────────────────────────
         # 3.10 Workflow CRUD throughput
@@ -127,8 +141,12 @@ async def run_all():
         print("\n-- 3.10 Workflow CRUD Throughput --")
         wf_latencies = []
         for i in range(20):
-            body = {"name": f"perf-wf-{i}", "description": f"Test {i}",
-                    "triggers": ["test"], "steps": [{"action": "echo"}]}
+            body = {
+                "name": f"perf-wf-{i}",
+                "description": f"Test {i}",
+                "triggers": ["test"],
+                "steps": [{"action": "echo"}],
+            }
             start = time.time()
             r = await c.post("/api/workflows", json=body)
             wf_latencies.append((time.time() - start) * 1000)
@@ -139,8 +157,12 @@ async def run_all():
         else:
             wf_avg = wf_p95 = 999
 
-        record("3.10", "Workflow create throughput (20x)", wf_p95 < 200,
-               f"avg={wf_avg:.0f}ms, p95={wf_p95:.0f}ms (target: p95 < 200ms)")
+        record(
+            "3.10",
+            "Workflow create throughput (20x)",
+            wf_p95 < 200,
+            f"avg={wf_avg:.0f}ms, p95={wf_p95:.0f}ms (target: p95 < 200ms)",
+        )
 
         # Cleanup: delete test ventures and workflows
         print("\n-- Cleanup --")
@@ -158,9 +180,9 @@ async def run_all():
     passed = sum(1 for r in RESULTS if r["passed"])
     failed = total - passed
     print(f"\n  Total: {total}  |  Passed: {passed}  |  Failed: {failed}")
-    print(f"  Pass Rate: {passed/total:.0%}")
+    print(f"  Pass Rate: {passed / total:.0%}")
     if failed:
-        print(f"\n  FAILED TESTS:")
+        print("\n  FAILED TESTS:")
         for r in RESULTS:
             if not r["passed"]:
                 print(f"     {r['id']}: {r['name']} -- {r['detail']}")
