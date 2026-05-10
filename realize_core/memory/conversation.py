@@ -55,7 +55,7 @@ def _hydrate_if_needed(system_key: str, user_id: str, topic_id: str = ""):
     _hydrated.add(key)
 
 
-def get_history(system_key: str, user_id: str, topic_id: str = "") -> list[dict]:
+def get_history(system_key: str, user_id: str, topic_id: str = "", limit: int | None = None) -> list[dict]:
     """
     Get conversation history for a specific user and system.
 
@@ -63,13 +63,17 @@ def get_history(system_key: str, user_id: str, topic_id: str = "") -> list[dict]
         system_key: System identifier
         user_id: User identifier
         topic_id: Thread/topic ID (empty string for regular chats)
+        limit: Maximum number of messages to return (most recent). None = all.
 
     Returns:
         List of message dicts: [{"role": "user"/"assistant", "content": "..."}]
     """
     _hydrate_if_needed(system_key, user_id, topic_id)
     key = (system_key, user_id, topic_id)
-    return list(_conversations[key])
+    history = list(_conversations[key])
+    if limit is not None and len(history) > limit:
+        history = history[-limit:]
+    return history
 
 
 def add_message(system_key: str, user_id: str, role: str, content: str, topic_id: str = ""):

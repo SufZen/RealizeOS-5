@@ -402,8 +402,23 @@ def _add_venture_to_config(root: Path, key: str, name: str, description: str):
 
     config_path = root / "realize-os.yaml"
     if not config_path.exists():
-        logger.warning(f"Config file not found: {config_path}")
-        return
+        # Create a minimal config so the new venture is registered
+        import yaml
+
+        config = {
+            "name": "RealizeOS",
+            "systems": [],
+            "features": {
+                "review_pipeline": True,
+                "auto_memory": True,
+                "proactive_mode": True,
+            },
+        }
+        config_path.write_text(
+            yaml.dump(config, default_flow_style=False, sort_keys=False, allow_unicode=True),
+            encoding="utf-8",
+        )
+        logger.info("Created minimal config at %s for new venture '%s'", config_path, key)
 
     with open(config_path, encoding="utf-8") as f:
         config = yaml.safe_load(f) or {}

@@ -341,6 +341,67 @@ def _get_candidates(system_key: str | None) -> list[dict]:
     return candidates
 
 
+def get_all_skills() -> list[dict]:
+    """Return all loaded skills across all systems as a flat list."""
+    all_skills = []
+    for sys_key, skills in _loaded_skills.items():
+        for skill in skills:
+            entry = dict(skill)
+            entry.setdefault("system_key", sys_key)
+            all_skills.append(entry)
+    # Include defaults if nothing loaded
+    if not all_skills:
+        for sys_key, skills in _DEFAULT_SKILLS.items():
+            for skill in skills:
+                entry = dict(skill)
+                entry.setdefault("system_key", sys_key)
+                all_skills.append(entry)
+    return all_skills
+
+
+def get_skill_by_name(name: str) -> dict | None:
+    """Look up a skill by name across all systems."""
+    for skills in _loaded_skills.values():
+        for skill in skills:
+            if skill.get("name") == name:
+                return skill
+    # Check defaults
+    for skills in _DEFAULT_SKILLS.values():
+        for skill in skills:
+            if skill.get("name") == name:
+                return skill
+    return None
+
+
+def register_skill(skill_data: dict) -> None:
+    """Register a new skill at runtime (in-memory only)."""
+    system_key = skill_data.get("system_key", "_runtime")
+    _loaded_skills.setdefault(system_key, []).append(skill_data)
+    logger.info("Registered runtime skill '%s' in system '%s'", skill_data.get("name"), system_key)
+
+
+def update_skill(name: str, updates: dict) -> bool:
+    """Update an existing skill's fields by name. Returns True if found and updated."""
+    for skills in _loaded_skills.values():
+        for skill in skills:
+            if skill.get("name") == name:
+                skill.update(updates)
+                logger.info("Updated skill '%s': %s", name, list(updates.keys()))
+                return True
+    return False
+
+
+def unregister_skill(name: str) -> bool:
+    """Remove a skill by name. Returns True if found and removed."""
+    for sys_key, skills in _loaded_skills.items():
+        for i, skill in enumerate(skills):
+            if skill.get("name") == name:
+                skills.pop(i)
+                logger.info("Unregistered skill '%s' from system '%s'", name, sys_key)
+                return True
+    return False
+
+
 def _score_skill_keywords(skill: dict, msg_lower: str) -> int:
     """Score a skill against a lowered message using keyword matching."""
     score = 0
