@@ -76,12 +76,12 @@ class InjectionResult:
     @property
     def should_block(self) -> bool:
         """Whether the input should be blocked based on risk."""
-        return self.risk_score >= 0.7
+        return self.risk_score >= 0.5
 
     @property
     def needs_review(self) -> bool:
         """Whether the input needs human review."""
-        return 0.4 <= self.risk_score < 0.7
+        return 0.25 <= self.risk_score < 0.5
 
 
 # ---------------------------------------------------------------------------
@@ -131,7 +131,7 @@ _THREAT_PATTERNS: list[ThreatPattern] = [
         ThreatCategory.ROLE_MANIPULATION,
         Severity.HIGH,
         "Identity reassignment attempt",
-        weight=1.5,
+        weight=2.5,
     ),
     ThreatPattern(
         r"pretend\s+(you\s+are|to\s+be)\s+",
@@ -159,7 +159,7 @@ _THREAT_PATTERNS: list[ThreatPattern] = [
         ThreatCategory.ROLE_MANIPULATION,
         Severity.HIGH,
         "Persistent behavioral override attempt",
-        weight=1.5,
+        weight=2.5,
     ),
     # --- context_leakage (MEDIUM-HIGH) ---
     ThreatPattern(
@@ -167,7 +167,7 @@ _THREAT_PATTERNS: list[ThreatPattern] = [
         ThreatCategory.CONTEXT_LEAKAGE,
         Severity.HIGH,
         "System prompt extraction attempt",
-        weight=1.5,
+        weight=2.5,
     ),
     ThreatPattern(
         r"what\s+(are|were)\s+your\s+(initial|original|system)\s+(instructions|prompt|rules)",
@@ -189,21 +189,21 @@ _THREAT_PATTERNS: list[ThreatPattern] = [
         ThreatCategory.DELIMITER_INJECTION,
         Severity.HIGH,
         "System tag injection",
-        weight=1.5,
+        weight=2.5,
     ),
     ThreatPattern(
         r"\[/?INST\]",
         ThreatCategory.DELIMITER_INJECTION,
         Severity.HIGH,
         "Instruction delimiter injection",
-        weight=1.5,
+        weight=2.5,
     ),
     ThreatPattern(
         r"<<\s*SYS\s*>>",
         ThreatCategory.DELIMITER_INJECTION,
         Severity.HIGH,
         "System delimiter injection (Llama format)",
-        weight=1.5,
+        weight=2.5,
     ),
     ThreatPattern(
         r"(###\s*(System|Human|Assistant)\s*:)",
@@ -233,7 +233,7 @@ _THREAT_PATTERNS: list[ThreatPattern] = [
         ThreatCategory.SQL_INJECTION,
         Severity.HIGH,
         "SQL injection keywords detected",
-        weight=1.5,
+        weight=2.5,
         is_regex=True,
     ),
     ThreatPattern(
@@ -241,7 +241,7 @@ _THREAT_PATTERNS: list[ThreatPattern] = [
         ThreatCategory.SQL_INJECTION,
         Severity.HIGH,
         "SQL injection payload pattern",
-        weight=2.0,
+        weight=2.5,
         is_regex=True,
     ),
     ThreatPattern(
@@ -319,6 +319,10 @@ def scan_injection(text: str, sensitivity: float = 0.5) -> InjectionResult:
     # Apply sensitivity: higher sensitivity lowers the threshold
     adjusted_score = raw_score * (0.5 + sensitivity)
     risk_score = min(adjusted_score, 1.0)
+
+    # Auto-escalate: any CRITICAL-severity match forces a blockable score
+    if max_sev == Severity.CRITICAL and risk_score < 0.5:
+        risk_score = max(risk_score, 0.5)
 
     is_suspicious = risk_score > 0.0
 
