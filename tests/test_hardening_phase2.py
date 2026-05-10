@@ -361,3 +361,43 @@ class TestAppCreation:
         app = create_app()
         paths = [r.path for r in app.routes if hasattr(r, "path")]
         assert any("sync" in p for p in paths)
+
+    def test_production_requires_explicit_auth(self):
+        from realize_api.main import create_app
+
+        with patch.dict(os.environ, {"REALIZE_ENV": "production"}, clear=True):
+            with pytest.raises(RuntimeError, match="REALIZE_API_KEY"):
+                create_app()
+
+    def test_production_rejects_weak_jwt_secret(self):
+        from realize_api.main import create_app
+
+        with patch.dict(
+            os.environ,
+            {
+                "REALIZE_ENV": "production",
+                "REALIZE_API_KEY": "prod-api-key",
+                "REALIZE_JWT_ENABLED": "true",
+                "REALIZE_JWT_SECRET": "short",
+            },
+            clear=True,
+        ):
+            with pytest.raises(RuntimeError, match="REALIZE_JWT_SECRET"):
+                create_app()
+
+    def test_production_app_creates_with_strong_auth(self):
+        from realize_api.main import create_app
+
+        with patch.dict(
+            os.environ,
+            {
+                "REALIZE_ENV": "production",
+                "REALIZE_API_KEY": "prod-api-key",
+                "REALIZE_JWT_ENABLED": "true",
+                "REALIZE_JWT_SECRET": "x" * 64,
+                "CORS_ORIGINS": "https://example.com",
+            },
+            clear=True,
+        ):
+            app = create_app()
+        assert len(app.routes) >= 120

@@ -9,9 +9,13 @@
  */
 
 import { describe, it, expect } from "vitest";
+import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { parse, stringify } from "../src/utils/yaml.js";
 import { generateComposeFile } from "../src/docker/compose-template.js";
 import { generateEnvFile } from "../src/docker/env-template.js";
+import { FABRIC_DIRS, validateVentureKey, writeVentureTemplate } from "../src/venture-template.js";
 
 // ---------------------------------------------------------------------------
 // YAML Parser
@@ -24,7 +28,7 @@ describe("YAML Parser", () => {
     expect(result.version).toBe(5);
   });
 
-  it("parses nested objects", () => {
+  it("parses legacy nested systems objects", () => {
     const yaml = `systems:
   my-venture:
     name: My Venture
@@ -33,6 +37,19 @@ describe("YAML Parser", () => {
     expect(result.systems).toBeDefined();
     expect(result.systems["my-venture"]).toBeDefined();
     expect(result.systems["my-venture"].name).toBe("My Venture");
+  });
+
+  it("parses V5 systems lists", () => {
+    const yaml = `systems:
+  - key: my-venture
+    name: My Venture
+    directory: systems/my-venture
+    routing:
+      content: [writer, reviewer]`;
+    const result = parse(yaml);
+    expect(result.systems).toHaveLength(1);
+    expect(result.systems[0].key).toBe("my-venture");
+    expect(result.systems[0].routing.content).toEqual(["writer", "reviewer"]);
   });
 
   it("parses boolean values", () => {
@@ -87,6 +104,15 @@ describe("YAML Serializer", () => {
     expect(result).toContain("    name: Test");
   });
 
+  it("serializes arrays of objects as YAML lists", () => {
+    const result = stringify({
+      systems: [{ key: "my-venture", name: "My Venture", directory: "systems/my-venture" }],
+    });
+    expect(result).toContain("systems:");
+    expect(result).toContain("  - key: my-venture");
+    expect(result).toContain("    directory: systems/my-venture");
+  });
+
   it("serializes arrays as inline", () => {
     const result = stringify({ skills: ["a", "b"] });
     expect(result).toContain('skills: ["a", "b"]');
@@ -113,14 +139,14 @@ describe("Docker Compose Template", () => {
     const result = await generateComposeFile({
       projectName: "test-project",
       port: "8080",
-      image: "ghcr.io/sufzen/realizeos:latest",
+      image: "ghcr.io/sufzen/realizeos-5:latest",
       withTelegram: false,
       withGws: false,
     });
 
     expect(result).toContain("services:");
     expect(result).toContain("api:");
-    expect(result).toContain("ghcr.io/sufzen/realizeos:latest");
+    expect(result).toContain("ghcr.io/sufzen/realizeos-5:latest");
     expect(result).toContain("8080");
     expect(result).toContain("realize-data");
     expect(result).toContain("realize-shared");
@@ -130,7 +156,7 @@ describe("Docker Compose Template", () => {
     const result = await generateComposeFile({
       projectName: "test",
       port: "8080",
-      image: "ghcr.io/sufzen/realizeos:latest",
+      image: "ghcr.io/sufzen/realizeos-5:latest",
       withTelegram: true,
       withGws: false,
     });
@@ -144,7 +170,7 @@ describe("Docker Compose Template", () => {
     const result = await generateComposeFile({
       projectName: "test",
       port: "8080",
-      image: "ghcr.io/sufzen/realizeos:latest",
+      image: "ghcr.io/sufzen/realizeos-5:latest",
       withTelegram: false,
       withGws: false,
     });
@@ -156,7 +182,7 @@ describe("Docker Compose Template", () => {
     const result = await generateComposeFile({
       projectName: "test",
       port: "8080",
-      image: "ghcr.io/sufzen/realizeos:latest",
+      image: "ghcr.io/sufzen/realizeos-5:latest",
       withTelegram: false,
       withGws: true,
     });
@@ -168,7 +194,7 @@ describe("Docker Compose Template", () => {
     const result = await generateComposeFile({
       projectName: "test",
       port: "9090",
-      image: "ghcr.io/sufzen/realizeos:latest",
+      image: "ghcr.io/sufzen/realizeos-5:latest",
       withTelegram: false,
       withGws: false,
     });
@@ -180,7 +206,7 @@ describe("Docker Compose Template", () => {
     const result = await generateComposeFile({
       projectName: "test",
       port: "8080",
-      image: "ghcr.io/sufzen/realizeos:latest",
+      image: "ghcr.io/sufzen/realizeos-5:latest",
       withTelegram: false,
       withGws: false,
     });
@@ -193,7 +219,7 @@ describe("Docker Compose Template", () => {
     const result = await generateComposeFile({
       projectName: "test",
       port: "8080",
-      image: "ghcr.io/sufzen/realizeos:latest",
+      image: "ghcr.io/sufzen/realizeos-5:latest",
       withTelegram: false,
       withGws: false,
     });
@@ -258,5 +284,48 @@ describe("Environment Template", () => {
 
     expect(result).toContain("RATE_LIMIT_PER_MINUTE=");
     expect(result).toContain("COST_LIMIT_PER_HOUR_USD=");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Venture Template
+// ---------------------------------------------------------------------------
+
+describe("Venture Template", () => {
+  it("accepts safe user-defined venture folder slugs", () => {
+    expect(validateVentureKey("my-saas")).toBe("my-saas");
+    expect(validateVentureKey("client-work-2")).toBe("client-work-2");
+  });
+
+  it("rejects unsafe venture folder slugs", () => {
+    expect(() => validateVentureKey("My SaaS")).toThrow();
+    expect(() => validateVentureKey("../escape")).toThrow();
+    expect(() => validateVentureKey("client_work")).toThrow();
+    expect(() => validateVentureKey("con")).toThrow();
+  });
+
+  it("writes the full V5 FABRIC starter structure", async () => {
+    const projectDir = await mkdtemp(join(tmpdir(), "realize-cli-test-"));
+    try {
+      await writeVentureTemplate(projectDir, "my-saas", "My SaaS");
+
+      for (const dir of FABRIC_DIRS) {
+        const info = await stat(join(projectDir, "systems", "my-saas", dir));
+        expect(info.isDirectory()).toBe(true);
+      }
+
+      const identity = await readFile(
+        join(projectDir, "systems", "my-saas", "F-foundations", "venture-identity.md"),
+        "utf-8"
+      );
+      expect(identity).toContain("My SaaS");
+
+      const weeklyReview = await stat(
+        join(projectDir, "systems", "my-saas", "R-routines", "skills", "weekly-review.yaml")
+      );
+      expect(weeklyReview.isFile()).toBe(true);
+    } finally {
+      await rm(projectDir, { recursive: true, force: true });
+    }
   });
 });

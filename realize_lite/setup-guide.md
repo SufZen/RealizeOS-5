@@ -141,14 +141,23 @@ All AI-generated content is saved in the active system's `C-creations/` with des
 
 Your workspace comes with 3 venture slots out of the box (`systems/my-business-1/`, `my-business-2/`, `my-business-3/`). Each has its own FABRIC directory structure — completely isolated agents, venture voice, knowledge, and outputs.
 
-**To activate a new venture:**
-1. Rename the folder to match your venture (e.g., `systems/consulting-practice/`)
-2. Fill in the FABRIC files for the new venture
-3. Uncomment (or add) the matching system entry in `realize-os.yaml`
+V5 also supports custom venture folder names. Use a safe slug with lowercase letters, numbers, and hyphens, such as `consulting-practice`, `my-saas`, or `client-work`.
 
-**Or simply ask:** *"Create a new venture called [name]"* — the AI will set up the directory structure and config for you.
+**To create a custom-named venture:**
 
-**To remove a venture:** Ask *"Remove venture [name]"* — the AI will confirm before deleting, and won't touch other systems.
+```bash
+python cli.py venture create --key consulting-practice --name "Consulting Practice"
+```
+
+The key becomes the folder path (`systems/consulting-practice`). The display name can contain spaces.
+
+**To activate a legacy slot instead:**
+1. Fill in the FABRIC files in `systems/my-business-2/` or `systems/my-business-3/`
+2. Uncomment or add the matching system entry in `realize-os.yaml`
+
+**Or simply ask:** *"Create a new venture called [name]"* - the AI will set up the directory structure and config for you.
+
+**To remove a venture:** Ask *"Remove venture [name]"* - the AI will confirm before deleting, and won't touch other systems.
 
 ---
 

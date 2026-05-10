@@ -76,6 +76,24 @@ features:
   approval_gates: false        # Human-in-the-loop approvals
 ```
 
+V5 continues to support legacy numbered venture folders such as `systems/my-business-1`.
+You do not need to rename existing ventures during the upgrade.
+
+For new ventures, use a custom safe folder slug:
+
+```bash
+python cli.py venture create --key my-saas --name "My SaaS"
+```
+
+The folder key must be lowercase letters, numbers, and hyphens only. The display name can contain spaces and punctuation. The config entry should point to the chosen folder:
+
+```yaml
+systems:
+  - key: my-saas
+    name: "My SaaS"
+    directory: systems/my-saas
+```
+
 ### 5. Migrate Agent Definitions (Optional)
 
 V5 supports **both** V1 and V2 agent definitions — the loader auto-detects the format. You don't need to migrate immediately.
@@ -189,7 +207,7 @@ docker compose up -d
 
 ```bash
 # Check health
-curl http://localhost:8080/health
+curl http://localhost:8080/api/health
 
 # Check status (should show V5 features)
 curl http://localhost:8080/status

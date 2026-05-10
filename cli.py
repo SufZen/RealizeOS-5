@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-RealizeOS CLI — Initialize, serve, and manage your AI operations system.
+RealizeOS CLI - Initialize, serve, and manage your AI operations system.
 
 Usage:
     python cli.py init [--template NAME]       Create a new system from a template
@@ -39,7 +39,7 @@ logger = logging.getLogger("realize")
 
 # .gitignore content for new projects
 _GITIGNORE_CONTENT = """\
-# Secrets — never commit these
+# Secrets - never commit these
 .env
 setup.yaml
 
@@ -151,17 +151,16 @@ def cmd_init(args):
         shutil.copy2(template_file, config_dest)
 
     # Copy .env.example
-    env_example = Path(__file__).parent / ".env.example"
-    env_dest = target_dir / ".env.example"
-    if env_example.exists() and not env_dest.exists():
-        shutil.copy2(env_example, env_dest)
+    from realize_core.init import ensure_env_example
+
+    ensure_env_example(target_dir, engine_root=Path(__file__).parent)
 
     # Auto-create .env from .env.example (so users don't need cp/copy)
     env_file = target_dir / ".env"
     env_example_local = target_dir / ".env.example"
     if not env_file.exists() and env_example_local.exists():
         shutil.copy2(env_example_local, env_file)
-        print("  ✓ Created .env from .env.example — edit it to add your API keys")
+        print("  OK Created .env from .env.example - edit it to add your API keys")
 
     # Create .gitignore
     gitignore_dest = target_dir / ".gitignore"
@@ -337,10 +336,7 @@ def cmd_venture(args):
             print(f"  {stats['dirs_created']} directories, {stats['files_created']} files")
             print("\nThe venture has been added to realize-os.yaml.")
             print(f"Next: customize systems/{args.key}/F-foundations/venture-identity.md")
-        except FileExistsError as e:
-            print(f"Error: {e}")
-            sys.exit(1)
-        except FileNotFoundError as e:
+        except (FileExistsError, FileNotFoundError, ValueError) as e:
             print(f"Error: {e}")
             sys.exit(1)
 
@@ -367,7 +363,7 @@ def cmd_venture(args):
         print(f"Ventures ({len(ventures)}):")
         for v in ventures:
             status = "OK" if v["exists"] else "MISSING"
-            print(f"  {v['key']} — {v['name']} ({v['directory']}) [{status}]")
+            print(f"  {v['key']} - {v['name']} ({v['directory']}) [{status}]")
 
     else:
         print("Usage: python cli.py venture {create|delete|list}")
@@ -391,7 +387,7 @@ def cmd_doctor(args):
 
 
 def cmd_devmode(args):
-    """Developer Mode — AI client integration tools."""
+    """Developer Mode - AI client integration tools."""
     action = args.devmode_action
     root = Path(args.directory or ".")
 
@@ -403,7 +399,7 @@ def cmd_devmode(args):
         generated = generate_all(root=root, level=level, tools=tools)
         print(f"Generated {len(generated)} context file(s):")
         for p in generated:
-            print(f"  ✓ {p.relative_to(root)}")
+            print(f"  OK {p.relative_to(root)}")
         print(f"\nProtection level: {level}")
         print("AI tools can now read these files for system context.")
 
@@ -480,7 +476,7 @@ def cmd_devmode(args):
         print(f"\nSupported AI tools ({len(tools)}):")
         for key, info in tools.items():
             ctx = info.get("context_file", "")
-            exists = "✓" if (root / ctx).exists() else "✗"
+            exists = "OK" if (root / ctx).exists() else "MISSING"
             print(f"  {exists} {info['name']:25s}  {ctx}")
 
     else:
@@ -490,7 +486,7 @@ def cmd_devmode(args):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="RealizeOS — AI Operations System",
+        description="RealizeOS - AI Operations System",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
@@ -546,7 +542,7 @@ def main():
     doctor_parser.add_argument("--directory", "-d", default=".", help="Project root directory")
 
     # devmode (developer mode)
-    devmode_parser = subparsers.add_parser("devmode", help="Developer Mode — AI client integration")
+    devmode_parser = subparsers.add_parser("devmode", help="Developer Mode - AI client integration")
     devmode_parser.add_argument(
         "devmode_action",
         choices=["setup", "check", "scaffold", "snapshot", "rollback", "diff", "status"],

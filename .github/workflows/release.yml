@@ -221,11 +221,19 @@ jobs:
             echo "$NOTES"
           } > release-notes.md
 
+      - name: Package Lite install artifact
+        run: |
+          zip -r "RealizeOS-Lite-${{ steps.version.outputs.version }}.zip" realize_lite README.md docs/lite-guide.md docs/upgrade-from-v03.md
+          sha256sum "RealizeOS-Lite-${{ steps.version.outputs.version }}.zip" > "RealizeOS-Lite-${{ steps.version.outputs.version }}.zip.sha256"
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
           name: RealizeOS ${{ steps.version.outputs.version }}
           body_path: release-notes.md
+          files: |
+            RealizeOS-Lite-${{ steps.version.outputs.version }}.zip
+            RealizeOS-Lite-${{ steps.version.outputs.version }}.zip.sha256
           draft: false
           prerelease: ${{ contains(github.ref_name, '-') }}

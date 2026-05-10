@@ -1,0 +1,82 @@
+# All FABRIC paths below are relative to this system's directory (e.g., systems/my-business-3/)
+# Weekly Review Workflow — v2 Skill
+# Triggers when the user wants to review progress or plan the week ahead.
+# Reads state map, insights, and recent creations.
+
+name: weekly_review
+version: 2
+description: "Conduct a weekly review of progress, learnings, and priorities"
+
+triggers:
+  - "weekly review"
+  - "week in review"
+  - "what happened this week"
+  - "plan my week"
+  - "weekly planning"
+  - "status update"
+
+steps:
+  - id: gather_status
+    type: agent
+    agent: analyst
+    instructions: |
+      Conduct a weekly review by checking:
+
+      1. **R-routines/state-map.md** — current priorities and pipeline
+      2. **I-insights/learning-log.md** — recent learnings (last 7 days)
+      3. **C-creations/** — what was produced this week
+
+      Produce a structured summary:
+      - What was accomplished
+      - What's in progress
+      - What's blocked
+      - Key learnings
+
+  - id: produce_review
+    type: agent
+    agent: orchestrator
+    inject_context:
+      - gather_status
+    instructions: |
+      Create a weekly review document:
+
+      # Weekly Review — [Date Range]
+
+      ## Wins 🎯
+      - [What went well]
+
+      ## In Progress 🔄
+      - [What's ongoing]
+
+      ## Blocked ⚠️
+      - [What needs attention]
+
+      ## Learnings 💡
+      - [Key insights from this week]
+
+      ## Next Week Priorities
+      1. [Top priority]
+      2. [Second priority]
+      3. [Third priority]
+
+      ## State Map Updates
+      [Suggest any changes to R-routines/state-map.md]
+
+  - id: confirm
+    type: human
+    prompt: |
+      Here's your weekly review:
+
+      {produce_review}
+
+      Should I update the state map and save this review?
+
+  - id: save_review
+    type: agent
+    agent: orchestrator
+    inject_context:
+      - produce_review
+    instructions: |
+      Save the weekly review to C-creations/weekly-review-[date].md
+      Update R-routines/state-map.md with the confirmed changes.
+      Log any new learnings to I-insights/learning-log.md.

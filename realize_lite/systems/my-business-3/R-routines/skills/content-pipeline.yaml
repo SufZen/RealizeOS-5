@@ -1,0 +1,31 @@
+# All FABRIC paths below are relative to this system's directory (e.g., systems/my-business-3/)
+# Content Pipeline — v1 Skill
+# Triggers when the user wants to create any written content.
+# Routes through Writer for drafting, then Reviewer for quality check.
+
+name: content_pipeline
+version: 1
+description: "Create content through a writer-reviewer pipeline"
+
+triggers:
+  - "write a post"
+  - "create content"
+  - "draft article"
+  - "write email"
+  - "blog post"
+  - "social media post"
+  - "newsletter"
+  - "write copy"
+
+pipeline:
+  - writer
+  - reviewer
+
+task_type: content
+
+instructions: |
+  1. Writer agent creates the first draft based on the user's brief
+  2. Ask the user if they want to review or go straight to Reviewer
+  3. Reviewer evaluates against venture voice and quality standards
+  4. If approved, save to C-creations/
+  5. If needs revision, send back to Writer with specific feedback

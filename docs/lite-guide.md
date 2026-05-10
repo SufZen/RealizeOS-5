@@ -34,12 +34,18 @@ systems/my-business-1/
 
 ## Adding More Ventures
 
-The Lite package includes 3 venture slots (`my-business-1`, `my-business-2`, `my-business-3`). To activate a new venture:
+The Lite package includes 3 legacy-compatible starter slots (`my-business-1`, `my-business-2`, `my-business-3`).
+V5 also supports user-chosen venture folder names through safe slugs such as `my-saas`, `client-work`, or `zen-agency`.
 
-1. Navigate to `systems/my-business-2/`
-2. Fill in the `F-foundations/` files with the new venture's identity
-3. Update `realize-os.yaml` to include the new system
-4. Claude will automatically discover the new agents and skills
+For a new custom-named venture:
+
+```bash
+python cli.py venture create --key my-saas --name "My SaaS"
+```
+
+The key becomes the folder path (`systems/my-saas`), while the display name can contain spaces and branding. Keep keys lowercase with numbers and hyphens only; V5 rejects unsafe names before creating files.
+
+For legacy workflows, you can still activate `systems/my-business-2/` or `systems/my-business-3/` by filling in `F-foundations/` and uncommenting/updating the matching system block in `realize-os.yaml`.
 
 ## Customizing
 

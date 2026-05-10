@@ -1,0 +1,80 @@
+# All FABRIC paths below are relative to this system's directory (e.g., systems/my-business-1/)
+# Social Media Workflow — v2 Skill
+# Triggers when the user wants to create social media content.
+# Produces platform-optimized posts with hashtags and scheduling suggestions.
+
+name: social_media
+version: 2
+description: "Create platform-specific social media content with hooks and hashtags"
+
+triggers:
+  - "social media"
+  - "linkedin post"
+  - "twitter post"
+  - "instagram"
+  - "social post"
+  - "write a post"
+  - "thought leadership"
+
+steps:
+  - id: understand
+    type: agent
+    agent: analyst
+    instructions: |
+      The user wants social media content.
+
+      Determine:
+      1. Which platform(s)? (LinkedIn, Twitter/X, Instagram, Facebook)
+      2. What's the core message or topic?
+      3. What's the goal? (thought leadership, engagement, traffic, awareness)
+      4. Any specific hook or angle?
+
+      Check B-brain/ for relevant expertise and past content themes.
+
+  - id: create
+    type: agent
+    agent: writer
+    inject_context:
+      - understand
+    instructions: |
+      Create social media content following venture voice from F-foundations/:
+
+      For each platform requested, provide:
+
+      ## [Platform Name]
+
+      **Hook** (first line — must stop the scroll):
+      [Attention-grabbing opening]
+
+      **Body:**
+      [Platform-optimized content]
+
+      **CTA:**
+      [What should people do next?]
+
+      **Hashtags:**
+      [3-5 relevant hashtags]
+
+      Platform guidelines:
+      - **LinkedIn**: 1,300 char max ideal, professional but human, use line breaks
+      - **Twitter/X**: 280 char max, punchy, thread format for longer thoughts
+      - **Instagram**: Caption under 2,200 chars, visual-first, story arc
+      - **Facebook**: Conversational, question-driven, encourage comments
+
+  - id: confirm
+    type: human
+    prompt: |
+      Here's the content I've created:
+
+      {create}
+
+      Would you like me to adjust anything, or should I save it?
+
+  - id: save
+    type: agent
+    agent: orchestrator
+    inject_context:
+      - create
+    instructions: |
+      Save the social media content to C-creations/ with filename:
+      social-[platform]-[topic-slug]-[date].md

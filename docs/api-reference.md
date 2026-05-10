@@ -422,7 +422,7 @@ Run developer mode health check.
 
 Basic health check. Returns `{"status": "ok"}`.
 
-**Alias:** Also available at `GET /health` (root path).
+**Alias:** Also available at `GET /health` (root path) for load balancers and older deployments.
 
 ### GET /status
 

@@ -156,6 +156,11 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      - name: Validate Docker Compose files
+        run: |
+          docker compose -f docker-compose.yml config
+          docker compose -f docker-compose.prod.yml config
+
       - name: Build Docker image (no push)
         uses: docker/build-push-action@v6
         with:
@@ -196,6 +201,10 @@ jobs:
         working-directory: dashboard
         run: pnpm lint
 
+      - name: Test
+        working-directory: dashboard
+        run: pnpm test
+
       - name: Build
         working-directory: dashboard
         run: pnpm build
@@ -222,7 +231,7 @@ jobs:
 
       - name: Lint
         working-directory: realize-os-cli
-        run: npm run lint || true
+        run: npm run lint
 
       - name: Build
         working-directory: realize-os-cli
@@ -230,4 +239,4 @@ jobs:
 
       - name: Test
         working-directory: realize-os-cli
-        run: npm test || true
+        run: npm test

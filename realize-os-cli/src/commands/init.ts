@@ -15,13 +15,18 @@ import { mkdir, writeFile, access } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { generateComposeFile } from "../docker/compose-template.js";
 import { generateEnvFile } from "../docker/env-template.js";
+import {
+  DEFAULT_VENTURE_KEY,
+  DEFAULT_VENTURE_NAME,
+  writeVentureTemplate,
+} from "../venture-template.js";
 
 /** Default realize-os.yaml config skeleton. */
 const DEFAULT_CONFIG = `# RealizeOS Configuration
 # See docs for full options: https://github.com/SufZen/RealizeOS-5
 
 systems:
-  my-venture:
+  - key: my-venture
     name: "My Venture"
     directory: systems/my-venture
     agents:
@@ -78,7 +83,7 @@ export function register(program: Command) {
     .argument("[directory]", "Target directory", ".")
     .option("--name <name>", "Project name", "realize-os")
     .option("--port <port>", "API port", "8080")
-    .option("--image <image>", "Docker image", "ghcr.io/sufzen/realizeos:latest")
+    .option("--image <image>", "Docker image", "ghcr.io/sufzen/realizeos-5:latest")
     .option("--with-telegram", "Include Telegram bot service", false)
     .option("--with-gws", "Include Google Workspace support", false)
     .option("--force", "Overwrite existing files", false)
@@ -110,13 +115,14 @@ export function register(program: Command) {
       const dirs = [
         targetDir,
         join(targetDir, "systems"),
-        join(targetDir, "systems", "my-venture"),
-        join(targetDir, "systems", "my-venture", "F-foundations"),
         join(targetDir, ".credentials"),
       ];
       for (const dir of dirs) {
         await mkdir(dir, { recursive: true });
       }
+      await writeVentureTemplate(targetDir, DEFAULT_VENTURE_KEY, DEFAULT_VENTURE_NAME, {
+        overwrite: options.force,
+      });
       spinner.succeed("Project structure created");
 
       // 2. Generate docker-compose.yml
@@ -164,22 +170,6 @@ export function register(program: Command) {
       const gitignorePath = join(targetDir, ".gitignore");
       if (!(await fileExists(gitignorePath))) {
         await writeFile(gitignorePath, GITIGNORE, "utf-8");
-      }
-
-      // 6. Create venture identity stub
-      const identityPath = join(
-        targetDir,
-        "systems",
-        "my-venture",
-        "F-foundations",
-        "venture-identity.md"
-      );
-      if (!(await fileExists(identityPath))) {
-        await writeFile(
-          identityPath,
-          `# Venture Identity\n\n## Name\nMy Venture\n\n## Mission\n[Describe your venture's mission]\n\n## Voice & Tone\n[Describe the communication style]\n`,
-          "utf-8"
-        );
       }
 
       // Done!

@@ -6,10 +6,21 @@ giving users a guided development framework from day one.
 """
 
 import logging
+import re
 import shutil
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
+
+VENTURE_KEY_PATTERN = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$")
+WINDOWS_RESERVED_NAMES = {
+    "con",
+    "prn",
+    "aux",
+    "nul",
+    *(f"com{i}" for i in range(1, 10)),
+    *(f"lpt{i}" for i in range(1, 10)),
+}
 
 # Templates that get copied during init
 TEMPLATES_DIR = Path(__file__).parent.parent / "docs" / "dev-process" / "templates"
@@ -205,31 +216,40 @@ def scaffold_venture(project_root: str | Path, key: str, name: str = "", descrip
         Dict with 'created' bool, counts, and optional 'error' string.
     """
     root = Path(project_root)
+    validate_venture_key(key)
     name = name or key.replace("-", " ").replace("_", " ").title()
     venture_dir = root / "systems" / key
     stats = {"created": False, "dirs_created": 0, "files_created": 0}
 
     if venture_dir.exists():
-        stats["error"] = f"Venture directory already exists: {venture_dir}"
-        return stats
+        raise FileExistsError(f"Venture directory already exists: {venture_dir}")
 
     # Find the template source (realize_lite/systems/my-business-1/)
     template_src = _find_venture_template()
     if not template_src:
-        stats["error"] = "Venture template not found. Expected realize_lite/systems/my-business-1/"
-        return stats
+        raise FileNotFoundError("Venture template not found. Expected realize_lite/systems/my-business-1/")
 
     # Copy the full FABRIC structure
-    for item in template_src.rglob("*"):
-        relative = item.relative_to(template_src)
-        dest = venture_dir / relative
-        if item.is_dir():
-            dest.mkdir(parents=True, exist_ok=True)
-            stats["dirs_created"] += 1
-        elif item.is_file():
-            dest.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(item, dest)
-            stats["files_created"] += 1
+    try:
+        for item in template_src.rglob("*"):
+            relative = item.relative_to(template_src)
+            dest = venture_dir / relative
+            if item.is_dir():
+                dest.mkdir(parents=True, exist_ok=True)
+                stats["dirs_created"] += 1
+            elif item.is_file():
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(item, dest)
+                stats["files_created"] += 1
+
+        if stats["files_created"] == 0:
+            raise FileNotFoundError(f"Venture template is empty: {template_src}")
+
+        _customize_venture_template(venture_dir, name)
+    except Exception:
+        if venture_dir.exists():
+            shutil.rmtree(venture_dir)
+        raise
 
     # Update realize-os.yaml to include the new venture
     _add_venture_to_config(root, key, name, description)
@@ -237,6 +257,34 @@ def scaffold_venture(project_root: str | Path, key: str, name: str = "", descrip
     stats["created"] = True
     logger.info(f"Venture '{key}' scaffolded: {stats['dirs_created']} dirs, {stats['files_created']} files")
     return stats
+
+
+def validate_venture_key(key: str) -> str:
+    """Validate a user-chosen venture folder key and return it unchanged."""
+    if not key:
+        raise ValueError("Venture key is required.")
+
+    if not VENTURE_KEY_PATTERN.fullmatch(key):
+        raise ValueError(
+            "Invalid venture key. Use a path-safe slug with lowercase letters, numbers, and hyphens "
+            "(for example: my-saas, client-work, zen-agency)."
+        )
+
+    if key in WINDOWS_RESERVED_NAMES:
+        raise ValueError(f"Invalid venture key '{key}'. This name is reserved on Windows.")
+
+    return key
+
+
+def _customize_venture_template(venture_dir: Path, name: str):
+    """Lightly personalize copied starter files without changing their structure."""
+    identity_file = venture_dir / "F-foundations" / "venture-identity.md"
+    if not identity_file.exists():
+        return
+
+    content = identity_file.read_text(encoding="utf-8")
+    content = content.replace("[Your Business Name]", name)
+    identity_file.write_text(content, encoding="utf-8")
 
 
 def delete_venture(project_root: str | Path, key: str, confirm_name: str = "") -> bool:

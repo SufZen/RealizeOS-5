@@ -34,6 +34,16 @@ npx realize-os status
 | `realize-os venture export` | Export a venture |
 | `realize-os venture import` | Import a venture |
 
+## Venture Folder Names
+
+V5 supports user-defined venture folders through safe slugs:
+
+```bash
+npx realize-os venture create --key my-saas --name "My SaaS"
+```
+
+The folder key becomes `systems/my-saas`. Use lowercase letters, numbers, and hyphens only. The display name is separate and can contain spaces.
+
 ## Init Options
 
 ```bash
@@ -48,7 +58,7 @@ npx realize-os init my-project \
 |--------|---------|-------------|
 | `--name` | `realize-os` | Project name |
 | `--port` | `8080` | API port |
-| `--image` | `ghcr.io/sufzen/realizeos:latest` | Docker image |
+| `--image` | `ghcr.io/sufzen/realizeos-5:latest` | Docker image |
 | `--with-telegram` | `false` | Include Telegram bot service |
 | `--with-gws` | `false` | Include Google Workspace support |
 | `--force` | `false` | Overwrite existing files |

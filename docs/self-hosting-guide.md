@@ -47,7 +47,7 @@ python cli.py init --template consulting
 docker compose up -d
 
 # 5. Verify
-curl http://localhost:8080/health
+curl http://localhost:8080/api/health
 # → {"status": "ok"}
 ```
 
@@ -348,7 +348,7 @@ services:
     env_file:
       - .env
     environment:
-      - DATA_DIR=/app/data
+      - DATA_PATH=/app/data
       - KB_PATH=/app
     depends_on:
       api:
@@ -431,7 +431,7 @@ Add a cron job:
 ### Health Check
 
 ```bash
-curl http://localhost:8080/health
+curl http://localhost:8080/api/health
 # → {"status": "ok"}
 ```
 
@@ -470,7 +470,7 @@ docker compose build --no-cache
 docker compose up -d
 
 # 3. Verify
-curl http://localhost:8080/health
+curl http://localhost:8080/api/health
 ```
 
 ### Update & Migration Scripts (Windows)

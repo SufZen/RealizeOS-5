@@ -1,0 +1,96 @@
+# All FABRIC paths below are relative to this system's directory (e.g., systems/my-business-2/)
+# Client Proposal Workflow — v2 Skill
+# Triggers when the user needs to write a proposal or pitch.
+# Produces a structured proposal with pricing and next steps.
+
+name: client_proposal
+version: 2
+description: "Create a professional client proposal with scope, pricing, and timeline"
+
+triggers:
+  - "proposal"
+  - "client proposal"
+  - "pitch"
+  - "write a proposal"
+  - "scope of work"
+  - "SOW"
+  - "quote for"
+
+steps:
+  - id: gather_details
+    type: agent
+    agent: analyst
+    instructions: |
+      The user needs to create a client proposal.
+
+      Gather:
+      1. Client name and context
+      2. What services are being proposed?
+      3. What's the scope and timeline?
+      4. What's the budget range or pricing model?
+      5. Any specific requirements or constraints?
+
+      Check B-brain/ for relevant case studies or past proposals.
+      Check F-foundations/ for positioning to use.
+
+  - id: draft_proposal
+    type: agent
+    agent: writer
+    inject_context:
+      - gather_details
+    instructions: |
+      Create a professional proposal following venture voice:
+
+      # Proposal: [Project Name]
+      ## Prepared for [Client Name]
+      ## [Date]
+
+      ---
+
+      ### Executive Summary
+      [2-3 sentences: the problem, your solution, expected outcome]
+
+      ### Understanding Your Needs
+      [Show you understand their situation]
+
+      ### Proposed Solution
+      [What you'll deliver, broken into phases or workstreams]
+
+      ### Scope of Work
+      | Deliverable | Description | Timeline |
+      |-------------|-------------|----------|
+      | ... | ... | ... |
+
+      ### Investment
+      [Pricing with clear options if applicable]
+
+      ### Why [Your Company]
+      [Brief differentiation — reference F-foundations/venture-identity.md]
+
+      ### Next Steps
+      1. [Step 1]
+      2. [Step 2]
+      3. [Step 3]
+
+  - id: review_proposal
+    type: agent
+    agent: reviewer
+    inject_context:
+      - draft_proposal
+    instructions: |
+      Review the proposal for:
+      - Venture voice compliance
+      - Professional formatting
+      - Clear pricing (no ambiguity)
+      - Strong value proposition
+      - Appropriate confidence level
+      - No typos or inconsistencies
+
+  - id: save
+    type: agent
+    agent: orchestrator
+    inject_context:
+      - draft_proposal
+    instructions: |
+      Save to C-creations/proposal-[client]-[date].md
+      Suggest how to deliver (email, PDF, presentation).

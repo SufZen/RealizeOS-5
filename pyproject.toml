@@ -52,8 +52,12 @@ Repository = "https://github.com/SufZen/RealizeOS-5"
 Issues = "https://github.com/SufZen/RealizeOS-5/issues"
 Documentation = "https://github.com/SufZen/RealizeOS-5/tree/main/docs"
 
+[tool.setuptools]
+py-modules = ["cli"]
+include-package-data = true
+
 [tool.setuptools.packages.find]
-include = ["realize_core*", "realize_api*", "realize_lite*"]
+include = ["realize_core*", "realize_api*", "realize_lite*", "templates*"]
 
 [tool.setuptools.package-data]
 "*" = ["*.yaml", "*.yml", "*.md", "*.html", "*.json", "*.txt"]

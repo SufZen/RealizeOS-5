@@ -1,0 +1,85 @@
+# All FABRIC paths below are relative to this system's directory (e.g., systems/my-business-3/)
+# Email Campaign Workflow — v2 Skill
+# Triggers when the user wants to create email marketing content.
+# Produces subject line options, email body, and CTA sequences.
+
+name: email_campaign
+version: 2
+description: "Create a targeted email campaign with subject lines, body, and CTAs"
+
+triggers:
+  - "email campaign"
+  - "email marketing"
+  - "newsletter"
+  - "email sequence"
+  - "drip campaign"
+  - "email copy"
+  - "write an email"
+
+steps:
+  - id: brief
+    type: agent
+    agent: analyst
+    instructions: |
+      The user wants to create email marketing content.
+
+      Gather context:
+      1. What's the goal? (launch, nurture, re-engage, announce, educate)
+      2. Who's the audience? (check F-foundations/ for target audience)
+      3. What action should the reader take?
+      4. Any specific offers, deadlines, or hooks?
+
+      Check B-brain/ for relevant domain knowledge and past campaigns.
+      Summarize the brief clearly.
+
+  - id: draft
+    type: agent
+    agent: writer
+    inject_context:
+      - brief
+    instructions: |
+      Create the email campaign following venture voice from F-foundations/:
+
+      For EACH email in the sequence, provide:
+
+      ## Email [N]: [Purpose]
+
+      **Subject line options:**
+      1. [Option A — curiosity-driven]
+      2. [Option B — benefit-driven]
+      3. [Option C — urgency-driven]
+
+      **Preview text:** [First 90 characters visible in inbox]
+
+      **Body:**
+      [Full email copy following venture voice]
+
+      **CTA:** [Primary call-to-action with button text]
+
+      Keep emails scannable: short paragraphs, one CTA per email.
+
+  - id: review
+    type: agent
+    agent: reviewer
+    inject_context:
+      - draft
+    instructions: |
+      Review the email campaign against:
+      - Venture voice compliance
+      - Subject line strength (curiosity, relevance, length)
+      - CTA clarity
+      - Mobile-friendly formatting (short lines, scannable)
+      - Spam trigger words to avoid
+
+      Score each email and suggest improvements.
+
+  - id: save
+    type: agent
+    agent: orchestrator
+    inject_context:
+      - draft
+      - review
+    instructions: |
+      Save the final emails to C-creations/ with descriptive filenames.
+      Include the review feedback as a section at the bottom.
+      Suggest a sending schedule if it's a sequence.

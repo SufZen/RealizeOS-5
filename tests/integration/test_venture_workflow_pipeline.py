@@ -122,34 +122,26 @@ class TestVentureScaffold:
         assert result["files_created"] >= 0
         assert "error" not in result
 
-    def test_scaffold_returns_dict_on_duplicate(self, project_root, template_dir):
-        """Verify scaffold_venture returns {created: False} instead of raising."""
+    def test_scaffold_fails_loudly_on_duplicate(self, project_root, template_dir):
+        """Verify scaffold_venture raises instead of reporting a false success."""
         # Create the directory first so it already exists
         (project_root / "systems" / "existing-venture").mkdir(parents=True)
 
         from realize_core.scaffold import scaffold_venture
 
-        result = scaffold_venture(project_root, "existing-venture")
+        with pytest.raises(FileExistsError, match="already exists"):
+            scaffold_venture(project_root, "existing-venture")
 
-        assert isinstance(result, dict)
-        assert result["created"] is False
-        assert "error" in result
-        assert "already exists" in result["error"]
-
-    def test_scaffold_returns_dict_when_template_missing(self, project_root):
-        """Verify scaffold_venture returns {created: False} when template not found."""
+    def test_scaffold_fails_loudly_when_template_missing(self, project_root):
+        """Verify scaffold_venture raises when template not found."""
         from realize_core.scaffold import scaffold_venture
 
         with patch(
             "realize_core.scaffold._find_venture_template",
             return_value=None,
         ):
-            result = scaffold_venture(project_root, "no-template-venture")
-
-        assert isinstance(result, dict)
-        assert result["created"] is False
-        assert "error" in result
-        assert "template" in result["error"].lower()
+            with pytest.raises(FileNotFoundError, match="template"):
+                scaffold_venture(project_root, "no-template-venture")
 
 
 class TestVentureDelete:

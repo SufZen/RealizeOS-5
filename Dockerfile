@@ -91,7 +91,7 @@ ENV REALIZE_PORT=8080
 
 # Healthcheck — verify API is responsive
 HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
-    CMD curl -f http://localhost:8080/health || exit 1
+    CMD curl -f http://localhost:8080/api/health || exit 1
 
 # Default entrypoint: run the API server
 CMD ["python", "-m", "uvicorn", "realize_api.main:app", "--host", "0.0.0.0", "--port", "8080"]

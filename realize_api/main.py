@@ -59,6 +59,30 @@ from realize_api.security_middleware import (
 logger = logging.getLogger(__name__)
 
 
+def _is_production() -> bool:
+    return os.environ.get("REALIZE_ENV", "").lower() == "production"
+
+
+def _validate_production_security() -> None:
+    """Fail fast when production auth is not explicitly configured."""
+    if not _is_production():
+        return
+
+    if not os.environ.get("REALIZE_API_KEY"):
+        raise RuntimeError("REALIZE_API_KEY is required when REALIZE_ENV=production")
+
+    jwt_enabled = os.environ.get("REALIZE_JWT_ENABLED", "").lower() in ("true", "1", "yes")
+    jwt_secret = os.environ.get("REALIZE_JWT_SECRET", "")
+    if not jwt_enabled:
+        raise RuntimeError("REALIZE_JWT_ENABLED=true is required when REALIZE_ENV=production")
+    if len(jwt_secret) < 32:
+        raise RuntimeError("REALIZE_JWT_SECRET must be at least 32 characters when REALIZE_ENV=production")
+
+    cors_env = os.environ.get("CORS_ORIGINS", "")
+    if "*" in [origin.strip() for origin in cors_env.split(",") if origin.strip()]:
+        raise RuntimeError("CORS_ORIGINS cannot include '*' when REALIZE_ENV=production")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup and shutdown hooks."""
@@ -217,10 +241,12 @@ def create_app() -> FastAPI:
     """Create and configure the FastAPI application."""
     from realize_core.utils.rate_limiter import build_rate_limiter
 
+    _validate_production_security()
+
     app = FastAPI(
         title="RealizeOS",
         description="AI Operations System — Multi-agent, multi-venture, self-evolving.",
-        version="0.1.0",
+        version="5.0.0",
         lifespan=lifespan,
     )
     app.state.rate_limiter = build_rate_limiter()
@@ -311,6 +337,11 @@ def create_app() -> FastAPI:
     app.include_router(storage_settings.router, prefix="/api", tags=["Storage"])
     app.include_router(devmode.router, prefix="/api", tags=["Developer Mode"])
     app.include_router(security.router, prefix="/api", tags=["Security"])
+
+    @app.get("/health", include_in_schema=False)
+    async def root_health():
+        """Backward-compatible health endpoint for load balancers."""
+        return {"status": "ok", "service": "realize-os"}
 
     # Serve dashboard from static/ (only if built)
     static_dir = Path(__file__).parent.parent / "static"

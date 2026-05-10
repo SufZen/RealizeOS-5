@@ -37,6 +37,32 @@ Thumbs.db
 # Where the engine code lives (for finding templates, realize_lite, etc.)
 _ENGINE_ROOT = Path(__file__).parent.parent
 
+DEFAULT_ENV_EXAMPLE = """\
+# RealizeOS V5 - Environment Configuration
+
+# LLM providers
+ANTHROPIC_API_KEY=
+GOOGLE_AI_API_KEY=
+OPENAI_API_KEY=
+OLLAMA_BASE_URL=http://localhost:11434
+
+# API security
+REALIZE_ENV=development
+REALIZE_API_KEY=
+REALIZE_JWT_ENABLED=false
+REALIZE_JWT_SECRET=
+JWT_ALGORITHM=HS256
+JWT_EXPIRATION_MINUTES=60
+
+# Optional channels and tools
+TELEGRAM_BOT_TOKEN=
+BRAVE_API_KEY=
+
+# Server
+REALIZE_HOST=0.0.0.0
+REALIZE_PORT=8080
+"""
+
 
 def get_available_templates() -> list[dict]:
     """List available templates with names and descriptions."""
@@ -187,9 +213,21 @@ def initialize_project(config: dict, target_dir: Path) -> dict:
         gitignore_dest.write_text(_GITIGNORE_CONTENT, encoding="utf-8")
 
     # 6. Copy .env.example
-    env_example_src = _ENGINE_ROOT / ".env.example"
-    env_example_dest = target_dir / ".env.example"
-    if env_example_src.exists() and not env_example_dest.exists():
-        shutil.copy2(env_example_src, env_example_dest)
+    ensure_env_example(target_dir)
 
     return result
+
+
+def ensure_env_example(target_dir: Path, engine_root: Path | None = None) -> Path:
+    """Copy the source .env.example or write a bundled fallback for packaged installs."""
+    env_example_dest = target_dir / ".env.example"
+    if env_example_dest.exists():
+        return env_example_dest
+
+    env_example_src = (engine_root or _ENGINE_ROOT) / ".env.example"
+    if env_example_src.exists():
+        shutil.copy2(env_example_src, env_example_dest)
+    else:
+        env_example_dest.write_text(DEFAULT_ENV_EXAMPLE, encoding="utf-8")
+
+    return env_example_dest

@@ -6,7 +6,7 @@
 >
 > **Time**: 10-15 minutes
 >
-> **How to use**: Copy this file, replace the `[answer here]` placeholders, then ask your AI: *"Read my completed venture worksheet at `shared/venture-worksheet.md` and generate `venture-identity.md` and `venture-voice.md` in `systems/my-business-1/F-foundations/`."*
+> **How to use**: Copy this file, replace the `[answer here]` placeholders, then ask your AI: *"Read my completed venture worksheet at `shared/venture-worksheet.md` and generate `venture-identity.md` and `venture-voice.md` in `systems/my-business-1/F-foundations/`."* For a custom V5 venture folder, first create a safe slug such as `my-saas`, then use `systems/my-saas/F-foundations/` instead.
 
 ---
 
@@ -125,7 +125,7 @@
 ## Done! Now What?
 
 1. **Save this file** with your answers filled in
-2. **Tell your AI**: *"Read my completed venture worksheet at `shared/venture-worksheet.md` and generate `venture-identity.md` and `venture-voice.md` in `systems/my-business-1/F-foundations/`."*
+2. **Tell your AI**: *"Read my completed venture worksheet at `shared/venture-worksheet.md` and generate `venture-identity.md` and `venture-voice.md` in `systems/my-business-1/F-foundations/`."* If you created a custom V5 venture folder, replace `my-business-1` with your safe slug.
 3. The AI will create polished versions of both files using your answers
 4. **Review** the generated files and ask for adjustments
 

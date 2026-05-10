@@ -1,6 +1,6 @@
 # PRD: Fix RealizeOS Full Setup Flow
 
-> Based on [BMAD MTH-35 Planning Workflow](D:\Antigravity\BMAD\workflows\MTH-35-planning-workflow.md) — Full PRD Track
+> Based on [BMAD MTH-35 Planning Workflow](D:\SufZen Gits\BMAD\workflows\MTH-35-planning-workflow.md) — Full PRD Track
 
 ---
 
@@ -17,9 +17,9 @@
 ### Context sections (PRD, Bugs Found) are shared reference — read them for understanding but only execute YOUR stories.
 
 ### BMAD Framework
-All work MUST follow the [BMAD development framework](D:\Antigravity\BMAD). Key workflows:
-- **Planning**: [MTH-35 Planning Workflow](D:\Antigravity\BMAD\workflows\MTH-35-planning-workflow.md)
-- **Dev Stories**: [MTH-37 Dev Story Workflow](D:\Antigravity\BMAD\workflows\MTH-37-dev-story-workflow.md) — execute one story at a time, verify acceptance criteria before moving to the next
+All work MUST follow the [BMAD development framework](D:\SufZen Gits\BMAD). Key workflows:
+- **Planning**: [MTH-35 Planning Workflow](D:\SufZen Gits\BMAD\workflows\MTH-35-planning-workflow.md)
+- **Dev Stories**: [MTH-37 Dev Story Workflow](D:\SufZen Gits\BMAD\workflows\MTH-37-dev-story-workflow.md) — execute one story at a time, verify acceptance criteria before moving to the next
 - **Templates**: Story format with acceptance criteria, files affected, and dependencies
 
 Read the BMAD workflows before starting implementation. Follow the dev story workflow for each story: understand → implement → verify acceptance criteria → mark complete.
@@ -136,7 +136,7 @@ Running the RealizeOS Full setup guide as a case study on Windows revealed criti
 # SESSION 1: Product Repo Stories (Stories 1-6)
 
 > **EXECUTE THESE if your working directory is `D:\Antigravity\realize-os\RealizeOS-Full-V03`**
-> [BMAD MTH-37 Dev Story Workflow](D:\Antigravity\BMAD\workflows\MTH-37-dev-story-workflow.md)
+> [BMAD MTH-37 Dev Story Workflow](D:\SufZen Gits\BMAD\workflows\MTH-37-dev-story-workflow.md)
 > **Target:** `D:\Antigravity\realize-os\RealizeOS-Full-V03`
 > **Also apply to:** `D:\RealizeOS Full- tests\RealizeOS-Full-V03`
 
@@ -396,7 +396,7 @@ I need you to execute the product repo fixes from the RealizeOS setup fix plan.
 
 You are executing **Stories 1-6 ONLY** (product repo fixes). Do NOT touch the website repo.
 
-**Before starting:** Read the BMAD dev story workflow at D:\Antigravity\BMAD\workflows\MTH-37-dev-story-workflow.md. Follow it for each story — understand, implement, verify acceptance criteria, then move to the next story.
+**Before starting:** Read the BMAD dev story workflow at D:\SufZen Gits\BMAD\workflows\MTH-37-dev-story-workflow.md. Follow it for each story — understand, implement, verify acceptance criteria, then move to the next story.
 
 **Story sequence:**
 1. Create `.env.example` (Docker-safe, no inline comments)
@@ -430,7 +430,7 @@ I need you to execute the website setup guide fixes from the RealizeOS setup fix
 
 You are executing **Stories 7-11 ONLY** (setup guide HTML fixes). Do NOT touch the product repo.
 
-**Before starting:** Read the BMAD dev story workflow at D:\Antigravity\BMAD\workflows\MTH-37-dev-story-workflow.md. Follow it for each story.
+**Before starting:** Read the BMAD dev story workflow at D:\SufZen Gits\BMAD\workflows\MTH-37-dev-story-workflow.md. Follow it for each story.
 
 **Target file:** public/setup.html — the Full Edition setup wizard
 

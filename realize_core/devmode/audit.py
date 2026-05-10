@@ -363,6 +363,10 @@ def _command_exists(command: str) -> bool:
     return shutil.which(command) is not None
 
 
+def _command_path(command: str) -> str:
+    return shutil.which(command) or command
+
+
 def _check_dashboard_build(root: Path) -> dict[str, str | bool]:
     dashboard = root / "dashboard"
     if not dashboard.exists():
@@ -370,15 +374,39 @@ def _check_dashboard_build(root: Path) -> dict[str, str | bool]:
 
     if (dashboard / "pnpm-lock.yaml").exists():
         if _command_exists("pnpm"):
-            command = ["pnpm", "exec", "vite", "build", "--outDir", ".audit-dist", "--emptyOutDir"]
+            command = [_command_path("pnpm"), "exec", "vite", "build", "--outDir", ".audit-dist", "--emptyOutDir"]
             label = "pnpm"
         elif _command_exists("corepack"):
-            command = ["corepack", "pnpm", "exec", "vite", "build", "--outDir", ".audit-dist", "--emptyOutDir"]
+            command = [
+                _command_path("corepack"),
+                "pnpm",
+                "exec",
+                "vite",
+                "build",
+                "--outDir",
+                ".audit-dist",
+                "--emptyOutDir",
+            ]
             label = "corepack pnpm"
+        elif _command_exists("npm"):
+            command = [
+                _command_path("npm"),
+                "exec",
+                "--yes",
+                "pnpm",
+                "--",
+                "exec",
+                "vite",
+                "build",
+                "--outDir",
+                ".audit-dist",
+                "--emptyOutDir",
+            ]
+            label = "npm exec pnpm"
         else:
             return {
                 "ok": False,
-                "message": "dashboard/pnpm-lock.yaml exists but neither pnpm nor corepack is available on PATH.",
+                "message": "dashboard/pnpm-lock.yaml exists but pnpm, corepack, and npm are unavailable on PATH.",
             }
     elif (dashboard / "package-lock.json").exists():
         if not _command_exists("npx"):

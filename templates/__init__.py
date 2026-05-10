@@ -1,0 +1,1 @@
+"""Bundled RealizeOS configuration templates."""

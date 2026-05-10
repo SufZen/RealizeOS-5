@@ -1,0 +1,48 @@
+# All FABRIC paths below are relative to this system's directory (e.g., systems/my-business-3/)
+# Research Workflow — v2 Skill (Multi-Step)
+# Triggers when the user wants research, analysis, or strategic insight.
+# Uses Analyst for research, then optionally Writer for formatting.
+
+name: research_workflow
+version: 2
+description: "Research a topic and produce a structured analysis"
+
+triggers:
+  - "research"
+  - "analyze"
+  - "compare"
+  - "investigate"
+  - "market analysis"
+  - "competitive analysis"
+  - "due diligence"
+
+steps:
+  - id: research
+    type: agent
+    agent: analyst
+    instructions: |
+      Research the topic the user specified.
+      Check B-brain/ for existing knowledge first.
+      Produce a structured analysis with findings, assessment, and recommendations.
+
+  - id: confirm_format
+    type: human
+    prompt: "Research complete. Would you like me to format this as a report for sharing?"
+
+  - id: format_report
+    type: agent
+    agent: writer
+    inject_context:
+      - research
+    instructions: |
+      Take the analyst's research output and format it as a clean,
+      shareable report matching venture voice. Include executive summary,
+      key findings, and recommendations.
+    condition: "confirm_format == yes"
+
+  - id: save
+    type: agent
+    agent: orchestrator
+    instructions: |
+      Save the final output to C-creations/ with a descriptive filename.
+      Summarize what was produced and suggest next steps.

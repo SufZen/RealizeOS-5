@@ -106,7 +106,7 @@ Prototype in asaf-kb-workspace → Validate daily → Generalize into realize-os
 
 This project uses the **BMAD-inspired development framework** for structured AI-driven development.
 
-- **Framework location:** `D:\Antigravity\BMAD`
+- **Framework location:** `D:\SufZen Gits\BMAD`
 - **Workflow:** Plan (MTH-35) → Architect (MTH-36) → Build (MTH-37) → Review (MTH-22)
 - **Sprint tracking:** MTH-38 with `sprint-status.yaml`
 - **Quality gates:** MTH-23 Readiness Check before first story, MTH-22 Code Review after each story

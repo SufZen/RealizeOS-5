@@ -74,6 +74,11 @@ class TestInitializeProject:
         )
 
         assert result["files_copied"] > 0
+        assert (tmp_path / "systems" / "my-business-1").is_dir()
+        assert (tmp_path / "systems" / "my-business-1" / "F-foundations" / "venture-identity.md").exists()
+        assert (tmp_path / "systems" / "my-business-1" / "A-agents" / "orchestrator.md").exists()
+        assert (tmp_path / "systems" / "my-business-1" / "B-brain" / "domain-knowledge.md").exists()
+        assert (tmp_path / "systems" / "my-business-1" / "R-routines" / "skills" / "weekly-review.yaml").exists()
 
     def test_creates_gitignore(self, tmp_path):
         initialize_project({"template": "consulting"}, tmp_path)

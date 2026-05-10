@@ -88,7 +88,7 @@ npx @realize-os/cli start
 ### Docker (standalone container)
 
 `ash
-docker run -d -p 8080:8080 -v realizeos-data:/app/data ghcr.io/sufzen/realizeos:latest
+docker run -d -p 8080:8080 -v realizeos-data:/app/data ghcr.io/sufzen/realizeos-5:latest
 # Dashboard at http://localhost:8080
 `
 
