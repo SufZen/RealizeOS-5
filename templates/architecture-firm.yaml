@@ -1,0 +1,52 @@
+# RealizeOS Template: Architecture & Design Firm
+# For architecture studios, interior designers, and urban planners.
+
+name: "My Architecture Firm"
+
+systems:
+  - key: my-business-1
+    name: "Architecture Practice"
+    directory: systems/my-business-1
+
+    routing:
+      content: [writer, reviewer]
+      projects: [project-architect, orchestrator]
+      clients: [client-liaison, orchestrator]
+      specifications: [specification-writer, reviewer]
+      costs: [cost-estimator, orchestrator]
+      general: [orchestrator]
+
+    agent_routing:
+      project-architect: [project, design, concept, plan, drawing, permit, zoning, regulation]
+      client-liaison: [client, meeting, presentation, brief, feedback, approval]
+      specification-writer: [specification, material, finish, detail, standard, code]
+      cost-estimator: [cost, estimate, budget, quote, quantity, pricing, tender]
+      writer: [content, blog, post, portfolio, case study, proposal]
+      reviewer: [review, check, approve, quality, compliance]
+      orchestrator: [plan, help, think, prioritize, coordinate, schedule]
+
+example_tasks:
+  - "Prepare a project brief from client meeting notes"
+  - "Draft a material specification for an office renovation"
+  - "Generate a cost estimate for a residential project"
+  - "Write a case study for our portfolio website"
+  - "Create a client presentation for the concept phase"
+  - "Research zoning regulations for a mixed-use development"
+  - "Draft a project proposal with timeline and budget"
+
+features:
+  review_pipeline: true
+  auto_memory: true
+  skills_v2: true
+
+llm:
+  default_model: claude-sonnet
+  routing:
+    simple: gemini-flash
+    content: claude-sonnet
+    analysis: claude-sonnet
+    complex: claude-opus
+
+channels:
+  - type: api
+    port: 8080

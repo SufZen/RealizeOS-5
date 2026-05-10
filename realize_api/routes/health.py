@@ -36,11 +36,19 @@ async def status(request: Request):
     if os.environ.get("BROWSER_ENABLED", "").lower() == "true":
         tools_status["browser"] = "enabled"
 
+    # Only attempt Google Workspace check if credentials file exists
     try:
-        from realize_core.tools.google_auth import get_credentials
+        import importlib
 
-        if get_credentials():
-            tools_status["google_workspace"] = "authenticated"
+        if importlib.util.find_spec("google.auth") and os.path.exists(
+            os.environ.get("GOOGLE_APPLICATION_CREDENTIALS", ".credentials/google-oauth.json")
+        ):
+            from realize_core.tools.google_auth import get_credentials
+
+            if get_credentials():
+                tools_status["google_workspace"] = "authenticated"
+            else:
+                tools_status["google_workspace"] = "not configured"
         else:
             tools_status["google_workspace"] = "not configured"
     except Exception as exc:

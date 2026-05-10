@@ -40,7 +40,7 @@ async def get_tools(request: Request):
         creds = get_credentials()
         if creds:
             google_status = {"gmail": True, "calendar": True, "drive": True}
-    except Exception as exc:
+    except BaseException as exc:
         logger.debug("Google auth check failed: %s", exc)
 
     # MCP status

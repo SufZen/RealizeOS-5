@@ -1,0 +1,22 @@
+name: client_report
+description: Monthly or quarterly client report — portfolio performance, market update, action items
+triggers:
+  - client report
+  - owner report
+  - portfolio report
+  - monthly report
+  - quarterly report
+steps:
+  - name: data
+    agent: market-analyst
+    description: Gather market data, portfolio metrics, and pipeline status
+  - name: analysis
+    agent: deal-analyst
+    description: Analyze portfolio performance, returns, and outlook
+  - name: write
+    agent: writer
+    description: Write a professional client-facing report
+  - name: review
+    agent: reviewer
+    description: Quality check before sending to client
+task_type: reporting

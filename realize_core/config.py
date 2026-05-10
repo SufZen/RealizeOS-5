@@ -89,6 +89,18 @@ def load_config(config_path: str | Path = None) -> dict:
         config["systems"] = []
         logger.warning("Config missing 'systems' section, using empty list")
 
+    # Validate required fields in each system
+    for i, sys_conf in enumerate(config.get("systems", [])):
+        if not isinstance(sys_conf, dict):
+            logger.warning(f"System #{i} is not a dict, skipping")
+            continue
+        if "key" not in sys_conf:
+            logger.warning(f"System #{i} missing required 'key' field")
+        if "directory" not in sys_conf:
+            sys_key = sys_conf.get("key", f"system-{i}")
+            sys_conf["directory"] = f"systems/{sys_key}"
+            logger.info(f"System '{sys_key}': auto-set directory to {sys_conf['directory']}")
+
     logger.info(f"Loaded config from {config_path}: {len(config.get('systems', []))} system(s)")
     return config
 
@@ -130,10 +142,13 @@ def build_systems_dict(config: dict, kb_path: Path = None) -> dict:
         key = sys_conf["key"]
         sys_dir = sys_conf.get("directory", f"systems/{key}")
 
+        locale = sys_conf.get("locale", "")
+
         systems[key] = {
             "name": sys_conf.get("name", key.title()),
             "system_dir": sys_dir,
             "description": sys_conf.get("description", ""),
+            "locale": locale,
             # FABRIC directory paths
             "foundations": f"{sys_dir}/F-foundations",
             "agents_dir": f"{sys_dir}/A-agents",
@@ -213,6 +228,56 @@ def discover_workspace_state(root: Path | None = None, config: dict | None = Non
         "partially_initialized": bool(warnings),
         "warnings": warnings,
     }
+
+
+def validate_systems(config: dict, kb_path: Path = None) -> list[str]:
+    """
+    Validate that configured systems have the expected FABRIC structure.
+
+    Returns a list of warning messages (empty if everything is valid).
+    """
+    kb_path = kb_path or KB_PATH
+    warnings = []
+
+    for sys_conf in config.get("systems", []):
+        key = sys_conf.get("key", "unknown")
+        sys_dir = kb_path / sys_conf.get("directory", f"systems/{key}")
+
+        # Check FABRIC directories exist
+        if not sys_dir.exists():
+            warnings.append(f"System '{key}': directory {sys_dir} does not exist")
+            continue
+
+        fabric_dirs = ["F-foundations", "A-agents", "B-brain", "R-routines", "I-insights", "C-creations"]
+        for d in fabric_dirs:
+            if not (sys_dir / d).exists():
+                warnings.append(f"System '{key}': missing FABRIC directory {d}/")
+
+        # Check that routing agent references match actual agent files
+        agents_dir = sys_dir / "A-agents"
+        if agents_dir.exists():
+            available_agents = {
+                f.stem.replace("-", "_")
+                for f in agents_dir.glob("*.md")
+                if not f.name.startswith("_")
+            }
+            # Also check .yaml agent files
+            available_agents |= {
+                f.stem.replace("-", "_")
+                for f in agents_dir.glob("*.yaml")
+            }
+
+            for route_type, agent_list in sys_conf.get("routing", {}).items():
+                if isinstance(agent_list, list):
+                    for agent_name in agent_list:
+                        agent_key = agent_name.replace("-", "_")
+                        if agent_key not in available_agents:
+                            warnings.append(
+                                f"System '{key}': routing '{route_type}' references "
+                                f"agent '{agent_name}' but no matching file found in A-agents/"
+                            )
+
+    return warnings
 
 
 def get_features(config: dict) -> dict:

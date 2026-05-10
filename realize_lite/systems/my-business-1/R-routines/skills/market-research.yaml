@@ -1,0 +1,20 @@
+name: market_research
+description: Multi-step market research and competitive analysis
+triggers:
+  - research market
+  - competitive analysis
+  - analyze competitors
+  - market overview
+  - industry analysis
+  - benchmark
+steps:
+  - name: gather
+    agent: analyst
+    description: Gather market data and competitor information
+  - name: analyze
+    agent: analyst
+    description: Analyze findings, identify patterns and opportunities
+  - name: report
+    agent: writer
+    description: Write a structured research report with actionable recommendations
+task_type: research
