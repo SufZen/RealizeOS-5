@@ -107,11 +107,14 @@ class TestRegistry:
             "list_skills",
         } <= names
 
-    def test_only_chat_family_in_5_1_0_scaffold(self, fresh_registry):
-        # KB / ops / admin families land in stories 3-5. Until then,
-        # every registered tool should belong to the chat family.
+    def test_registered_families_progress_with_stories(self, fresh_registry):
+        # Tracks story completion: chat (Story 2), kb (Story 3), ops
+        # (Story 4), admin (Story 5). New families append here as each
+        # story lands.
         families = {t.family for t in fresh_registry.all()}
-        assert families == {"chat"}
+        assert "chat" in families
+        assert "kb" in families  # Story 3
+        # ops / admin land in Stories 4 / 5.
 
     def test_visible_tools_respects_config(self, fresh_registry):
         from realize_core.mcp_server.config import McpConfig
@@ -125,8 +128,12 @@ class TestRegistry:
             bearer_token_override="",
         )
         visible = fresh_registry.visible_tools(cfg)
+        assert visible, "chat family must always be visible"
         assert all(t.family == "chat" for t in visible)
-        assert len(visible) == len(fresh_registry.all())  # chat is always on
+        # Hidden families (kb / ops / admin) reduce visible vs total once
+        # they're registered.
+        total = len(fresh_registry.all())
+        assert len(visible) <= total
 
     def test_double_register_raises(self, fresh_registry):
         from realize_core.mcp_server.registry import MCPTool

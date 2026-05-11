@@ -46,9 +46,16 @@ Auth: same as the REST API. Pass `Authorization: Bearer <jwt>` (from `POST /api/
 | Family | Gating | Tools |
 |---|---|---|
 | `chat` | always on | `realize_chat`, `realize_health`, `realize_status`, `list_systems`, `get_system`, `list_agents`, `list_skills`, `get_history`, `clear_history`, `get_session` |
-| `kb`   | `mcp.expose_kb` | _(Story 3)_ |
+| `kb`   | `mcp.expose_kb` (on by default) | `kb_search`, `venture_kb_search`, `kb_get_document`, `list_ventures` |
 | `ops`  | `mcp.expose_ops` | _(Story 4)_ |
 | `admin`| `mcp.allow_admin` + `role=owner` + production JWT | _(Story 5)_ |
+
+### KB tool behaviour
+
+* `kb_search` runs the same hybrid FTS5+vector indexer the dashboard uses (`realize_core.kb.indexer.semantic_search`). Snippets are capped at 500 chars; full content is available via `kb_get_document`.
+* `kb_get_document` enforces path-traversal protection: the resolved path must live under `app.state.kb_path`. Absolute paths and `..` segments are rejected with `MCP_VALIDATION` / `MCP_FORBIDDEN`.
+* `venture_kb_search` is a convenience: it validates the venture exists, then delegates to `kb_search` with the venture as `system_key`.
+* `list_ventures` mirrors `GET /api/ventures` — venture key, name, agent count, skill count, FABRIC completeness.
 
 ## Plug into Claude Desktop
 

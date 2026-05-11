@@ -21,7 +21,9 @@ epics:
         notes: "29 new tests, 10 chat-family tools, /mcp/sse + /mcp/messages + /mcp/health endpoints. 1738 total tests passing locally."
       - id: STORY-03
         title: "MCP KB tools — kb_search, kb_get_document, venture_kb_search, list_ventures"
-        status: todo
+        status: done
+        completed: 2026-05-11
+        notes: "+19 tests (kb_search, venture_kb_search, kb_get_document, list_ventures + dispatch). 1757 total tests passing. Snippet cap 500, doc cap 50KB, path-traversal protected."
       - id: STORY-04
         title: "MCP ops tools — workflows, skills, evolution, suggestions, approvals"
         status: todo
