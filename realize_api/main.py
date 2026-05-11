@@ -354,6 +354,21 @@ def create_app() -> FastAPI:
     app.include_router(devmode.router, prefix="/api", tags=["Developer Mode"])
     app.include_router(security.router, prefix="/api", tags=["Security"])
 
+    # Built-in MCP server (HTTP+SSE). Mounted conditionally — see
+    # realize_core/mcp_server/__init__.py. No-op when MCP_ENABLED is unset
+    # and ``mcp.enabled`` is false in realize-os.yaml.
+    try:
+        from realize_core.config import load_config
+        from realize_core.mcp_server import mount_mcp
+
+        try:
+            mcp_yaml = load_config()
+        except Exception:
+            mcp_yaml = {}
+        mount_mcp(app, config=mcp_yaml)
+    except Exception as exc:
+        logger.warning("MCP server mount skipped: %s", exc)
+
     @app.get("/health", include_in_schema=False)
     async def root_health():
         """Backward-compatible health endpoint for load balancers."""

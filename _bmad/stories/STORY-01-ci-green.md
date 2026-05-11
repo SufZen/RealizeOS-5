@@ -2,7 +2,7 @@
 
 ## Epic: Workstream A — Unblock CI
 ## Priority: P0
-## Status: in-progress
+## Status: done (2026-05-11, commit 610434d, run 25689952971)
 
 ## Description
 

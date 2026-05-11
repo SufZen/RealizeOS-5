@@ -20,6 +20,9 @@ httpx>=0.27.0
 fastapi>=0.115.0
 uvicorn>=0.32.0
 
+# Model Context Protocol (used as both client + built-in server)
+mcp>=1.10.0
+
 # Database
 # SQLite is built into Python — no extra deps
 
