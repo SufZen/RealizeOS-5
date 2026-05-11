@@ -1,0 +1,72 @@
+"""``realize-os config`` — manage CLI configuration and profiles."""
+
+from __future__ import annotations
+
+from typing import Annotated
+
+import typer
+
+from realize_core.cli_app.profiles import ProfileManager
+
+config_app = typer.Typer(no_args_is_help=True)
+profile_app = typer.Typer(no_args_is_help=True, help="Manage named profiles for multi-instance support.")
+config_app.add_typer(profile_app, name="profile")
+
+
+@profile_app.command("list")
+def profile_list() -> None:
+    """List all configured profiles."""
+    pm = ProfileManager()
+    profiles = pm.list_profiles()
+    if not profiles:
+        typer.echo("No profiles configured. Run: realize-os config profile add default")
+        raise typer.Exit(code=0)
+
+    raw = pm._load_raw()
+    default_name = raw.get("default_profile", "default")
+
+    for p in profiles:
+        marker = " *" if p.name == default_name else ""
+        typer.echo(f"  {p.name}{marker}  ->  {p.endpoint}")
+
+
+@profile_app.command("add")
+def profile_add(
+    name: Annotated[str, typer.Argument(help="Profile name.")],
+    endpoint: Annotated[str, typer.Option("--endpoint", help="API endpoint URL.")] = "http://localhost:8080",
+    api_key_env: Annotated[
+        str, typer.Option("--api-key-env", help="Env var name holding the API key.")
+    ] = "REALIZE_API_KEY",
+    default_system: Annotated[str, typer.Option("--default-system", help="Default system key.")] = "",
+) -> None:
+    """Add or update a named profile."""
+    pm = ProfileManager()
+    p = pm.add_profile(name, endpoint=endpoint, api_key_env=api_key_env, default_system=default_system)
+    typer.echo(f"Profile '{p.name}' saved -> {p.endpoint}")
+
+
+@profile_app.command("set-default")
+def profile_set_default(
+    name: Annotated[str, typer.Argument(help="Profile name to set as default.")],
+) -> None:
+    """Set a profile as the default."""
+    pm = ProfileManager()
+    try:
+        pm.set_default(name)
+    except ValueError as exc:
+        typer.echo(f"Error: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(f"Default profile set to '{name}'.")
+
+
+@profile_app.command("show")
+def profile_show(
+    name: Annotated[str | None, typer.Argument(help="Profile name (default: active profile).")] = None,
+) -> None:
+    """Show details for a profile."""
+    pm = ProfileManager()
+    p = pm.show_profile(name)
+    typer.echo(f"Profile:        {p.name}")
+    typer.echo(f"Endpoint:       {p.endpoint}")
+    typer.echo(f"API Key Env:    {p.api_key_env}")
+    typer.echo(f"Default System: {p.default_system or '(none)'}")

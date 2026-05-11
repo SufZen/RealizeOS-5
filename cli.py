@@ -2,7 +2,7 @@
 """
 RealizeOS CLI - Initialize, serve, and manage your AI operations system.
 
-Usage:
+Usage (legacy — all forms continue to work):
     python cli.py init [--template NAME]       Create a new system from a template
     python cli.py init --setup setup.yaml      Create system from a setup file
     python cli.py serve [--port PORT]          Start the API server
@@ -13,9 +13,16 @@ Usage:
     python cli.py venture create               Create a new venture
     python cli.py venture delete               Delete a venture
     python cli.py venture list                 List all ventures
+
+Preferred entry point (5.1.0+):
+    realize-os <command> [options]
+
+This file is a backwards-compatibility shim. It delegates to the Typer-based
+CLI in ``realize_core.cli_app``. All ``cmd_*`` handler functions are kept here
+so existing code that imports them (e.g. the Typer command wrappers) keeps
+working.
 """
 
-import argparse
 import logging
 import os
 import shutil
@@ -497,99 +504,15 @@ def cmd_devmode(args):
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="RealizeOS - AI Operations System",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-    )
-    subparsers = parser.add_subparsers(dest="command", help="Available commands")
+    """Entry point — delegates to the Typer-based CLI.
 
-    # init
-    init_parser = subparsers.add_parser("init", help="Initialize a new system")
-    init_parser.add_argument("--template", "-t", default="consulting", help="Template name")
-    init_parser.add_argument("--setup", "-s", default=None, help="Path to setup.yaml for one-command init")
-    init_parser.add_argument("--directory", "-d", default=".", help="Target directory")
+    The old argparse ``main()`` is replaced by this shim so that
+    ``python cli.py <verb>`` keeps working while routing through the
+    new Typer app.
+    """
+    from realize_core.cli_app import main as typer_main
 
-    # serve
-    serve_parser = subparsers.add_parser("serve", help="Start the API server")
-    serve_parser.add_argument("--host", default=None, help="Host (default: 127.0.0.1)")
-    serve_parser.add_argument("--port", "-p", default=None, help="Port (default: 8080)")
-    serve_parser.add_argument("--reload", action="store_true", help="Enable auto-reload")
-
-    # bot
-    subparsers.add_parser("bot", help="Start the Telegram bot")
-
-    # status
-    status_parser = subparsers.add_parser("status", help="Show system status")
-    status_parser.add_argument("--directory", "-d", default=".", help="Project root directory")
-
-    # audit
-    audit_parser = subparsers.add_parser("audit", help="Run the structured audit playbook")
-    audit_parser.add_argument("--directory", "-d", default=".", help="Project root directory")
-    audit_parser.add_argument(
-        "--quick", action="store_true", help="Skip slower checks such as the dashboard build probe"
-    )
-    audit_parser.add_argument("--format", choices=["text", "json"], default="text", help="Output format")
-
-    # index
-    subparsers.add_parser("index", help="Rebuild KB search index")
-
-    # venture
-    venture_parser = subparsers.add_parser("venture", help="Manage ventures")
-    venture_parser.add_argument(
-        "venture_action", choices=["create", "delete", "list"], help="Action: create, delete, or list"
-    )
-    venture_parser.add_argument("--key", "-k", help="Venture key (directory name)")
-    venture_parser.add_argument("--name", "-n", help="Display name")
-    venture_parser.add_argument("--description", help="Venture description")
-    venture_parser.add_argument("--directory", "-d", default=".", help="Project root directory")
-    venture_parser.add_argument("--confirm", help="Confirm deletion (must match --key)")
-
-    # setup (interactive wizard)
-    setup_parser = subparsers.add_parser("setup", help="Interactive setup wizard")
-    setup_parser.add_argument("--directory", "-d", default=".", help="Target directory")
-    setup_parser.add_argument("--skip-dashboard", action="store_true", help="Skip dashboard setup")
-
-    # doctor (diagnose installation)
-    doctor_parser = subparsers.add_parser("doctor", help="Diagnose installation issues")
-    doctor_parser.add_argument("--directory", "-d", default=".", help="Project root directory")
-
-    # devmode (developer mode)
-    devmode_parser = subparsers.add_parser("devmode", help="Developer Mode - AI client integration")
-    devmode_parser.add_argument(
-        "devmode_action",
-        choices=["setup", "check", "scaffold", "snapshot", "rollback", "diff", "status"],
-        help="Action: setup, check, scaffold, snapshot, rollback, diff, or status",
-    )
-    devmode_parser.add_argument("--tools", help="Comma-separated list of AI tools (e.g. claude,gemini,cursor)")
-    devmode_parser.add_argument("--level", help="Protection level: strict, standard, or relaxed")
-    devmode_parser.add_argument("--name", help="Extension name for scaffold")
-    devmode_parser.add_argument("--type", help="Extension type: tool, channel, integration, hook")
-    devmode_parser.add_argument("--description", help="Extension description")
-    devmode_parser.add_argument("--label", help="Snapshot label")
-    devmode_parser.add_argument("--tag", help="Snapshot tag for rollback")
-    devmode_parser.add_argument("--quick", action="store_true", help="Skip slow checks")
-    devmode_parser.add_argument("--directory", "-d", default=".", help="Project root directory")
-
-    args = parser.parse_args()
-
-    if not args.command:
-        parser.print_help()
-        sys.exit(0)
-
-    commands = {
-        "init": cmd_init,
-        "serve": cmd_serve,
-        "bot": cmd_bot,
-        "status": cmd_status,
-        "audit": cmd_audit,
-        "index": cmd_index,
-        "venture": cmd_venture,
-        "setup": cmd_setup,
-        "doctor": cmd_doctor,
-        "devmode": cmd_devmode,
-    }
-
-    commands[args.command](args)
+    typer_main()
 
 
 if __name__ == "__main__":

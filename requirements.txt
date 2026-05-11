@@ -23,6 +23,11 @@ uvicorn>=0.32.0
 # Model Context Protocol (used as both client + built-in server)
 mcp>=1.10.0
 
+# Operator CLI (5.1.0+)
+typer>=0.12
+rich>=13.0
+tomli_w>=1.0
+
 # Database
 # SQLite is built into Python — no extra deps
 

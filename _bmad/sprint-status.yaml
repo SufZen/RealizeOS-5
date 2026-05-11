@@ -39,15 +39,14 @@ epics:
     stories:
       - id: STORY-06
         title: "CLI foundation — Typer migration + profile system + entry point"
-        status: in-progress
-        started: 2026-05-11
+        status: done
+        completed: 2026-05-11
         notes: |
-          PARTIAL — session interrupted (rate limit). Created realize_core/cli_app/__init__.py (Typer app builder + main entry point)
-          and realize_core/cli_app/state.py (CLIState dataclass). Both files untracked.
-          MISSING: realize_core/cli_app/commands/ package (register_commands is imported but not created),
-          profiles.py, formatters.py, pyproject.toml entry point, requirements.txt pins, cli.py shim rewrite,
-          tests/test_cli_commands.py. Note: story file says realize_core/cli/ but code uses realize_core/cli_app/
-          (avoid conflict with any existing cli module). Resume by creating the commands/ package first.
+          +43 tests. Full Typer migration: all existing commands (init, serve, bot, status, audit, index, venture,
+          setup, doctor, devmode) wrapped as typed Typer subcommands. New: config profile {list,add,set-default,show},
+          version command, formatters (table/json/yaml), TOML-backed profile manager (~/.realize-os/config.toml).
+          cli.py kept as backwards-compat shim. Entry point updated in pyproject.toml. Deps: typer>=0.12, rich>=13,
+          tomli_w>=1.0. 1835 total tests passing.
       - id: STORY-07
         title: "CLI operator commands — chat, ask, kb, workflow, skill, evolution"
         status: todo

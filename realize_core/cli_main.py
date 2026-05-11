@@ -2,13 +2,15 @@
 RealizeOS CLI entry point for pip-installed packages.
 
 When installed via `pip install realize-os`, setuptools creates a console script
-`realize-os` that calls `realize_core.cli_main:main`. This wrapper locates the
-full CLI module (which lives at the repo root as cli.py) and delegates to it.
+`realize-os` that calls `realize_core.cli_main:main`. This module delegates
+to the Typer-based CLI in ``realize_core.cli_app``.
 
-For source users (`python cli.py serve`), the root cli.py is used directly.
+For source users (``python cli.py serve``), the root ``cli.py`` shim is used
+directly — both paths converge on the same Typer app.
 """
 
-import importlib
+from __future__ import annotations
+
 import os
 import sys
 from pathlib import Path
@@ -25,26 +27,21 @@ def _find_project_root() -> Path | None:
 
 
 def main():
-    """Entry point for the `realize-os` console script."""
+    """Entry point for the ``realize-os`` console script."""
     project_root = _find_project_root()
 
-    if project_root is None:
-        # Editable install or pip install — cli.py should be at the package root
-        print("Error: Could not locate cli.py. Are you running from the project directory?")
-        print("  Try:  cd /path/to/RealizeOS-5 && python cli.py <command>")
-        sys.exit(1)
+    if project_root is not None:
+        # Add project root to sys.path so local imports (cli.py, etc.) resolve
+        root_str = str(project_root)
+        if root_str not in sys.path:
+            sys.path.insert(0, root_str)
+        # Change to project root so relative paths (templates/, .env, etc.) work
+        os.chdir(project_root)
 
-    # Add project root to sys.path so `import cli` and local imports work
-    root_str = str(project_root)
-    if root_str not in sys.path:
-        sys.path.insert(0, root_str)
+    # Delegate to the Typer-based CLI
+    from realize_core.cli_app import main as typer_main
 
-    # Change to project root so relative paths (templates/, .env, etc.) resolve
-    os.chdir(project_root)
-
-    # Import and run the real CLI
-    cli_module = importlib.import_module("cli")
-    cli_module.main()
+    typer_main()
 
 
 if __name__ == "__main__":
