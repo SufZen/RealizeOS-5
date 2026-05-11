@@ -96,11 +96,12 @@ def get_registry() -> ToolRegistry:
 
 def _populate(registry: ToolRegistry) -> None:
     """Eager-load all tool families."""
-    from realize_core.mcp_server.tools import chat_tools, kb_tools
+    from realize_core.mcp_server.tools import chat_tools, kb_tools, ops_tools
 
     chat_tools.register(registry)
     kb_tools.register(registry)
-    # ops_tools, admin_tools land in subsequent stories (STORY-04..05).
+    ops_tools.register(registry)
+    # admin_tools lands in STORY-05.
 
 
 def reset_for_tests() -> None:

@@ -47,8 +47,16 @@ Auth: same as the REST API. Pass `Authorization: Bearer <jwt>` (from `POST /api/
 |---|---|---|
 | `chat` | always on | `realize_chat`, `realize_health`, `realize_status`, `list_systems`, `get_system`, `list_agents`, `list_skills`, `get_history`, `clear_history`, `get_session` |
 | `kb`   | `mcp.expose_kb` (on by default) | `kb_search`, `venture_kb_search`, `kb_get_document`, `list_ventures` |
-| `ops`  | `mcp.expose_ops` | _(Story 4)_ |
+| `ops`  | `mcp.expose_ops` (on by default) | `list_workflows`, `run_workflow`, `trigger_skill`, `run_evolution`, `list_suggestions`, `approve_suggestion`, `dismiss_suggestion`, `list_approvals`, `approve_request`, `reject_request` |
 | `admin`| `mcp.allow_admin` + `role=owner` + production JWT | _(Story 5)_ |
+
+### Ops tool behaviour
+
+* `run_workflow` (alias `trigger_skill`) executes a registered skill against an input message via `realize_core.skills.executor.execute_skill` in-process. Same auth + audit as the REST path. Returns `{ name, system_key, user_id, output }`.
+* `run_evolution` triggers `realize_core.evolution.gap_detector.run_gap_analysis(days=...)`. Default window is 7 days; capped at 90.
+* `approve_suggestion` / `dismiss_suggestion` operate on the in-memory `EvolutionEngine` proposal store (same singleton the dashboard uses).
+* `approve_request` / `reject_request` delegate to `realize_core.governance.gates` for the approval queue — preserves all governance checks.
+* Scope: every `list_*` is `read`; everything that changes state (`run_*`, `trigger_*`, `approve_*`, `dismiss_*`, `reject_*`) requires `role >= editor`.
 
 ### KB tool behaviour
 
