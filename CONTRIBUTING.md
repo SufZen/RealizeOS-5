@@ -101,7 +101,7 @@ Open an issue using the [Feature Request template](.github/ISSUE_TEMPLATE/featur
 4. Register in `tool_registry.py`
 5. Add tests in `tests/`
 
-Reference: [Build Your First Tool](docs/dev-process/reference/build-your-first-tool.md)
+Reference: [Build Your First Tool](docs/guides/build-your-first-tool.md)
 
 ### Add a New Extension
 
@@ -125,7 +125,7 @@ description: "What this extension does"
 3. Add channel config support in `config.py`
 4. Add tests
 
-Reference: [Build Your Own Channel](docs/dev-process/reference/build-your-own-channel.md)
+Reference: [Build Your Own Channel](docs/guides/build-your-own-channel.md)
 
 ### Add a New LLM Provider
 

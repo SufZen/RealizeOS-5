@@ -98,7 +98,15 @@ desktop.ini
 realize-os.yaml
 !realize-os.example.yaml
 
-# AutoBuild results (dev artifacts)
+# Internal development (not shipped to end users)
+_bmad/
+developer_resources/
+.autobuild/
+CLAUDE.md
+AGENTS.md
+AUDIT-REPORT.md
+
+# AutoBuild results (dev artifacts — legacy, entire dir now ignored above)
 .autobuild/results/
 
 # Pytest output files

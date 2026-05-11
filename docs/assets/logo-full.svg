@@ -1,0 +1,70 @@
+<svg viewBox="0 0 320 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Full logo: mark + text -->
+  <defs>
+    <radialGradient id="logoGlowFull" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="rgba(255,204,0,0.08)"/>
+      <stop offset="100%" stop-color="rgba(255,204,0,0)"/>
+    </radialGradient>
+  </defs>
+
+  <!-- === MARK (same as logo-mark.svg) === -->
+  <g transform="translate(0,0)">
+    <circle cx="60" cy="60" r="55" fill="url(#logoGlowFull)"/>
+    <!-- Outer hexagon -->
+    <polygon points="60,12 101.6,36 101.6,84 60,108 18.4,84 18.4,36"
+      stroke="#ffcc00" stroke-width="1" fill="none" opacity="0.25"/>
+    <!-- Inner hexagon -->
+    <polygon points="60,28 88.3,44 88.3,76 60,92 31.7,76 31.7,44"
+      stroke="#ffcc00" stroke-width="1.2" fill="rgba(255,204,0,0.06)"/>
+    <!-- Connecting lines from center to vertices -->
+    <line x1="60" y1="60" x2="60" y2="28" stroke="rgba(255,204,0,0.15)" stroke-width="0.8" stroke-dasharray="3 3"/>
+    <line x1="60" y1="60" x2="88.3" y2="44" stroke="rgba(255,204,0,0.15)" stroke-width="0.8" stroke-dasharray="3 3"/>
+    <line x1="60" y1="60" x2="88.3" y2="76" stroke="rgba(255,204,0,0.15)" stroke-width="0.8" stroke-dasharray="3 3"/>
+    <line x1="60" y1="60" x2="60" y2="92" stroke="rgba(255,204,0,0.15)" stroke-width="0.8" stroke-dasharray="3 3"/>
+    <line x1="60" y1="60" x2="31.7" y2="76" stroke="rgba(255,204,0,0.15)" stroke-width="0.8" stroke-dasharray="3 3"/>
+    <line x1="60" y1="60" x2="31.7" y2="44" stroke="rgba(255,204,0,0.15)" stroke-width="0.8" stroke-dasharray="3 3"/>
+    <!-- Edge connections -->
+    <line x1="60" y1="28" x2="88.3" y2="44" stroke="rgba(255,204,0,0.12)" stroke-width="0.6"/>
+    <line x1="88.3" y1="44" x2="88.3" y2="76" stroke="rgba(255,204,0,0.12)" stroke-width="0.6"/>
+    <line x1="88.3" y1="76" x2="60" y2="92" stroke="rgba(255,204,0,0.12)" stroke-width="0.6"/>
+    <line x1="60" y1="92" x2="31.7" y2="76" stroke="rgba(255,204,0,0.12)" stroke-width="0.6"/>
+    <line x1="31.7" y1="76" x2="31.7" y2="44" stroke="rgba(255,204,0,0.12)" stroke-width="0.6"/>
+    <line x1="31.7" y1="44" x2="60" y2="28" stroke="rgba(255,204,0,0.12)" stroke-width="0.6"/>
+    <!-- Circuit pattern -->
+    <g stroke="rgba(255,204,0,0.6)" stroke-width="0.8" stroke-linecap="round" fill="none">
+      <line x1="52" y1="60" x2="68" y2="60"/>
+      <line x1="56" y1="60" x2="56" y2="53"/>
+      <line x1="56" y1="53" x2="64" y2="53"/>
+      <line x1="64" y1="60" x2="64" y2="67"/>
+      <line x1="64" y1="67" x2="56" y2="67"/>
+    </g>
+    <!-- Center node -->
+    <circle cx="60" cy="60" r="3" fill="#ffcc00" opacity="0.8"/>
+    <!-- Vertex nodes -->
+    <circle cx="60" cy="28" r="2.5" fill="rgba(10,10,10,0.9)" stroke="#ffcc00" stroke-width="0.8"/>
+    <circle cx="88.3" cy="44" r="2.5" fill="rgba(10,10,10,0.9)" stroke="#ffcc00" stroke-width="0.8"/>
+    <circle cx="88.3" cy="76" r="2.5" fill="rgba(10,10,10,0.9)" stroke="#ffcc00" stroke-width="0.8"/>
+    <circle cx="60" cy="92" r="2.5" fill="rgba(10,10,10,0.9)" stroke="#ffcc00" stroke-width="0.8"/>
+    <circle cx="31.7" cy="76" r="2.5" fill="rgba(10,10,10,0.9)" stroke="#ffcc00" stroke-width="0.8"/>
+    <circle cx="31.7" cy="44" r="2.5" fill="rgba(10,10,10,0.9)" stroke="#ffcc00" stroke-width="0.8"/>
+    <!-- Circuit end-nodes -->
+    <circle cx="52" cy="60" r="1.5" fill="rgba(255,204,0,0.5)"/>
+    <circle cx="68" cy="60" r="1.5" fill="rgba(255,204,0,0.5)"/>
+    <circle cx="56" cy="53" r="1.2" fill="rgba(255,204,0,0.4)"/>
+    <circle cx="64" cy="53" r="1.2" fill="rgba(255,204,0,0.4)"/>
+    <circle cx="64" cy="67" r="1.2" fill="rgba(255,204,0,0.4)"/>
+    <circle cx="56" cy="67" r="1.2" fill="rgba(255,204,0,0.4)"/>
+    <!-- Outer hex accent dots -->
+    <circle cx="60" cy="12" r="1.5" fill="rgba(255,204,0,0.3)"/>
+    <circle cx="101.6" cy="36" r="1.5" fill="rgba(255,204,0,0.3)"/>
+    <circle cx="101.6" cy="84" r="1.5" fill="rgba(255,204,0,0.3)"/>
+    <circle cx="60" cy="108" r="1.5" fill="rgba(255,204,0,0.3)"/>
+    <circle cx="18.4" cy="84" r="1.5" fill="rgba(255,204,0,0.3)"/>
+    <circle cx="18.4" cy="36" r="1.5" fill="rgba(255,204,0,0.3)"/>
+  </g>
+
+  <!-- === TEXT === -->
+  <text x="130" y="68" font-family="'Poppins', 'Inter', 'Segoe UI', sans-serif" font-size="32" font-weight="700" fill="white" letter-spacing="-0.5">
+    Realize<tspan fill="#ffcc00">OS</tspan>
+  </text>
+</svg>
