@@ -39,7 +39,15 @@ epics:
     stories:
       - id: STORY-06
         title: "CLI foundation — Typer migration + profile system + entry point"
-        status: todo
+        status: in-progress
+        started: 2026-05-11
+        notes: |
+          PARTIAL — session interrupted (rate limit). Created realize_core/cli_app/__init__.py (Typer app builder + main entry point)
+          and realize_core/cli_app/state.py (CLIState dataclass). Both files untracked.
+          MISSING: realize_core/cli_app/commands/ package (register_commands is imported but not created),
+          profiles.py, formatters.py, pyproject.toml entry point, requirements.txt pins, cli.py shim rewrite,
+          tests/test_cli_commands.py. Note: story file says realize_core/cli/ but code uses realize_core/cli_app/
+          (avoid conflict with any existing cli module). Resume by creating the commands/ package first.
       - id: STORY-07
         title: "CLI operator commands — chat, ask, kb, workflow, skill, evolution"
         status: todo
