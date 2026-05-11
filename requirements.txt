@@ -27,6 +27,8 @@ mcp>=1.10.0
 typer>=0.12
 rich>=13.0
 tomli_w>=1.0
+prompt-toolkit>=3.0
+httpx>=0.27
 
 # Database
 # SQLite is built into Python — no extra deps

@@ -23,6 +23,10 @@ def register_commands(app: typer.Typer) -> None:
     from realize_core.cli_app.commands.index import index
     from realize_core.cli_app.commands.init import init
     from realize_core.cli_app.commands.kb import kb_app
+
+    # --- MCP + REPL (Story 8) ---
+    from realize_core.cli_app.commands.mcp import mcp_app
+    from realize_core.cli_app.commands.repl import repl
     from realize_core.cli_app.commands.serve import serve
     from realize_core.cli_app.commands.setup import setup
     from realize_core.cli_app.commands.skill import skill_app
@@ -43,6 +47,7 @@ def register_commands(app: typer.Typer) -> None:
     app.command()(version)
     app.command()(chat)
     app.command()(ask)
+    app.command()(repl)
 
     # Subcommand groups
     app.add_typer(venture_app, name="venture", help="Manage ventures.")
@@ -52,3 +57,4 @@ def register_commands(app: typer.Typer) -> None:
     app.add_typer(workflow_app, name="workflow", help="Workflow management.")
     app.add_typer(skill_app, name="skill", help="Skill management.")
     app.add_typer(evolution_app, name="evolution", help="Evolution engine and suggestions.")
+    app.add_typer(mcp_app, name="mcp", help="MCP server management.")

@@ -58,7 +58,15 @@ epics:
           All commands hit the RealizeOS REST API via httpx. 1871 total tests passing.
       - id: STORY-08
         title: "CLI MCP integration + REPL + formatters"
-        status: todo
+        status: done
+        completed: 2026-05-11
+        notes: |
+          +33 tests. MCP sub-app: serve (starts API+MCP), status (health), token (JWT issuance).
+          REPL: prompt-toolkit interactive session with file history, slash commands (/system,
+          /agent, /session, /clear, /help, /exit). Config: show/set/unset for realize-os.yaml
+          with dotted-key navigation and auto-casting (bool/int/float/null). Deps: prompt-toolkit>=3.0,
+          httpx>=0.27 added to pyproject.toml + requirements.txt. 1904 total tests passing.
+          Workstream C complete.
 
   - name: "Workstream D — Production-ready release"
     stories:
