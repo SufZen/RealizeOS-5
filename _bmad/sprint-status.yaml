@@ -49,7 +49,13 @@ epics:
           tomli_w>=1.0. 1835 total tests passing.
       - id: STORY-07
         title: "CLI operator commands — chat, ask, kb, workflow, skill, evolution"
-        status: todo
+        status: done
+        completed: 2026-05-11
+        notes: |
+          +36 tests. Implemented chat, ask, kb (search/get/reindex), workflow (list/run),
+          skill (list/trigger), evolution (run/suggestions/approve/dismiss). HTTP client helper
+          (http_client.py) with profile-aware endpoint/auth. get_state() helper in state.py.
+          All commands hit the RealizeOS REST API via httpx. 1871 total tests passing.
       - id: STORY-08
         title: "CLI MCP integration + REPL + formatters"
         status: todo

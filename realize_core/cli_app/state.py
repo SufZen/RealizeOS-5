@@ -29,3 +29,20 @@ def ensure_state(
     if output_format is not None:
         ctx.obj.output_format = output_format.lower().strip()
     return ctx.obj
+
+
+def get_state() -> CLIState:
+    """Retrieve the :class:`CLIState` from the current Typer context.
+
+    Falls back to sensible defaults if called outside a proper Typer
+    invocation (e.g. from tests or direct imports).
+    """
+    try:
+        import click
+
+        ctx = click.get_current_context(silent=True)
+        if ctx is not None and isinstance(ctx.obj, CLIState):
+            return ctx.obj
+    except Exception:
+        pass
+    return CLIState()
