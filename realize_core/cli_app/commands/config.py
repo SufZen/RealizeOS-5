@@ -78,6 +78,7 @@ def profile_show(
 #  config show / set / unset — read/write realize-os.yaml              #
 # ------------------------------------------------------------------ #
 
+
 def _find_config_path() -> Path:
     """Locate the ``realize-os.yaml`` config file, searching CWD upward."""
     for name in ("realize-os.yaml", "realize-os.yml"):

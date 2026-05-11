@@ -45,8 +45,7 @@ def repl(
         from prompt_toolkit.history import FileHistory
     except ImportError:
         typer.echo(
-            "prompt-toolkit is required for the REPL. "
-            "Install it with: pip install prompt-toolkit>=3.0",
+            "prompt-toolkit is required for the REPL. Install it with: pip install prompt-toolkit>=3.0",
             err=True,
         )
         raise typer.Exit(code=1) from None
@@ -77,16 +76,20 @@ def repl(
 
         # Handle slash commands
         if user_input.startswith("/"):
-            handled = _handle_slash(user_input, locals_ref={
-                "current_system": current_system,
-                "current_agent": current_agent,
-                "session_id": session_id,
-            })
+            handled = _handle_slash(
+                user_input,
+                locals_ref={
+                    "current_system": current_system,
+                    "current_agent": current_agent,
+                    "session_id": session_id,
+                },
+            )
             if handled == "exit":
                 typer.echo("Goodbye!")
                 break
             if handled == "clear":
                 import click as _click
+
                 _click.clear()
                 continue
             if isinstance(handled, dict):

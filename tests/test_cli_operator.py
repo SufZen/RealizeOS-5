@@ -226,9 +226,7 @@ class TestHTTPClient:
         from realize_core.cli_app.profiles import Profile
 
         mock_pm = mock_pm_cls.return_value
-        mock_pm.get_profile.return_value = Profile(
-            name="test", endpoint="http://test:9090", api_key_env="TEST_KEY"
-        )
+        mock_pm.get_profile.return_value = Profile(name="test", endpoint="http://test:9090", api_key_env="TEST_KEY")
 
         import os
 

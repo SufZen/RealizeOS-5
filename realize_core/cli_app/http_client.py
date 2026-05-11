@@ -29,8 +29,7 @@ def _resolve_api_key(profile_name: str | None = None) -> str:
     key = os.environ.get(p.api_key_env, "")
     if not key:
         logger.warning(
-            "API key env var '%s' is empty (profile: %s). "
-            "Set it or use `realize-os config profile add` to configure.",
+            "API key env var '%s' is empty (profile: %s). Set it or use `realize-os config profile add` to configure.",
             p.api_key_env,
             p.name,
         )

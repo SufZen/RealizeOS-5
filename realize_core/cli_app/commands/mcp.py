@@ -44,10 +44,14 @@ def mcp_serve(
 
     # Delegate to the standard serve path
     cmd = [
-        sys.executable, "-m", "uvicorn",
+        sys.executable,
+        "-m",
+        "uvicorn",
         "realize_api.main:app",
-        "--host", "0.0.0.0",
-        "--port", str(port),
+        "--host",
+        "0.0.0.0",
+        "--port",
+        str(port),
     ]
     if reload:
         cmd.append("--reload")

@@ -23,7 +23,9 @@ def evolution_run() -> None:
 
 @evolution_app.command("suggestions")
 def evolution_suggestions(
-    status: Annotated[str | None, typer.Option("--status", "-s", help="Filter by status (e.g. pending, approved).")] = None,
+    status: Annotated[
+        str | None, typer.Option("--status", "-s", help="Filter by status (e.g. pending, approved).")
+    ] = None,
 ) -> None:
     """List evolution suggestions."""
     state = get_state()
