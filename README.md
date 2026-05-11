@@ -7,7 +7,8 @@
 <p align="center">
   <strong>The AI operations system for your business.</strong><br/>
   Coordinated AI agents that understand your venture, remember your preferences,<br/>
-  and execute multi-step workflows — not just another chatbot.
+  and execute multi-step workflows — not just another chatbot.<br/><br/>
+  <em>Now with built-in MCP server + first-class operator CLI.</em>
 </p>
 
 <p align="center">
@@ -21,6 +22,8 @@
   <a href="QUICKSTART.md">⚡ Quickstart</a> ·
   <a href="docs/architecture.md">🏗️ Architecture</a> ·
   <a href="#features">✨ Features</a> ·
+  <a href="docs/mcp-server.md">🔌 MCP Server</a> ·
+  <a href="docs/cli-reference.md">💻 CLI Reference</a> ·
   <a href="docs/self-hosting-guide.md">🚀 Self-Host</a> ·
   <a href="CONTRIBUTING.md">🤝 Contribute</a>
 </p>
@@ -173,6 +176,7 @@ Providers auto-discovered at startup. Supports **Claude**, **Gemini**, **OpenAI*
 | **Browser** | Web automation | Headless Chromium page interaction |
 | **Web** | Search + fetch | Brave API search, page scraping with SSRF protection |
 | **MCP** | Protocol | Connect to any MCP-compatible tool server |
+| **MCP Server** | Integration | Expose RealizeOS as an MCP server for Claude Desktop, Cursor, n8n |
 | **Messaging** | Agent bus | Agent-to-agent, human notifications, channel broadcasts |
 | **Social** | Publishing | Social media content posting |
 | **Telephony** | Voice | Twilio-powered voice/SMS |
@@ -187,8 +191,24 @@ Pre-built configurations for common ventures:
 `consulting` · `agency` · `portfolio` · `saas` · `ecommerce` · `accounting` · `coaching` · `freelance`
 
 ```bash
-python cli.py init --template consulting
+realize-os init --template consulting
 ```
+
+### 🔌 MCP Server (5.1.0+)
+
+RealizeOS ships a **built-in MCP server** so any MCP-speaking agent can use it as a second brain:
+
+- **24 tools** across 4 families: Chat & Status, KB Read, Ops, Admin
+- **HTTP+SSE transport** — works with Claude Desktop, Cursor, n8n, cloud routines
+- **Same auth** — Bearer JWT or API key, same roles and audit logs
+- **Gated access** — KB, ops, and admin tools are independently toggleable
+
+```bash
+realize-os mcp serve --port 8080          # Start API + MCP together
+realize-os mcp token --user owner         # Issue a bearer token
+```
+
+> 📖 Full details: **[docs/mcp-server.md](docs/mcp-server.md)**
 
 ### 🛡️ Security & Governance
 
@@ -204,7 +224,7 @@ python cli.py init --template consulting
 ## Architecture
 
 ```
-User → Channel (API/Telegram/WhatsApp/Webhooks)
+User → Channel (API/Telegram/WhatsApp/Webhooks/MCP)
   → Security (Headers → Audit → Rate Limit → Injection Guard → JWT)
   → Base Handler → LLM Router (Flash/Sonnet/Opus)
   → Prompt Builder (FABRIC context) → Tool Execution
@@ -213,27 +233,48 @@ User → Channel (API/Telegram/WhatsApp/Webhooks)
 
 > 📖 Deep dive: **[docs/architecture.md](docs/architecture.md)**
 
-## CLI
+## Operator CLI (5.1.0+)
+
+The `realize-os` CLI is a first-class operator interface. Both `realize-os` (pip-installed)
+and `python cli.py` (source checkout) work identically.
 
 ```bash
-python cli.py init --template NAME           # Initialize from template
-python cli.py init --setup setup.yaml        # Initialize from setup file
-python cli.py serve [--port PORT] [--reload] # Start API + dashboard
-python cli.py bot                            # Start Telegram bot
-python cli.py status                         # Show system status
-python cli.py audit [--quick]               # Run the structured audit playbook
-python cli.py index                          # Rebuild KB search index
-python cli.py venture create --key KEY       # Create new venture
-python cli.py venture delete --key KEY       # Delete a venture
-python cli.py venture list                   # List ventures
-python cli.py setup                          # Interactive setup wizard
-python cli.py doctor                         # Diagnose installation issues
-python cli.py devmode setup                  # Generate AI tool context files
-python cli.py devmode check                  # Run system health check
-python cli.py devmode scaffold --name NAME   # Scaffold a new extension
-python cli.py devmode snapshot               # Create a git safety snapshot
-python cli.py devmode rollback --tag TAG     # Rollback to a snapshot
+# Deploy & manage
+realize-os init --template consulting       # Initialize from template
+realize-os serve [--port PORT] [--reload]   # Start API + dashboard
+realize-os bot                               # Start Telegram bot
+realize-os status                            # Show system status
+realize-os doctor                            # Diagnose installation issues
+
+# Talk to your instance
+realize-os chat "What's the pipeline status?" --system arena
+realize-os ask "summarize yesterday's emails"
+realize-os repl --system realization-il      # Interactive REPL
+
+# Knowledge base
+realize-os kb search "investment thesis" --venture personal-investments
+realize-os kb reindex
+
+# Workflows, skills, evolution
+realize-os workflow list
+realize-os skill trigger daily-digest
+realize-os evolution suggestions --status pending
+realize-os evolution approve SUGGESTION_ID
+
+# MCP server
+realize-os mcp serve --allow-admin           # API + MCP on one process
+realize-os mcp token --user owner            # Issue bearer token
+
+# Multi-instance profiles
+realize-os config profile add prod --endpoint https://my-vps:8080
+realize-os --profile prod status
+
+# Config management
+realize-os config set mcp.enabled true
+realize-os config show mcp
 ```
+
+> 📖 Full command reference: **[docs/cli-reference.md](docs/cli-reference.md)**
 
 ## API
 
@@ -260,6 +301,9 @@ python cli.py devmode rollback --tag TAG     # Rollback to a snapshot
 | GET | `/api/evolution/*` | Self-improvement suggestions |
 | GET | `/api/devmode/*` | Developer mode status |
 | GET | `/api/health` | Health check |
+| GET | `/mcp/sse` | MCP server SSE endpoint (when enabled) |
+| POST | `/mcp/messages/{session}` | MCP JSON-RPC messages |
+| GET | `/mcp/health` | MCP server health |
 | GET | `/status` | Detailed system status |
 
 ## Documentation
@@ -268,12 +312,15 @@ python cli.py devmode rollback --tag TAG     # Rollback to a snapshot
 |-------|-------------|
 | [⚡ Quickstart](QUICKSTART.md) | Zero to running in 10 minutes |
 | [🏗️ Architecture](docs/architecture.md) | FABRIC, message flow, modules |
+| [💻 CLI Reference](docs/cli-reference.md) | Full operator CLI command tree |
+| [🔌 MCP Server](docs/mcp-server.md) | Built-in MCP server: tools, security, integration |
 | [🩺 Audit Playbook](docs/audit-playbook.md) | Risk-first audit workflow and session template |
 | [📖 Getting Started](docs/getting-started.md) | First steps after setup |
 | [🔧 Configuration](docs/configuration.md) | Customize your deployment |
 | [🚀 Self-Hosting](docs/self-hosting-guide.md) | Production deployment |
 | [✍️ Skill Authoring](docs/skill-authoring.md) | Create custom skills |
-| [📡 API Reference](docs/api-reference.md) | REST API documentation |
+| [📡 API Reference](docs/api-reference.md) | REST + MCP API documentation |
+| [📋 Upgrade from 5.0](docs/upgrade-from-v50.md) | Migration guide: 5.0.x → 5.1.0 |
 | [🤝 Contributing](CONTRIBUTING.md) | Developer guide |
 
 ## Requirements

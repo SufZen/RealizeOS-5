@@ -152,7 +152,35 @@ STRIPE_SECRET_KEY=               # Stripe secret key
 
 # Web Search
 BRAVE_API_KEY=                   # Brave Search API key
+
+# MCP Server (5.1.0+)
+MCP_ENABLED=false                # Enable the MCP SSE endpoint
+MCP_ALLOW_ADMIN=false            # Expose admin tools (venture CRUD, settings)
+MCP_EXPOSE_KB=true               # Expose KB search tools
+MCP_EXPOSE_OPS=true              # Expose workflow/skill/evolution tools
 ```
+
+## MCP Server Configuration
+
+The built-in MCP server can be configured in `realize-os.yaml`:
+
+```yaml
+mcp:
+  enabled: true                   # Mount /mcp/sse + /mcp/messages/{session}
+  allow_admin: false              # Admin tools (venture CRUD, system settings)
+  expose_kb: true                 # KB search/get tools
+  expose_ops: true                # Workflow, skill, evolution tools
+  max_sessions: 100               # Maximum concurrent MCP sessions
+  session_timeout: 3600           # Session TTL in seconds
+```
+
+Or use environment variables (env vars override YAML). Start with:
+
+```bash
+realize-os mcp serve --port 8080
+```
+
+See [MCP Server Reference](mcp-server.md) for tool catalog and integration recipes.
 
 ## Developer Mode
 
@@ -169,11 +197,11 @@ developer_mode:
 CLI commands:
 
 ```bash
-python cli.py devmode setup      # Generate AI tool context files
-python cli.py devmode check      # Run system health check
-python cli.py devmode scaffold   # Scaffold new extensions
-python cli.py devmode snapshot   # Create a git safety snapshot
-python cli.py devmode rollback   # Rollback to a previous snapshot
+realize-os devmode setup      # Generate AI tool context files
+realize-os devmode check      # Run system health check
+realize-os devmode scaffold   # Scaffold new extensions
+realize-os devmode snapshot   # Create a git safety snapshot
+realize-os devmode rollback   # Rollback to a previous snapshot
 ```
 
 See [Architecture: Developer Mode](architecture.md) for details.
@@ -195,7 +223,7 @@ See [Architecture: Developer Mode](architecture.md) for details.
 ### Add a Venture
 
 ```bash
-python cli.py venture create --key new-venture --name "New Venture"
+realize-os venture create --key new-venture --name "New Venture"
 ```
 
 This creates a full FABRIC directory structure and adds the venture to `realize-os.yaml`.
@@ -208,4 +236,6 @@ Implement a new channel adapter following the pattern in `realize_core/channels/
 
 - [Core Concepts](concepts.md)
 - [Skill Authoring Guide](skill-authoring.md)
+- [CLI Reference](cli-reference.md)
+- [MCP Server Reference](mcp-server.md)
 - [API Reference](api-reference.md)

@@ -72,7 +72,17 @@ epics:
     stories:
       - id: STORY-09
         title: "Documentation overhaul"
-        status: todo
+        status: done
+        completed: 2026-05-11
+        notes: |
+          Full docs update for 5.1.0. New files: docs/cli-reference.md (full command tree),
+          docs/upgrade-from-v50.md (migration guide), CHANGELOG.md (Keep-a-Changelog format).
+          Updated: README.md (MCP+CLI sections, updated arch diagram, new nav links),
+          docs/architecture.md (MCP integration layer with ASCII diagram, cli_app + mcp_server modules),
+          docs/configuration.md (MCP config block + env vars), docs/getting-started.md (CLI quickstart
+          + MCP enablement), docs/api-reference.md (MCP endpoints: /mcp/sse, /mcp/messages, /mcp/health).
+          Version bumps: VERSION → 5.1.0, pyproject.toml → 5.1.0. All CLI examples updated from
+          python cli.py to realize-os. 1904 tests still passing.
       - id: STORY-10
         title: "Release prep + tag v5.1.0"
         status: todo

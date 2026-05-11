@@ -416,6 +416,60 @@ Run developer mode health check.
 
 ---
 
+---
+
+## MCP Server (5.1.0+)
+
+The MCP server is enabled when `MCP_ENABLED=true` or `mcp.enabled: true` in config. It uses the same authentication as the REST API.
+
+### GET /mcp/sse
+
+Establish an SSE connection for MCP JSON-RPC. Returns a session ID for subsequent message calls.
+
+**Headers:**
+```
+Authorization: Bearer <token>
+Accept: text/event-stream
+```
+
+### POST /mcp/messages/{session_id}
+
+Send a JSON-RPC request to an active MCP session.
+
+**Request:**
+```json
+{
+  "jsonrpc": "2.0",
+  "method": "tools/call",
+  "params": {
+    "name": "realize_chat",
+    "arguments": {
+      "message": "What's the pipeline status?",
+      "system_key": "arena"
+    }
+  },
+  "id": "1"
+}
+```
+
+### GET /mcp/health
+
+MCP-specific health check. Returns enabled tool families and session count.
+
+**Response:**
+```json
+{
+  "mcp_enabled": true,
+  "tools": 24,
+  "families": ["chat_status", "kb_read", "ops", "admin"],
+  "active_sessions": 3
+}
+```
+
+> 📖 Full tool catalog: **[MCP Server Reference](mcp-server.md)**
+
+---
+
 ## Health
 
 ### GET /api/health

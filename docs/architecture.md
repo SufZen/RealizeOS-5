@@ -44,7 +44,7 @@ User Message
     │
     ▼
 ┌──────────────────┐
-│  Channel Layer   │  REST API / Telegram / CLI
+│  Channel Layer   │  REST API / MCP SSE / Telegram / CLI
 └────────┬─────────┘
          │
          ▼
@@ -121,13 +121,15 @@ User Message
 | `media/` | Media handling and processing |
 | `ingestion/` | Data ingestion pipelines |
 | `utils/` | Shared utilities (rate limiter, etc.) |
+| `mcp_server/` | Built-in MCP server — 24 tools, session management, gated access |
+| `cli_app/` | Typer-based operator CLI — commands, profiles, formatters, REPL |
 
 ### `realize_api/` — FastAPI REST API
 
 | Component | Purpose |
 |-----------|---------|
 | `main.py` | Application factory, CORS, lifespan |
-| `routes/` | 32 route modules (chat, auth, ventures, agents, workflows, approvals, extensions, webhooks, settings, security, devmode, etc.) |
+| `routes/` | 32+ route modules (chat, auth, ventures, agents, workflows, approvals, extensions, webhooks, settings, security, devmode, MCP, etc.) |
 | `middleware/` | API key middleware |
 | `security_middleware.py` | 5-layer security stack (SecurityHeaders, Audit, RateLimit, InjectionGuard, JWT) |
 | `error_handlers.py` | Structured error responses with secret redaction |
@@ -194,8 +196,46 @@ Extensions are auto-discovered from:
 2. `realize-os.yaml` config
 3. Legacy `plugins/` directory
 
+## MCP Integration Layer (5.1.0+)
+
+RealizeOS plays a **dual MCP role**:
+
+1. **MCP Client** — connects to external MCP tool servers (Stripe, Slack, custom APIs)
+2. **MCP Server** — exposes RealizeOS itself as an MCP server for external agents
+
+```
+┌─────────────────────────────────────┐
+│       External MCP Clients          │
+│  (Claude Desktop, Cursor, n8n, …)   │
+└────────────┬────────────────────────┘
+             │ SSE + JSON-RPC
+             ▼
+┌─────────────────────────────────────┐
+│    /mcp/sse  +  /mcp/messages/     │  ← MCP Server routes
+│    realize_api/routes/mcp.py       │
+└────────────┬────────────────────────┘
+             │
+             ▼
+┌─────────────────────────────────────┐
+│    realize_core/mcp_server/        │  ← Tool registry + session mgmt
+│    24 tools · 4 families           │
+│    Chat · KB · Ops · Admin         │
+└────────────┬────────────────────────┘
+             │
+             ▼
+┌─────────────────────────────────────┐
+│    RealizeOS Core Engine           │  ← Same base handler, LLM router,
+│    (base_handler, tools, kb, …)    │    FABRIC knowledge, governance
+└─────────────────────────────────────┘
+```
+
+**Security:** MCP reuses the REST API's JWT/API-key auth. Tool families are gated independently (`expose_kb`, `expose_ops`, `allow_admin`). All MCP calls are audit-logged.
+
+See [MCP Server Reference](mcp-server.md) for the full tool catalog and integration recipes.
+
 ## Deployment
 
-- **Development**: `python cli.py serve` or `docker compose up`
+- **Development**: `realize-os serve` or `docker compose up`
 - **Production**: `docker compose -f docker-compose.prod.yml up -d`
+- **With MCP**: `realize-os mcp serve --port 8080`
 - See [Self-Hosting Guide](self-hosting-guide.md) for production configuration

@@ -29,11 +29,11 @@ Best for: Technical users, teams, businesses wanting the complete engine.
 
 1. Clone the repository
 2. Copy `.env.example` to `.env` and add your API keys
-3. Run `python cli.py setup` (interactive wizard) or `python cli.py init --template consulting`
-4. Start: `python cli.py serve`
+3. Run `realize-os setup` (interactive wizard) or `realize-os init --template consulting`
+4. Start: `realize-os serve`
 5. Open http://localhost:8080
 
-> 💡 **Tip:** Use `python cli.py doctor` to diagnose any installation issues.
+> 💡 **Tip:** Use `realize-os doctor` to diagnose any installation issues.
 
 > 📖 Full setup: [QUICKSTART.md](../QUICKSTART.md) | [Self-Hosting Guide](self-hosting-guide.md)
 > 🐳 Docker: [QUICKSTART.md](../QUICKSTART.md#step-1-pull--run)
@@ -81,19 +81,41 @@ The provider registry supports Claude, Gemini, OpenAI, and Ollama. Available pro
 
 ## Quick API Test
 
-Quick test:
+Quick test via the CLI (5.1.0+):
 
 ```bash
-# If using API key auth:
+realize-os chat "Hello!" --system consulting
+```
+
+Or via the REST API:
+
+```bash
 curl -X POST http://localhost:8080/api/chat \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -d '{"message": "Hello!", "system_key": "consulting"}'
 ```
 
+## Enable the MCP Server
+
+RealizeOS 5.1.0 includes a built-in MCP server that lets Claude Desktop, Cursor, or any MCP client use your instance as an AI second brain.
+
+```bash
+# Enable and start
+realize-os config set mcp.enabled true
+realize-os mcp serve --port 8080
+
+# Issue a token for your MCP client
+realize-os mcp token --user owner
+```
+
+Copy the token into your MCP client config (e.g., Claude Desktop’s `mcpServers` block). See [MCP Server Reference](mcp-server.md) for integration recipes.
+
 ## Next Steps
 
 - [Concepts Deep Dive](concepts.md)
 - [Configuration Guide](configuration.md)
+- [CLI Reference](cli-reference.md)
+- [MCP Server Reference](mcp-server.md)
 - [Skill Authoring Guide](skill-authoring.md)
 - [API Reference](api-reference.md)
