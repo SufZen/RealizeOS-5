@@ -416,8 +416,6 @@ Run developer mode health check.
 
 ---
 
----
-
 ## MCP Server (5.1.0+)
 
 The MCP server is enabled when `MCP_ENABLED=true` or `mcp.enabled: true` in config. It uses the same authentication as the REST API.

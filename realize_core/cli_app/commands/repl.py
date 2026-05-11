@@ -10,8 +10,6 @@ Features:
 from __future__ import annotations
 
 import logging
-import os
-import sys
 from pathlib import Path
 from typing import Annotated
 
@@ -88,7 +86,8 @@ def repl(
                 typer.echo("Goodbye!")
                 break
             if handled == "clear":
-                os.system("cls" if sys.platform == "win32" else "clear")
+                import click as _click
+                _click.clear()
                 continue
             if isinstance(handled, dict):
                 current_system = handled.get("current_system", current_system)

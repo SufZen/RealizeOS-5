@@ -43,6 +43,6 @@ def get_state() -> CLIState:
         ctx = click.get_current_context(silent=True)
         if ctx is not None and isinstance(ctx.obj, CLIState):
             return ctx.obj
-    except Exception:
+    except (ImportError, RuntimeError):
         pass
     return CLIState()

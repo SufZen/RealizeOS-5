@@ -82,7 +82,7 @@ You do not need to rename existing ventures during the upgrade.
 For new ventures, use a custom safe folder slug:
 
 ```bash
-python cli.py venture create --key my-saas --name "My SaaS"
+realize-os venture create --key my-saas --name "My SaaS"
 ```
 
 The folder key must be lowercase letters, numbers, and hyphens only. The display name can contain spaces and punctuation. The config entry should point to the chosen folder:
@@ -171,7 +171,7 @@ V5 adds Google Sheets tools, which require a new OAuth scope. You need to re-aut
 
 2. Re-run the OAuth flow:
    ```bash
-   python cli.py setup-google
+   realize-os setup-google
    ```
 
 3. Authorize the new `spreadsheets` scope in the consent screen.

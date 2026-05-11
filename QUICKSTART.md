@@ -64,12 +64,12 @@ Or use the dashboard chat interface directly.
 
 ```bash
 # Inside the container, or locally with Python:
-python cli.py init --template consulting
+realize-os init --template consulting
 ```
 
 Available templates: `consulting`, `agency`, `portfolio`, `saas`, `ecommerce`, `accounting`, `coaching`, `freelance`
 
-> 💡 **Tip:** Use `python cli.py setup` for an interactive wizard that handles configuration, dashboard setup, and template selection in one step.
+> 💡 **Tip:** Use `realize-os setup` for an interactive wizard that handles configuration, dashboard setup, and template selection in one step.
 
 ---
 
@@ -89,12 +89,12 @@ cp .env.example .env
 # Edit .env — add your API key(s)
 
 # 4. Start the server
-python cli.py serve
+realize-os serve
 ```
 
 Dashboard: http://localhost:8080 (built static) · Vite dev: http://localhost:5173 · API: http://localhost:8080
 
-> 🔧 **Troubleshooting:** Run `python cli.py doctor` to diagnose installation issues.
+> 🔧 **Troubleshooting:** Run `realize-os doctor` to diagnose installation issues.
 
 ---
 

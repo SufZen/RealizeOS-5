@@ -1,7 +1,7 @@
 sprint: 1
 release: "5.1.0"
 started: 2026-05-10
-status: active
+status: complete
 
 epics:
   - name: "Workstream A — Unblock CI"
@@ -85,7 +85,15 @@ epics:
           python cli.py to realize-os. 1904 tests still passing.
       - id: STORY-10
         title: "Release prep + tag v5.1.0"
-        status: todo
+        status: done
+        completed: 2026-05-11
+        notes: |
+          All version artifacts bumped to 5.1.0 (VERSION, pyproject.toml, package.json).
+          AUDIT-REPORT.md regenerated: 1,904 tests, 0 failures, 0 lint issues in new code.
+          CHANGELOG.md complete with Keep-a-Changelog format. Sprint retrospective written
+          (retro-5.1.0.md). docs/audit-playbook.md updated to realize-os CLI. Pre-release
+          audit fixed 14 issues (2 bare except, 1 dup separator, 3 stale doc sections,
+          8 stale CLI refs). All 10 stories done. Ready for git tag v5.1.0.
 
 retrospective:
   went_well: []

@@ -1,6 +1,6 @@
 # RealizeOS Built-in MCP Server
 
-> Status: **5.1.0 — chat & status tools shipping in Story 2.** KB, ops, and admin tool families land in Stories 3-5. Full doc lands in Story 9.
+> Shipping in **RealizeOS 5.1.0** — 24 tools across 4 families (Chat & Status, KB Read, Ops, Admin).
 
 RealizeOS exposes its REST surface over the [Model Context Protocol](https://modelcontextprotocol.io) so any MCP-speaking agent — Claude Desktop, Cursor, n8n, cloud routines, your own scripts — can call into a user's RealizeOS instance.
 
@@ -41,7 +41,7 @@ MCP server mounted at /mcp/sse — families=chat,kb,ops, allow_admin=False
 
 Auth: same as the REST API. Pass `Authorization: Bearer <jwt>` (from `POST /api/auth/token`) or `X-API-Key: <key>`.
 
-## Tool families (Story 2 surface)
+## Tool Families
 
 | Family | Gating | Tools |
 |---|---|---|
@@ -118,9 +118,6 @@ Stable `code` values:
 
 ## Roadmap
 
-- **Story 3 (this release):** KB read tools.
-- **Story 4 (this release):** workflows, skills, evolution, approvals.
-- **Story 5 (this release):** admin / write tools + adversarial tests.
-- **5.2.0:** stdio transport (Claude Desktop local install).
-- **5.2.0:** Streamable HTTP transport.
-- **5.2.0:** per-tool feature flags inside `mcp:` config.
+- **5.2.0:** stdio transport (Claude Desktop local install without network).
+- **5.2.0:** Streamable HTTP transport (spec finalisation pending).
+- **5.2.0:** Per-tool feature flags inside `mcp:` config.

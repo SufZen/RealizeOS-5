@@ -41,7 +41,7 @@ cp .env.example .env
 # Edit .env — add your API keys
 
 # 3. Initialize a template
-python cli.py init --template consulting
+realize-os init --template consulting
 
 # 4. Deploy
 docker compose up -d
@@ -177,7 +177,7 @@ To enable Gmail, Calendar, Drive, and Sheets tools:
 3. Download `client_secrets.json` to `.credentials/`
 4. Run the OAuth flow:
    ```bash
-   python cli.py setup-google
+   realize-os setup-google
    ```
 5. The tokens will be saved to `.credentials/tokens.json`
 6. Mount `.credentials/` in Docker Compose (already configured)

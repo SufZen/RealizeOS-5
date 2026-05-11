@@ -40,7 +40,7 @@ V5 also supports user-chosen venture folder names through safe slugs such as `my
 For a new custom-named venture:
 
 ```bash
-python cli.py venture create --key my-saas --name "My SaaS"
+realize-os venture create --key my-saas --name "My SaaS"
 ```
 
 The key becomes the folder path (`systems/my-saas`), while the display name can contain spaces and branding. Keep keys lowercase with numbers and hyphens only; V5 rejects unsafe names before creating files.

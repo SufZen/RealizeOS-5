@@ -18,7 +18,7 @@ cd realize-os
 pip install -r requirements.txt
 
 # 3. Initialize from a template
-python cli.py init --template consulting
+realize-os init --template consulting
 ```
 
 Available templates: `consulting`, `agency`, `portfolio`, `saas`, `ecommerce`, `accounting`, `coaching`, `freelance`
@@ -47,9 +47,9 @@ See [Configuration Guide](configuration.md) for all options.
 ### Local Development
 
 ```bash
-python cli.py serve                    # Start API on localhost:8080
-python cli.py serve --port 3000       # Custom port
-python cli.py serve --reload          # Auto-reload on code changes
+realize-os serve                       # Start API on localhost:8080
+realize-os serve --port 3000          # Custom port
+realize-os serve --reload             # Auto-reload on code changes
 ```
 
 ### Docker Deployment
@@ -62,15 +62,15 @@ docker compose up -d                   # Detached mode
 ### Telegram Bot
 
 ```bash
-python cli.py bot                      # Start Telegram bot
+realize-os bot                         # Start Telegram bot
 ```
 
 ## Managing Ventures
 
 ```bash
-python cli.py venture list                              # List all ventures
-python cli.py venture create --key my-saas --name "My SaaS"  # Create new
-python cli.py venture delete --key my-saas --confirm my-saas  # Delete (requires confirmation)
+realize-os venture list                                 # List all ventures
+realize-os venture create --key my-saas --name "My SaaS"  # Create new
+realize-os venture delete --key my-saas --confirm my-saas  # Delete (requires confirmation)
 ```
 
 New ventures get a complete FABRIC directory structure with template agents, skills, and knowledge base files. They're immediately available to the engine via auto-discovery.
@@ -78,15 +78,17 @@ New ventures get a complete FABRIC directory structure with template agents, ski
 ## CLI Reference
 
 ```bash
-python cli.py init --template NAME    # Initialize from template
-python cli.py serve [--port PORT]     # Start API server
-python cli.py bot                     # Start Telegram bot
-python cli.py status                  # Show system status
-python cli.py index                   # Rebuild KB search index
-python cli.py venture create          # Create a new venture
-python cli.py venture delete          # Delete a venture
-python cli.py venture list            # List all ventures
+realize-os init --template NAME       # Initialize from template
+realize-os serve [--port PORT]        # Start API server
+realize-os bot                        # Start Telegram bot
+realize-os status                     # Show system status
+realize-os index                      # Rebuild KB search index
+realize-os venture create             # Create a new venture
+realize-os venture delete             # Delete a venture
+realize-os venture list               # List all ventures
 ```
+
+See [CLI Reference](cli-reference.md) for the full command tree.
 
 ## API Quick Test
 
@@ -100,5 +102,6 @@ curl -X POST http://localhost:8080/api/chat \
 
 - [Core Concepts](concepts.md)
 - [Configuration Guide](configuration.md)
+- [CLI Reference](cli-reference.md)
 - [Skill Authoring Guide](skill-authoring.md)
 - [API Reference](api-reference.md)

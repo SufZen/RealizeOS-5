@@ -86,7 +86,7 @@ def _handle_error(resp: httpx.Response) -> None:
     """Print a user-friendly error and exit."""
     try:
         detail = resp.json().get("detail", resp.text)
-    except Exception:
+    except (ValueError, KeyError):
         detail = resp.text
     print(f"Error {resp.status_code}: {detail}", file=sys.stderr)
     sys.exit(1)

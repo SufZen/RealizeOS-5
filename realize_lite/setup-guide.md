@@ -146,7 +146,7 @@ V5 also supports custom venture folder names. Use a safe slug with lowercase let
 **To create a custom-named venture:**
 
 ```bash
-python cli.py venture create --key consulting-practice --name "Consulting Practice"
+realize-os venture create --key consulting-practice --name "Consulting Practice"
 ```
 
 The key becomes the folder path (`systems/consulting-practice`). The display name can contain spaces.

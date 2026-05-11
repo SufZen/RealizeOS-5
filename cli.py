@@ -117,7 +117,7 @@ def cmd_init(args):
         print("  1. Review and customize your venture identity:")
         print("     Edit systems/*/F-foundations/venture-identity.md")
         print("  2. Start the server:")
-        print("     python cli.py serve")
+        print("     realize-os serve")
         print("  3. Or deploy with Docker:")
         print("     docker compose up --build")
         return
@@ -192,7 +192,7 @@ def cmd_init(args):
     print("  1. Edit .env and add your API keys")
     print(f"  2. Edit {config_dest} to configure your system")
     print("  3. Fill in your venture identity and agent definitions")
-    print("  4. Run: python cli.py serve")
+    print("  4. Run: realize-os serve")
 
 
 def cmd_serve(args):
@@ -305,7 +305,7 @@ def cmd_status(args):
         for warning in workspace["warnings"]:
             print(f"  - {warning}")
         print("\nSuggested next step:")
-        print("  Run: python cli.py audit --quick")
+        print("  Run: realize-os audit --quick")
 
 
 def cmd_audit(args):
@@ -377,7 +377,7 @@ def cmd_venture(args):
     elif args.venture_action == "list":
         ventures = list_ventures(project_root)
         if not ventures:
-            print("No ventures configured. Run: python cli.py venture create --key my-venture")
+            print("No ventures configured. Run: realize-os venture create --key my-venture")
             return
         print(f"Ventures ({len(ventures)}):")
         for v in ventures:
@@ -385,7 +385,7 @@ def cmd_venture(args):
             print(f"  {v['key']} - {v['name']} ({v['directory']}) [{status}]")
 
     else:
-        print("Usage: python cli.py venture {create|delete|list}")
+        print("Usage: realize-os venture {create|delete|list}")
         sys.exit(1)
 
 
@@ -468,7 +468,7 @@ def cmd_devmode(args):
             print("Available snapshots:")
             for s in snapshots[:10]:
                 print(f"  {s.tag}  ({s.timestamp})  {s.message}")
-            print("\nUse: python cli.py devmode rollback --tag <tag>")
+            print("\nUse: realize-os devmode rollback --tag <tag>")
             return
         backup = git.rollback_to(args.tag)
         print(f"Rolled back to: {args.tag}")
@@ -499,7 +499,7 @@ def cmd_devmode(args):
             print(f"  {exists} {info['name']:25s}  {ctx}")
 
     else:
-        print("Usage: python cli.py devmode {setup|check|scaffold|snapshot|rollback|diff|status}")
+        print("Usage: realize-os devmode {setup|check|scaffold|snapshot|rollback|diff|status}")
         sys.exit(1)
 
 

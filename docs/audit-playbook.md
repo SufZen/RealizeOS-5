@@ -5,19 +5,19 @@ This guide turns the RealizeOS audit plan into a repeatable operating workflow.
 ## Run the Audit
 
 ```bash
-python cli.py audit
+realize-os audit
 ```
 
 For a faster pass that skips the dashboard build probe:
 
 ```bash
-python cli.py audit --quick
+realize-os audit --quick
 ```
 
 For machine-readable output:
 
 ```bash
-python cli.py audit --format json
+realize-os audit --format json
 ```
 
 ## Audit Order
@@ -49,14 +49,15 @@ Treat these interfaces as first-class contracts during audits:
 
 - REST API routes and response/error shapes
 - SSE activity stream behavior
-- CLI setup, status, and audit flows
+- MCP server tool surface (24 tools, 4 families)
+- CLI commands and output formatting
 - FABRIC directory structure under `systems/`
-- extension and plugin entry points
-- dashboard-to-API client expectations
+- Extension and plugin entry points
+- Dashboard-to-API client expectations
 
 ## Operator Guidance
 
 - Start with foundation issues first. A noisy startup environment invalidates later findings.
-- Use `python cli.py status` before deeper debugging to confirm whether the workspace is partially initialized.
+- Use `realize-os status` before deeper debugging to confirm whether the workspace is partially initialized.
 - If the dashboard lints but does not build, treat that as a release blocker for operator-facing work.
-- Re-run `python cli.py audit` after each block closes so the next session starts from current repo truth.
+- Re-run `realize-os audit` after each block closes so the next session starts from current repo truth.
