@@ -48,7 +48,17 @@ Auth: same as the REST API. Pass `Authorization: Bearer <jwt>` (from `POST /api/
 | `chat` | always on | `realize_chat`, `realize_health`, `realize_status`, `list_systems`, `get_system`, `list_agents`, `list_skills`, `get_history`, `clear_history`, `get_session` |
 | `kb`   | `mcp.expose_kb` (on by default) | `kb_search`, `venture_kb_search`, `kb_get_document`, `list_ventures` |
 | `ops`  | `mcp.expose_ops` (on by default) | `list_workflows`, `run_workflow`, `trigger_skill`, `run_evolution`, `list_suggestions`, `approve_suggestion`, `dismiss_suggestion`, `list_approvals`, `approve_request`, `reject_request` |
-| `admin`| `mcp.allow_admin` + `role=owner` + production JWT | _(Story 5)_ |
+| `admin`| `mcp.allow_admin` + `role=owner` + production JWT | `create_venture`, `delete_venture`, `update_setting`, `reload_agents` |
+
+### Admin tool behaviour
+
+* Off by default. To expose, set `mcp.allow_admin: true` (or `MCP_ALLOW_ADMIN=true`).
+* In `REALIZE_ENV=production`, enabling admin requires `REALIZE_JWT_ENABLED=true` and a ≥ 32-char `REALIZE_JWT_SECRET`. The server refuses to start otherwise.
+* Caller must hold `role=owner`. Editor and viewer get `MCP_INSUFFICIENT_SCOPE`.
+* `delete_venture` requires an explicit `confirm: true` flag — guards against an over-eager external agent.
+* `update_setting` does an atomic YAML write with rollback on parse failure (same pattern as `PUT /api/settings/features`).
+* `create_venture` + `delete_venture` refresh `app.state.systems` in-process so subsequent MCP calls see the change immediately.
+* Every admin call is audit-logged with full payload regardless of `mcp.audit_full_payload`.
 
 ### Ops tool behaviour
 

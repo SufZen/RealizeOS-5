@@ -2,7 +2,7 @@
 
 ## Epic: Workstream B — Built-in MCP server
 ## Priority: P1
-## Status: todo
+## Status: done (2026-05-11, +22 tests, 1792 total passing — Workstream B complete)
 
 ## Description
 

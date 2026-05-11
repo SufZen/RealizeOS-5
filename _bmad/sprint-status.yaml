@@ -31,7 +31,9 @@ epics:
         notes: "+13 tests. 10 ops tools: list/run workflows, trigger skills, run/approve/dismiss evolution suggestions, approve/reject approval-queue requests. Scope policy: list_* = read; state-changers = editor. 1770 total tests passing."
       - id: STORY-05
         title: "MCP admin tools (gated) + adversarial tests"
-        status: todo
+        status: done
+        completed: 2026-05-11
+        notes: "+22 tests (4 admin tools + 22 adversarial). Admin gated by mcp.allow_admin + role=owner + production JWT. delete_venture needs explicit confirm=true. 1792 total tests passing. All Workstream B complete."
 
   - name: "Workstream C — First-class operator CLI"
     stories:
