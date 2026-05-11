@@ -1,0 +1,52 @@
+sprint: 1
+release: "5.1.0"
+started: 2026-05-10
+status: active
+
+epics:
+  - name: "Workstream A — Unblock CI"
+    stories:
+      - id: STORY-01
+        title: "CI green — env-file fix + gitleaks allowlist + safety enforcement + Node 24 actions bump"
+        status: in-progress
+
+  - name: "Workstream B — Built-in MCP server"
+    stories:
+      - id: STORY-02
+        title: "MCP server scaffolding — package, FastAPI mount, auth, chat/status/health tools"
+        status: todo
+      - id: STORY-03
+        title: "MCP KB tools — kb_search, kb_get_document, venture_kb_search, list_ventures"
+        status: todo
+      - id: STORY-04
+        title: "MCP ops tools — workflows, skills, evolution, suggestions, approvals"
+        status: todo
+      - id: STORY-05
+        title: "MCP admin tools (gated) + adversarial tests"
+        status: todo
+
+  - name: "Workstream C — First-class operator CLI"
+    stories:
+      - id: STORY-06
+        title: "CLI foundation — Typer migration + profile system + entry point"
+        status: todo
+      - id: STORY-07
+        title: "CLI operator commands — chat, ask, kb, workflow, skill, evolution"
+        status: todo
+      - id: STORY-08
+        title: "CLI MCP integration + REPL + formatters"
+        status: todo
+
+  - name: "Workstream D — Production-ready release"
+    stories:
+      - id: STORY-09
+        title: "Documentation overhaul"
+        status: todo
+      - id: STORY-10
+        title: "Release prep + tag v5.1.0"
+        status: todo
+
+retrospective:
+  went_well: []
+  improve: []
+  action_items: []

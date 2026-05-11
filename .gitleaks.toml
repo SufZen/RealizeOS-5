@@ -1,0 +1,20 @@
+# gitleaks configuration for RealizeOS-5
+# Extends the default ruleset; allowlists documented placeholder examples
+# in user-facing docs and adversarial-test fixtures that intentionally
+# contain key-shaped strings.
+#
+# When in doubt, scan with:
+#   gitleaks detect --redact -v --config .gitleaks.toml
+
+title = "RealizeOS-5 gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Documented placeholder examples and security-test fixtures"
+paths = [
+    '''docs/getting-started\.md''',
+    '''docs/user-guide\.html''',
+    '''tests/security/test_phase1_adversarial\.py''',
+]

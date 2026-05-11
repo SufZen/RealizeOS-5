@@ -116,9 +116,9 @@ jobs:
         run: pip install safety bandit[toml]
 
       - name: Check dependencies for vulnerabilities (safety)
-        run: safety check -r requirements.txt --output text || true
-        # Non-blocking: log vulnerabilities but don't fail CI yet
-        # Remove `|| true` once all deps are clean
+        run: safety check -r requirements.txt --output text
+        # Blocking: a real CVE in pinned deps fails CI. Locally verified
+        # 0 vulnerabilities at 5.1.0 release time (2026-05-11).
 
       - name: Run bandit security linter
         run: |
@@ -138,9 +138,12 @@ jobs:
 
       - name: Scan for hardcoded secrets (gitleaks)
         uses: gitleaks/gitleaks-action@v2
-        continue-on-error: true
+        # Blocking: real leaks fail CI. Known false positives (test
+        # fixtures, documented placeholders) are allowlisted in
+        # .gitleaks.toml.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_CONFIG: .gitleaks.toml
 
   # ──────────────────────────────────────────────
   # Job 4: Docker Build (verify Dockerfile builds)
