@@ -1,6 +1,6 @@
 {
   "name": "@realize-os/cli",
-  "version": "5.2.0",
+  "version": "5.2.1",
   "description": "RealizeOS CLI — Deploy and manage your AI operations system with Docker",
   "keywords": ["realize-os", "ai", "llm", "operations", "docker", "cli"],
   "license": "MIT",

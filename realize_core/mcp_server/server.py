@@ -45,7 +45,7 @@ def build_mcp_server(
     mcp_config: McpConfig,
     registry: ToolRegistry | None = None,
     name: str = "realize-os",
-    version: str = "5.2.0",
+    version: str = "5.2.1",
 ) -> Server:
     """Build a configured :class:`mcp.server.lowlevel.Server` instance.
 

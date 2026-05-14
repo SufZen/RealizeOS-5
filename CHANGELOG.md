@@ -5,6 +5,18 @@ All notable changes to RealizeOS are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.2.1] - 2026-05-14
+
+### Fixed
+
+- **CI lint pipeline** — 11 ruff issues in v5.2.0 files (unused imports, import ordering, `datetime.UTC` alias) auto-corrected. The CI lint job was failing on the v5.2.0 tag and blocking the release pipeline; v5.2.0 therefore never published to GHCR/npm/PyPI. v5.2.1 is the first published release of the v5.2 line.
+- **Dashboard `lib/api.ts::readCookie`** — guarded with `typeof document === 'undefined'` so the module is safe to import from non-DOM contexts (vitest's default node runner, future SSR). Browser behavior is unchanged.
+- **Dashboard vitest assertions** — updated `api.test.ts` to assert `credentials: 'include'` on fetches and `withCredentials: true` on `EventSource` so future regressions of the v5.2.0 cookie-session contract fail loudly.
+
+### Changed
+
+- No functional changes from v5.2.0 — this is a release-hygiene patch.
+
 ## [5.2.0] - 2026-05-14
 
 ### Added
