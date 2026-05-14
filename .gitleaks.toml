@@ -17,4 +17,5 @@ paths = [
     '''docs/getting-started\.md''',
     '''docs/user-guide\.html''',
     '''tests/security/test_phase1_adversarial\.py''',
+    '''tests/test_auth_middleware\.py''',
 ]
