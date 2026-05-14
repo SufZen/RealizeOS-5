@@ -15,6 +15,9 @@ services:
       args:
         INSTALL_GWS: "${INSTALL_GWS:-false}"
     container_name: realizeos-api
+    # Host port comes from REALIZE_PORT in .env (default 8080). If `docker ps`
+    # shows a random host port like 0.0.0.0:32776, your .env isn't being read —
+    # either pass `--env-file .env` to compose, or set REALIZE_PORT in the shell.
     ports:
       - "${REALIZE_PORT:-8080}:8080"
     volumes:

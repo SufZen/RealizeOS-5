@@ -245,13 +245,35 @@ def cmd_bot(args):
             print("Telegram bot token not found. Set it in .env or realize-os.yaml")
             sys.exit(1)
 
+        # Optional channel-level overrides — fall back to top-level config defaults.
+        system_key = telegram_config.get("system_key", config.get("default_system", ""))
+        raw_users = telegram_config.get("authorized_users", []) or []
+        authorized_users = {str(u) for u in raw_users} if raw_users else set()
+
         from realize_core.channels.telegram import TelegramChannel
 
-        channel = TelegramChannel(bot_token=token, config=config)
+        channel = TelegramChannel(
+            bot_token=token,
+            system_key=system_key,
+            authorized_users=authorized_users,
+        )
         print("Starting Telegram bot...")
         await channel.start()
 
-    asyncio.run(run_bot())
+        # `TelegramChannel.start()` calls `application.updater.start_polling()`
+        # which is non-blocking — without an explicit wait the asyncio.run()
+        # loop would unwind immediately and Docker would restart-loop us.
+        stop_event = asyncio.Event()
+        try:
+            await stop_event.wait()
+        except (KeyboardInterrupt, SystemExit):
+            print("Shutting down Telegram bot...")
+            await channel.stop()
+
+    try:
+        asyncio.run(run_bot())
+    except KeyboardInterrupt:
+        print("Telegram bot stopped.")
 
 
 def cmd_status(args):
@@ -330,7 +352,7 @@ def cmd_index(args):
 
     from realize_core.kb.indexer import index_kb_files
 
-    count = index_kb_files(kb_path, force_reindex=True)
+    count = index_kb_files(kb_path, force=True)
     print(f"Indexed {count} files from {kb_path}")
 
 

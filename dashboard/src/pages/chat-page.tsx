@@ -4,6 +4,7 @@ import { useApi } from '@/hooks/use-api'
 import { api } from '@/lib/api'
 import { ChatMessage, TypingIndicator, type ChatMsg } from '@/components/chat-message'
 import { cn } from '@/lib/utils'
+import { safeRandomUUID } from '@/lib/uuid'
 
 interface Venture {
   key: string
@@ -34,7 +35,9 @@ function getSessionUserId(): string {
   const key = 'realize_session_user_id'
   let id = localStorage.getItem(key)
   if (!id) {
-    id = `user-${crypto.randomUUID().slice(0, 8)}`
+    // `crypto.randomUUID()` is Secure-Context-only, so this page would crash
+    // on plain-HTTP deployments without the fallback inside safeRandomUUID.
+    id = `user-${safeRandomUUID().slice(0, 8)}`
     localStorage.setItem(key, id)
   }
   return id

@@ -1,0 +1,31 @@
+# RealizeOS dashboard users (v5.2.0+)
+#
+# Copy this file to `users.yaml` and add your real users. The path is relative
+# to the working directory where you run the API (typically the repo root).
+#
+# `users.yaml` is gitignored by default — do not commit real password hashes.
+#
+# To generate a bcrypt hash for a password:
+#   python scripts/hash_password.py
+#
+# Roles:
+#   owner   — full read/write on every endpoint
+#   admin   — read/write except global config and user management
+#   viewer  — read-only
+#
+# If `users.yaml` is absent, the API falls back to the single-owner env vars:
+#   REALIZE_ADMIN_USER=owner@example.com
+#   REALIZE_ADMIN_PASSWORD_HASH=$2b$12$...
+
+users:
+  - email: owner@example.com
+    role: owner
+    password_hash: $2b$12$REPLACE_ME_with_output_of_scripts_hash_password_py
+
+  # - email: teammate@example.com
+  #   role: admin
+  #   password_hash: $2b$12$...
+
+  # - email: stakeholder@example.com
+  #   role: viewer
+  #   password_hash: $2b$12$...

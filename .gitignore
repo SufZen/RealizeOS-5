@@ -23,6 +23,9 @@ env/
 .env.*.local
 .storage-config.json
 
+# Dashboard users (v5.2.0+ — never commit real password hashes)
+users.yaml
+
 # IDE
 .vscode/
 .idea/

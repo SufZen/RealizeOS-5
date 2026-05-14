@@ -7,7 +7,11 @@ modules into the FastAPI request pipeline:
 - RateLimitMiddleware — per-tenant request/cost limiting
 - InjectionGuardMiddleware — scan request bodies for prompt injection
 - AuditMiddleware — record every request in the audit log
-- JWTAuthMiddleware — optional Bearer-token authentication (env-gated)
+- SecurityHeadersMiddleware — set X-Frame-Options, etc.
+
+Authentication itself lives in ``realize_api.middleware.AuthMiddleware``
+(unified cookie + API key + JWT) — separated so this file stays focused on
+the cross-cutting "every request" concerns.
 """
 
 from __future__ import annotations
@@ -234,76 +238,7 @@ class AuditMiddleware(BaseHTTPMiddleware):
 
 
 # ---------------------------------------------------------------------------
-# 4. JWT Auth Middleware (opt-in, env-gated)
-# ---------------------------------------------------------------------------
-
-
-class JWTAuthMiddleware(BaseHTTPMiddleware):
-    """
-    Optional JWT Bearer-token authentication.
-
-    Enabled only when ``REALIZE_JWT_ENABLED=true`` is set.
-    - Extracts Bearer token from Authorization header
-    - Verifies signature and expiry
-    - Attaches claims (user_id, role) to ``request.state``
-    - Falls through to API key auth if no Bearer token is present
-    """
-
-    async def dispatch(self, request: Request, call_next) -> Response:
-        if _is_public(request.url.path):
-            return await call_next(request)
-
-        auth_header = request.headers.get("Authorization", "")
-
-        # Only process Bearer tokens — let API key middleware handle X-API-Key
-        if not auth_header.startswith("Bearer "):
-            return await call_next(request)
-
-        try:
-            from realize_core.security.jwt_auth import (
-                InvalidTokenError,
-                TokenExpiredError,
-                TokenRevokedError,
-                extract_bearer_token,
-                verify_token,
-            )
-
-            token = extract_bearer_token(auth_header)
-            claims = verify_token(token, require_type="access")
-
-            # Attach claims to request state for downstream use
-            request.state.user_id = claims.sub
-            request.state.role = claims.role
-            request.state.scopes = claims.scopes
-            request.state.jwt_claims = claims
-
-        except TokenExpiredError:
-            return JSONResponse(
-                status_code=401,
-                content={"error": "token_expired", "message": "Your session has expired. Please log in again."},
-            )
-        except InvalidTokenError as exc:
-            return JSONResponse(
-                status_code=401,
-                content={"error": "invalid_token", "message": str(exc)},
-            )
-        except TokenRevokedError:
-            return JSONResponse(
-                status_code=401,
-                content={"error": "token_revoked", "message": "This token has been revoked."},
-            )
-        except Exception as exc:
-            logger.debug("JWT verification failed: %s", exc)
-            return JSONResponse(
-                status_code=401,
-                content={"error": "auth_error", "message": "Authentication failed."},
-            )
-
-        return await call_next(request)
-
-
-# ---------------------------------------------------------------------------
-# 5. Security Headers Middleware
+# 4. Security Headers Middleware
 # ---------------------------------------------------------------------------
 
 

@@ -25,6 +25,8 @@ import { ThemeToggle } from '@/components/theme-toggle'
 import { TourProvider } from '@/components/tour-provider'
 import { ToastProvider } from '@/components/ui/toast'
 import { Skeleton, SkeletonCard } from '@/components/ui/skeleton'
+import { AuthProvider, useAuth } from '@/hooks/use-auth'
+import AuthGuard from '@/components/auth-guard'
 
 const OverviewPage = lazy(() => import('@/pages/overview'))
 const ChatPage = lazy(() => import('@/pages/chat-page'))
@@ -43,6 +45,7 @@ const WorkflowEditorPage = lazy(() => import('@/pages/workflow-editor'))
 const RoutingPage = lazy(() => import('@/pages/routing-page'))
 const IntegrationsPage = lazy(() => import('@/pages/integrations-page'))
 const DocsPage = lazy(() => import('@/pages/docs-page'))
+const LoginPage = lazy(() => import('@/pages/login-page'))
 
 import OnboardingWizard, { isOnboardingComplete } from '@/components/onboarding-wizard'
 
@@ -279,34 +282,29 @@ function ErrorBoundaryWithLocation({ children }: { children: ReactNode }) {
   return <ErrorBoundary resetKey={location.pathname}>{children}</ErrorBoundary>
 }
 
-export default function App() {
+function AuthenticatedShell() {
   const [mobileOpen, setMobileOpen] = useState(false)
+  const { user } = useAuth()
   const [showOnboarding, setShowOnboarding] = useState(!isOnboardingComplete())
 
-  if (showOnboarding) {
-    return (
-      <ThemeProvider>
-        <OnboardingWizard onComplete={() => setShowOnboarding(false)} />
-      </ThemeProvider>
-    )
+  // Don't show onboarding until the user is signed in — onboarding writes setup state
+  // for the active deployment, not the anonymous visitor.
+  if (showOnboarding && user) {
+    return <OnboardingWizard onComplete={() => setShowOnboarding(false)} />
   }
 
   return (
-    <ThemeProvider>
-      <ToastProvider>
-      <BrowserRouter>
-        <TourProvider>
-        <ErrorBoundary>
-        <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:z-[60] focus:top-4 focus:left-4 focus:px-4 focus:py-2 focus:rounded-lg focus:bg-brand-400 focus:text-black focus:text-sm focus:font-medium">
-          Skip to content
-        </a>
-        <div className="flex h-screen bg-background">
-          <DesktopSidebar />
-          <div className="flex flex-1 flex-col overflow-hidden">
-            <MobileHeader onToggle={() => setMobileOpen(true)} />
-            <MobileSheet open={mobileOpen} onClose={() => setMobileOpen(false)} />
-            <main id="main-content" className="flex-1 overflow-y-auto p-6">
-              <ErrorBoundaryWithLocation>
+    <>
+      <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:z-[60] focus:top-4 focus:left-4 focus:px-4 focus:py-2 focus:rounded-lg focus:bg-brand-400 focus:text-black focus:text-sm focus:font-medium">
+        Skip to content
+      </a>
+      <div className="flex h-screen bg-background">
+        <DesktopSidebar />
+        <div className="flex flex-1 flex-col overflow-hidden">
+          <MobileHeader onToggle={() => setMobileOpen(true)} />
+          <MobileSheet open={mobileOpen} onClose={() => setMobileOpen(false)} />
+          <main id="main-content" className="flex-1 overflow-y-auto p-6">
+            <ErrorBoundaryWithLocation>
               <Suspense fallback={<PageSkeleton />}>
                 <Routes>
                   <Route path="/" element={<OverviewPage />} />
@@ -329,13 +327,45 @@ export default function App() {
                   <Route path="*" element={<NotFoundPage />} />
                 </Routes>
               </Suspense>
-              </ErrorBoundaryWithLocation>
-            </main>
-          </div>
+            </ErrorBoundaryWithLocation>
+          </main>
         </div>
-        </ErrorBoundary>
-        </TourProvider>
-      </BrowserRouter>
+      </div>
+    </>
+  )
+}
+
+function AppRoutes() {
+  return (
+    <Suspense fallback={<PageSkeleton />}>
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route
+          path="*"
+          element={
+            <AuthGuard>
+              <AuthenticatedShell />
+            </AuthGuard>
+          }
+        />
+      </Routes>
+    </Suspense>
+  )
+}
+
+export default function App() {
+  return (
+    <ThemeProvider>
+      <ToastProvider>
+        <BrowserRouter>
+          <AuthProvider>
+            <TourProvider>
+              <ErrorBoundary>
+                <AppRoutes />
+              </ErrorBoundary>
+            </TourProvider>
+          </AuthProvider>
+        </BrowserRouter>
       </ToastProvider>
     </ThemeProvider>
   )

@@ -33,11 +33,15 @@ httpx>=0.27
 # Database
 # SQLite is built into Python — no extra deps
 
+# Auth (cookie-session password hashing — v5.2.0+)
+bcrypt>=4.0
+
 # Optional: Hybrid search (vector embeddings)
 # fastembed>=0.4.0  # Uncomment for hybrid FTS5+vector search
 
-# Optional: Telegram channel
-# python-telegram-bot>=21.0  # Uncomment for Telegram integration
+# Telegram channel (first-class capability since v5.2.0)
+python-telegram-bot>=21.0
+pdfplumber>=0.11.0  # PDF parsing for Telegram document uploads
 
 # Optional: Google Workspace tools
 # google-api-python-client>=2.100.0

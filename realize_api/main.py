@@ -11,11 +11,11 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from realize_api.error_handlers import register_error_handlers
-from realize_api.middleware import APIKeyMiddleware
+from realize_api.middleware import AuthMiddleware
 from realize_api.routes import (
     activity,
     agents_v2,
@@ -51,7 +51,6 @@ from realize_api.routes import (
 from realize_api.security_middleware import (
     AuditMiddleware,
     InjectionGuardMiddleware,
-    JWTAuthMiddleware,
     RateLimitMiddleware,
     SecurityHeadersMiddleware,
 )
@@ -64,23 +63,53 @@ def _is_production() -> bool:
 
 
 def _validate_production_security() -> None:
-    """Fail fast when production auth is not explicitly configured."""
+    """Collect *all* production-mode misconfigurations and report them together.
+
+    Failing on the first error makes the migration from dev → production
+    painful: users fix one variable, restart, hit the next error, repeat.
+    Collecting them all means one round-trip catches everything.
+    """
     if not _is_production():
         return
 
+    violations: list[str] = []
+
     if not os.environ.get("REALIZE_API_KEY"):
-        raise RuntimeError("REALIZE_API_KEY is required when REALIZE_ENV=production")
+        violations.append(
+            "REALIZE_API_KEY is required when REALIZE_ENV=production. "
+            "Generate one with: python -c \"import secrets; print(secrets.token_urlsafe(48))\""
+        )
 
     jwt_enabled = os.environ.get("REALIZE_JWT_ENABLED", "").lower() in ("true", "1", "yes")
     jwt_secret = os.environ.get("REALIZE_JWT_SECRET", "")
     if not jwt_enabled:
-        raise RuntimeError("REALIZE_JWT_ENABLED=true is required when REALIZE_ENV=production")
+        violations.append(
+            "REALIZE_JWT_ENABLED=true is required when REALIZE_ENV=production."
+        )
     if len(jwt_secret) < 32:
-        raise RuntimeError("REALIZE_JWT_SECRET must be at least 32 characters when REALIZE_ENV=production")
+        violations.append(
+            "REALIZE_JWT_SECRET must be at least 32 characters when REALIZE_ENV=production. "
+            "Generate one with: python -c \"import secrets; print(secrets.token_urlsafe(48))\""
+        )
 
     cors_env = os.environ.get("CORS_ORIGINS", "")
-    if "*" in [origin.strip() for origin in cors_env.split(",") if origin.strip()]:
-        raise RuntimeError("CORS_ORIGINS cannot include '*' when REALIZE_ENV=production")
+    cors_origins = [origin.strip() for origin in cors_env.split(",") if origin.strip()]
+    if "*" in cors_origins:
+        violations.append(
+            "CORS_ORIGINS cannot include '*' when REALIZE_ENV=production. "
+            "Set explicit origins, e.g.: CORS_ORIGINS=https://app.example.com,https://www.example.com"
+        )
+    elif not cors_origins:
+        violations.append(
+            "CORS_ORIGINS must be set when REALIZE_ENV=production. "
+            "Set explicit origins, e.g.: CORS_ORIGINS=https://app.example.com"
+        )
+
+    if violations:
+        bullet_list = "\n  - " + "\n  - ".join(violations)
+        raise RuntimeError(
+            f"Production security validation failed ({len(violations)} issue(s)):{bullet_list}"
+        )
 
 
 @asynccontextmanager
@@ -111,8 +140,12 @@ async def lifespan(app: FastAPI):
     # Initialize operational database (activity, agent states, approvals)
     try:
         from realize_core.db.migrations import run_migrations
+        from realize_core.migration.engine import MigrationEngine
 
+        # Legacy shim — keeps backward compatibility with tests that introspect MIGRATIONS.
         run_migrations()
+        # New engine — applies v5+ migrations (messaging, user_sessions, ...).
+        MigrationEngine().migrate_up()
         logger.info("Operational database initialized")
     except Exception as e:
         logger.warning(f"Operational DB initialization skipped: {e}")
@@ -311,15 +344,21 @@ def create_app() -> FastAPI:
     # 3. Injection guard (scans POST/PUT/PATCH bodies)
     app.add_middleware(InjectionGuardMiddleware)
 
-    # 4. JWT auth (opt-in via env var)
-    if os.environ.get("REALIZE_JWT_ENABLED", "").lower() in ("true", "1", "yes"):
-        app.add_middleware(JWTAuthMiddleware)
-        logger.info("JWT authentication middleware enabled")
-
-    # 5. API key auth (skip if no key configured — development mode)
-    api_key = os.environ.get("REALIZE_API_KEY")
-    if api_key:
-        app.add_middleware(APIKeyMiddleware, api_key=api_key)
+    # 4. Unified auth — cookie session OR API key OR JWT bearer.
+    #    Public paths (health, docs, login, SPA HTML) bypass auth entirely.
+    api_key = os.environ.get("REALIZE_API_KEY", "")
+    jwt_enabled = os.environ.get("REALIZE_JWT_ENABLED", "").lower() in ("true", "1", "yes")
+    if api_key or jwt_enabled:
+        app.add_middleware(AuthMiddleware, api_key=api_key, jwt_enabled=jwt_enabled)
+        logger.info(
+            "Auth middleware enabled (api_key=%s, jwt=%s)",
+            bool(api_key), jwt_enabled,
+        )
+    else:
+        logger.warning(
+            "Auth middleware NOT enabled — REALIZE_API_KEY unset and JWT disabled. "
+            "Dashboard/API will be open. Set REALIZE_API_KEY for production."
+        )
 
     # Routes
     app.include_router(chat.router, prefix="/api", tags=["Chat"])
@@ -390,6 +429,11 @@ def create_app() -> FastAPI:
 
         @app.get("/{full_path:path}")
         async def serve_spa(full_path: str):
+            # Return 404 for dotfile probes (/.env, /.git, etc.) so they
+            # don't silently 200 with index.html and confuse log analysis
+            # and security scanners.
+            if full_path.startswith(".") or "/." in full_path:
+                return JSONResponse(status_code=404, content={"error": "Not found"})
             if full_path and not full_path.startswith("api/"):
                 file_path = (static_dir / full_path).resolve()
                 # Ensure resolved path is still under static_dir (prevents traversal)
@@ -407,6 +451,8 @@ def create_app() -> FastAPI:
 
         @app.get("/{full_path:path}")
         async def dashboard_not_built(full_path: str):
+            if full_path.startswith(".") or "/." in full_path:
+                return JSONResponse(status_code=404, content={"error": "Not found"})
             if full_path.startswith("api/"):
                 return  # Let API routes handle this
             return HTMLResponse(
