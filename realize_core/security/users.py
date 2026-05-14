@@ -78,7 +78,10 @@ def _load_yaml_users(path: Path) -> list[User]:
         if role not in VALID_ROLES:
             logger.warning(
                 "%s[%d]: invalid role %r (expected one of %s), skipped",
-                path, idx, role, VALID_ROLES,
+                path,
+                idx,
+                role,
+                VALID_ROLES,
             )
             continue
 

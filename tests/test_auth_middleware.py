@@ -9,9 +9,7 @@ Covers:
 
 from __future__ import annotations
 
-import os
 import tempfile
-from pathlib import Path
 
 import pytest
 
@@ -34,7 +32,6 @@ def app_env(monkeypatch):
 @pytest.fixture
 def client(app_env):
     from fastapi.testclient import TestClient
-
     from realize_api.main import create_app
 
     app = create_app()

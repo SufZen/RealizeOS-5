@@ -27,6 +27,8 @@ export class ApiError extends Error {
 }
 
 function readCookie(name: string): string {
+  // Guard for non-DOM environments (vitest's default node runner, SSR).
+  if (typeof document === 'undefined') return ''
   const prefix = `${name}=`
   for (const part of document.cookie.split(';')) {
     const trimmed = part.trim()

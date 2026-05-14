@@ -6,7 +6,7 @@ afterEach(() => {
 })
 
 describe('api client', () => {
-  it('sends JSON requests to the API prefix', async () => {
+  it('sends JSON requests to the API prefix with credentials', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       text: () => Promise.resolve('{"status":"ok"}'),
@@ -22,6 +22,7 @@ describe('api client', () => {
       expect.objectContaining({
         method: 'POST',
         body: JSON.stringify({ features: { heartbeats: true } }),
+        credentials: 'include',
       }),
     )
   })
@@ -44,7 +45,7 @@ describe('api client', () => {
     })
   })
 
-  it('creates an activity stream against the API prefix', () => {
+  it('creates an activity stream against the API prefix with credentials', () => {
     const eventSourceMock = vi.fn(function MockEventSource(this: { close: () => void }) {
       this.close = vi.fn()
     })
@@ -52,7 +53,10 @@ describe('api client', () => {
 
     const stream = createActivityStream(vi.fn())
 
-    expect(eventSourceMock).toHaveBeenCalledWith('/api/activity/stream')
+    expect(eventSourceMock).toHaveBeenCalledWith(
+      '/api/activity/stream',
+      expect.objectContaining({ withCredentials: true }),
+    )
     expect(stream).toBeDefined()
   })
 })

@@ -77,19 +77,17 @@ def _validate_production_security() -> None:
     if not os.environ.get("REALIZE_API_KEY"):
         violations.append(
             "REALIZE_API_KEY is required when REALIZE_ENV=production. "
-            "Generate one with: python -c \"import secrets; print(secrets.token_urlsafe(48))\""
+            'Generate one with: python -c "import secrets; print(secrets.token_urlsafe(48))"'
         )
 
     jwt_enabled = os.environ.get("REALIZE_JWT_ENABLED", "").lower() in ("true", "1", "yes")
     jwt_secret = os.environ.get("REALIZE_JWT_SECRET", "")
     if not jwt_enabled:
-        violations.append(
-            "REALIZE_JWT_ENABLED=true is required when REALIZE_ENV=production."
-        )
+        violations.append("REALIZE_JWT_ENABLED=true is required when REALIZE_ENV=production.")
     if len(jwt_secret) < 32:
         violations.append(
             "REALIZE_JWT_SECRET must be at least 32 characters when REALIZE_ENV=production. "
-            "Generate one with: python -c \"import secrets; print(secrets.token_urlsafe(48))\""
+            'Generate one with: python -c "import secrets; print(secrets.token_urlsafe(48))"'
         )
 
     cors_env = os.environ.get("CORS_ORIGINS", "")
@@ -107,9 +105,7 @@ def _validate_production_security() -> None:
 
     if violations:
         bullet_list = "\n  - " + "\n  - ".join(violations)
-        raise RuntimeError(
-            f"Production security validation failed ({len(violations)} issue(s)):{bullet_list}"
-        )
+        raise RuntimeError(f"Production security validation failed ({len(violations)} issue(s)):{bullet_list}")
 
 
 @asynccontextmanager
@@ -352,7 +348,8 @@ def create_app() -> FastAPI:
         app.add_middleware(AuthMiddleware, api_key=api_key, jwt_enabled=jwt_enabled)
         logger.info(
             "Auth middleware enabled (api_key=%s, jwt=%s)",
-            bool(api_key), jwt_enabled,
+            bool(api_key),
+            jwt_enabled,
         )
     else:
         logger.warning(

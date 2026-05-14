@@ -25,34 +25,37 @@ from __future__ import annotations
 import logging
 import os
 
+from realize_core.security import session_store
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse
-
-from realize_core.security import session_store
 
 logger = logging.getLogger(__name__)
 
 
 # Paths that bypass authentication entirely.
-_PUBLIC_API_PATHS = frozenset({
-    "/api/health",
-    "/api/status",
-    "/api/auth/login",
-    "/api/auth/session",   # SPA can ask "am I logged in?" without being logged in
-    "/api/auth/token",     # bootstraps a JWT pair from an API key
-    "/api/auth/refresh",   # refreshes a JWT using a refresh token (self-authenticating)
-})
+_PUBLIC_API_PATHS = frozenset(
+    {
+        "/api/health",
+        "/api/status",
+        "/api/auth/login",
+        "/api/auth/session",  # SPA can ask "am I logged in?" without being logged in
+        "/api/auth/token",  # bootstraps a JWT pair from an API key
+        "/api/auth/refresh",  # refreshes a JWT using a refresh token (self-authenticating)
+    }
+)
 
-_PUBLIC_NON_API_PATHS = frozenset({
-    "/health",
-    "/status",
-    "/docs",
-    "/openapi.json",
-    "/redoc",
-    "/favicon.svg",
-    "/icons.svg",
-})
+_PUBLIC_NON_API_PATHS = frozenset(
+    {
+        "/health",
+        "/status",
+        "/docs",
+        "/openapi.json",
+        "/redoc",
+        "/favicon.svg",
+        "/icons.svg",
+    }
+)
 
 _PUBLIC_PREFIXES = ("/assets/",)
 
@@ -152,7 +155,9 @@ class AuthMiddleware(BaseHTTPMiddleware):
         if not header or header != record.csrf_token:
             logger.warning(
                 "CSRF check failed on %s for user %s (header=%r)",
-                request.url.path, record.user_id, bool(header),
+                request.url.path,
+                record.user_id,
+                bool(header),
             )
             return JSONResponse(
                 status_code=403,

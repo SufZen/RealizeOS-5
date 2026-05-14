@@ -23,9 +23,9 @@ import os
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel
+from realize_core.security import session_store, users
 
 from realize_api.dependencies import CurrentUser, get_current_user
-from realize_core.security import session_store, users
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 logger = logging.getLogger(__name__)
@@ -43,14 +43,18 @@ def _cookie_secure() -> bool:
     deployments (Hetzner-IP-style) keep Secure off so the cookie actually
     works; the SameSite=Strict + HttpOnly settings still protect them.
     """
-    return os.environ.get("REALIZE_ENV", "").lower() == "production" and \
-        os.environ.get("REALIZE_FORCE_INSECURE_COOKIES", "").lower() not in ("1", "true", "yes")
+    return os.environ.get("REALIZE_ENV", "").lower() == "production" and os.environ.get(
+        "REALIZE_FORCE_INSECURE_COOKIES", ""
+    ).lower() not in ("1", "true", "yes")
 
 
 def _set_session_cookies(response: Response, record: session_store.SessionRecord) -> None:
     secure = _cookie_secure()
-    max_age = int(session_store.REMEMBER_ME_TTL.total_seconds()) if record.remember_me \
+    max_age = (
+        int(session_store.REMEMBER_ME_TTL.total_seconds())
+        if record.remember_me
         else int(session_store.DEFAULT_TTL.total_seconds())
+    )
 
     response.set_cookie(
         key=session_store.SESSION_COOKIE_NAME,
@@ -96,6 +100,7 @@ async def login(body: LoginRequest, request: Request, response: Response):
         # Audit the failed attempt — useful for rate-limit / brute-force triage.
         try:
             from realize_core.security.audit import get_audit_logger
+
             get_audit_logger().log(
                 user_id=(body.email or "unknown").strip().lower(),
                 action="auth_login_failed",
@@ -120,6 +125,7 @@ async def login(body: LoginRequest, request: Request, response: Response):
 
     try:
         from realize_core.security.audit import get_audit_logger
+
         get_audit_logger().log(
             user_id=user.email,
             action="auth_login",
@@ -144,6 +150,7 @@ async def logout(request: Request, response: Response):
     if revoked:
         try:
             from realize_core.security.audit import get_audit_logger
+
             get_audit_logger().log(
                 user_id=getattr(request.state, "user_id", "unknown"),
                 action="auth_logout",
@@ -242,6 +249,7 @@ async def create_token(body: TokenRequest):
 
         try:
             from realize_core.security.audit import get_audit_logger
+
             get_audit_logger().log_token_event(
                 user_id=body.user_id,
                 action="token_created",

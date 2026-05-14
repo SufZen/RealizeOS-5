@@ -31,7 +31,7 @@ from __future__ import annotations
 import logging
 import secrets
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from realize_core.db.schema import get_connection
 
@@ -67,12 +67,12 @@ class SessionRecord:
         """True when the session's expiry timestamp is in the past (UTC)."""
         expiry = datetime.fromisoformat(self.expires_at.replace("Z", "+00:00"))
         if expiry.tzinfo is None:
-            expiry = expiry.replace(tzinfo=timezone.utc)
-        return expiry < datetime.now(timezone.utc)
+            expiry = expiry.replace(tzinfo=UTC)
+        return expiry < datetime.now(UTC)
 
 
 def _now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="milliseconds")
+    return datetime.now(UTC).isoformat(timespec="milliseconds")
 
 
 def _row_to_record(row) -> SessionRecord:
@@ -108,7 +108,7 @@ def create_session(
     session_id = secrets.token_urlsafe(32)
     csrf_token = secrets.token_urlsafe(32)
     ttl = REMEMBER_ME_TTL if remember_me else DEFAULT_TTL
-    expires_at = datetime.now(timezone.utc) + ttl
+    expires_at = datetime.now(UTC) + ttl
 
     conn = get_connection()
     try:
