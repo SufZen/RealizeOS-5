@@ -1,0 +1,46 @@
+# Version Bump — automated semantic versioning from Conventional Commits
+# Runs on push to main (after PR merge). Creates a version tag which
+# triggers release.yml for the full publish pipeline.
+#
+# Flow: push to main → semantic-release → v*.*.* tag → release.yml
+#       (version bump)                     (Docker, npm, PyPI, GH Release)
+
+name: Version Bump
+
+on:
+  push:
+    branches: [main]
+    # Don't run on release commits from semantic-release itself
+    paths-ignore:
+      - 'CHANGELOG.md'
+
+permissions:
+  contents: write   # push version commits + tags
+  issues: write     # comment on resolved issues
+  pull-requests: write
+
+jobs:
+  release:
+    name: Semantic Release
+    runs-on: ubuntu-latest
+    # Skip if the commit message contains [skip ci] (release commits)
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for semantic-release
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run semantic-release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx semantic-release

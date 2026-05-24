@@ -1,9 +1,11 @@
 # Changelog
 
 All notable changes to RealizeOS are documented in this file.
+This changelog is automatically generated from [Conventional Commits](https://conventionalcommits.org).
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+> **Note:** Starting after v5.2.1, versions are automatically determined from
+> Conventional Commits via [semantic-release](https://github.com/semantic-release/semantic-release).
+> Entries below v5.2.1 were manually authored.
 
 ## [5.2.1] - 2026-05-14
 
