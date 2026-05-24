@@ -7,7 +7,6 @@ import { CreateVentureModal } from '@/components/create-venture-modal'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { Skeleton, SkeletonCard } from '@/components/ui/skeleton'
 import { api } from '@/lib/api'
-import { cn } from '@/lib/utils'
 
 interface VenturesResponse {
   ventures: Array<{
@@ -84,7 +83,7 @@ export default function VenturesListPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 rz-animate-fade-up">
       {errorMessage && (
         <div className="bg-red-500/10 text-red-400 p-3 rounded-lg flex items-center gap-2 text-sm border border-red-500/20">
           <AlertCircle className="h-4 w-4" />
@@ -98,10 +97,7 @@ export default function VenturesListPage() {
         </div>
         <button
           onClick={() => setShowCreate(true)}
-          className={cn(
-            'flex items-center gap-2 px-4 py-2 text-sm rounded-lg font-medium transition-colors',
-            'bg-brand-400 text-black hover:bg-brand-400/90',
-          )}
+          className="rz-btn rz-btn--primary fx-glow-hover"
         >
           <Plus className="h-4 w-4" />
           Create Venture
@@ -143,8 +139,9 @@ export default function VenturesListPage() {
       </div>
 
       {data?.ventures.length === 0 && (
-        <div className="flex flex-col items-center justify-center py-16 text-center">
-          <Briefcase className="h-12 w-12 text-muted-foreground/30 mb-4" />
+        <div className="flex flex-col items-center justify-center py-16 text-center relative">
+          <div className="fx-dot-grid absolute inset-0 pointer-events-none rounded-xl" />
+          <Briefcase className="h-12 w-12 text-muted-foreground/30 mb-4 rz-animate-float relative z-10" />
           <p className="text-muted-foreground text-sm mb-4">No ventures configured yet.</p>
           <button
             onClick={() => setShowCreate(true)}

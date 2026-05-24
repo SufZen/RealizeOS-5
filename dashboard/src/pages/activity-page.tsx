@@ -94,7 +94,7 @@ export default function ActivityPage() {
   const totalCount = extractTotal(data)
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 rz-animate-fade-up">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Activity className="h-6 w-6 text-brand-400" />

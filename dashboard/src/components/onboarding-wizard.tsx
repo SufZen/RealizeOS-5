@@ -176,12 +176,12 @@ function ProviderInput({
           <div className="flex items-center gap-2">
             <h3 className="text-sm font-semibold text-foreground">{provider.name}</h3>
             {provider.recommended && !saved && (
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-brand-400/10 text-brand-400 font-medium">
+              <span className="rz-badge rz-badge--accent">
                 Recommended
               </span>
             )}
             {saved && (
-              <span className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-green-400/10 text-green-400 font-medium">
+              <span className="rz-badge rz-badge--success">
                 <Check className="h-3 w-3" />
                 Connected
               </span>
@@ -279,19 +279,21 @@ export default function OnboardingWizard({ onComplete }: { onComplete: () => voi
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-background overflow-y-auto">
-      <div className="w-full max-w-2xl mx-auto p-6">
+      <div className="fx-dot-grid absolute inset-0 pointer-events-none" />
+      <div className="fx-radial-halo" />
+      <div className="w-full max-w-2xl mx-auto p-6 relative z-10">
         {/* Step 0: Welcome */}
         {step === 0 && (
-          <div className="text-center space-y-8 animate-in fade-in duration-500">
+          <div className="text-center space-y-8 rz-animate-fade-up">
             {/* Logo */}
             <div className="flex items-center justify-center gap-3">
-              <div className="flex items-center justify-center w-16 h-16 rounded-2xl bg-brand-400/10">
+              <div className="flex items-center justify-center w-16 h-16 rounded-2xl bg-brand-400/10 rz-animate-float">
                 <Bot className="h-9 w-9 text-brand-400" />
               </div>
             </div>
 
             <div>
-              <h1 className="text-3xl font-bold text-foreground tracking-tight">
+              <h1 className="text-3xl font-bold tracking-tight fx-gradient-text fx-text-glow">
                 Welcome to RealizeOS
               </h1>
               <p className="text-muted-foreground mt-2 max-w-md mx-auto">
@@ -303,7 +305,7 @@ export default function OnboardingWizard({ onComplete }: { onComplete: () => voi
             {/* Feature highlights */}
             <div className="grid grid-cols-2 gap-4 max-w-lg mx-auto text-left">
               {FEATURES.map((f) => (
-                <div key={f.title} className="flex items-start gap-3 rounded-xl border border-border bg-card p-4">
+                <div key={f.title} className="flex items-start gap-3 rz-card p-4">
                   <f.icon className="h-5 w-5 text-brand-400 mt-0.5 shrink-0" />
                   <div>
                     <h3 className="text-sm font-semibold text-foreground">{f.title}</h3>
@@ -316,7 +318,7 @@ export default function OnboardingWizard({ onComplete }: { onComplete: () => voi
             <div className="pt-2">
               <button
                 onClick={() => setStep(1)}
-                className="inline-flex items-center gap-2 px-6 py-3 text-sm rounded-xl bg-brand-400 text-black hover:bg-brand-400/90 font-semibold transition-all hover:scale-[1.02] active:scale-[0.98]"
+                className="rz-btn rz-btn--primary rz-btn--lg fx-glow-hover"
               >
                 Get Started
                 <ArrowRight className="h-4 w-4" />
@@ -329,7 +331,7 @@ export default function OnboardingWizard({ onComplete }: { onComplete: () => voi
 
         {/* Step 1: Connect LLM Provider */}
         {step === 1 && (
-          <div className="space-y-6 animate-in fade-in duration-500">
+          <div className="space-y-6 rz-animate-fade-up">
             <div className="text-center">
               <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-brand-400/10 mx-auto mb-4">
                 <Plug className="h-6 w-6 text-brand-400" />
@@ -385,9 +387,9 @@ export default function OnboardingWizard({ onComplete }: { onComplete: () => voi
 
         {/* Step 2: All Done */}
         {step === 2 && (
-          <div className="text-center space-y-8 animate-in fade-in duration-500">
+          <div className="text-center space-y-8 rz-animate-fade-up">
             <div className="flex items-center justify-center">
-              <div className="relative">
+              <div className="relative rz-animate-popup-in">
                 <div className="flex items-center justify-center w-20 h-20 rounded-full bg-green-400/10">
                   <Rocket className="h-10 w-10 text-green-400" />
                 </div>

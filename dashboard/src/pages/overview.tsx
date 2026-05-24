@@ -19,7 +19,7 @@ interface DashboardData {
 
 function StatCard({ label, value, icon: Icon }: { label: string; value: number; icon: typeof Users }) {
   return (
-    <div className="rounded-xl border border-border bg-card p-4">
+    <div className="rounded-xl border border-border p-4 fx-glass-card">
       <div className="flex items-center justify-between">
         <span className="text-xs text-muted-foreground">{label}</span>
         <Icon className="h-4 w-4 text-muted-foreground" />
@@ -90,7 +90,7 @@ export default function OverviewPage() {
   const totalAgents = Object.values(data.agent_summary).reduce((a, b) => a + b, 0)
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 rz-animate-fade-up">
       <div className="flex items-center gap-2">
         <LayoutDashboard className="h-6 w-6 text-brand-400" />
         <h1 className="text-2xl font-bold text-foreground">Overview</h1>
@@ -98,7 +98,7 @@ export default function OverviewPage() {
 
       {/* First-run banner */}
       {data.venture_count === 0 && totalAgents === 0 && (
-        <div className="rounded-xl border border-brand-400/30 bg-brand-400/5 p-5 flex items-center justify-between gap-4">
+        <div className="rounded-xl p-5 flex items-center justify-between gap-4 fx-animated-border">
           <div>
             <div className="flex items-center gap-2 mb-1">
               <Plug className="h-5 w-5 text-brand-400" />

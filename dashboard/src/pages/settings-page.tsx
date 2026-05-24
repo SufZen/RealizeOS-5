@@ -115,7 +115,7 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="space-y-6 max-w-3xl">
+    <div className="space-y-6 max-w-3xl rz-animate-fade-up">
       <h1 className="text-2xl font-bold text-foreground">Settings</h1>
 
       {status && <StatusBanner message={status.message} type={status.type} />}

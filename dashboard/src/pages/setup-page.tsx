@@ -280,7 +280,7 @@ export default function SetupPage() {
     .filter((g) => g.connections.length > 0)
 
   return (
-    <div className="space-y-6 max-w-4xl">
+    <div className="space-y-6 max-w-4xl rz-animate-fade-up">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Plug className="h-6 w-6 text-brand-400" />

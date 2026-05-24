@@ -125,14 +125,14 @@ function Logo() {
   return (
     <div className="flex items-center gap-2 px-2 mb-8">
       <Bot className="h-8 w-8 text-brand-400" />
-      <span className="text-xl font-bold text-foreground tracking-tight">RealizeOS</span>
+      <span className="text-xl font-bold tracking-tight fx-gradient-text fx-text-glow">RealizeOS</span>
     </div>
   )
 }
 
 function DesktopSidebar() {
   return (
-    <aside className="hidden md:flex w-64 flex-col border-r border-border bg-surface-950 p-4">
+    <aside className="hidden md:flex w-64 flex-col border-r border-border bg-surface-950 fx-glass p-4">
       <Logo />
       <NavContent />
       <div className="mt-auto pt-4 border-t border-border" data-tour="theme-toggle">
@@ -144,10 +144,10 @@ function DesktopSidebar() {
 
 function MobileHeader({ onToggle }: { onToggle: () => void }) {
   return (
-    <header className="flex md:hidden items-center justify-between border-b border-border bg-surface-950 px-4 py-3">
+    <header className="flex md:hidden items-center justify-between border-b border-border bg-surface-950 fx-glass px-4 py-3">
       <div className="flex items-center gap-2">
         <Bot className="h-6 w-6 text-brand-400" />
-        <span className="text-lg font-bold text-foreground">RealizeOS</span>
+        <span className="text-lg font-bold fx-gradient-text">RealizeOS</span>
       </div>
       <button
         onClick={onToggle}
@@ -174,9 +174,9 @@ function MobileSheet({ open, onClose }: { open: boolean; onClose: () => void }) 
 
   return (
     <>
-      <div className="fixed inset-0 z-40 bg-black/60" onClick={onClose} />
+      <div className="fixed inset-0 z-40" style={{ background: 'var(--rz-overlay)' }} onClick={onClose} />
       <div
-        className="fixed inset-y-0 left-0 z-50 w-72 bg-surface-950 border-r border-border p-4 shadow-xl"
+        className="fixed inset-y-0 left-0 z-50 w-72 bg-surface-950 fx-glass border-r border-border p-4 shadow-xl rz-animate-slide-in-right"
         role="dialog"
         aria-modal="true"
         aria-label="Navigation menu"
@@ -215,16 +215,18 @@ function PageSkeleton() {
 
 function NotFoundPage() {
   return (
-    <div className="flex flex-1 items-center justify-center p-8">
-      <div className="text-center max-w-md">
-        <div className="text-6xl font-bold text-muted-foreground/20 mb-4">404</div>
+    <div className="flex flex-1 items-center justify-center p-8 relative">
+      <div className="fx-dot-grid absolute inset-0 pointer-events-none" />
+      <div className="fx-radial-halo" />
+      <div className="text-center max-w-md relative z-10 rz-animate-fade-up">
+        <div className="text-6xl font-bold fx-gradient-text mb-4">404</div>
         <h2 className="text-xl font-bold text-foreground mb-2">Page not found</h2>
         <p className="text-sm text-muted-foreground mb-4">
           The page you are looking for does not exist or has been moved.
         </p>
         <NavLink
           to="/"
-          className="inline-flex px-4 py-2 text-sm rounded-lg bg-brand-400 text-black hover:bg-brand-400/90 font-medium"
+          className="rz-btn rz-btn--primary fx-glow-hover"
         >
           Go to Overview
         </NavLink>
@@ -258,13 +260,13 @@ class ErrorBoundary extends Component<{ children: ReactNode; resetKey?: string }
             <div className="flex gap-3 justify-center">
               <button
                 onClick={() => this.setState({ hasError: false, error: '' })}
-                className="px-4 py-2 text-sm rounded-lg bg-brand-400 text-black hover:bg-brand-400/90 font-medium"
+                className="rz-btn rz-btn--primary fx-glow-hover"
               >
                 Retry
               </button>
               <button
                 onClick={() => window.location.reload()}
-                className="px-4 py-2 text-sm rounded-lg border border-border text-foreground hover:bg-surface-700 font-medium"
+                className="rz-btn rz-btn--secondary"
               >
                 Reload Page
               </button>

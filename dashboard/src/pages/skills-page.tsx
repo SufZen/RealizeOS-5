@@ -75,7 +75,7 @@ export default function SkillsPage() {
     : data.skills
 
   return (
-    <div className="space-y-6 max-w-4xl">
+    <div className="space-y-6 max-w-4xl rz-animate-fade-up">
       <div className="flex items-center gap-2">
         <BookOpen className="h-6 w-6 text-brand-400" />
         <h1 className="text-2xl font-bold text-foreground">Skill Library</h1>

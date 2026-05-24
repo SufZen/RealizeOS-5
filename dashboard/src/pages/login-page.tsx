@@ -48,11 +48,15 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <div className="w-full max-w-sm rounded-2xl border border-border bg-surface-950 p-8 shadow-xl">
+    <div className="flex min-h-screen items-center justify-center bg-background px-4 relative overflow-hidden">
+      {/* Design system ambient effects */}
+      <div className="fx-dot-grid absolute inset-0 pointer-events-none" />
+      <div className="fx-radial-halo" />
+
+      <div className="w-full max-w-sm rounded-2xl border border-border p-8 fx-glass-card relative z-10 rz-animate-fade-up" style={{ boxShadow: 'var(--rz-shadow-3)' }}>
         <div className="mb-6 flex items-center gap-2">
           <Bot className="h-8 w-8 text-brand-400" />
-          <span className="text-xl font-bold tracking-tight text-foreground">RealizeOS</span>
+          <span className="text-xl font-bold tracking-tight fx-gradient-text fx-text-glow">RealizeOS</span>
         </div>
         <h1 className="mb-1 text-lg font-semibold text-foreground">Sign in</h1>
         <p className="mb-6 text-sm text-muted-foreground">Access your operations dashboard.</p>
@@ -70,7 +74,7 @@ export default function LoginPage() {
               autoFocus
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/60 focus:border-brand-400 focus:outline-none"
+              className="rz-input"
               placeholder="owner@example.com"
             />
           </div>
@@ -86,7 +90,7 @@ export default function LoginPage() {
               autoComplete="current-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-brand-400 focus:outline-none"
+              className="rz-input"
             />
           </div>
 
@@ -109,7 +113,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={submitting}
-            className="flex w-full items-center justify-center gap-2 rounded-lg bg-brand-400 px-4 py-2 text-sm font-medium text-black hover:bg-brand-400/90 disabled:cursor-not-allowed disabled:opacity-60"
+            className="rz-btn rz-btn--primary rz-btn--lg w-full fx-glow-hover"
           >
             <LogIn className="h-4 w-4" />
             {submitting ? 'Signing in…' : 'Sign in'}
@@ -117,8 +121,8 @@ export default function LoginPage() {
         </form>
 
         <p className="mt-6 text-center text-xs text-muted-foreground">
-          New deployment? See <code className="rounded bg-surface-700 px-1.5 py-0.5">users.yaml.example</code> and{' '}
-          <code className="rounded bg-surface-700 px-1.5 py-0.5">scripts/hash_password.py</code>.
+          New deployment? See <code className="rz-code" style={{ display: 'inline', margin: 0, padding: '2px 6px', fontSize: 'inherit' }}>users.yaml.example</code> and{' '}
+          <code className="rz-code" style={{ display: 'inline', margin: 0, padding: '2px 6px', fontSize: 'inherit' }}>scripts/hash_password.py</code>.
         </p>
       </div>
     </div>

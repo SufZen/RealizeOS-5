@@ -164,7 +164,7 @@ export default function VentureDetailPage() {
   if (!data) return null
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 rz-animate-fade-up">
       {/* Header */}
       <div>
         <button

@@ -203,7 +203,7 @@ export default function PipelineBuilderPage() {
   /* ---- Render ---- */
 
   return (
-    <div className="space-y-6 max-w-5xl">
+    <div className="space-y-6 max-w-5xl rz-animate-fade-up">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -295,8 +295,9 @@ export default function PipelineBuilderPage() {
           {/* Pipeline canvas */}
           <div className="rounded-xl border border-border bg-card p-5 min-h-[200px]">
             {pipeline.steps.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-40 text-muted-foreground gap-2">
-                <GitBranch className="h-8 w-8 opacity-30" />
+              <div className="flex flex-col items-center justify-center h-40 text-muted-foreground gap-2 relative">
+                <div className="fx-dot-grid absolute inset-0 pointer-events-none rounded-xl" />
+                <GitBranch className="h-8 w-8 opacity-30 rz-animate-float relative z-10" />
                 <p className="text-sm">Add steps to build your agent pipeline</p>
                 <p className="text-xs">Steps execute in sequence — each step's output feeds into the next</p>
               </div>

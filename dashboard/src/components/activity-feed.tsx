@@ -48,7 +48,7 @@ export function ActivityFeed({ events, maxItems = 20, className }: ActivityFeedP
   if (visible.length === 0) {
     return (
       <div className={cn('text-center py-8 text-muted-foreground text-sm', className)}>
-        <Activity className="h-8 w-8 mx-auto mb-2 opacity-50" />
+        <Activity className="h-8 w-8 mx-auto mb-2 opacity-50 rz-animate-float" />
         No activity yet
       </div>
     )

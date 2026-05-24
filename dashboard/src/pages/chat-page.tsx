@@ -216,7 +216,7 @@ export default function ChatPage() {
       <div className="flex-1 overflow-y-auto py-6 space-y-4">
         {messages.length === 0 && !sending && (
           <div className="flex flex-col items-center justify-center h-full text-center">
-            <div className="text-4xl mb-4 opacity-20">💬</div>
+            <div className="text-4xl mb-4 opacity-20 rz-animate-float">💬</div>
             <h2 className="text-lg font-medium text-foreground mb-1">Start a conversation</h2>
             <p className="text-sm text-muted-foreground max-w-md">
               {selectedVenture
@@ -243,7 +243,7 @@ export default function ChatPage() {
       </div>
 
       {/* Input */}
-      <div className="shrink-0 border-t border-border pt-4">
+      <div className="shrink-0 border-t border-border pt-4 fx-glass" style={{ margin: '0 -24px', padding: '16px 24px 0' }}>
         <div className="flex gap-3 max-w-3xl">
           <textarea
             ref={inputRef}

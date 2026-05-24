@@ -333,7 +333,7 @@ function TourOverlay({ step, stepIndex, totalSteps, onNext, onPrev, onSkip }: To
             top: rect.top - pad,
             width: rect.width + pad * 2,
             height: rect.height + pad * 2,
-            boxShadow: '0 0 0 4px rgba(255, 204, 0, 0.15), 0 0 24px rgba(255, 204, 0, 0.1)',
+            boxShadow: 'var(--rz-shadow-3), 0 0 0 4px var(--rz-glow-subtle), 0 0 24px var(--rz-glow-subtle)',
             transition: 'all 0.3s ease',
           }}
         />
@@ -344,7 +344,7 @@ function TourOverlay({ step, stepIndex, totalSteps, onNext, onPrev, onSkip }: To
 
       {/* Popover  */}
       <div
-        className="fixed z-[10000] w-80 rounded-xl border border-border bg-card shadow-2xl p-5"
+        className="fixed z-[10000] w-80 rounded-xl border border-border p-5 fx-glass-card rz-animate-popup-in"
         style={popoverStyle}
         onClick={(e) => e.stopPropagation()}
       >
@@ -399,7 +399,7 @@ function TourOverlay({ step, stepIndex, totalSteps, onNext, onPrev, onSkip }: To
             )}
             <button
               onClick={onNext}
-              className="flex items-center gap-1 px-3 py-1.5 text-xs rounded-lg bg-brand-400 text-black hover:bg-brand-400/90 font-medium transition-colors"
+              className="rz-btn rz-btn--primary rz-btn--sm"
             >
               {isLast ? 'Finish' : 'Next'}
               {!isLast && <ChevronRight className="h-3 w-3" />}

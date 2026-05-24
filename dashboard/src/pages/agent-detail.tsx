@@ -194,7 +194,7 @@ export default function AgentDetailPage() {
   const isError = data.status === 'error'
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 rz-animate-fade-up">
       {/* Header */}
       <div>
         <button

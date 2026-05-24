@@ -38,13 +38,13 @@ export default function ApprovalsPage() {
   const approvals = data?.approvals ?? []
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 rz-animate-fade-up">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <ShieldCheck className="h-6 w-6 text-brand-400" />
           <h1 className="text-2xl font-bold text-foreground">Approvals</h1>
           {approvals.length > 0 && (
-            <span className="text-xs bg-brand-400/10 text-brand-400 px-2 py-0.5 rounded-full font-medium">
+            <span className="rz-badge rz-badge--accent">
               {approvals.length} pending
             </span>
           )}
@@ -59,7 +59,7 @@ export default function ApprovalsPage() {
 
       {approvals.length === 0 ? (
         <div className="text-center py-16">
-          <ShieldCheck className="h-12 w-12 text-muted-foreground/30 mx-auto mb-3" />
+          <ShieldCheck className="h-12 w-12 text-muted-foreground/30 mx-auto mb-3 rz-animate-float" />
           <p className="text-muted-foreground">No pending approvals</p>
           <p className="text-xs text-muted-foreground/70 mt-1">
             Approvals appear here when agents attempt gated actions

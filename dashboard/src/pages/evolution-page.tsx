@@ -63,13 +63,13 @@ export default function EvolutionPage() {
   const decided = suggestions.filter((s) => s.status !== 'pending')
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 rz-animate-fade-up">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Sparkles className="h-6 w-6 text-brand-400" />
           <h1 className="text-2xl font-bold text-foreground">Evolution Inbox</h1>
           {data && data.pending > 0 && (
-            <span className="text-xs bg-brand-400/10 text-brand-400 px-2 py-0.5 rounded-full font-medium">
+            <span className="rz-badge rz-badge--accent">
               {data.pending} pending
             </span>
           )}
@@ -84,7 +84,7 @@ export default function EvolutionPage() {
 
       {suggestions.length === 0 ? (
         <div className="text-center py-16">
-          <Sparkles className="h-12 w-12 text-muted-foreground/30 mx-auto mb-3" />
+          <Sparkles className="h-12 w-12 text-muted-foreground/30 mx-auto mb-3 rz-animate-float" />
           <p className="text-muted-foreground">No evolution suggestions</p>
           <p className="text-xs text-muted-foreground/70 mt-1">
             Suggestions appear here when the evolution engine detects gaps or improvements
