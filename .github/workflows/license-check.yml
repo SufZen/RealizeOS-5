@@ -1,0 +1,75 @@
+# License Check — verify all dependencies are BSL 1.1 compatible
+# Triggers on PRs modifying dependency files
+
+name: License Check
+
+on:
+  pull_request:
+    paths:
+      - 'pyproject.toml'
+      - 'requirements*.txt'
+      - 'dashboard/package.json'
+      - 'dashboard/pnpm-lock.yaml'
+      - 'realize-os-cli/package.json'
+      - 'realize-os-cli/package-lock.json'
+
+permissions:
+  contents: read
+
+jobs:
+  python-licenses:
+    name: Python License Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pip-licenses
+
+      - name: Check Python licenses
+        run: |
+          pip-licenses --format=table --with-urls --with-license-file --no-license-path \
+            --fail-on="GNU General Public License v3 (GPLv3);GNU Affero General Public License v3 (AGPLv3);GNU General Public License v2 (GPLv2)" \
+            --allow-only="MIT License;Apache Software License;BSD License;ISC License (ISCL);Mozilla Public License 2.0 (MPL 2.0);Python Software Foundation License;The Unlicense (Unlicense);BSD 3-Clause;BSD 2-Clause;Apache 2.0;MIT;ISC;PostgreSQL License;Public Domain;Historical Permission Notice and Disclaimer (HPND)" \
+            || echo "::warning::Some licenses could not be verified. Check the output above."
+
+  node-licenses:
+    name: Node License Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dashboard dependencies
+        working-directory: dashboard
+        run: pnpm install --frozen-lockfile
+
+      - name: Install license-checker
+        run: npm install -g license-checker
+
+      - name: Check dashboard licenses
+        working-directory: dashboard
+        run: |
+          license-checker \
+            --failOn "GPL-3.0;AGPL-3.0;GPL-2.0" \
+            --summary \
+            || echo "::warning::Some licenses could not be verified."

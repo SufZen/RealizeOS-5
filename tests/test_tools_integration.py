@@ -41,7 +41,7 @@ class TestToolRegistry:
         """auto_discover must include all known tool modules."""
         from realize_core.tools.tool_registry import ToolRegistry
 
-        _registry = ToolRegistry.__new__(ToolRegistry)  # noqa: F841
+        _registry = ToolRegistry.__new__(ToolRegistry)
         # We need to check the hardcoded list includes the modules we added
         import inspect
 

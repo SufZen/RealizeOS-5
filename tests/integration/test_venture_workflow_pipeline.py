@@ -136,12 +136,14 @@ class TestVentureScaffold:
         """Verify scaffold_venture raises when template not found."""
         from realize_core.scaffold import scaffold_venture
 
-        with patch(
-            "realize_core.scaffold._find_venture_template",
-            return_value=None,
+        with (
+            patch(
+                "realize_core.scaffold._find_venture_template",
+                return_value=None,
+            ),
+            pytest.raises(FileNotFoundError, match="template"),
         ):
-            with pytest.raises(FileNotFoundError, match="template"):
-                scaffold_venture(project_root, "no-template-venture")
+            scaffold_venture(project_root, "no-template-venture")
 
 
 class TestVentureDelete:
@@ -357,7 +359,7 @@ class TestWorkflowLoadWarning:
 
         # The fix ensures invalid types default to PROMPT with a warning
         try:
-            _nt = NodeType("nonexistent_type")  # noqa: F841
+            _nt = NodeType("nonexistent_type")
             assert False, "Should have raised ValueError"
         except ValueError:
             # That's expected — the load_workflow code catches this

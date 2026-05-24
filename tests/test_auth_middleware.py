@@ -26,8 +26,6 @@ def app_env(monkeypatch):
 
     monkeypatch.setenv("REALIZE_ADMIN_PASSWORD_HASH", hash_password("correct-horse"))
 
-    yield
-
 
 @pytest.fixture
 def client(app_env):

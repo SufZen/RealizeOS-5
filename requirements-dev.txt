@@ -5,3 +5,9 @@ pytest-cov
 setuptools>=68.0
 build
 wheel
+# Phase C quality gates
+mypy
+types-PyYAML
+types-aiofiles
+hypothesis
+pytest-recording

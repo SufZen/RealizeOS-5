@@ -46,7 +46,18 @@ dependencies = [
 [project.optional-dependencies]
 openai = ["openai>=1.30.0"]
 gws = ["google-api-python-client>=2.100.0", "google-auth-oauthlib>=1.2.0"]
-dev = ["pytest", "pytest-asyncio", "pytest-cov", "ruff", "bandit[toml]"]
+dev = [
+    "pytest",
+    "pytest-asyncio",
+    "pytest-cov",
+    "ruff",
+    "bandit[toml]",
+    "mypy",
+    "types-PyYAML",
+    "types-aiofiles",
+    "hypothesis",
+    "pytest-recording",
+]
 
 [project.scripts]
 realize-os = "realize_core.cli_app:main"
@@ -73,6 +84,11 @@ asyncio_mode = "auto"
 markers = [
     "slow: marks tests that take a long time (deselect with '-m \"not slow\"')",
     "integration: marks tests that require external services",
+    "unit: fast, isolated unit tests",
+    "contract: contract conformance tests",
+    "property: property-based tests via hypothesis",
+    "e2e: end-to-end browser tests",
+    "live_llm: tests requiring real LLM API calls",
 ]
 
 [tool.ruff]
@@ -81,14 +97,91 @@ line-length = 120
 src = ["realize_core", "realize_api", "tests"]
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I", "N", "UP"]
-ignore = [
-    "E501",   # line too long (handled by formatter)
-    "N802",   # function name should be lowercase (test classes)
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # pyflakes
+    "I",      # isort
+    "N",      # pep8-naming
+    "UP",     # pyupgrade
+    "B",      # bugbear
+    "C4",     # comprehensions
+    "RUF",    # ruff-specific
+    "ASYNC",  # async best practices
+    "S",      # security (bandit via ruff)
+    "T20",    # no print statements in library code
+    "TID",    # tidy imports
+    "PT",     # pytest style
+    "SIM",    # simplifications
+    "PL",     # pylint subset
 ]
+ignore = [
+    "E501",     # line too long (handled by formatter)
+    "N802",     # function name should be lowercase (test classes)
+    "PLR0913",  # too many arguments (flexibility needed)
+    "PLR2004",  # magic value comparison (common in tests, allowed globally for now)
+    "PLC0415",  # import-outside-top-level (lazy imports for optional deps — intentional pattern)
+    "PLW0603",  # global-statement (used for config singletons — established pattern)
+    "PLR0911",  # too-many-return-statements (existing code, refactor later)
+    "PLR0912",  # too-many-branches (existing code, refactor later)
+    "PLR0915",  # too-many-statements (existing code, refactor later)
+    "RUF013",   # implicit-optional (Python convention, will fix when mypy enforced globally)
+    "S110",     # try-except-pass (intentional for optional feature checks)
+    # ── TODO: un-ignore these one-by-one in future PRs ──
+    # Priority 1 — real bugs / security (fix first)
+    "B904",     # raise-without-from-inside-except (48 hits)
+    "PLW1510",  # subprocess-run-without-check (9 hits)
+    "ASYNC240", # blocking-path-method-in-async-function (26 hits)
+    "ASYNC109", # async-function-with-timeout (7 hits)
+    "ASYNC230", # blocking-open-call-in-async-function (5 hits)
+    "RUF006",   # asyncio-dangling-task (2 hits)
+    "B905",     # zip-without-explicit-strict (3 hits)
+    "S603",     # subprocess-without-shell-equals-true (11 hits — false positives in prod code)
+    "S608",     # hardcoded-sql-expression (10 hits — parametrized queries, not injectable)
+    "S105",     # hardcoded-password-string (8 hits — defaults and test fixtures)
+    "S106",     # hardcoded-password-func-arg (5 hits — defaults and test fixtures)
+    "S107",     # hardcoded-password-default (2 hits — defaults)
+    "S607",     # start-process-with-partial-path (5 hits)
+    "S602",     # subprocess-popen-with-shell-equals-true (2 hits)
+    "S104",     # hardcoded-bind-all-interfaces (1 hit — MCP server intentional)
+    "S306",     # suspicious-mktemp-usage (1 hit)
+    "S314",     # suspicious-xml-element-tree-usage (1 hit)
+    # Priority 2 — style/cosmetic (fix opportunistically)
+    "RUF059",   # unused-unpacked-variable (15 hits)
+    "SIM105",   # suppressible-exception (15 hits)
+    "SIM108",   # if-else-block-instead-of-if-exp (13 hits)
+    "SIM117",   # multiple-with-statements (4 hits)
+    "SIM103",   # needless-bool (2 hits)
+    "B007",     # unused-loop-control-variable (11 hits)
+    "B011",     # assert-false (1 hit)
+    "SIM102",   # collapsible-if (10 hits)
+    "PLW2901",  # redefined-loop-name (7 hits)
+    "PLW0602",  # global-variable-not-assigned (3 hits)
+    "PLW0108",  # unnecessary-lambda (4 hits)
+    "PLR1714",  # repeated-equality-comparison (1 hit)
+    "RUF002",   # ambiguous-unicode-character-docstring (6 hits — Hebrew/Portuguese chars)
+    "RUF003",   # ambiguous-unicode-character-comment (2 hits)
+    "RUF005",   # collection-literal-concatenation (5 hits)
+    "RUF015",   # unnecessary-iterable-allocation-for-first-element (1 hit)
+    "RUF022",   # unsorted-dunder-all (3 hits — unsafe fix only)
+    "C401",     # unnecessary-generator-set (2 hits)
+    "C416",     # unnecessary-comprehension (1 hit)
+    "PT006",    # pytest-parametrize-names-wrong-type (3 hits)
+    "PT015",    # pytest-assert-always-false (1 hit)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*" = ["S101", "S105", "S106", "S108", "S311", "S603", "S607", "S608", "T20", "PLR0913", "B008", "B017", "B018", "PT011", "RUF043"]
+"cli.py" = ["T20"]  # CLI uses print statements
+"realize_core/cli_app/**" = ["T20"]  # CLI uses print statements
+"realize_core/setup_wizard.py" = ["T20"]
+"realize_core/scaffold.py" = ["T20"]
+"realize_api/**" = ["B008"]  # FastAPI Depends() in function defaults is idiomatic
+"realize_core/mcp_server/**" = ["S104"]  # MCP server binds 0.0.0.0 intentionally
 
 [tool.ruff.format]
 quote-style = "double"
+indent-style = "space"
 
 [tool.coverage.run]
 source = ["realize_core"]
@@ -100,13 +193,50 @@ omit = [
 
 [tool.coverage.report]
 show_missing = true
-fail_under = 50
+fail_under = 61
 exclude_lines = [
     "pragma: no cover",
     "if __name__",
     "logger\\.",
     "except ImportError",
 ]
+
+# ── mypy ──────────────────────────────────────────────
+# Starting lenient; ratchet up over time per the Phase C plan.
+# Phase C initial scope: realize_core/storage/ and realize_core/llm/
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+check_untyped_defs = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+# Start lenient — don't require type annotations on every function yet
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+
+[[tool.mypy.overrides]]
+module = ["tests.*"]
+disallow_untyped_defs = false
+check_untyped_defs = false
+
+# Ignore missing stubs for third-party libs without type info
+[[tool.mypy.overrides]]
+module = [
+    "anthropic.*",
+    "google.generativeai.*",
+    "sse_starlette.*",
+    "prompt_toolkit.*",
+    "tomli_w.*",
+    "bcrypt.*",
+    "aiofiles.*",
+    "vcr.*",
+    "hypothesis.*",
+]  
+ignore_missing_imports = true
 
 [tool.bandit]
 targets = ["realize_core", "realize_api"]

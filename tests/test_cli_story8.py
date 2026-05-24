@@ -112,7 +112,7 @@ class TestREPLSlashCommands:
 
 
 class TestConfigShowSetUnset:
-    @pytest.fixture()
+    @pytest.fixture
     def cfg_dir(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         """Create a temp directory with a realize-os.yaml."""
         monkeypatch.chdir(tmp_path)

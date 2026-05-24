@@ -121,24 +121,25 @@ class TestJWTHardening:
         """Weak secrets should raise in production mode."""
         from realize_core.security.jwt_auth import WeakSecretError, create_token
 
-        with patch.dict(os.environ, {"REALIZE_ENV": "production"}):
-            with pytest.raises(WeakSecretError):
-                create_token("user1", secret="short")
+        with patch.dict(os.environ, {"REALIZE_ENV": "production"}), pytest.raises(WeakSecretError):
+            create_token("user1", secret="short")
 
     def test_dev_secret_in_production(self):
         """Dev fallback secret should raise in production mode."""
         from realize_core.security.jwt_auth import WeakSecretError, create_token
 
-        with patch.dict(
-            os.environ,
-            {
-                "REALIZE_ENV": "production",
-                "REALIZE_JWT_SECRET": "",
-                "REALIZE_API_KEY": "",
-            },
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "REALIZE_ENV": "production",
+                    "REALIZE_JWT_SECRET": "",
+                    "REALIZE_API_KEY": "",
+                },
+            ),
+            pytest.raises(WeakSecretError, match="dev secret"),
         ):
-            with pytest.raises(WeakSecretError, match="dev secret"):
-                create_token("user1")
+            create_token("user1")
 
     def test_refresh_chain_limit(self):
         """Refresh tokens should not be reusable beyond the chain limit."""

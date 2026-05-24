@@ -54,7 +54,7 @@ class HandoffResult:
         message: Human-readable description of what happened.
     """
 
-    __slots__ = ("handoff", "action", "message")
+    __slots__ = ("action", "handoff", "message")
 
     def __init__(
         self,
