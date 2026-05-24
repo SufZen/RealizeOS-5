@@ -108,6 +108,7 @@ developer_resources/
 .autobuild/
 CLAUDE.md
 AGENTS.md
+!docs/development/AGENTS.md
 AUDIT-REPORT.md
 
 # AutoBuild results (dev artifacts — legacy, entire dir now ignored above)
