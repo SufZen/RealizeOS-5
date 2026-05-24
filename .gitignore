@@ -44,6 +44,7 @@ Thumbs.db
 data/
 
 # Node / Dashboard
+node_modules/
 dashboard/node_modules/
 dashboard/dist/
 dashboard/.pnpm-store/

@@ -1,5 +1,8 @@
-blank_issues_enabled: true
+blank_issues_enabled: false
 contact_links:
+  - name: Security Vulnerability
+    url: https://github.com/SufZen/RealizeOS-5/blob/main/SECURITY.md
+    about: Report security issues privately (do not file as a public issue)
   - name: Documentation
     url: https://github.com/SufZen/RealizeOS-5/tree/main/docs
     about: Check the docs before opening an issue

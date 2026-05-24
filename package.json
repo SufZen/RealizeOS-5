@@ -1,0 +1,13 @@
+{
+  "name": "realizeos-5",
+  "version": "5.2.1",
+  "private": true,
+  "description": "RealizeOS root — commitlint and shared dev tooling only",
+  "scripts": {
+    "commitlint": "commitlint --edit"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^19.0.0",
+    "@commitlint/config-conventional": "^19.0.0"
+  }
+}

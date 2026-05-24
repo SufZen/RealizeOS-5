@@ -1,0 +1,50 @@
+backend:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'realize_core/**'
+      - 'realize_api/**'
+      - 'pyproject.toml'
+
+frontend:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'dashboard/**'
+
+cli:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'realize-os-cli/**'
+
+docs:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'docs/**'
+      - '*.md'
+
+specs:
+  - changed-files:
+    - any-glob-to-any-file: '.specify/**'
+
+ci:
+  - changed-files:
+    - any-glob-to-any-file:
+      - '.github/**'
+
+infrastructure:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'Dockerfile'
+      - 'docker-compose*.yml'
+      - '.pre-commit-config.yaml'
+      - 'pyproject.toml'
+
+tests:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'tests/**'
+
+templates:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'templates/**'
+      - 'realize_lite/**'
