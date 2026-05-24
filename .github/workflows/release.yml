@@ -1,6 +1,7 @@
 # Release Pipeline — RealizeOS 5
-# Triggers on version tags (v*.*.*)
-# Steps: multi-arch Docker build → push to GHCR → npm publish (CLI)
+# Triggered by version tags (v*.*.*) created by version-bump.yml (semantic-release)
+# Flow: version-bump.yml → v*.*.* tag → this workflow
+# Steps: CI → multi-arch Docker build+sign → npm publish → PyPI publish → GH Release
 
 name: Release
 
@@ -10,9 +11,9 @@ on:
       - "v*.*.*"
 
 permissions:
-  contents: read
-  packages: write  # push to GHCR
-  id-token: write  # npm provenance
+  contents: write   # GH Release creation + CHANGELOG
+  packages: write   # push to GHCR
+  id-token: write   # npm provenance + cosign keyless signing
 
 env:
   PYTHON_VERSION: "3.12"
@@ -75,6 +76,7 @@ jobs:
             type=raw,value=latest
 
       - name: Build and push Docker image
+        id: docker-build
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -86,6 +88,16 @@ jobs:
           cache-to: type=gha,mode=max
           build-args: |
             VERSION=${{ steps.version.outputs.version }}
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign Docker image (keyless via GitHub OIDC)
+        env:
+          DIGEST: ${{ steps.docker-build.outputs.digest }}
+        run: |
+          cosign sign --yes \
+            "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${DIGEST}"
 
   # ──────────────────────────────────────────────
   # Job 3: npm Publish (CLI package)
@@ -235,5 +247,6 @@ jobs:
           files: |
             RealizeOS-Lite-${{ steps.version.outputs.version }}.zip
             RealizeOS-Lite-${{ steps.version.outputs.version }}.zip.sha256
+            CHANGELOG.md
           draft: false
           prerelease: ${{ contains(github.ref_name, '-') }}
