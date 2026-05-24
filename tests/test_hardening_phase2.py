@@ -105,12 +105,11 @@ class TestSecurityScanner:
     def test_scan_with_audit_dir(self):
         from realize_core.security.scanner import run_security_scan
 
-        with tempfile.TemporaryDirectory() as d:
-            with patch.dict(os.environ, {"REALIZE_AUDIT_LOG_DIR": d}):
-                result = run_security_scan(Path("."))
-                audit_checks = [c for c in result["checks"] if "Audit" in c["name"]]
-                assert len(audit_checks) >= 1
-                assert audit_checks[0]["status"] == "pass"
+        with tempfile.TemporaryDirectory() as d, patch.dict(os.environ, {"REALIZE_AUDIT_LOG_DIR": d}):
+            result = run_security_scan(Path("."))
+            audit_checks = [c for c in result["checks"] if "Audit" in c["name"]]
+            assert len(audit_checks) >= 1
+            assert audit_checks[0]["status"] == "pass"
 
     def test_scan_without_audit_dir(self):
         from realize_core.security.scanner import run_security_scan
@@ -372,18 +371,20 @@ class TestAppCreation:
     def test_production_rejects_weak_jwt_secret(self):
         from realize_api.main import create_app
 
-        with patch.dict(
-            os.environ,
-            {
-                "REALIZE_ENV": "production",
-                "REALIZE_API_KEY": "prod-api-key",
-                "REALIZE_JWT_ENABLED": "true",
-                "REALIZE_JWT_SECRET": "short",
-            },
-            clear=True,
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "REALIZE_ENV": "production",
+                    "REALIZE_API_KEY": "prod-api-key",
+                    "REALIZE_JWT_ENABLED": "true",
+                    "REALIZE_JWT_SECRET": "short",
+                },
+                clear=True,
+            ),
+            pytest.raises(RuntimeError, match="REALIZE_JWT_SECRET"),
         ):
-            with pytest.raises(RuntimeError, match="REALIZE_JWT_SECRET"):
-                create_app()
+            create_app()
 
     def test_production_app_creates_with_strong_auth(self):
         from realize_api.main import create_app

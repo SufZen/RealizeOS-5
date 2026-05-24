@@ -37,7 +37,7 @@ def memory_db(tmp_path, monkeypatch):
     from realize_core.memory.conversation import clear_all
 
     clear_all()
-    yield test_db
+    return test_db
 
 
 @pytest.fixture

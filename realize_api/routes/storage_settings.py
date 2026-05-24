@@ -125,7 +125,7 @@ async def test_storage_connection(request: Request, config: StorageConfig):
     except ClientError as e:
         raise HTTPException(status_code=400, detail=f"S3 error: {e.response['Error']['Message']}")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Connection test failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Connection test failed: {e!s}")
 
 
 @router.post("/storage/export")
@@ -178,7 +178,7 @@ async def export_data(request: Request):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Export failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Export failed: {e!s}")
 
 
 @router.get("/storage/sync/status")

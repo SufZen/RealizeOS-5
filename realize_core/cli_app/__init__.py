@@ -75,4 +75,4 @@ def main() -> None:
     app()
 
 
-__all__ = ["app", "main", "CLIState"]
+__all__ = ["CLIState", "app", "main"]

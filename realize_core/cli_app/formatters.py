@@ -73,9 +73,8 @@ def emit(
         to_json(data)
     elif fmt == "yaml":
         to_yaml(data)
+    elif isinstance(data, list):
+        to_table(data, columns=columns, title=title)
     else:
-        if isinstance(data, list):
-            to_table(data, columns=columns, title=title)
-        else:
-            # Single object — wrap in a list
-            to_table([data] if isinstance(data, dict) else [{"value": data}], columns=columns, title=title)
+        # Single object — wrap in a list
+        to_table([data] if isinstance(data, dict) else [{"value": data}], columns=columns, title=title)

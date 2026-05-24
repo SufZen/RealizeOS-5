@@ -28,6 +28,13 @@ repos:
         args: [--fix]
       - id: ruff-format
 
+  # ── Markdown lint ───────────────────────────────
+  - repo: https://github.com/DavidAnson/markdownlint-cli2
+    rev: v0.17.2
+    hooks:
+      - id: markdownlint-cli2
+        args: ["--config", ".markdownlint-cli2.jsonc"]
+
   # ── Conventional Commits ──────────────────────────
   - repo: local
     hooks:

@@ -292,13 +292,15 @@ class TestProductionAuth:
             validate_production_auth,
         )
 
-        with env(
-            REALIZE_ENV="production",
-            REALIZE_JWT_ENABLED="true",
-            REALIZE_JWT_SECRET="short",
+        with (
+            env(
+                REALIZE_ENV="production",
+                REALIZE_JWT_ENABLED="true",
+                REALIZE_JWT_SECRET="short",
+            ),
+            pytest.raises(MCPProductionAuthError, match="weak JWT secret"),
         ):
-            with pytest.raises(MCPProductionAuthError, match="weak JWT secret"):
-                validate_production_auth(allow_admin=True)
+            validate_production_auth(allow_admin=True)
 
     def test_production_admin_disabled_is_safe(self):
         from realize_core.mcp_server.auth import validate_production_auth

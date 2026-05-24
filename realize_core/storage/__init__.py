@@ -10,10 +10,10 @@ from realize_core.storage.sync import SyncDirection, SyncManager, SyncResult
 
 __all__ = [
     "BaseStorageProvider",
+    "LocalStorageProvider",
     "StorageBackend",
     "StorageObject",
-    "LocalStorageProvider",
-    "SyncManager",
     "SyncDirection",
+    "SyncManager",
     "SyncResult",
 ]

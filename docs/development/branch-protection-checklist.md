@@ -10,11 +10,13 @@
   - [ ] Require review from Code Owners
 
 - [ ] **Require status checks to pass before merging**
-  - [ ] `lint` (ruff check + format)
-  - [ ] `test` (pytest)
-  - [ ] `security` (safety + bandit + gitleaks)
-  - [ ] `dashboard-check` (pnpm lint + test + build)
-  - [ ] `cli-check` (npm lint + build + test)
+  - [ ] `Lint & Format (Python)` (ruff check + format)
+  - [ ] `Type Check (mypy)` (mypy on realize_core/storage/ + llm/)
+  - [ ] `Test (pytest)` (pytest with coverage)
+  - [ ] `Security Scan` (safety + bandit + gitleaks)
+  - [ ] `Dashboard Check` (lint + format:check + type-check + test + build)
+  - [ ] `CLI Build Check` (lint + build + test)
+  - [ ] `Markdown Lint` (markdownlint-cli2)
   - [ ] Require branches to be up to date before merging
 
 - [ ] **Require conversation resolution before merging**
@@ -35,6 +37,6 @@
 
 ## Notes
 
-- Status check names above match the current `ci.yml` job names
-- When Phase C adds mypy, prettier, and tsc jobs, add them as required checks
+- Status check names above match the Phase C `ci.yml` job names
+- Phase C added: `type-check-python`, `markdownlint`, `format:check` and `type-check` in dashboard
 - When Phase D adds semantic-release, it will need push access to main (configure as app)

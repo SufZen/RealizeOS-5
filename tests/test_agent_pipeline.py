@@ -15,7 +15,6 @@ from realize_core.agents.pipeline import (
 def clear_audit_log():
     """Clear global audit log before each test to prevent circular handoff false positives."""
     _audit_log.clear()
-    yield
 
 
 # ---------------------------------------------------------------------------

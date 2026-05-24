@@ -420,7 +420,7 @@ def run_doctor(project_root: Path):
 
     # Server import
     try:
-        from realize_api.main import app  # noqa: F401
+        from realize_api.main import app
 
         _print("OK", f"Server module loads ({len(app.routes)} routes)")
     except Exception as e:

@@ -203,8 +203,8 @@ class TestGoogleSheets:
     def test_read_write_sets(self):
         from realize_core.tools.google_sheets import SHEETS_READ_TOOLS, SHEETS_WRITE_TOOLS
 
-        assert SHEETS_READ_TOOLS == {"sheets_read"}
-        assert SHEETS_WRITE_TOOLS == {"sheets_append", "sheets_create"}
+        assert {"sheets_read"} == SHEETS_READ_TOOLS
+        assert {"sheets_append", "sheets_create"} == SHEETS_WRITE_TOOLS
 
     def test_tool_functions_mapped(self):
         from realize_core.tools.google_sheets import SHEETS_TOOL_FUNCTIONS

@@ -177,7 +177,7 @@ def load_eval_suite(path: Path) -> EvalSuite | None:
     ```
     """
     try:
-        import yaml  # noqa: F811
+        import yaml
     except ImportError:
         logger.error("PyYAML required for eval suite loading")
         return None

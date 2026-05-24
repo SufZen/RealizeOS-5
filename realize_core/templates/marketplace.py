@@ -90,7 +90,7 @@ class TemplateManifest:
 def load_template_manifest(template_dir: Path) -> TemplateManifest | None:
     """Load template.yaml from a template directory."""
     try:
-        import yaml  # noqa: F811
+        import yaml
     except ImportError:
         logger.error("PyYAML required for template loading")
         return None

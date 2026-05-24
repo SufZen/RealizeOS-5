@@ -21,4 +21,4 @@ Public entry points
 from realize_core.mcp_server.config import McpConfig, mcp_config_from_env
 from realize_core.mcp_server.mount import mount_mcp
 
-__all__ = ["mount_mcp", "McpConfig", "mcp_config_from_env"]
+__all__ = ["McpConfig", "mcp_config_from_env", "mount_mcp"]

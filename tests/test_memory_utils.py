@@ -23,7 +23,7 @@ def setup_test_db(tmp_path, monkeypatch):
 
     clear_all()
 
-    yield test_db
+    return test_db
 
 
 def test_memory_store_and_search():
