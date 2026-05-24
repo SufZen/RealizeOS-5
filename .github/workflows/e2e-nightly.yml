@@ -1,0 +1,62 @@
+# Nightly E2E Test Slot
+# Reserved for end-to-end browser tests once the Workspace UI exists.
+# Currently a no-op placeholder to establish the schedule and job structure.
+
+name: E2E Tests (nightly)
+
+on:
+  schedule:
+    - cron: '0 2 * * *'  # Daily 2 AM UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    name: End-to-End Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Placeholder — E2E slot reserved
+        run: |
+          echo "╔══════════════════════════════════════════════════╗"
+          echo "║  E2E test slot reserved for Workspace UI (v5.5) ║"
+          echo "║  This job will run Playwright tests once the    ║"
+          echo "║  three-pane workspace is implemented.           ║"
+          echo "╚══════════════════════════════════════════════════╝"
+          echo ""
+          echo "To activate, replace this placeholder with:"
+          echo "  1. Docker Compose up (API + Dashboard)"
+          echo "  2. pnpm exec playwright test"
+          echo "  3. Upload test results + screenshots"
+
+      # Future steps (uncomment when Workspace UI exists):
+      # - name: Set up Docker
+      #   uses: docker/setup-buildx-action@v3
+      #
+      # - name: Start services
+      #   run: docker compose -f docker-compose.yml up -d --wait
+      #
+      # - name: Set up Node.js
+      #   uses: actions/setup-node@v4
+      #   with:
+      #     node-version: 20
+      #
+      # - name: Install Playwright
+      #   working-directory: dashboard
+      #   run: pnpm exec playwright install --with-deps
+      #
+      # - name: Run E2E tests
+      #   working-directory: dashboard
+      #   run: pnpm exec playwright test
+      #
+      # - name: Upload test results
+      #   if: always()
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: e2e-results
+      #     path: dashboard/playwright-report/
+      #     retention-days: 7

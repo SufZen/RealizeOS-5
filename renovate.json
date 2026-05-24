@@ -1,0 +1,70 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    "schedule:automergeWeekly",
+    ":semanticCommits",
+    ":separateMultipleMajorReleases",
+    "group:allNonMajor"
+  ],
+  "labels": ["dependencies"],
+  "platformAutomerge": true,
+  "automergeType": "pr",
+  "prHourlyLimit": 3,
+  "prConcurrentLimit": 5,
+  "packageRules": [
+    {
+      "description": "Auto-merge non-major updates for dev dependencies",
+      "matchDepTypes": ["devDependencies"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "automerge": true
+    },
+    {
+      "description": "Auto-merge non-major pip dev deps",
+      "matchManagers": ["pip_requirements", "pep621"],
+      "matchDepTypes": ["dev"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "automerge": true
+    },
+    {
+      "description": "Group all GitHub Actions updates",
+      "matchManagers": ["github-actions"],
+      "groupName": "GitHub Actions",
+      "automerge": true
+    },
+    {
+      "description": "Pin Docker base images",
+      "matchManagers": ["dockerfile"],
+      "pinDigests": true
+    },
+    {
+      "description": "Dashboard (pnpm) — group non-major",
+      "matchPaths": ["dashboard/**"],
+      "groupName": "dashboard dependencies",
+      "matchUpdateTypes": ["minor", "patch"],
+      "automerge": true
+    },
+    {
+      "description": "CLI (npm) — group non-major",
+      "matchPaths": ["realize-os-cli/**"],
+      "groupName": "CLI dependencies",
+      "matchUpdateTypes": ["minor", "patch"],
+      "automerge": true
+    },
+    {
+      "description": "Major updates require manual review",
+      "matchUpdateTypes": ["major"],
+      "automerge": false,
+      "labels": ["dependencies", "breaking"]
+    },
+    {
+      "description": "License-sensitive: flag GPL/AGPL packages",
+      "matchLicenses": ["GPL-2.0", "GPL-3.0", "AGPL-3.0"],
+      "enabled": false
+    }
+  ],
+  "vulnerabilityAlerts": {
+    "labels": ["security"],
+    "automerge": true
+  }
+}
