@@ -155,10 +155,21 @@ def validate_entity(
                 )
             )
 
-    # Check enum constraints
+    # Check enum and const constraints
     for field_name, value in frontmatter.items():
         if field_name in properties:
             prop = properties[field_name]
+
+            # Const check (JSON Schema 2020-12)
+            if "const" in prop and value != prop["const"]:
+                result.warnings.append(
+                    ValidationWarning(
+                        entity_id=entity_id,
+                        field=field_name,
+                        message=f"Value '{value}' does not match required const '{prop['const']}'",
+                    )
+                )
+                continue  # Don't also warn about type if const mismatches
 
             # Enum check
             if "enum" in prop and value not in prop["enum"]:
@@ -170,9 +181,9 @@ def validate_entity(
                     )
                 )
 
-            # Type check (basic)
+            # Type check (basic — skip if const is used, since const implies type)
             expected_type = prop.get("type")
-            if expected_type and not _type_matches(value, expected_type):
+            if expected_type and "const" not in prop and not _type_matches(value, expected_type):
                 result.warnings.append(
                     ValidationWarning(
                         entity_id=entity_id,

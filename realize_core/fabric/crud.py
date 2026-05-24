@@ -8,7 +8,6 @@ All operations are filesystem-based with the markdown files as source of truth.
 from __future__ import annotations
 
 import logging
-import shutil
 from datetime import datetime
 from pathlib import Path
 
@@ -82,7 +81,7 @@ def create_entity(
     # Determine target layer
     if not layer:
         layer = _TYPE_TO_LAYER.get(entity_type, "brain")
-    layer_dir = FABRIC_LAYERS.get(layer, f"B-brain")
+    layer_dir = FABRIC_LAYERS.get(layer, "B-brain")
 
     # Build path
     filename = f"{slug}.md"

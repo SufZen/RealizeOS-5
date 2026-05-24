@@ -190,6 +190,12 @@ class SynapseDB:
             placeholders = ",".join("?" * len(ids))
             self._conn.execute(f"DELETE FROM tags WHERE entity_id IN ({placeholders})", ids)
             self._conn.execute(f"DELETE FROM refs WHERE from_entity IN ({placeholders})", ids)
+            self._conn.execute(f"DELETE FROM refs WHERE to_entity IN ({placeholders})", ids)
+            # Clean FTS entries
+            try:
+                self._conn.execute(f"DELETE FROM entities_fts WHERE id IN ({placeholders})", ids)
+            except sqlite3.OperationalError:
+                pass
             self._conn.execute("DELETE FROM entities WHERE venture = ?", (venture,))
 
         self._conn.commit()

@@ -67,7 +67,7 @@ def entity_to_markdown(entity: FabricEntity) -> str:
         fm["tags"] = entity.tags
 
     # Provenance
-    if entity.source and entity.source != "manual":
+    if entity.source:
         fm["source"] = entity.source
     if entity.created_by:
         fm["created_by"] = entity.created_by
