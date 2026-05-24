@@ -82,7 +82,8 @@ export default function PipelineBuilderPage() {
   // Auto-select when only one venture exists
   useEffect(() => {
     if (!selectedVenture && venturesData?.ventures.length === 1) {
-      setSelectedVenture(venturesData.ventures[0].key)
+      const first = venturesData.ventures[0]
+      if (first) setSelectedVenture(first.key)
     }
   }, [venturesData, selectedVenture])
 
@@ -149,7 +150,12 @@ export default function PipelineBuilderPage() {
       const newIdx = direction === 'up' ? idx - 1 : idx + 1
       if (newIdx < 0 || newIdx >= p.steps.length) return p
       const newSteps = [...p.steps]
-      ;[newSteps[idx], newSteps[newIdx]] = [newSteps[newIdx], newSteps[idx]]
+      const a = newSteps[idx]
+      const b = newSteps[newIdx]
+      if (a && b) {
+        newSteps[idx] = b
+        newSteps[newIdx] = a
+      }
       return { ...p, steps: newSteps }
     })
   }, [])

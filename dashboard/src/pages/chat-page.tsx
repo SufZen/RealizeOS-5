@@ -60,7 +60,8 @@ export default function ChatPage() {
   // Auto-select first venture
   useEffect(() => {
     if (venturesData?.ventures.length && !selectedVenture) {
-      setSelectedVenture(venturesData.ventures[0].key)
+      const first = venturesData.ventures[0]
+      if (first) setSelectedVenture(first.key)
     }
   }, [venturesData, selectedVenture])
 

@@ -1,0 +1,202 @@
+/* ============================================================================
+ * @realizeos/design-system — components.css
+ * Unstyled-by-default class primitives that both apps can use directly,
+ * or use as a reference for their own framework components (Radix, shadcn).
+ * All values resolve from tokens.css.
+ * ========================================================================= */
+
+/* ── Button ────────────────────────────────────────────────────────────── */
+.rz-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 16px;
+  border-radius: var(--rz-radius-md);
+  font-family: var(--rz-font-sans);
+  font-size: var(--rz-text-sm);
+  font-weight: 500;
+  border: 1px solid transparent;
+  cursor: pointer;
+  text-decoration: none;
+  transition:
+    background var(--rz-dur-fast) var(--rz-ease-out),
+    border-color var(--rz-dur-fast) var(--rz-ease-out),
+    color var(--rz-dur-fast) var(--rz-ease-out),
+    box-shadow var(--rz-dur-fast) var(--rz-ease-out),
+    transform var(--rz-dur-fast) var(--rz-ease-out);
+}
+.rz-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--rz-accent-ring);
+}
+.rz-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.rz-btn--primary {
+  background: var(--rz-accent);
+  color: var(--rz-accent-fg);
+}
+.rz-btn--primary:hover:not(:disabled) {
+  background: var(--rz-accent-strong);
+  box-shadow: var(--rz-shadow-glow);
+}
+
+.rz-btn--secondary {
+  background: var(--rz-surface);
+  color: var(--rz-fg);
+  border-color: var(--rz-border);
+}
+.rz-btn--secondary:hover:not(:disabled) {
+  background: var(--rz-surface-hover);
+  border-color: var(--rz-border-strong);
+}
+
+.rz-btn--ghost {
+  background: transparent;
+  color: var(--rz-fg-muted);
+}
+.rz-btn--ghost:hover:not(:disabled) {
+  background: var(--rz-surface);
+  color: var(--rz-fg);
+}
+
+.rz-btn--danger {
+  background: var(--rz-danger);
+  color: #ffffff;
+}
+.rz-btn--danger:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+
+.rz-btn--sm { height: 28px; padding: 0 12px; font-size: var(--rz-text-xs); }
+.rz-btn--lg { height: 44px; padding: 0 20px; font-size: var(--rz-text-md); }
+
+/* ── Input ─────────────────────────────────────────────────────────────── */
+.rz-input {
+  height: 36px;
+  padding: 0 12px;
+  background: var(--rz-surface);
+  border: 1px solid var(--rz-border);
+  border-radius: var(--rz-radius-md);
+  color: var(--rz-fg);
+  font-family: var(--rz-font-sans);
+  font-size: var(--rz-text-sm);
+  width: 100%;
+  transition:
+    border-color var(--rz-dur-fast) var(--rz-ease-out),
+    box-shadow var(--rz-dur-fast) var(--rz-ease-out);
+}
+.rz-input::placeholder {
+  color: var(--rz-fg-faint);
+}
+.rz-input:focus {
+  outline: none;
+  border-color: var(--rz-accent);
+  box-shadow: 0 0 0 3px var(--rz-accent-ring);
+}
+.rz-input[aria-invalid="true"] {
+  border-color: var(--rz-danger);
+  box-shadow: 0 0 0 3px var(--rz-danger-soft);
+}
+
+.rz-input--sm { height: 28px; font-size: var(--rz-text-xs); }
+.rz-input--lg { height: 44px; font-size: var(--rz-text-md); }
+
+textarea.rz-input {
+  height: auto;
+  min-height: 80px;
+  padding: 10px 12px;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+/* ── Badge ─────────────────────────────────────────────────────────────── */
+.rz-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: var(--rz-radius-sm);
+  font-family: var(--rz-font-mono);
+  font-size: var(--rz-text-2xs);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border: 1px solid var(--rz-border);
+  color: var(--rz-fg-muted);
+  background: var(--rz-surface);
+}
+.rz-badge .rz-badge__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--rz-radius-full);
+  background: currentColor;
+}
+
+.rz-badge--accent  { color: var(--rz-accent);  background: var(--rz-accent-soft);  border-color: transparent; }
+.rz-badge--success { color: var(--rz-success); background: var(--rz-success-soft); border-color: transparent; }
+.rz-badge--warning { color: var(--rz-warning); background: var(--rz-warning-soft); border-color: transparent; }
+.rz-badge--danger  { color: var(--rz-danger);  background: var(--rz-danger-soft);  border-color: transparent; }
+.rz-badge--info    { color: var(--rz-info);    background: var(--rz-info-soft);    border-color: transparent; }
+
+/* ── Card ──────────────────────────────────────────────────────────────── */
+.rz-card {
+  background: var(--rz-bg-raised);
+  border: 1px solid var(--rz-border);
+  border-radius: var(--rz-radius-lg);
+  padding: 16px;
+  transition:
+    border-color var(--rz-dur) var(--rz-ease-out),
+    background var(--rz-dur) var(--rz-ease-out),
+    box-shadow var(--rz-dur) var(--rz-ease-out),
+    transform var(--rz-dur) var(--rz-ease-out);
+}
+.rz-card:hover {
+  border-color: var(--rz-border-strong);
+  background: var(--rz-surface-hover);
+  box-shadow: var(--rz-shadow-2);
+}
+.rz-card--featured {
+  border-color: var(--rz-border-accent);
+  box-shadow: var(--rz-shadow-glow);
+}
+.rz-card--empty {
+  background: transparent;
+  border-style: dashed;
+}
+
+/* ── Code block ────────────────────────────────────────────────────────── */
+.rz-code {
+  margin: 16px 0;
+  padding: 18px 20px;
+  background: var(--rz-bg-sunken);
+  border: 1px solid var(--rz-border);
+  border-radius: var(--rz-radius-lg);
+  font-family: var(--rz-font-mono);
+  font-size: var(--rz-text-xs);
+  line-height: 1.6;
+  color: var(--rz-fg-muted);
+  overflow-x: auto;
+}
+.rz-code .rz-code__k { color: var(--rz-accent); }
+.rz-code .rz-code__c { color: var(--rz-fg-faint); font-style: italic; }
+.rz-code .rz-code__s { color: var(--rz-success); }
+.rz-code .rz-code__v { color: var(--rz-fg); }
+
+/* ── Status dot ────────────────────────────────────────────────────────── */
+.rz-status-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--rz-radius-full);
+  background: var(--rz-fg-faint);
+}
+.rz-status-dot--active   { background: var(--rz-success); box-shadow: 0 0 0 3px var(--rz-success-soft); }
+.rz-status-dot--review   { background: var(--rz-warning); box-shadow: 0 0 0 3px var(--rz-warning-soft); }
+.rz-status-dot--error    { background: var(--rz-danger);  box-shadow: 0 0 0 3px var(--rz-danger-soft); }
+.rz-status-dot--routing  { background: var(--rz-info);    box-shadow: 0 0 0 3px var(--rz-info-soft); }
+.rz-status-dot--brand    { background: var(--rz-accent);  box-shadow: 0 0 0 3px var(--rz-accent-soft); }

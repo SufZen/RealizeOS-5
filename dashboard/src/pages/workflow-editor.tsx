@@ -481,23 +481,23 @@ interface PreviewData {
 
 function parseSkillMdPreview(content: string): PreviewData | null {
   const fmMatch = content.match(/^---\s*\n([\s\S]*?)\n---\s*\n?([\s\S]*)$/)
-  if (!fmMatch) return null
+  if (!fmMatch?.[1]) return null
 
   const fm = fmMatch[1]
-  const body = fmMatch[2].trim()
+  const body = (fmMatch[2] ?? '').trim()
 
   const nameMatch = fm.match(/^name:\s*(.+)$/m)
   const descMatch = fm.match(/^description:\s*(.+)$/m)
 
   // Parse triggers
   const triggersMatch = fm.match(/^triggers:\s*\n((?:\s+-\s*.+\n?)*)/m)
-  const triggers = triggersMatch
+  const triggers = triggersMatch?.[1]
     ? triggersMatch[1].split('\n').map((l) => l.replace(/^\s*-\s*/, '').trim()).filter(Boolean)
     : []
 
   // Parse tags
   const tagsMatch = fm.match(/^tags:\s*\[(.+)\]/m)
-  const tags = tagsMatch ? tagsMatch[1].split(',').map((t) => t.trim()) : []
+  const tags = tagsMatch?.[1] ? tagsMatch[1].split(',').map((t) => t.trim()) : []
 
   return {
     name: nameMatch?.[1]?.trim() ?? 'Untitled',
@@ -510,10 +510,10 @@ function parseSkillMdPreview(content: string): PreviewData | null {
 
 function parseYamlPreview(content: string): PreviewData | null {
   const nameMatch = content.match(/^name:\s*(.+)$/m)
-  if (!nameMatch) return null
+  if (!nameMatch?.[1]) return null
 
   const triggersMatch = content.match(/^triggers:\s*\n((?:\s+-\s*.+\n?)*)/m)
-  const triggers = triggersMatch
+  const triggers = triggersMatch?.[1]
     ? triggersMatch[1].split('\n').map((l) => l.replace(/^\s*-\s*/, '').trim()).filter(Boolean)
     : []
 
