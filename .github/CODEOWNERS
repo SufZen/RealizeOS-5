@@ -1,0 +1,25 @@
+# Global default
+*                                   @SufZen
+
+# Backend core
+/realize_core/                      @SufZen
+/realize_api/                       @SufZen
+
+# Frontend
+/dashboard/                         @SufZen
+
+# CLI
+/realize-os-cli/                    @SufZen
+
+# Documentation & contracts
+/docs/                              @SufZen
+
+# Specs (spec-kit) — added in Phase B
+/.specify/                          @SufZen
+
+# Infrastructure
+/.github/                           @SufZen
+
+# Sensitive
+/LICENSE                            @SufZen
+/SECURITY.md                        @SufZen
