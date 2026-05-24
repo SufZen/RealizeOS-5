@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://realizeos.ai/schemas/v0.1/decision.json",
+  "title": "Decision",
+  "description": "A committed (or proposed/deferred/reversed) choice with rationale, impacts, and follow-ups.",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^dec-\\d{4}-\\d{2}-[a-z0-9-]+(-\\d+)?$",
+      "description": "Stable ID, format: dec-YYYY-MM-slug-NN"
+    },
+    "type": { "const": "decision" },
+    "title": { "type": "string", "minLength": 3 },
+    "status": {
+      "type": "string",
+      "enum": ["proposed", "committed", "deferred", "reversed"]
+    },
+    "date": { "type": "string", "format": "date" },
+    "reviewers": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "ventures": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "supersedes": { "type": "string", "pattern": "^dec-" },
+    "superseded_by": { "type": "string", "pattern": "^dec-" },
+    "rationale": { "type": "string" },
+    "impacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "scope": { "type": "string" },
+          "description": { "type": "string" }
+        }
+      }
+    },
+    "followups": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "related_risks": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "required": ["type", "title", "status", "date"],
+  "additionalProperties": true,
+  "x-indexing": {
+    "l1": ["id", "title", "status", "date", "ventures"],
+    "l2": "Title + rationale + impacts as searchable chunks",
+    "graph_relations": ["reviewers (→ contact)", "supersedes (→ decision)", "followups (→ action)", "related_risks (→ risk)"],
+    "dreaming_relevance": "Committed decisions are hard-deny-listed; reversed/deferred decisions feed Genesis drift analysis"
+  }
+}

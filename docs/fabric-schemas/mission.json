@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://realizeos.ai/schemas/v0.1/mission.json",
+  "title": "Mission",
+  "description": "A goal-oriented work unit executed by one or more agent runtimes.",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^m-\\d{4}-\\d{2}-\\d{2}-[a-z0-9-]+(-\\d+)?$"
+    },
+    "type": { "const": "mission" },
+    "title": { "type": "string", "minLength": 3 },
+    "goal": { "type": "string", "minLength": 10 },
+    "owner": { "type": "string" },
+    "state": {
+      "type": "string",
+      "enum": ["proposed", "planned", "in-progress", "paused", "awaiting-approval", "completed", "failed", "cancelled"]
+    },
+    "venture": { "type": "string" },
+    "constraints": {
+      "type": "object",
+      "properties": {
+        "budget_eur": { "type": "number", "minimum": 0 },
+        "deadline": { "type": "string" },
+        "max_duration_sec": { "type": "integer", "minimum": 0 },
+        "requires_approval_for": { "type": "array", "items": { "type": "string" } },
+        "deny_actions": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "plan": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "step_id": { "type": "string" },
+          "runtime": { "type": "string" },
+          "agent": { "type": "string" },
+          "action": { "type": "string" },
+          "args": { "type": "object" },
+          "inputs_from": { "type": "array", "items": { "type": "string" } },
+          "status": {
+            "type": "string",
+            "enum": ["pending", "in-progress", "succeeded", "failed", "skipped"]
+          }
+        },
+        "required": ["step_id", "runtime", "action"]
+      }
+    },
+    "cost_consumed_eur": { "type": "number", "minimum": 0 },
+    "cost_consumed_tokens": { "type": "integer", "minimum": 0 },
+    "started_at": { "type": "string" },
+    "completed_at": { "type": "string" },
+    "outcome_summary": { "type": "string" },
+    "related_decisions": { "type": "array", "items": { "type": "string" } },
+    "produced_entities": { "type": "array", "items": { "type": "string" } }
+  },
+  "required": ["type", "title", "goal", "state", "venture"],
+  "additionalProperties": true,
+  "x-indexing": {
+    "l1": ["id", "title", "goal", "state", "venture", "owner", "outcome_summary"],
+    "l2": "Goal + plan step descriptions + outcome_summary as searchable chunks",
+    "l4_special": "Active missions get their own L4 entry with continuously-updated compressed state",
+    "dreaming_relevance": "Reflex cycle writes outcome_summary on completion; Synthesis cycle aggregates patterns across missions"
+  }
+}

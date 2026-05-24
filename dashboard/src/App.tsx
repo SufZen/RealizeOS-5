@@ -18,6 +18,8 @@ import {
   FileCode2,
   Route as RouteIcon,
   Puzzle,
+  Target,
+  Brain,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ThemeProvider } from '@/components/theme-provider'
@@ -46,6 +48,9 @@ const RoutingPage = lazy(() => import('@/pages/routing-page'))
 const IntegrationsPage = lazy(() => import('@/pages/integrations-page'))
 const DocsPage = lazy(() => import('@/pages/docs-page'))
 const LoginPage = lazy(() => import('@/pages/login-page'))
+const MissionsPage = lazy(() => import('@/pages/missions-page'))
+const KnowledgeMapPage = lazy(() => import('@/pages/knowledge-map-page'))
+const DreamInboxPage = lazy(() => import('@/pages/dream-inbox-page'))
 
 import OnboardingWizard, { isOnboardingComplete } from '@/components/onboarding-wizard'
 
@@ -73,6 +78,14 @@ const navGroups = [
       { to: '/approvals', icon: ShieldCheck, label: 'Approvals' },
       { to: '/evolution', icon: Sparkles, label: 'Evolution' },
       { to: '/routing', icon: RouteIcon, label: 'Routing' },
+    ],
+  },
+  {
+    label: 'FABRIC',
+    items: [
+      { to: '/missions', icon: Target, label: 'Missions' },
+      { to: '/knowledge', icon: Brain, label: 'Knowledge' },
+      { to: '/dreams', icon: Sparkles, label: 'Dreams' },
     ],
   },
   {
@@ -326,6 +339,9 @@ function AuthenticatedShell() {
                   <Route path="/setup" element={<SetupPage />} />
                   <Route path="/settings" element={<SettingsPage />} />
                   <Route path="/docs" element={<DocsPage />} />
+                  <Route path="/missions" element={<MissionsPage />} />
+                  <Route path="/knowledge" element={<KnowledgeMapPage />} />
+                  <Route path="/dreams" element={<DreamInboxPage />} />
                   <Route path="*" element={<NotFoundPage />} />
                 </Routes>
               </Suspense>

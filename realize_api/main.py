@@ -26,6 +26,7 @@ from realize_api.routes import (
     devmode,
     evolution,
     extensions,
+    fabric,
     health,
     integrations,
     routing,
@@ -251,6 +252,28 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.debug(f"Config validation skipped: {e}")
 
+    # v5.5.0 — Initialize FABRIC Synapse index
+    try:
+        from realize_core.fabric.synapse import Synapse
+
+        db_path = Path(KB_PATH) / ".synapse" / "synapse.db"
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        app.state.synapse = Synapse(db_path=db_path)
+        logger.info("FABRIC Synapse index initialized")
+    except Exception as e:
+        app.state.synapse = None
+        logger.warning(f"Synapse initialization skipped: {e}")
+
+    # v5.5.0 — Initialize Runtime Registry
+    try:
+        from realize_core.runtimes.registry import RuntimeRegistry
+
+        app.state.runtime_registry = RuntimeRegistry()
+        logger.info("Runtime Registry initialized")
+    except Exception as e:
+        app.state.runtime_registry = None
+        logger.warning(f"Runtime Registry initialization skipped: {e}")
+
     logger.info(f"RealizeOS API ready — {num_systems} system(s) loaded")
     yield
 
@@ -291,7 +314,7 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="RealizeOS",
         description="AI Operations System — Multi-agent, multi-venture, self-evolving.",
-        version="5.0.0",
+        version="5.5.0",
         lifespan=lifespan,
     )
     app.state.rate_limiter = build_rate_limiter()
@@ -389,6 +412,8 @@ def create_app() -> FastAPI:
     app.include_router(storage_settings.router, prefix="/api", tags=["Storage"])
     app.include_router(devmode.router, prefix="/api", tags=["Developer Mode"])
     app.include_router(security.router, prefix="/api", tags=["Security"])
+    # v5.5.0 — FABRIC Knowledge System
+    app.include_router(fabric.router, prefix="/api", tags=["FABRIC"])
 
     # Built-in MCP server (HTTP+SSE). Mounted conditionally — see
     # realize_core/mcp_server/__init__.py. No-op when MCP_ENABLED is unset

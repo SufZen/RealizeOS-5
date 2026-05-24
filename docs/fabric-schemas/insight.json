@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://realizeos.ai/schemas/v0.1/insight.json",
+  "title": "Insight",
+  "description": "A learning, observation, pattern, or hypothesis worth preserving.",
+  "type": "object",
+  "properties": {
+    "id": { "type": "string", "pattern": "^insight-\\d{4}-\\d{2}-[a-z0-9-]+(-\\d+)?$" },
+    "type": { "const": "insight" },
+    "title": { "type": "string", "minLength": 3 },
+    "summary": { "type": "string", "minLength": 10 },
+    "details": { "type": "string" },
+    "kind": {
+      "type": "string",
+      "enum": ["observation", "learning", "pattern", "hypothesis"]
+    },
+    "applies_to": { "type": "array", "items": { "type": "string" } },
+    "source_kind": {
+      "type": "string",
+      "enum": ["manual", "mission", "dream-reflex", "dream-curator", "dream-synthesis", "dream-genesis", "external"]
+    },
+    "source_mission": { "type": "string" },
+    "source_dream_cycle": { "type": "string" },
+    "source_references": { "type": "array", "items": { "type": "string" } },
+    "validated": { "type": "boolean" },
+    "validated_at": { "type": "string" },
+    "validated_by": { "type": "string" },
+    "invalidated_at": { "type": "string" },
+    "invalidation_reason": { "type": "string" },
+    "actionable": { "type": "boolean" },
+    "related_actions": { "type": "array", "items": { "type": "string" } },
+    "supersedes": { "type": "string" }
+  },
+  "required": ["type", "summary", "kind"],
+  "additionalProperties": true,
+  "x-indexing": {
+    "l1": ["id", "title", "summary", "kind", "applies_to", "validated"],
+    "l2": "Summary + details as searchable chunks; embeddings used heavily by Synthesis cycle",
+    "dreaming_relevance": "PRIMARY OUTPUT TYPE. Hypotheses with validated=false older than 90 days flagged for Genesis review."
+  }
+}
