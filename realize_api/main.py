@@ -26,6 +26,7 @@ from realize_api.routes import (
     devmode,
     evolution,
     extensions,
+    fabric,
     health,
     integrations,
     routing,
@@ -389,6 +390,8 @@ def create_app() -> FastAPI:
     app.include_router(storage_settings.router, prefix="/api", tags=["Storage"])
     app.include_router(devmode.router, prefix="/api", tags=["Developer Mode"])
     app.include_router(security.router, prefix="/api", tags=["Security"])
+    # v5.5.0 — FABRIC Knowledge System
+    app.include_router(fabric.router, prefix="/api", tags=["FABRIC"])
 
     # Built-in MCP server (HTTP+SSE). Mounted conditionally — see
     # realize_core/mcp_server/__init__.py. No-op when MCP_ENABLED is unset
