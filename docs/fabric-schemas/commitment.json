@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://realizeos.ai/schemas/v0.1/commitment.json",
+  "title": "Commitment",
+  "description": "A promise made — by you, to you, by others, or to others. The accountability primitive.",
+  "type": "object",
+  "properties": {
+    "id": { "type": "string", "pattern": "^commitment-\\d{4}-\\d{2}-[a-z0-9-]+(-\\d+)?$" },
+    "type": { "const": "commitment" },
+    "title": { "type": "string", "minLength": 3 },
+    "what": { "type": "string", "minLength": 5 },
+    "by": { "type": "string" },
+    "to": { "type": "string" },
+    "deadline": { "type": "string" },
+    "status": {
+      "type": "string",
+      "enum": ["open", "in-progress", "kept", "broken", "renegotiated", "cancelled"],
+      "default": "open"
+    },
+    "priority": {
+      "type": "string",
+      "enum": ["low", "medium", "high", "critical"]
+    },
+    "related_decision": { "type": "string" },
+    "related_mission": { "type": "string" },
+    "kept_at": { "type": "string" },
+    "broken_at": { "type": "string" },
+    "broken_reason": { "type": "string" },
+    "renegotiated_to": { "type": "string" },
+    "evidence": { "type": "array", "items": { "type": "string" } }
+  },
+  "required": ["type", "what", "by", "to", "deadline"],
+  "additionalProperties": true,
+  "x-indexing": {
+    "l1": ["id", "title", "what", "by", "to", "deadline", "status", "priority"],
+    "l2": "what + broken_reason as searchable text",
+    "dreaming_relevance": "Open commitments past deadline surface in Curator; broken commitments feed contact trust_score"
+  }
+}

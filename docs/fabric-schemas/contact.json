@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://realizeos.ai/schemas/v0.1/contact.json",
+  "title": "Contact",
+  "description": "A person reference. The most-linked-to entity type in FABRIC.",
+  "type": "object",
+  "properties": {
+    "id": { "type": "string", "pattern": "^contact-[a-z0-9-]+$" },
+    "type": { "const": "contact" },
+    "name": { "type": "string", "minLength": 1 },
+    "preferred_name": { "type": "string" },
+    "email": { "type": "array", "items": { "type": "string" } },
+    "phone": { "type": "array", "items": { "type": "string" } },
+    "social": { "type": "object", "additionalProperties": { "type": "string" } },
+    "roles": { "type": "object" },
+    "languages": { "type": "array", "items": { "type": "string" } },
+    "timezone": { "type": "string" },
+    "notes": { "type": "string" },
+    "tags": { "type": "array", "items": { "type": "string" } },
+    "relationship": { "type": "string" },
+    "last_interaction_at": { "type": "string" },
+    "trust_score": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
+    "avoid_topics": { "type": "array", "items": { "type": "string" } }
+  },
+  "required": ["type", "name"],
+  "additionalProperties": true,
+  "x-indexing": {
+    "l1": ["id", "name", "preferred_name", "roles", "languages", "last_interaction_at"],
+    "l2": "Name + notes + roles as searchable text",
+    "dreaming_relevance": "Curator updates last_interaction_at; tracks commitment kept/broken into trust_score"
+  }
+}
