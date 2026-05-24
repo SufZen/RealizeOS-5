@@ -20,6 +20,7 @@ def register_commands(app: typer.Typer) -> None:
     from realize_core.cli_app.commands.devmode import devmode_app
     from realize_core.cli_app.commands.doctor import doctor
     from realize_core.cli_app.commands.evolution import evolution_app
+    from realize_core.cli_app.commands.fabric import fabric_app
     from realize_core.cli_app.commands.index import index
     from realize_core.cli_app.commands.init import init
     from realize_core.cli_app.commands.kb import kb_app
@@ -58,3 +59,5 @@ def register_commands(app: typer.Typer) -> None:
     app.add_typer(skill_app, name="skill", help="Skill management.")
     app.add_typer(evolution_app, name="evolution", help="Evolution engine and suggestions.")
     app.add_typer(mcp_app, name="mcp", help="MCP server management.")
+    # v5.5.0 — FABRIC Knowledge System
+    app.add_typer(fabric_app, name="fabric", help="FABRIC knowledge system: lint, reindex, search, dream.")
