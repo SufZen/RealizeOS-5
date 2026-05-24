@@ -177,11 +177,14 @@ export function KBBrowser({ ventureKey }: { ventureKey: string }) {
   }
 
   function getCreateDir(label: string): string {
-    if (!data?.tree[label]) return ''
-    const files = data.tree[label].files
+    const entry = data?.tree[label]
+    if (!entry) return ''
+    const files = entry.files
     if (files.length > 0) {
-      const firstPath = files[0].relative_path
-      return firstPath.substring(0, firstPath.lastIndexOf('/'))
+      const first = files[0]
+      if (first) {
+        return first.relative_path.substring(0, first.relative_path.lastIndexOf('/'))
+      }
     }
     return ''
   }

@@ -12,7 +12,7 @@ const META = {
 
 export function ThemeToggle() {
   const { theme, setTheme } = useTheme()
-  const next = CYCLE[(CYCLE.indexOf(theme) + 1) % CYCLE.length]
+  const next = CYCLE[(CYCLE.indexOf(theme) + 1) % CYCLE.length]!
   const { icon: Icon, label } = META[theme]
 
   return (

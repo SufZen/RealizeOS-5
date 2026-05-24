@@ -44,6 +44,9 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     const r = resolve(theme)
     setResolved(r)
     const root = document.documentElement
+    // Primary: data-mode attribute (design-system tokens.css reads this)
+    root.setAttribute('data-mode', r)
+    // Backward compat: keep class hooks for any components that check .light/.dark
     root.classList.toggle('light', r === 'light')
     root.classList.toggle('dark', r === 'dark')
   }, [theme])

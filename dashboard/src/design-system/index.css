@@ -1,0 +1,12 @@
+/* ============================================================================
+ * @realizeos/design-system — index.css
+ * Single import that pulls everything in the correct order.
+ * Apps should `@import "@realizeos/design-system/index.css";` from their
+ * root stylesheet (after Tailwind's `@tailwind base;` if applicable).
+ * ========================================================================= */
+
+@import "./tokens.css";
+@import "./fonts.css";
+@import "./keyframes.css";
+@import "./effects.css";
+@import "./components.css";

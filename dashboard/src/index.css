@@ -1,139 +1,100 @@
+/* ============================================================================
+ * RealizeOS-5/dashboard · src/index.css
+ * Unified design system adapter — imports shared --rz-* tokens then
+ * re-exports them under the names existing components already use.
+ * ========================================================================= */
+
+/* Pull the shared design-system first */
+@import "./design-system/index.css";
+
+/* Then Tailwind v4 */
 @import "tailwindcss";
 
 @theme {
-  /* RealizeOS brand colors */
-  --color-brand-50: #fff9e0;
-  --color-brand-100: #fff3c2;
-  --color-brand-200: #ffe685;
-  --color-brand-300: #ffda47;
-  --color-brand-400: #ffcc00;
-  --color-brand-500: #e6b800;
-  --color-brand-600: #cc9f00;
-  --color-brand-700: #997700;
-  --color-brand-800: #665000;
-  --color-brand-900: #332800;
+  /* ── Brand · single accent, no numeric ramp ─────────────────────────── */
+  --color-brand-400:   var(--rz-accent);
+  --color-brand-500:   var(--rz-accent-strong);
+  /* Legacy ramp names — kept so existing JSX (bg-brand-50, hover:bg-brand-600)
+     still resolves. They all flatten to the single brand color. */
+  --color-brand-50:    var(--rz-accent-soft);
+  --color-brand-100:   var(--rz-accent-soft);
+  --color-brand-200:   var(--rz-accent);
+  --color-brand-300:   var(--rz-accent);
+  --color-brand-600:   var(--rz-accent-strong);
+  --color-brand-700:   var(--rz-accent-strong);
+  --color-brand-800:   var(--rz-accent-strong);
+  --color-brand-900:   var(--rz-accent-strong);
 
-  --color-surface-50: #f8f9fa;
-  --color-surface-100: #f1f3f5;
-  --color-surface-200: #e9ecef;
-  --color-surface-700: #1a1b23;
-  --color-surface-800: #12131a;
-  --color-surface-900: #0a0a0f;
-  --color-surface-950: #060609;
+  /* ── Surfaces · semantic names mapped to --rz-* ─────────────────────── */
+  --color-surface-50:  var(--rz-surface);
+  --color-surface-100: var(--rz-surface);
+  --color-surface-200: var(--rz-surface-hover);
+  --color-surface-700: var(--rz-bg-raised);
+  --color-surface-800: var(--rz-bg-sunken);
+  --color-surface-900: var(--rz-bg);
+  --color-surface-950: var(--rz-bg);
 
-  /* shadcn/ui compatible CSS variables */
-  --color-background: var(--color-surface-900);
-  --color-foreground: #f3f4f6;
-  --color-card: var(--color-surface-800);
-  --color-card-foreground: #f3f4f6;
-  --color-popover: var(--color-surface-800);
-  --color-popover-foreground: #f3f4f6;
-  --color-primary: var(--color-brand-400);
-  --color-primary-foreground: var(--color-surface-900);
-  --color-secondary: var(--color-surface-700);
-  --color-secondary-foreground: #f3f4f6;
-  --color-muted: var(--color-surface-700);
-  --color-muted-foreground: #9ca3af;
-  --color-accent: var(--color-surface-700);
-  --color-accent-foreground: #f3f4f6;
-  --color-destructive: #ef4444;
-  --color-destructive-foreground: #f3f4f6;
-  --color-border: #2e303a;
-  --color-input: #2e303a;
-  --color-ring: var(--color-brand-400);
+  /* ── shadcn-compatible aliases ──────────────────────────────────────── */
+  --color-background:           var(--rz-bg);
+  --color-foreground:           var(--rz-fg);
+  --color-card:                 var(--rz-bg-raised);
+  --color-card-foreground:      var(--rz-fg);
+  --color-popover:              var(--rz-bg-sunken);
+  --color-popover-foreground:   var(--rz-fg);
+  --color-primary:              var(--rz-accent);
+  --color-primary-foreground:   var(--rz-accent-fg);
+  --color-secondary:            var(--rz-surface);
+  --color-secondary-foreground: var(--rz-fg);
+  --color-muted:                var(--rz-bg-sunken);
+  --color-muted-foreground:     var(--rz-fg-muted);
+  --color-accent:               var(--rz-bg-sunken);
+  --color-accent-foreground:    var(--rz-fg);
+  --color-destructive:          var(--rz-danger);
+  --color-destructive-foreground: #ffffff;
+  --color-border:               var(--rz-border);
+  --color-input:                var(--rz-surface);
+  --color-ring:                 var(--rz-accent);
 
-  --radius-sm: 0.25rem;
-  --radius-md: 0.375rem;
-  --radius-lg: 0.5rem;
-  --radius-xl: 0.75rem;
+  /* ── Radius · relaxed to site values ────────────────────────────────── */
+  --radius-xs:   var(--rz-radius-xs);
+  --radius-sm:   var(--rz-radius-sm);
+  --radius-md:   var(--rz-radius-md);
+  --radius-lg:   var(--rz-radius-lg);
+  --radius-xl:   var(--rz-radius-xl);
+  --radius-full: var(--rz-radius-full);
 
-  --font-sans: "Poppins", system-ui, -apple-system, sans-serif;
-  --font-mono: ui-monospace, "Cascadia Code", Consolas, monospace;
+  /* ── Fonts · explicit JetBrains Mono · adds RTL stack ──────────────── */
+  --font-sans:    var(--rz-font-sans);
+  --font-display: var(--rz-font-display);
+  --font-mono:    var(--rz-font-mono);
+  --font-rtl:     var(--rz-font-rtl);
 }
 
 @layer base {
-  * {
-    @apply border-border;
-  }
+  /* The product currently uses .light for light mode. Honor both. */
+  .light { /* hooks into [data-mode="light"] cascade via tokens.css */ }
+
+  * { border-color: var(--rz-border); }
 
   body {
-    @apply bg-background text-foreground antialiased;
+    background: var(--rz-bg);
+    color: var(--rz-fg);
+    font-family: var(--rz-font-sans);
+    -webkit-font-smoothing: antialiased;
     margin: 0;
   }
 
-  /* Light mode overrides */
-  .light {
-    --color-background: #f8f9fa;
-    --color-foreground: #111827;
-    --color-card: #ffffff;
-    --color-card-foreground: #111827;
-    --color-popover: #ffffff;
-    --color-popover-foreground: #111827;
-    --color-primary: #cc9f00;
-    --color-primary-foreground: #ffffff;
-    --color-secondary: #f1f3f5;
-    --color-secondary-foreground: #111827;
-    --color-muted: #f1f3f5;
-    --color-muted-foreground: #6b7280;
-    --color-accent: #f1f3f5;
-    --color-accent-foreground: #111827;
-    --color-destructive: #dc2626;
-    --color-destructive-foreground: #ffffff;
-    --color-border: #e5e7eb;
-    --color-input: #e5e7eb;
-    --color-ring: #cc9f00;
-
-    --color-surface-50: #f8f9fa;
-    --color-surface-100: #f1f3f5;
-    --color-surface-200: #e9ecef;
-    --color-surface-700: #f1f3f5;
-    --color-surface-800: #ffffff;
-    --color-surface-900: #f8f9fa;
-    --color-surface-950: #ffffff;
-  }
-
-  /* Smooth scrolling */
   html {
     scroll-behavior: smooth;
     scrollbar-gutter: stable;
   }
 
-  /* Focus-visible ring for keyboard users */
-  :focus-visible {
-    @apply outline-none ring-2 ring-brand-400 ring-offset-2 ring-offset-background;
-  }
-
-  /* Selection color */
   ::selection {
-    background-color: rgba(255, 204, 0, 0.2);
+    background-color: var(--rz-accent-soft);
     color: inherit;
   }
-
-  /* Animate-in utilities */
-  .animate-in {
-    animation-duration: 300ms;
-    animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
-    animation-fill-mode: both;
-  }
-  .fade-in {
-    animation-name: fadeIn;
-  }
-  @keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
-  }
-  .slide-in-from-right-full {
-    animation-name: slideInFromRight;
-  }
-  @keyframes slideInFromRight {
-    from { transform: translateX(100%); opacity: 0; }
-    to { transform: translateX(0); opacity: 1; }
-  }
-  .zoom-in-95 {
-    animation-name: zoomIn95;
-  }
-  @keyframes zoomIn95 {
-    from { transform: scale(0.95); opacity: 0; }
-    to { transform: scale(1); opacity: 1; }
-  }
 }
+
+/* Product runs at compact density by default — site stays comfy.
+   Set this on the root <html> or <body> of the dashboard app. */
+:root { --rz-density-y: 8px; --rz-density-x: 12px; }

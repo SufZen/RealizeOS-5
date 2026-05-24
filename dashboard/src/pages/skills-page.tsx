@@ -35,7 +35,8 @@ export default function SkillsPage() {
   // Auto-select when only one venture exists
   useEffect(() => {
     if (!selectedVenture && venturesData?.ventures.length === 1) {
-      setSelectedVenture(venturesData.ventures[0].key)
+      const first = venturesData.ventures[0]
+      if (first) setSelectedVenture(first.key)
     }
   }, [venturesData, selectedVenture])
 

@@ -207,9 +207,9 @@ export function TourProvider({ children }: { children: ReactNode }) {
   return (
     <TourContext.Provider value={{ isRunning, currentStep, totalSteps: steps.length, startTour, endTour }}>
       {children}
-      {isRunning && (
+      {isRunning && steps[currentStep] && (
         <TourOverlay
-          step={steps[currentStep]}
+          step={steps[currentStep]!}
           stepIndex={currentStep}
           totalSteps={steps.length}
           onNext={next}

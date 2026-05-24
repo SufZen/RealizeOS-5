@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-mode="dark" data-density="compact">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
@@ -13,17 +13,17 @@
     <title>RealizeOS</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet" />
-    <script type="module" crossorigin src="/assets/index-BMU4r31F.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Rubik:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <script type="module" crossorigin src="/assets/index-BRHLr34L.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/jsx-runtime-BFALxl05.js">
     <link rel="modulepreload" crossorigin href="/assets/utils-ANGloBYr.js">
     <link rel="modulepreload" crossorigin href="/assets/api-D5WPfU5L.js">
-    <link rel="stylesheet" crossorigin href="/assets/index-CgvxURC9.css">
+    <link rel="stylesheet" crossorigin href="/assets/index-CqkirUiA.css">
   </head>
   <body>
     <script>
       // Prevent flash of wrong theme before React hydrates
-      try{var t=localStorage.getItem('realizeos_theme');if(t==='light'){document.documentElement.classList.add('light')}else if(t==='dark'||!t){document.documentElement.classList.add('dark')}}catch(e){document.documentElement.classList.add('dark')}
+      try{var t=localStorage.getItem('realizeos_theme');var m=(t==='light')?'light':'dark';document.documentElement.setAttribute('data-mode',m);document.documentElement.classList.add(m)}catch(e){document.documentElement.setAttribute('data-mode','dark');document.documentElement.classList.add('dark')}
     </script>
     <div id="root"></div>
     <noscript>
