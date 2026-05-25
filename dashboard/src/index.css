@@ -5,28 +5,28 @@
  * ========================================================================= */
 
 /* Pull the shared design-system first */
-@import "./design-system/index.css";
+@import './design-system/index.css';
 
 /* Then Tailwind v4 */
-@import "tailwindcss";
+@import 'tailwindcss';
 
 @theme {
   /* ── Brand · single accent, no numeric ramp ─────────────────────────── */
-  --color-brand-400:   var(--rz-accent);
-  --color-brand-500:   var(--rz-accent-strong);
+  --color-brand-400: var(--rz-accent);
+  --color-brand-500: var(--rz-accent-strong);
   /* Legacy ramp names — kept so existing JSX (bg-brand-50, hover:bg-brand-600)
      still resolves. They all flatten to the single brand color. */
-  --color-brand-50:    var(--rz-accent-soft);
-  --color-brand-100:   var(--rz-accent-soft);
-  --color-brand-200:   var(--rz-accent);
-  --color-brand-300:   var(--rz-accent);
-  --color-brand-600:   var(--rz-accent-strong);
-  --color-brand-700:   var(--rz-accent-strong);
-  --color-brand-800:   var(--rz-accent-strong);
-  --color-brand-900:   var(--rz-accent-strong);
+  --color-brand-50: var(--rz-accent-soft);
+  --color-brand-100: var(--rz-accent-soft);
+  --color-brand-200: var(--rz-accent);
+  --color-brand-300: var(--rz-accent);
+  --color-brand-600: var(--rz-accent-strong);
+  --color-brand-700: var(--rz-accent-strong);
+  --color-brand-800: var(--rz-accent-strong);
+  --color-brand-900: var(--rz-accent-strong);
 
   /* ── Surfaces · semantic names mapped to --rz-* ─────────────────────── */
-  --color-surface-50:  var(--rz-surface);
+  --color-surface-50: var(--rz-surface);
   --color-surface-100: var(--rz-surface);
   --color-surface-200: var(--rz-surface-hover);
   --color-surface-700: var(--rz-bg-raised);
@@ -35,46 +35,50 @@
   --color-surface-950: var(--rz-bg);
 
   /* ── shadcn-compatible aliases ──────────────────────────────────────── */
-  --color-background:           var(--rz-bg);
-  --color-foreground:           var(--rz-fg);
-  --color-card:                 var(--rz-bg-raised);
-  --color-card-foreground:      var(--rz-fg);
-  --color-popover:              var(--rz-bg-sunken);
-  --color-popover-foreground:   var(--rz-fg);
-  --color-primary:              var(--rz-accent);
-  --color-primary-foreground:   var(--rz-accent-fg);
-  --color-secondary:            var(--rz-surface);
+  --color-background: var(--rz-bg);
+  --color-foreground: var(--rz-fg);
+  --color-card: var(--rz-bg-raised);
+  --color-card-foreground: var(--rz-fg);
+  --color-popover: var(--rz-bg-sunken);
+  --color-popover-foreground: var(--rz-fg);
+  --color-primary: var(--rz-accent);
+  --color-primary-foreground: var(--rz-accent-fg);
+  --color-secondary: var(--rz-surface);
   --color-secondary-foreground: var(--rz-fg);
-  --color-muted:                var(--rz-bg-sunken);
-  --color-muted-foreground:     var(--rz-fg-muted);
-  --color-accent:               var(--rz-bg-sunken);
-  --color-accent-foreground:    var(--rz-fg);
-  --color-destructive:          var(--rz-danger);
+  --color-muted: var(--rz-bg-sunken);
+  --color-muted-foreground: var(--rz-fg-muted);
+  --color-accent: var(--rz-bg-sunken);
+  --color-accent-foreground: var(--rz-fg);
+  --color-destructive: var(--rz-danger);
   --color-destructive-foreground: #ffffff;
-  --color-border:               var(--rz-border);
-  --color-input:                var(--rz-surface);
-  --color-ring:                 var(--rz-accent);
+  --color-border: var(--rz-border);
+  --color-input: var(--rz-surface);
+  --color-ring: var(--rz-accent);
 
   /* ── Radius · relaxed to site values ────────────────────────────────── */
-  --radius-xs:   var(--rz-radius-xs);
-  --radius-sm:   var(--rz-radius-sm);
-  --radius-md:   var(--rz-radius-md);
-  --radius-lg:   var(--rz-radius-lg);
-  --radius-xl:   var(--rz-radius-xl);
+  --radius-xs: var(--rz-radius-xs);
+  --radius-sm: var(--rz-radius-sm);
+  --radius-md: var(--rz-radius-md);
+  --radius-lg: var(--rz-radius-lg);
+  --radius-xl: var(--rz-radius-xl);
   --radius-full: var(--rz-radius-full);
 
   /* ── Fonts · explicit JetBrains Mono · adds RTL stack ──────────────── */
-  --font-sans:    var(--rz-font-sans);
+  --font-sans: var(--rz-font-sans);
   --font-display: var(--rz-font-display);
-  --font-mono:    var(--rz-font-mono);
-  --font-rtl:     var(--rz-font-rtl);
+  --font-mono: var(--rz-font-mono);
+  --font-rtl: var(--rz-font-rtl);
 }
 
 @layer base {
   /* The product currently uses .light for light mode. Honor both. */
-  .light { /* hooks into [data-mode="light"] cascade via tokens.css */ }
+  .light {
+    /* hooks into [data-mode="light"] cascade via tokens.css */
+  }
 
-  * { border-color: var(--rz-border); }
+  * {
+    border-color: var(--rz-border);
+  }
 
   body {
     background: var(--rz-bg);
@@ -97,4 +101,7 @@
 
 /* Product runs at compact density by default — site stays comfy.
    Set this on the root <html> or <body> of the dashboard app. */
-:root { --rz-density-y: 8px; --rz-density-x: 12px; }
+:root {
+  --rz-density-y: 8px;
+  --rz-density-x: 12px;
+}

@@ -10,10 +10,10 @@ Three dreaming cycles:
 3. Synthesis: Deep pattern recognition across entities (future: Genesis cycle)
 """
 
-from realize_core.dreaming.policy import TrustPolicy, DreamProposal, ProposalStatus
-from realize_core.dreaming.reflex import ReflexCycle
 from realize_core.dreaming.curator import CuratorCycle
 from realize_core.dreaming.inbox import DreamInbox
+from realize_core.dreaming.policy import DreamProposal, ProposalStatus, TrustPolicy
+from realize_core.dreaming.reflex import ReflexCycle
 
 __all__ = [
     "TrustPolicy",

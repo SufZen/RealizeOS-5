@@ -174,7 +174,11 @@ export default function AgentDetailPage() {
   }
 
   if (loading) {
-    return <div className="flex items-center justify-center h-64 text-muted-foreground">Loading agent...</div>
+    return (
+      <div className="flex items-center justify-center h-64 text-muted-foreground">
+        Loading agent...
+      </div>
+    )
   }
 
   if (error) {
@@ -209,7 +213,9 @@ export default function AgentDetailPage() {
             <Bot className="h-6 w-6 text-brand-400" />
             <div>
               <h1 className="text-2xl font-bold text-foreground">{data.key}</h1>
-              <span className="text-xs text-muted-foreground font-mono">{data.definition_path}</span>
+              <span className="text-xs text-muted-foreground font-mono">
+                {data.definition_path}
+              </span>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -252,7 +258,8 @@ export default function AgentDetailPage() {
         <div className="rounded-xl border border-border bg-card p-4">
           <span className="text-xs text-muted-foreground">Schedule</span>
           <p className="mt-1 text-sm text-foreground">
-            {data.schedule_cron || (data.schedule_interval_sec ? `Every ${data.schedule_interval_sec}s` : 'None')}
+            {data.schedule_cron ||
+              (data.schedule_interval_sec ? `Every ${data.schedule_interval_sec}s` : 'None')}
           </p>
         </div>
         <div className="rounded-xl border border-border bg-card p-4">
@@ -276,7 +283,9 @@ export default function AgentDetailPage() {
       {isError && data.last_error && (
         <div className="rounded-xl border border-red-400/30 bg-red-400/5 p-4">
           <span className="text-xs font-medium text-red-400">Last Error</span>
-          <p className="mt-1 text-sm text-red-300 font-mono whitespace-pre-wrap">{data.last_error}</p>
+          <p className="mt-1 text-sm text-red-300 font-mono whitespace-pre-wrap">
+            {data.last_error}
+          </p>
         </div>
       )}
 

@@ -7,9 +7,17 @@ import { Toggle, StatusBanner } from './shared'
 const S3_PROVIDERS = [
   { label: 'AWS S3', value: '', hint: 'Leave endpoint empty for standard AWS S3' },
   { label: 'MinIO (Self-Hosted)', value: 'http://localhost:9000', hint: 'Your MinIO server URL' },
-  { label: 'DigitalOcean Spaces', value: 'https://{region}.digitaloceanspaces.com', hint: 'e.g. nyc3, sfo3, sgp1' },
+  {
+    label: 'DigitalOcean Spaces',
+    value: 'https://{region}.digitaloceanspaces.com',
+    hint: 'e.g. nyc3, sfo3, sgp1',
+  },
   { label: 'Backblaze B2', value: 'https://s3.{region}.backblazeb2.com', hint: 'e.g. us-west-004' },
-  { label: 'Cloudflare R2', value: 'https://{account_id}.r2.cloudflarestorage.com', hint: 'Your CF account ID' },
+  {
+    label: 'Cloudflare R2',
+    value: 'https://{account_id}.r2.cloudflarestorage.com',
+    hint: 'Your CF account ID',
+  },
   { label: 'Custom S3-Compatible', value: '', hint: 'Enter your endpoint URL' },
 ]
 
@@ -24,18 +32,25 @@ export function StorageSection() {
   const [testing, setTesting] = useState(false)
   const [saving, setSaving] = useState(false)
   const [exporting, setExporting] = useState(false)
-  const [storageStatus, setStorageStatus] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
+  const [storageStatus, setStorageStatus] = useState<{
+    message: string
+    type: 'success' | 'error'
+  } | null>(null)
   const [stats, setStats] = useState<{ ventures: number; total_size_bytes: number } | null>(null)
 
   useEffect(() => {
-    api.get<{ config: Record<string, string | boolean>; stats: { ventures: number; total_size_bytes: number } }>('/storage/config')
-      .then(res => {
+    api
+      .get<{
+        config: Record<string, string | boolean>
+        stats: { ventures: number; total_size_bytes: number }
+      }>('/storage/config')
+      .then((res) => {
         const cfg = res.config
         setProvider((cfg.provider as string) || 'local')
         setBucket((cfg.s3_bucket as string) || '')
         setRegion((cfg.s3_region as string) || 'us-east-1')
         setEndpointUrl((cfg.s3_endpoint_url as string) || '')
-        setSyncEnabled(!!(cfg.sync_enabled))
+        setSyncEnabled(!!cfg.sync_enabled)
         setStats(res.stats)
       })
       .catch(() => {})
@@ -46,9 +61,13 @@ export function StorageSection() {
     setStorageStatus(null)
     try {
       const res = await api.post<{ message: string }>('/storage/test', {
-        provider, s3_bucket: bucket, s3_region: region,
-        s3_access_key: accessKey, s3_secret_key: secretKey,
-        s3_endpoint_url: endpointUrl, sync_enabled: syncEnabled,
+        provider,
+        s3_bucket: bucket,
+        s3_region: region,
+        s3_access_key: accessKey,
+        s3_secret_key: secretKey,
+        s3_endpoint_url: endpointUrl,
+        sync_enabled: syncEnabled,
       })
       setStorageStatus({ message: res.message, type: 'success' })
     } catch (e: unknown) {
@@ -63,9 +82,13 @@ export function StorageSection() {
     setStorageStatus(null)
     try {
       await api.put('/storage/config', {
-        provider, s3_bucket: bucket, s3_region: region,
-        s3_access_key: accessKey, s3_secret_key: secretKey,
-        s3_endpoint_url: endpointUrl, sync_enabled: syncEnabled,
+        provider,
+        s3_bucket: bucket,
+        s3_region: region,
+        s3_access_key: accessKey,
+        s3_secret_key: secretKey,
+        s3_endpoint_url: endpointUrl,
+        sync_enabled: syncEnabled,
       })
       setStorageStatus({ message: 'Storage configuration saved.', type: 'success' })
     } catch {
@@ -87,7 +110,8 @@ export function StorageSection() {
     }
   }
 
-  const inputClass = 'w-full bg-surface-800 border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder-muted-foreground outline-none focus:border-brand-400'
+  const inputClass =
+    'w-full bg-surface-800 border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder-muted-foreground outline-none focus:border-brand-400'
 
   return (
     <div className="rounded-xl border border-border bg-card p-6">
@@ -98,7 +122,8 @@ export function StorageSection() {
 
       {stats && (
         <p className="text-xs text-muted-foreground mb-4">
-          {stats.ventures} venture(s) · {(stats.total_size_bytes / 1024 / 1024).toFixed(1)} MB on disk
+          {stats.ventures} venture(s) · {(stats.total_size_bytes / 1024 / 1024).toFixed(1)} MB on
+          disk
         </p>
       )}
 
@@ -110,20 +135,26 @@ export function StorageSection() {
           <div className="flex gap-2">
             <button
               onClick={() => setProvider('local')}
-              className={cn('px-3 py-1 text-xs rounded-lg border transition-colors',
+              className={cn(
+                'px-3 py-1 text-xs rounded-lg border transition-colors',
                 provider === 'local'
                   ? 'bg-brand-400/10 text-brand-400 border-brand-400/30'
-                  : 'border-border text-muted-foreground hover:text-foreground'
+                  : 'border-border text-muted-foreground hover:text-foreground',
               )}
-            >Local</button>
+            >
+              Local
+            </button>
             <button
               onClick={() => setProvider('s3')}
-              className={cn('px-3 py-1 text-xs rounded-lg border transition-colors',
+              className={cn(
+                'px-3 py-1 text-xs rounded-lg border transition-colors',
                 provider === 's3'
                   ? 'bg-brand-400/10 text-brand-400 border-brand-400/30'
-                  : 'border-border text-muted-foreground hover:text-foreground'
+                  : 'border-border text-muted-foreground hover:text-foreground',
               )}
-            >S3 Cloud</button>
+            >
+              S3 Cloud
+            </button>
           </div>
         </div>
 
@@ -133,39 +164,70 @@ export function StorageSection() {
               <label className="text-xs text-muted-foreground mb-1 block">Provider Template</label>
               <select
                 onChange={(e) => {
-                  const p = S3_PROVIDERS.find(p => p.label === e.target.value)
+                  const p = S3_PROVIDERS.find((p) => p.label === e.target.value)
                   if (p) setEndpointUrl(p.value)
                 }}
                 className={inputClass}
               >
-                {S3_PROVIDERS.map(p => (
-                  <option key={p.label} value={p.label}>{p.label} — {p.hint}</option>
+                {S3_PROVIDERS.map((p) => (
+                  <option key={p.label} value={p.label}>
+                    {p.label} — {p.hint}
+                  </option>
                 ))}
               </select>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-xs text-muted-foreground mb-1 block">Bucket</label>
-                <input value={bucket} onChange={e => setBucket(e.target.value)} placeholder="my-realizeos-bucket" className={inputClass} />
+                <input
+                  value={bucket}
+                  onChange={(e) => setBucket(e.target.value)}
+                  placeholder="my-realizeos-bucket"
+                  className={inputClass}
+                />
               </div>
               <div>
                 <label className="text-xs text-muted-foreground mb-1 block">Region</label>
-                <input value={region} onChange={e => setRegion(e.target.value)} placeholder="us-east-1" className={inputClass} />
+                <input
+                  value={region}
+                  onChange={(e) => setRegion(e.target.value)}
+                  placeholder="us-east-1"
+                  className={inputClass}
+                />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-xs text-muted-foreground mb-1 block">Access Key</label>
-                <input value={accessKey} onChange={e => setAccessKey(e.target.value)} type="password" placeholder="AKIA..." className={inputClass} />
+                <input
+                  value={accessKey}
+                  onChange={(e) => setAccessKey(e.target.value)}
+                  type="password"
+                  placeholder="AKIA..."
+                  className={inputClass}
+                />
               </div>
               <div>
                 <label className="text-xs text-muted-foreground mb-1 block">Secret Key</label>
-                <input value={secretKey} onChange={e => setSecretKey(e.target.value)} type="password" placeholder="••••••••" className={inputClass} />
+                <input
+                  value={secretKey}
+                  onChange={(e) => setSecretKey(e.target.value)}
+                  type="password"
+                  placeholder="••••••••"
+                  className={inputClass}
+                />
               </div>
             </div>
             <div>
-              <label className="text-xs text-muted-foreground mb-1 block">Endpoint URL (custom/non-AWS)</label>
-              <input value={endpointUrl} onChange={e => setEndpointUrl(e.target.value)} placeholder="https://..." className={inputClass} />
+              <label className="text-xs text-muted-foreground mb-1 block">
+                Endpoint URL (custom/non-AWS)
+              </label>
+              <input
+                value={endpointUrl}
+                onChange={(e) => setEndpointUrl(e.target.value)}
+                placeholder="https://..."
+                className={inputClass}
+              />
             </div>
             <div className="flex items-center justify-between">
               <span className="text-sm text-foreground">Auto-sync enabled</span>
@@ -183,7 +245,11 @@ export function StorageSection() {
               disabled={testing || !bucket}
               className="flex items-center gap-2 px-4 py-2 text-sm rounded-lg border border-border bg-surface-800 text-foreground hover:bg-surface-700 disabled:opacity-50 transition-colors"
             >
-              {testing ? <Loader2 className="h-4 w-4 animate-spin" /> : <TestTube2 className="h-4 w-4" />}
+              {testing ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <TestTube2 className="h-4 w-4" />
+              )}
               Test Connection
             </button>
           )}
@@ -200,7 +266,11 @@ export function StorageSection() {
             disabled={exporting}
             className="flex items-center gap-2 px-4 py-2 text-sm rounded-lg border border-border bg-surface-800 text-foreground hover:bg-surface-700 disabled:opacity-50 transition-colors"
           >
-            {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+            {exporting ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Download className="h-4 w-4" />
+            )}
             Export All Data
           </button>
         </div>
@@ -211,15 +281,17 @@ export function StorageSection() {
 
 function SyncStatusPanel() {
   const [syncInfo, setSyncInfo] = useState<{
-    sync_enabled: boolean; is_running: boolean;
-    last_sync: { completed_at: string; sync_type: string } | null;
+    sync_enabled: boolean
+    is_running: boolean
+    last_sync: { completed_at: string; sync_type: string } | null
     stats: Record<string, number>
   } | null>(null)
   const [syncing, setSyncing] = useState(false)
 
   useEffect(() => {
-    api.get<typeof syncInfo>('/storage/sync/status')
-      .then(res => setSyncInfo(res))
+    api
+      .get<typeof syncInfo>('/storage/sync/status')
+      .then((res) => setSyncInfo(res))
       .catch(() => {})
   }, [syncing])
 
@@ -240,7 +312,9 @@ function SyncStatusPanel() {
     <div className="rounded-lg bg-surface-800 p-4 border border-border/50">
       <div className="flex items-center justify-between mb-2">
         <span className="text-sm font-medium text-foreground flex items-center gap-2">
-          <RefreshCw className={cn('h-4 w-4', syncInfo.is_running && 'animate-spin text-brand-400')} />
+          <RefreshCw
+            className={cn('h-4 w-4', syncInfo.is_running && 'animate-spin text-brand-400')}
+          />
           Sync Status
         </span>
         <button
@@ -248,16 +322,26 @@ function SyncStatusPanel() {
           disabled={syncing || syncInfo.is_running}
           className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-border bg-surface-700 text-foreground hover:bg-surface-600 disabled:opacity-50 transition-colors"
         >
-          {(syncing || syncInfo.is_running)
-            ? <><Loader2 className="h-3 w-3 animate-spin" /> Syncing...</>
-            : <><RefreshCw className="h-3 w-3" /> Sync Now</>
-          }
+          {syncing || syncInfo.is_running ? (
+            <>
+              <Loader2 className="h-3 w-3 animate-spin" /> Syncing...
+            </>
+          ) : (
+            <>
+              <RefreshCw className="h-3 w-3" /> Sync Now
+            </>
+          )}
         </button>
       </div>
       <div className="grid grid-cols-3 gap-3 text-xs">
         <div>
           <span className="text-muted-foreground">Status</span>
-          <p className={cn('font-medium', syncInfo.is_running ? 'text-brand-400' : 'text-emerald-400')}>
+          <p
+            className={cn(
+              'font-medium',
+              syncInfo.is_running ? 'text-brand-400' : 'text-emerald-400',
+            )}
+          >
             {syncInfo.is_running ? 'Running' : 'Idle'}
           </p>
         </div>
@@ -272,7 +356,9 @@ function SyncStatusPanel() {
         <div>
           <span className="text-muted-foreground">Operations</span>
           <p className="text-foreground">
-            {Object.entries(syncInfo.stats || {}).map(([k, v]) => `${k}: ${v}`).join(', ') || 'None'}
+            {Object.entries(syncInfo.stats || {})
+              .map(([k, v]) => `${k}: ${v}`)
+              .join(', ') || 'None'}
           </p>
         </div>
       </div>

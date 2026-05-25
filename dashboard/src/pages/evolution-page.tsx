@@ -51,7 +51,11 @@ export default function EvolutionPage() {
   }
 
   if (loading) {
-    return <div className="flex items-center justify-center h-64 text-muted-foreground">Loading suggestions...</div>
+    return (
+      <div className="flex items-center justify-center h-64 text-muted-foreground">
+        Loading suggestions...
+      </div>
+    )
   }
 
   if (error) {
@@ -69,9 +73,7 @@ export default function EvolutionPage() {
           <Sparkles className="h-6 w-6 text-brand-400" />
           <h1 className="text-2xl font-bold text-foreground">Evolution Inbox</h1>
           {data && data.pending > 0 && (
-            <span className="rz-badge rz-badge--accent">
-              {data.pending} pending
-            </span>
+            <span className="rz-badge rz-badge--accent">{data.pending} pending</span>
           )}
         </div>
         <button
@@ -110,7 +112,9 @@ export default function EvolutionPage() {
 
           {decided.length > 0 && (
             <section>
-              <h2 className="text-sm font-semibold text-muted-foreground mb-3">Previously Reviewed</h2>
+              <h2 className="text-sm font-semibold text-muted-foreground mb-3">
+                Previously Reviewed
+              </h2>
               <div className="space-y-2 opacity-60">
                 {decided.map((s) => (
                   <SuggestionCard key={s.id} suggestion={s} />
@@ -148,7 +152,12 @@ function SuggestionCard({
           <p className="text-xs text-muted-foreground mt-0.5">{s.description}</p>
         </div>
         <div className="flex items-center gap-2 shrink-0 ml-4">
-          <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium', riskColors[s.risk_level] || riskColors.low)}>
+          <span
+            className={cn(
+              'text-xs px-2 py-0.5 rounded-full font-medium',
+              riskColors[s.risk_level] || riskColors.low,
+            )}
+          >
             {s.risk_level}
           </span>
           <span className="text-xs text-muted-foreground bg-surface-700 px-2 py-0.5 rounded">
@@ -160,7 +169,11 @@ function SuggestionCard({
       <div className="flex items-center justify-between mt-3">
         <div className="flex items-center gap-3 text-xs text-muted-foreground">
           <span className="flex items-center gap-1">
-            {s.priority >= 0.7 ? <ArrowUp className="h-3 w-3 text-red-400" /> : <ArrowDown className="h-3 w-3" />}
+            {s.priority >= 0.7 ? (
+              <ArrowUp className="h-3 w-3 text-red-400" />
+            ) : (
+              <ArrowDown className="h-3 w-3" />
+            )}
             Priority: {(s.priority * 100).toFixed(0)}%
           </span>
           {s.source && <span>Source: {s.source}</span>}

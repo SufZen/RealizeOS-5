@@ -2,21 +2,16 @@
 Tests for the FABRIC Entity System: parser, writer, refs, tags, CRUD, and validation.
 """
 
-import tempfile
 from datetime import datetime
-from pathlib import Path
 
-import pytest
-
+from realize_core.fabric.crud import create_entity, delete_entity, read_entity, scan_venture, update_entity
 from realize_core.fabric.entity import FabricEntity
 from realize_core.fabric.id_gen import generate_id, parse_id_type
 from realize_core.fabric.parser import parse_entity, parse_frontmatter
 from realize_core.fabric.refs import extract_refs
 from realize_core.fabric.tags import extract_tags
 from realize_core.fabric.validator import SchemaRegistry, validate_entity
-from realize_core.fabric.writer import entity_to_markdown, write_entity
-from realize_core.fabric.crud import create_entity, read_entity, update_entity, delete_entity, scan_venture
-
+from realize_core.fabric.writer import write_entity
 
 # ─── Frontmatter Parsing ─────────────────────────────────────────────────────
 

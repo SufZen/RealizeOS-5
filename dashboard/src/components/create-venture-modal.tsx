@@ -26,7 +26,11 @@ export function CreateVentureModal({ open, onClose, onCreated }: Props) {
     setSaving(true)
     setError('')
     try {
-      await api.post('/ventures', { key: key.trim(), name: name.trim(), description: description.trim() })
+      await api.post('/ventures', {
+        key: key.trim(),
+        name: name.trim(),
+        description: description.trim(),
+      })
       setKey('')
       setName('')
       setDescription('')
@@ -81,9 +85,7 @@ export function CreateVentureModal({ open, onClose, onCreated }: Props) {
               />
             </div>
 
-            {error && (
-              <p className="text-sm text-red-400">{error}</p>
-            )}
+            {error && <p className="text-sm text-red-400">{error}</p>}
 
             <div className="flex justify-end gap-3 pt-2">
               <button

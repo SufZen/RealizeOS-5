@@ -53,8 +53,17 @@ async function fetchWithTimeout<T>(path: string, timeout: number): Promise<T> {
   }
 }
 
-export function useApi<T>(path: string, timeout = DEFAULT_TIMEOUT, refetchInterval?: number): UseApiResult<T> {
-  const { data, isPending, error, refetch: queryRefetch } = useQuery<T, Error>({
+export function useApi<T>(
+  path: string,
+  timeout = DEFAULT_TIMEOUT,
+  refetchInterval?: number,
+): UseApiResult<T> {
+  const {
+    data,
+    isPending,
+    error,
+    refetch: queryRefetch,
+  } = useQuery<T, Error>({
     queryKey: ['api', path],
     queryFn: () => fetchWithTimeout<T>(path, timeout),
     refetchInterval,

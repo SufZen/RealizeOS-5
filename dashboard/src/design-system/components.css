@@ -72,8 +72,16 @@
   filter: brightness(1.1);
 }
 
-.rz-btn--sm { height: 28px; padding: 0 12px; font-size: var(--rz-text-xs); }
-.rz-btn--lg { height: 44px; padding: 0 20px; font-size: var(--rz-text-md); }
+.rz-btn--sm {
+  height: 28px;
+  padding: 0 12px;
+  font-size: var(--rz-text-xs);
+}
+.rz-btn--lg {
+  height: 44px;
+  padding: 0 20px;
+  font-size: var(--rz-text-md);
+}
 
 /* ── Input ─────────────────────────────────────────────────────────────── */
 .rz-input {
@@ -98,13 +106,19 @@
   border-color: var(--rz-accent);
   box-shadow: 0 0 0 3px var(--rz-accent-ring);
 }
-.rz-input[aria-invalid="true"] {
+.rz-input[aria-invalid='true'] {
   border-color: var(--rz-danger);
   box-shadow: 0 0 0 3px var(--rz-danger-soft);
 }
 
-.rz-input--sm { height: 28px; font-size: var(--rz-text-xs); }
-.rz-input--lg { height: 44px; font-size: var(--rz-text-md); }
+.rz-input--sm {
+  height: 28px;
+  font-size: var(--rz-text-xs);
+}
+.rz-input--lg {
+  height: 44px;
+  font-size: var(--rz-text-md);
+}
 
 textarea.rz-input {
   height: auto;
@@ -137,11 +151,31 @@ textarea.rz-input {
   background: currentColor;
 }
 
-.rz-badge--accent  { color: var(--rz-accent);  background: var(--rz-accent-soft);  border-color: transparent; }
-.rz-badge--success { color: var(--rz-success); background: var(--rz-success-soft); border-color: transparent; }
-.rz-badge--warning { color: var(--rz-warning); background: var(--rz-warning-soft); border-color: transparent; }
-.rz-badge--danger  { color: var(--rz-danger);  background: var(--rz-danger-soft);  border-color: transparent; }
-.rz-badge--info    { color: var(--rz-info);    background: var(--rz-info-soft);    border-color: transparent; }
+.rz-badge--accent {
+  color: var(--rz-accent);
+  background: var(--rz-accent-soft);
+  border-color: transparent;
+}
+.rz-badge--success {
+  color: var(--rz-success);
+  background: var(--rz-success-soft);
+  border-color: transparent;
+}
+.rz-badge--warning {
+  color: var(--rz-warning);
+  background: var(--rz-warning-soft);
+  border-color: transparent;
+}
+.rz-badge--danger {
+  color: var(--rz-danger);
+  background: var(--rz-danger-soft);
+  border-color: transparent;
+}
+.rz-badge--info {
+  color: var(--rz-info);
+  background: var(--rz-info-soft);
+  border-color: transparent;
+}
 
 /* ── Card ──────────────────────────────────────────────────────────────── */
 .rz-card {
@@ -182,10 +216,19 @@ textarea.rz-input {
   color: var(--rz-fg-muted);
   overflow-x: auto;
 }
-.rz-code .rz-code__k { color: var(--rz-accent); }
-.rz-code .rz-code__c { color: var(--rz-fg-faint); font-style: italic; }
-.rz-code .rz-code__s { color: var(--rz-success); }
-.rz-code .rz-code__v { color: var(--rz-fg); }
+.rz-code .rz-code__k {
+  color: var(--rz-accent);
+}
+.rz-code .rz-code__c {
+  color: var(--rz-fg-faint);
+  font-style: italic;
+}
+.rz-code .rz-code__s {
+  color: var(--rz-success);
+}
+.rz-code .rz-code__v {
+  color: var(--rz-fg);
+}
 
 /* ── Status dot ────────────────────────────────────────────────────────── */
 .rz-status-dot {
@@ -195,8 +238,23 @@ textarea.rz-input {
   border-radius: var(--rz-radius-full);
   background: var(--rz-fg-faint);
 }
-.rz-status-dot--active   { background: var(--rz-success); box-shadow: 0 0 0 3px var(--rz-success-soft); }
-.rz-status-dot--review   { background: var(--rz-warning); box-shadow: 0 0 0 3px var(--rz-warning-soft); }
-.rz-status-dot--error    { background: var(--rz-danger);  box-shadow: 0 0 0 3px var(--rz-danger-soft); }
-.rz-status-dot--routing  { background: var(--rz-info);    box-shadow: 0 0 0 3px var(--rz-info-soft); }
-.rz-status-dot--brand    { background: var(--rz-accent);  box-shadow: 0 0 0 3px var(--rz-accent-soft); }
+.rz-status-dot--active {
+  background: var(--rz-success);
+  box-shadow: 0 0 0 3px var(--rz-success-soft);
+}
+.rz-status-dot--review {
+  background: var(--rz-warning);
+  box-shadow: 0 0 0 3px var(--rz-warning-soft);
+}
+.rz-status-dot--error {
+  background: var(--rz-danger);
+  box-shadow: 0 0 0 3px var(--rz-danger-soft);
+}
+.rz-status-dot--routing {
+  background: var(--rz-info);
+  box-shadow: 0 0 0 3px var(--rz-info-soft);
+}
+.rz-status-dot--brand {
+  background: var(--rz-accent);
+  box-shadow: 0 0 0 3px var(--rz-accent-soft);
+}

@@ -2,12 +2,8 @@
 Tests for Event Log, SOUL, and Mission Engine.
 """
 
-import asyncio
-from datetime import datetime
-from pathlib import Path
 
 import pytest
-
 from realize_core.fabric.event_log import EventLog
 from realize_core.fabric.event_types import (
     Event,
@@ -19,10 +15,9 @@ from realize_core.fabric.event_types import (
     runtime_event,
 )
 from realize_core.fabric.soul import AgentSoul, UserSoul
-from realize_core.missions.state import Mission, MissionState, MissionStep, StepStatus
 from realize_core.missions.engine import MissionEngine
+from realize_core.missions.state import Mission, MissionState, MissionStep, StepStatus
 from realize_core.runtimes.registry import RuntimeRegistry
-
 
 # ─── Event Types ──────────────────────────────────────────────────────────────
 
@@ -342,7 +337,7 @@ class TestMissionEngine:
         engine.create_mission(title="Logged Mission", goal="With events")
 
         log = EventLog(tmp_path / "events.jsonl")
-        events = log.query(category="mission")
+        log.query(category="mission")
         # The engine's event log is separate from this log instance
         # But the engine's own log should have the events
         assert engine._event_log.count(category="mission") >= 1

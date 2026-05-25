@@ -103,7 +103,8 @@ async def create_entity(body: CreateEntityRequest, request: Request):
 @router.put("/fabric/entities/{entity_id}")
 async def update_entity(entity_id: str, body: UpdateEntityRequest, request: Request):
     """Update an existing FABRIC entity."""
-    from realize_core.fabric.crud import read_entity, update_entity as _update
+    from realize_core.fabric.crud import read_entity
+    from realize_core.fabric.crud import update_entity as _update
 
     synapse = _get_synapse(request)
     entity_data = synapse.get(entity_id)
@@ -133,7 +134,8 @@ async def update_entity(entity_id: str, body: UpdateEntityRequest, request: Requ
 @router.delete("/fabric/entities/{entity_id}")
 async def delete_entity(entity_id: str, request: Request):
     """Delete a FABRIC entity."""
-    from realize_core.fabric.crud import read_entity, delete_entity as _delete
+    from realize_core.fabric.crud import delete_entity as _delete
+    from realize_core.fabric.crud import read_entity
 
     synapse = _get_synapse(request)
     entity_data = synapse.get(entity_id)
@@ -262,8 +264,8 @@ async def list_runtimes(request: Request):
 def _get_synapse(request: Request):
     """Get or create the Synapse instance."""
     if not hasattr(request.app.state, "synapse") or request.app.state.synapse is None:
-        from realize_core.fabric.synapse import Synapse
         from realize_core.config import KB_PATH
+        from realize_core.fabric.synapse import Synapse
 
         db_path = Path(KB_PATH) / ".synapse" / "synapse.db"
         db_path.parent.mkdir(parents=True, exist_ok=True)

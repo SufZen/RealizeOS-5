@@ -24,7 +24,7 @@ export default function VenturesListPage() {
   const navigate = useNavigate()
   const [showCreate, setShowCreate] = useState(false)
   const [deleting, setDeleting] = useState<string | null>(null)
-  
+
   // Custom dialog state
   const [confirmDeleteKey, setConfirmDeleteKey] = useState<string | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -164,7 +164,7 @@ export default function VenturesListPage() {
         title="Delete Venture"
         message={`Delete venture "${confirmDeleteKey}"? This removes all FABRIC files and cannot be undone.`}
         isDestructive={true}
-        confirmText={deleting ? "Deleting..." : "Delete Venture"}
+        confirmText={deleting ? 'Deleting...' : 'Delete Venture'}
         onConfirm={executeDelete}
         onCancel={() => setConfirmDeleteKey(null)}
       />

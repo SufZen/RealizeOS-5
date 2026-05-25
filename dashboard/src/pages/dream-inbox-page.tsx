@@ -17,7 +17,6 @@ import {
   Filter,
   Archive,
 } from 'lucide-react'
-import { useApi } from '@/hooks/use-api'
 import { cn } from '@/lib/utils'
 
 /* ─── Types ──────────────────────────────────────────────────────── */
@@ -42,46 +41,34 @@ interface DreamProposal {
   rejection_reason: string
 }
 
-interface InboxResponse {
-  proposals: DreamProposal[]
-  stats: {
-    total: number
-    pending: number
-    approved: number
-    rejected: number
-    applied: number
-    expired: number
-  }
-}
-
 /* ─── Status config ──────────────────────────────────────────────── */
 
 const statusConfig: Record<string, { icon: typeof Clock; color: string; label: string }> = {
-  pending:  { icon: Clock,        color: 'text-amber-400 bg-amber-400/10',    label: 'Pending' },
+  pending: { icon: Clock, color: 'text-amber-400 bg-amber-400/10', label: 'Pending' },
   approved: { icon: CheckCircle2, color: 'text-emerald-400 bg-emerald-400/10', label: 'Approved' },
-  rejected: { icon: XCircle,      color: 'text-red-400 bg-red-400/10',        label: 'Rejected' },
-  applied:  { icon: CheckCircle2, color: 'text-blue-400 bg-blue-400/10',      label: 'Applied' },
-  expired:  { icon: Archive,      color: 'text-gray-500 bg-gray-500/10',      label: 'Expired' },
+  rejected: { icon: XCircle, color: 'text-red-400 bg-red-400/10', label: 'Rejected' },
+  applied: { icon: CheckCircle2, color: 'text-blue-400 bg-blue-400/10', label: 'Applied' },
+  expired: { icon: Archive, color: 'text-gray-500 bg-gray-500/10', label: 'Expired' },
 }
 
 const actionConfig: Record<string, { icon: typeof Tag; color: string }> = {
-  add_tag:                { icon: Tag,            color: 'text-emerald-400' },
-  add_ref:                { icon: Link2,          color: 'text-blue-400' },
-  annotate_entity:        { icon: FileText,       color: 'text-violet-400' },
-  update_summary:         { icon: FileText,       color: 'text-violet-400' },
-  flag_stale_commitment:  { icon: AlertTriangle,  color: 'text-amber-400' },
-  flag_orphan:            { icon: AlertTriangle,  color: 'text-orange-400' },
-  update_trust_score:     { icon: Shield,         color: 'text-cyan-400' },
-  suggest_archive:        { icon: Archive,        color: 'text-gray-400' },
-  create_insight:         { icon: Lightbulb,      color: 'text-yellow-400' },
-  create_hypothesis:      { icon: Lightbulb,      color: 'text-pink-400' },
-  merge_entities:         { icon: Zap,            color: 'text-red-400' },
-  suggest_decision:       { icon: Zap,            color: 'text-amber-400' },
+  add_tag: { icon: Tag, color: 'text-emerald-400' },
+  add_ref: { icon: Link2, color: 'text-blue-400' },
+  annotate_entity: { icon: FileText, color: 'text-violet-400' },
+  update_summary: { icon: FileText, color: 'text-violet-400' },
+  flag_stale_commitment: { icon: AlertTriangle, color: 'text-amber-400' },
+  flag_orphan: { icon: AlertTriangle, color: 'text-orange-400' },
+  update_trust_score: { icon: Shield, color: 'text-cyan-400' },
+  suggest_archive: { icon: Archive, color: 'text-gray-400' },
+  create_insight: { icon: Lightbulb, color: 'text-yellow-400' },
+  create_hypothesis: { icon: Lightbulb, color: 'text-pink-400' },
+  merge_entities: { icon: Zap, color: 'text-red-400' },
+  suggest_decision: { icon: Zap, color: 'text-amber-400' },
 }
 
 const cycleColors: Record<string, string> = {
-  reflex:    'text-emerald-400 bg-emerald-400/10',
-  curator:   'text-violet-400 bg-violet-400/10',
+  reflex: 'text-emerald-400 bg-emerald-400/10',
+  curator: 'text-violet-400 bg-violet-400/10',
   synthesis: 'text-amber-400 bg-amber-400/10',
 }
 
@@ -102,7 +89,11 @@ function ConfidenceIndicator({ value }: { value: number }) {
 
 /* ─── Proposal card ──────────────────────────────────────────────── */
 
-function ProposalCard({ proposal, onApprove, onReject }: {
+function ProposalCard({
+  proposal,
+  onApprove,
+  onReject,
+}: {
   proposal: DreamProposal
   onApprove: (id: string) => void
   onReject: (id: string) => void
@@ -125,14 +116,24 @@ function ProposalCard({ proposal, onApprove, onReject }: {
       )}
     >
       <div className="flex items-start gap-3">
-        <div className={cn('rounded-lg p-1.5 flex-shrink-0', `bg-${action.color.split('-')[1]}-400/10`)}>
+        <div
+          className={cn(
+            'rounded-lg p-1.5 flex-shrink-0',
+            `bg-${action.color.split('-')[1]}-400/10`,
+          )}
+        >
           <ActionIcon className={cn('h-4 w-4', action.color)} />
         </div>
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-0.5">
             <h3 className="text-sm font-semibold text-foreground truncate">{proposal.title}</h3>
-            <span className={cn('inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium', status.color)}>
+            <span
+              className={cn(
+                'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium',
+                status.color,
+              )}
+            >
               <StatusIcon className="h-2.5 w-2.5" />
               {status.label}
             </span>
@@ -141,7 +142,12 @@ function ProposalCard({ proposal, onApprove, onReject }: {
           <p className="text-xs text-muted-foreground line-clamp-2 mb-2">{proposal.description}</p>
 
           <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
-            <span className={cn('px-1.5 py-0.5 rounded text-[10px] uppercase font-semibold', cycleColor)}>
+            <span
+              className={cn(
+                'px-1.5 py-0.5 rounded text-[10px] uppercase font-semibold',
+                cycleColor,
+              )}
+            >
               {proposal.cycle_type}
             </span>
             <span className="bg-surface-700 px-1.5 py-0.5 rounded">{proposal.action}</span>
@@ -197,7 +203,12 @@ function ProposalCard({ proposal, onApprove, onReject }: {
               <span className="text-muted-foreground font-medium">Evidence:</span>
               <ul className="mt-0.5 space-y-0.5">
                 {proposal.evidence.map((e, i) => (
-                  <li key={i} className="text-foreground font-mono bg-surface-700 px-2 py-0.5 rounded">{e}</li>
+                  <li
+                    key={i}
+                    className="text-foreground font-mono bg-surface-700 px-2 py-0.5 rounded"
+                  >
+                    {e}
+                  </li>
                 ))}
               </ul>
             </div>
@@ -217,7 +228,8 @@ function ProposalCard({ proposal, onApprove, onReject }: {
           )}
           {proposal.reviewed_at && (
             <div className="text-muted-foreground">
-              Reviewed by {proposal.reviewed_by} on {new Date(proposal.reviewed_at).toLocaleString()}
+              Reviewed by {proposal.reviewed_by} on{' '}
+              {new Date(proposal.reviewed_at).toLocaleString()}
             </div>
           )}
         </div>
@@ -299,7 +311,8 @@ export default function DreamInboxPage() {
       entity_type: 'decision',
       venture: 'burtucala',
       title: 'Missing status on decision: Office Location',
-      description: "Decision entity is missing a 'status' field (proposed/committed/deferred/reversed)",
+      description:
+        "Decision entity is missing a 'status' field (proposed/committed/deferred/reversed)",
       diff: { suggest_field: 'status', suggested_value: 'proposed' },
       confidence: 0.6,
       rationale: 'All decisions should have a status for tracking',
@@ -344,20 +357,23 @@ export default function DreamInboxPage() {
   const filteredProposals = useMemo(() => {
     let proposals = mockProposals
     if (statusFilter) {
-      proposals = proposals.filter(p => p.status === statusFilter)
+      proposals = proposals.filter((p) => p.status === statusFilter)
     }
     if (cycleFilter) {
-      proposals = proposals.filter(p => p.cycle_type === cycleFilter)
+      proposals = proposals.filter((p) => p.cycle_type === cycleFilter)
     }
-    return proposals.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    return proposals.sort(
+      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+    )
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statusFilter, cycleFilter])
 
   // Stats
   const stats = {
     total: mockProposals.length,
-    pending: mockProposals.filter(p => p.status === 'pending').length,
-    approved: mockProposals.filter(p => p.status === 'approved').length,
-    rejected: mockProposals.filter(p => p.status === 'rejected').length,
+    pending: mockProposals.filter((p) => p.status === 'pending').length,
+    approved: mockProposals.filter((p) => p.status === 'approved').length,
+    rejected: mockProposals.filter((p) => p.status === 'rejected').length,
   }
 
   return (
@@ -388,7 +404,12 @@ export default function DreamInboxPage() {
         {[
           { label: 'Total', value: stats.total, icon: BarChart3, color: 'text-brand-400' },
           { label: 'Pending', value: stats.pending, icon: Clock, color: 'text-amber-400' },
-          { label: 'Approved', value: stats.approved, icon: CheckCircle2, color: 'text-emerald-400' },
+          {
+            label: 'Approved',
+            value: stats.approved,
+            icon: CheckCircle2,
+            color: 'text-emerald-400',
+          },
           { label: 'Rejected', value: stats.rejected, icon: XCircle, color: 'text-red-400' },
         ].map(({ label, value, icon: Icon, color }) => (
           <div key={label} className="rounded-xl border border-border bg-card p-3 fx-glass">
@@ -408,7 +429,7 @@ export default function DreamInboxPage() {
           <span>Filter:</span>
         </div>
         <div className="flex rounded-lg border border-border bg-surface-800 overflow-hidden">
-          {['pending', 'approved', 'rejected', ''].map(s => (
+          {['pending', 'approved', 'rejected', ''].map((s) => (
             <button
               key={s || 'all'}
               onClick={() => setStatusFilter(s)}
@@ -440,7 +461,7 @@ export default function DreamInboxPage() {
 
       {/* Proposals list */}
       <div className="space-y-2">
-        {filteredProposals.map(proposal => (
+        {filteredProposals.map((proposal) => (
           <ProposalCard
             key={proposal.proposal_id}
             proposal={proposal}

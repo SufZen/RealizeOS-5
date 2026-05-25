@@ -7,7 +7,11 @@ interface ErrorStateProps {
   className?: string
 }
 
-export function ErrorState({ message = 'Something went wrong', onRetry, className }: ErrorStateProps) {
+export function ErrorState({
+  message = 'Something went wrong',
+  onRetry,
+  className,
+}: ErrorStateProps) {
   return (
     <div className={cn('flex flex-col items-center justify-center h-64 gap-3', className)}>
       <AlertCircle className="h-8 w-8 text-red-400" />

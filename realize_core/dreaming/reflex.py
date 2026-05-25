@@ -12,14 +12,10 @@ knowledge enrichment:
 from __future__ import annotations
 
 import logging
-import re
-from datetime import datetime
 
 from realize_core.dreaming.policy import DreamProposal, TrustPolicy
 from realize_core.fabric.entity import FabricEntity
-from realize_core.fabric.event_types import dream_event
 from realize_core.fabric.refs import extract_refs
-from realize_core.fabric.tags import extract_tags
 
 logger = logging.getLogger(__name__)
 

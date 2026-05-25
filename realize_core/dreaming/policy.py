@@ -15,7 +15,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 from pathlib import Path
 
 import yaml
@@ -23,7 +23,7 @@ import yaml
 logger = logging.getLogger(__name__)
 
 
-class ProposalStatus(str, Enum):
+class ProposalStatus(StrEnum):
     """Status of a dream proposal."""
 
     PENDING = "pending"
@@ -33,7 +33,7 @@ class ProposalStatus(str, Enum):
     EXPIRED = "expired"
 
 
-class TrustLevel(str, Enum):
+class TrustLevel(StrEnum):
     """Trust level for a dreaming action."""
 
     FULL_AUTO = "full-auto"
@@ -128,7 +128,7 @@ class DreamProposal:
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> "DreamProposal":
+    def from_dict(cls, data: dict) -> DreamProposal:
         return cls(
             proposal_id=data.get("proposal_id", ""),
             cycle_type=data.get("cycle_type", ""),
@@ -164,7 +164,7 @@ class TrustPolicy:
                     logger.warning(f"Unknown trust level '{level}' for action '{action}'")
 
     @classmethod
-    def load(cls, path: Path) -> "TrustPolicy":
+    def load(cls, path: Path) -> TrustPolicy:
         """Load policy from a YAML file."""
         if not path.exists():
             return cls()

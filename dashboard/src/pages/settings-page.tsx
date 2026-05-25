@@ -7,19 +7,19 @@ import { SecuritySection } from './settings/settings-security'
 import { StorageSection } from './settings/settings-storage'
 import { HelpSection, DevModeSection } from './settings/settings-devmode'
 
-import { 
-  FeatureFlagsSection, 
-  GovernanceGatesSection, 
-  LLMProvidersSection, 
-  SystemInfoSection, 
-  MaintenanceSection 
+import {
+  FeatureFlagsSection,
+  GovernanceGatesSection,
+  LLMProvidersSection,
+  SystemInfoSection,
+  MaintenanceSection,
 } from './settings/settings-core'
 
-import { 
-  LLMRoutingSection, 
-  MemorySection, 
-  ReportsSection, 
-  TrustLadderSection 
+import {
+  LLMRoutingSection,
+  MemorySection,
+  ReportsSection,
+  TrustLadderSection,
 } from './settings/settings-advanced'
 
 interface Provider {
@@ -46,7 +46,11 @@ export default function SettingsPage() {
   const [status, setStatus] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
 
   if (loading) {
-    return <div className="flex items-center justify-center h-64 text-muted-foreground">Loading settings...</div>
+    return (
+      <div className="flex items-center justify-center h-64 text-muted-foreground">
+        Loading settings...
+      </div>
+    )
   }
 
   if (error || !data) {
@@ -124,12 +128,8 @@ export default function SettingsPage() {
       <GovernanceGatesSection gates={data.gates} saving={saving} onToggle={toggleGate} />
       <LLMProvidersSection providers={data.providers} />
       <SystemInfoSection info={data.system_info} />
-      
-      <MaintenanceSection 
-        saving={saving} 
-        onReload={handleReload} 
-        onReindex={handleReindex} 
-      />
+
+      <MaintenanceSection saving={saving} onReload={handleReload} onReindex={handleReindex} />
 
       <ReportsSection saving={saving} setSaving={setSaving} setStatus={setStatus} />
       <TrustLadderSection />

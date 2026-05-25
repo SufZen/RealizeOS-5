@@ -60,10 +60,10 @@ interface VenturesData {
 /* ------------------------------------------------------------------ */
 
 const STEP_TYPE_META: Record<StepType, { icon: typeof Bot; color: string; bg: string }> = {
-  agent:     { icon: Bot,     color: 'text-blue-400',   bg: 'bg-blue-400/10 border-blue-400/20' },
-  tool:      { icon: Wrench,  color: 'text-emerald-400', bg: 'bg-emerald-400/10 border-emerald-400/20' },
-  condition: { icon: GitFork, color: 'text-amber-400',  bg: 'bg-amber-400/10 border-amber-400/20' },
-  human:     { icon: User,    color: 'text-purple-400', bg: 'bg-purple-400/10 border-purple-400/20' },
+  agent: { icon: Bot, color: 'text-blue-400', bg: 'bg-blue-400/10 border-blue-400/20' },
+  tool: { icon: Wrench, color: 'text-emerald-400', bg: 'bg-emerald-400/10 border-emerald-400/20' },
+  condition: { icon: GitFork, color: 'text-amber-400', bg: 'bg-amber-400/10 border-amber-400/20' },
+  human: { icon: User, color: 'text-purple-400', bg: 'bg-purple-400/10 border-purple-400/20' },
 }
 
 const AVAILABLE_AGENTS = ['orchestrator', 'writer', 'reviewer', 'analyst', 'custom']
@@ -218,7 +218,9 @@ export default function PipelineBuilderPage() {
           >
             <option value="">Select venture...</option>
             {venturesData?.ventures.map((v) => (
-              <option key={v.key} value={v.key}>{v.name || v.key}</option>
+              <option key={v.key} value={v.key}>
+                {v.name || v.key}
+              </option>
             ))}
           </select>
         </div>
@@ -270,26 +272,27 @@ export default function PipelineBuilderPage() {
           {/* Step toolbox */}
           <div className="flex flex-wrap gap-2">
             <span className="text-xs text-muted-foreground self-center mr-1">Add step:</span>
-            {(Object.entries(STEP_TYPE_META) as [StepType, typeof STEP_TYPE_META[StepType]][]).map(
-              ([type, meta]) => {
-                const Icon = meta.icon
-                return (
-                  <button
-                    key={type}
-                    onClick={() => addStep(type)}
-                    className={cn(
-                      'flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border transition-all',
-                      'hover:scale-105 active:scale-95',
-                      meta.bg, meta.color,
-                    )}
-                  >
-                    <Plus className="h-3 w-3" />
-                    <Icon className="h-3.5 w-3.5" />
-                    <span className="capitalize">{type}</span>
-                  </button>
-                )
-              },
-            )}
+            {(
+              Object.entries(STEP_TYPE_META) as [StepType, (typeof STEP_TYPE_META)[StepType]][]
+            ).map(([type, meta]) => {
+              const Icon = meta.icon
+              return (
+                <button
+                  key={type}
+                  onClick={() => addStep(type)}
+                  className={cn(
+                    'flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border transition-all',
+                    'hover:scale-105 active:scale-95',
+                    meta.bg,
+                    meta.color,
+                  )}
+                >
+                  <Plus className="h-3 w-3" />
+                  <Icon className="h-3.5 w-3.5" />
+                  <span className="capitalize">{type}</span>
+                </button>
+              )
+            })}
           </div>
 
           {/* Pipeline canvas */}
@@ -299,7 +302,9 @@ export default function PipelineBuilderPage() {
                 <div className="fx-dot-grid absolute inset-0 pointer-events-none rounded-xl" />
                 <GitBranch className="h-8 w-8 opacity-30 rz-animate-float relative z-10" />
                 <p className="text-sm">Add steps to build your agent pipeline</p>
-                <p className="text-xs">Steps execute in sequence — each step's output feeds into the next</p>
+                <p className="text-xs">
+                  Steps execute in sequence — each step's output feeds into the next
+                </p>
               </div>
             ) : (
               <div className="space-y-1">
@@ -346,7 +351,11 @@ export default function PipelineBuilderPage() {
               disabled={!selectedVenture || pipeline.steps.length === 0 || testing}
               className="flex items-center gap-1.5 px-4 py-2 text-sm rounded-lg border border-border text-foreground hover:bg-surface-700 disabled:opacity-40 transition-colors"
             >
-              {testing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+              {testing ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Play className="h-4 w-4" />
+              )}
               Test Run
             </button>
 
@@ -421,7 +430,12 @@ function StepCard({ step, index, total, allSteps, onUpdate, onRemove, onMove }: 
             <GripVertical className="h-4 w-4" />
           </button>
 
-          <div className={cn('flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium', meta.color)}>
+          <div
+            className={cn(
+              'flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium',
+              meta.color,
+            )}
+          >
             <Icon className="h-3.5 w-3.5" />
             <span className="capitalize">{step.type}</span>
           </div>
@@ -458,7 +472,9 @@ function StepCard({ step, index, total, allSteps, onUpdate, onRemove, onMove }: 
               title="Expand"
               aria-label={expanded ? 'Collapse step' : 'Expand step'}
             >
-              <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', expanded && 'rotate-180')} />
+              <ChevronDown
+                className={cn('h-3.5 w-3.5 transition-transform', expanded && 'rotate-180')}
+              />
             </button>
             <button
               onClick={onRemove}
@@ -477,19 +493,25 @@ function StepCard({ step, index, total, allSteps, onUpdate, onRemove, onMove }: 
             {step.type === 'agent' && (
               <>
                 <div>
-                  <label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">Agent</label>
+                  <label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">
+                    Agent
+                  </label>
                   <select
                     value={step.agent ?? ''}
                     onChange={(e) => onUpdate({ agent: e.target.value })}
                     className="w-full rounded-lg border border-border bg-surface-900 px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-brand-400"
                   >
                     {AVAILABLE_AGENTS.map((a) => (
-                      <option key={a} value={a}>{a}</option>
+                      <option key={a} value={a}>
+                        {a}
+                      </option>
                     ))}
                   </select>
                 </div>
                 <div>
-                  <label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">Prompt Override</label>
+                  <label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">
+                    Prompt Override
+                  </label>
                   <textarea
                     value={step.prompt ?? ''}
                     onChange={(e) => onUpdate({ prompt: e.target.value })}
@@ -499,7 +521,9 @@ function StepCard({ step, index, total, allSteps, onUpdate, onRemove, onMove }: 
                   />
                 </div>
                 <div>
-                  <label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">Inject Context From</label>
+                  <label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">
+                    Inject Context From
+                  </label>
                   <div className="flex flex-wrap gap-1.5">
                     {allSteps
                       .filter((s) => s.id !== step.id)
@@ -528,7 +552,9 @@ function StepCard({ step, index, total, allSteps, onUpdate, onRemove, onMove }: 
                         )
                       })}
                     {allSteps.length <= 1 && (
-                      <span className="text-[10px] text-muted-foreground italic">No other steps yet</span>
+                      <span className="text-[10px] text-muted-foreground italic">
+                        No other steps yet
+                      </span>
                     )}
                   </div>
                 </div>
@@ -537,14 +563,18 @@ function StepCard({ step, index, total, allSteps, onUpdate, onRemove, onMove }: 
 
             {step.type === 'tool' && (
               <div>
-                <label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">Tool</label>
+                <label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">
+                  Tool
+                </label>
                 <select
                   value={step.tool ?? ''}
                   onChange={(e) => onUpdate({ tool: e.target.value })}
                   className="w-full rounded-lg border border-border bg-surface-900 px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-brand-400"
                 >
                   {AVAILABLE_TOOLS.map((t) => (
-                    <option key={t} value={t}>{t}</option>
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -552,7 +582,9 @@ function StepCard({ step, index, total, allSteps, onUpdate, onRemove, onMove }: 
 
             {step.type === 'condition' && (
               <div>
-                <label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">Condition Field</label>
+                <label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">
+                  Condition Field
+                </label>
                 <input
                   value={step.condition_field ?? ''}
                   onChange={(e) => onUpdate({ condition_field: e.target.value })}
@@ -564,7 +596,9 @@ function StepCard({ step, index, total, allSteps, onUpdate, onRemove, onMove }: 
 
             {step.type === 'human' && (
               <div>
-                <label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">Question</label>
+                <label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">
+                  Question
+                </label>
                 <textarea
                   value={step.question ?? ''}
                   onChange={(e) => onUpdate({ question: e.target.value })}
@@ -594,7 +628,11 @@ interface PipelineLibraryProps {
 
 function PipelineLibrary({ pipelines, loading, error, onSelect }: PipelineLibraryProps) {
   if (loading) {
-    return <div className="flex items-center justify-center h-40 text-muted-foreground">Loading pipelines...</div>
+    return (
+      <div className="flex items-center justify-center h-40 text-muted-foreground">
+        Loading pipelines...
+      </div>
+    )
   }
   if (error) {
     return (

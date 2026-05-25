@@ -15,12 +15,11 @@ Four tiers:
 from __future__ import annotations
 
 import logging
-import sqlite3
 from pathlib import Path
 
-from realize_core.fabric.synapse_db import SynapseDB
 from realize_core.fabric.crud import scan_venture
 from realize_core.fabric.entity import FabricEntity
+from realize_core.fabric.synapse_db import SynapseDB
 
 logger = logging.getLogger(__name__)
 

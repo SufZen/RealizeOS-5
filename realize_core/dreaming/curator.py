@@ -11,7 +11,7 @@ Runs on a schedule (e.g., nightly). Performs maintenance tasks:
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from realize_core.dreaming.policy import DreamProposal, TrustPolicy
 from realize_core.fabric.synapse import Synapse

@@ -12,7 +12,6 @@ Orchestrates mission lifecycle:
 from __future__ import annotations
 
 import logging
-import uuid
 from datetime import datetime
 
 from realize_core.fabric.event_log import EventLog
@@ -24,9 +23,8 @@ from realize_core.missions.state import (
     MissionStep,
     StepStatus,
 )
-from realize_core.runtimes.contract import Context, Task
+from realize_core.runtimes.contract import Context, StepConstraints, Task
 from realize_core.runtimes.contract import MissionStep as RuntimeMissionStep
-from realize_core.runtimes.contract import StepConstraints
 from realize_core.runtimes.registry import RuntimeRegistry
 
 logger = logging.getLogger(__name__)
@@ -184,7 +182,7 @@ class MissionEngine:
         except Exception as e:
             logger.error(f"Mission {mission_id} execution error: {e}")
             mission.transition(MissionState.FAILED)
-            mission.outcome_summary = f"Execution error: {str(e)}"
+            mission.outcome_summary = f"Execution error: {e!s}"
             self._log_event(mission, "error", error=str(e))
 
         # Update Synapse L4

@@ -31,9 +31,11 @@ function renderMarkdown(text: string): React.ReactNode[] {
         key={`code-${key++}`}
         className="bg-surface-800 border border-border rounded-lg p-3 text-xs font-mono overflow-x-auto my-2"
       >
-        <div className="text-[10px] text-muted-foreground mb-1 uppercase tracking-wider">{lang}</div>
+        <div className="text-[10px] text-muted-foreground mb-1 uppercase tracking-wider">
+          {lang}
+        </div>
         <code>{match[2]}</code>
-      </pre>
+      </pre>,
     )
     lastIndex = match.index + match[0].length
   }
@@ -54,14 +56,21 @@ function renderInline(text: string, startKey: number): React.ReactNode[] {
 
   return parts.map((part, i) => {
     if (part.startsWith('**') && part.endsWith('**')) {
-      return <strong key={startKey + i} className="font-semibold">{part.slice(2, -2)}</strong>
+      return (
+        <strong key={startKey + i} className="font-semibold">
+          {part.slice(2, -2)}
+        </strong>
+      )
     }
     if (part.startsWith('*') && part.endsWith('*') && !part.startsWith('**')) {
       return <em key={startKey + i}>{part.slice(1, -1)}</em>
     }
     if (part.startsWith('`') && part.endsWith('`')) {
       return (
-        <code key={startKey + i} className="bg-surface-800 px-1.5 py-0.5 rounded text-xs font-mono text-brand-400">
+        <code
+          key={startKey + i}
+          className="bg-surface-800 px-1.5 py-0.5 rounded text-xs font-mono text-brand-400"
+        >
           {part.slice(1, -1)}
         </code>
       )
@@ -118,9 +127,18 @@ export function TypingIndicator() {
       </div>
       <div className="rounded-xl px-4 py-3 bg-card border border-border">
         <div className="flex gap-1">
-          <span className="h-2 w-2 rounded-full bg-muted-foreground animate-bounce" style={{ animationDelay: '0ms' }} />
-          <span className="h-2 w-2 rounded-full bg-muted-foreground animate-bounce" style={{ animationDelay: '150ms' }} />
-          <span className="h-2 w-2 rounded-full bg-muted-foreground animate-bounce" style={{ animationDelay: '300ms' }} />
+          <span
+            className="h-2 w-2 rounded-full bg-muted-foreground animate-bounce"
+            style={{ animationDelay: '0ms' }}
+          />
+          <span
+            className="h-2 w-2 rounded-full bg-muted-foreground animate-bounce"
+            style={{ animationDelay: '150ms' }}
+          />
+          <span
+            className="h-2 w-2 rounded-full bg-muted-foreground animate-bounce"
+            style={{ animationDelay: '300ms' }}
+          />
         </div>
       </div>
     </div>

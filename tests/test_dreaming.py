@@ -3,20 +3,16 @@ Tests for the Dreaming Subsystem.
 """
 
 from datetime import datetime, timedelta
-from pathlib import Path
 
 import pytest
-
+from realize_core.dreaming.inbox import DreamInbox
 from realize_core.dreaming.policy import (
     DreamProposal,
     ProposalStatus,
-    TrustLevel,
     TrustPolicy,
 )
 from realize_core.dreaming.reflex import ReflexCycle
-from realize_core.dreaming.inbox import DreamInbox
 from realize_core.fabric.entity import FabricEntity
-
 
 # ─── Trust Policy ─────────────────────────────────────────────────────────────
 

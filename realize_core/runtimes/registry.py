@@ -10,15 +10,12 @@ from __future__ import annotations
 import asyncio
 import logging
 from datetime import datetime
-from typing import Any
 
 from realize_core.runtimes.contract import (
     AgentRuntime,
-    Capability,
     CapabilitySet,
     HealthStatus,
     Task,
-    CostEstimate,
 )
 
 logger = logging.getLogger(__name__)
@@ -98,7 +95,7 @@ class RuntimeRegistry:
                 runtime.health_check(),
                 timeout=5.0,
             )
-        except (asyncio.TimeoutError, Exception) as e:
+        except (TimeoutError, Exception) as e:
             logger.error(f"Health check failed for runtime '{rid}': {e}")
             entry.health = HealthStatus(ready=False, error=str(e))
             entry.status = "offline"
@@ -147,7 +144,7 @@ class RuntimeRegistry:
             )
             entry.consecutive_failures = 0
             entry.status = "ready" if entry.health.ready else "degraded"
-        except (asyncio.TimeoutError, Exception) as e:
+        except (TimeoutError, Exception) as e:
             entry.consecutive_failures += 1
             entry.health = HealthStatus(ready=False, error=str(e))
 
