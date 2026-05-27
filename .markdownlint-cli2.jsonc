@@ -30,6 +30,7 @@
     "templates/**",
     "shared/**",
     "docs/**",
-    "realize_lite/**"
+    "realize_lite/**",
+    "CHANGELOG.md"
   ]
 }
