@@ -334,9 +334,7 @@ export default function MissionsPage() {
         )}
 
         {!loading &&
-          missions.map((mission) => (
-            <MissionCard key={mission.mission_id} mission={mission} />
-          ))}
+          missions.map((mission) => <MissionCard key={mission.mission_id} mission={mission} />)}
 
         {missions.length === 0 && !loading && !error && (
           <div className="rounded-xl border border-border bg-card p-12 text-center">

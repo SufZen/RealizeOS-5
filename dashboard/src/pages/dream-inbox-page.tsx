@@ -391,14 +391,15 @@ export default function DreamInboxPage() {
           </div>
         )}
 
-        {!loading && filteredProposals.map((proposal) => (
-          <ProposalCard
-            key={proposal.proposal_id}
-            proposal={proposal}
-            onApprove={handleApprove}
-            onReject={handleReject}
-          />
-        ))}
+        {!loading &&
+          filteredProposals.map((proposal) => (
+            <ProposalCard
+              key={proposal.proposal_id}
+              proposal={proposal}
+              onApprove={handleApprove}
+              onReject={handleReject}
+            />
+          ))}
 
         {filteredProposals.length === 0 && !loading && !error && (
           <div className="rounded-xl border border-border bg-card p-12 text-center">
