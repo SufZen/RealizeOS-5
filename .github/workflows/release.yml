@@ -9,6 +9,12 @@ on:
   push:
     tags:
       - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to release (e.g. v5.5.0)"
+        required: true
+        type: string
 
 permissions:
   contents: write   # GH Release creation + CHANGELOG
@@ -17,7 +23,7 @@ permissions:
 
 env:
   PYTHON_VERSION: "3.12"
-  NODE_VERSION: "20"
+  NODE_VERSION: "22"
   REGISTRY: ghcr.io
   IMAGE_NAME: sufzen/realizeos-5
 
@@ -46,7 +52,8 @@ jobs:
       - name: Extract version from tag
         id: version
         run: |
-          VERSION=${GITHUB_REF_NAME#v}
+          TAG=${{ inputs.tag || github.ref_name }}
+          VERSION=${TAG#v}
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "major=$(echo $VERSION | cut -d. -f1)" >> "$GITHUB_OUTPUT"
           echo "minor=$(echo $VERSION | cut -d. -f1-2)" >> "$GITHUB_OUTPUT"
@@ -134,7 +141,8 @@ jobs:
       - name: Extract version from tag
         id: version
         run: |
-          VERSION=${GITHUB_REF_NAME#v}
+          TAG=${{ inputs.tag || github.ref_name }}
+          VERSION=${TAG#v}
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Set package version from tag
@@ -171,7 +179,8 @@ jobs:
       - name: Extract version from tag
         id: version
         run: |
-          VERSION=${GITHUB_REF_NAME#v}
+          TAG=${{ inputs.tag || github.ref_name }}
+          VERSION=${TAG#v}
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Set package version from tag
@@ -202,7 +211,8 @@ jobs:
       - name: Extract version from tag
         id: version
         run: |
-          VERSION=${GITHUB_REF_NAME#v}
+          TAG=${{ inputs.tag || github.ref_name }}
+          VERSION=${TAG#v}
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Generate release notes
@@ -241,7 +251,7 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
+          tag_name: ${{ inputs.tag || github.ref_name }}
           name: RealizeOS ${{ steps.version.outputs.version }}
           body_path: release-notes.md
           files: |
@@ -249,4 +259,4 @@ jobs:
             RealizeOS-Lite-${{ steps.version.outputs.version }}.zip.sha256
             CHANGELOG.md
           draft: false
-          prerelease: ${{ contains(github.ref_name, '-') }}
+          prerelease: ${{ contains(inputs.tag || github.ref_name, '-') }}
