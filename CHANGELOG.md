@@ -4,6 +4,12 @@ All notable changes to RealizeOS are documented in this file.
 This changelog is automatically generated from [Conventional Commits](https://conventionalcommits.org).
 
 
+## [5.5.1](https://github.com/SufZen/RealizeOS-5/compare/v5.5.0...v5.5.1) (2026-05-27)
+
+### Bug Fixes
+
+* **release:** add workflow_dispatch trigger + Node 22 for release pipeline ([1ccd248](https://github.com/SufZen/RealizeOS-5/commit/1ccd24843319b6ecbe7d6ac4841e098c4b58ebdc))
+
 ## [5.3.0](https://github.com/SufZen/RealizeOS-5/compare/v5.2.1...v5.3.0) (2026-05-27)
 
 ### Features
