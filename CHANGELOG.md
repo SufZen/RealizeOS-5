@@ -4,6 +4,12 @@ All notable changes to RealizeOS are documented in this file.
 This changelog is automatically generated from [Conventional Commits](https://conventionalcommits.org).
 
 
+## [5.5.2](https://github.com/SufZen/RealizeOS-5/compare/v5.5.1...v5.5.2) (2026-05-27)
+
+### Bug Fixes
+
+* **lint:** exclude auto-generated CHANGELOG.md from markdownlint ([5e03ea0](https://github.com/SufZen/RealizeOS-5/commit/5e03ea0f3e28a0d9a17389aeae4af7a6f18456ed))
+
 ## [5.5.1](https://github.com/SufZen/RealizeOS-5/compare/v5.5.0...v5.5.1) (2026-05-27)
 
 ### Bug Fixes
