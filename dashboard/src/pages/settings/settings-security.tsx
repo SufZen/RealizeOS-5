@@ -12,20 +12,32 @@ interface SecuritySectionProps {
 export function SecuritySection({ saving, setSaving, setStatus }: SecuritySectionProps) {
   const [scanning, setScanning] = useState(false)
   const [scanResult, setScanResult] = useState<{
-    passed: number; warnings: number; critical: number; total: number;
+    passed: number
+    warnings: number
+    critical: number
+    total: number
     checks: Array<{ name: string; status: string; detail: string }>
   } | null>(null)
-  const [auditEvents, setAuditEvents] = useState<Array<{
-    event_type: string; user: string; detail: string; timestamp: string
-  }>>([])
+  const [auditEvents, setAuditEvents] = useState<
+    Array<{
+      event_type: string
+      user: string
+      detail: string
+      timestamp: string
+    }>
+  >([])
   const [showAudit, setShowAudit] = useState(false)
 
   useEffect(() => {
-    api.get<{ scan: typeof scanResult }>('/security/status')
-      .then(res => { if (res.scan) setScanResult(res.scan) })
+    api
+      .get<{ scan: typeof scanResult }>('/security/status')
+      .then((res) => {
+        if (res.scan) setScanResult(res.scan)
+      })
       .catch(() => {})
-    api.get<{ events: typeof auditEvents }>('/security/events?limit=20')
-      .then(res => setAuditEvents(res.events || []))
+    api
+      .get<{ events: typeof auditEvents }>('/security/events?limit=20')
+      .then((res) => setAuditEvents(res.events || []))
       .catch(() => {})
   }, [])
 
@@ -34,14 +46,22 @@ export function SecuritySection({ saving, setSaving, setStatus }: SecuritySectio
     setSaving(true)
     setStatus(null)
     try {
-      const res = await api.post<{ issues: number; report: string; scan: typeof scanResult }>('/security/scan')
+      const res = await api.post<{ issues: number; report: string; scan: typeof scanResult }>(
+        '/security/scan',
+      )
       if (res.scan) setScanResult(res.scan)
       setStatus({
-        message: res.issues === 0 ? 'Security scan passed — no issues found' : `Scan found ${res.issues} issue(s)`,
+        message:
+          res.issues === 0
+            ? 'Security scan passed — no issues found'
+            : `Scan found ${res.issues} issue(s)`,
         type: res.issues === 0 ? 'success' : 'error',
       })
     } catch (err) {
-      setStatus({ message: err instanceof Error ? err.message : 'Security scan failed', type: 'error' })
+      setStatus({
+        message: err instanceof Error ? err.message : 'Security scan failed',
+        type: 'error',
+      })
     } finally {
       setScanning(false)
       setSaving(false)
@@ -71,7 +91,11 @@ export function SecuritySection({ saving, setSaving, setStatus }: SecuritySectio
           disabled={saving || scanning}
           className="flex items-center gap-2 px-4 py-2 text-sm rounded-lg border border-border bg-surface-800 text-foreground hover:bg-surface-700 disabled:opacity-50 transition-colors"
         >
-          {scanning ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+          {scanning ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <ShieldCheck className="h-4 w-4" />
+          )}
           {scanning ? 'Scanning...' : 'Run Scan'}
         </button>
       </div>
@@ -101,9 +125,15 @@ export function SecuritySection({ saving, setSaving, setStatus }: SecuritySectio
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border bg-surface-800">
-                  <th className="text-left px-3 py-2 text-xs text-muted-foreground font-medium">Check</th>
-                  <th className="text-left px-3 py-2 text-xs text-muted-foreground font-medium w-16">Status</th>
-                  <th className="text-left px-3 py-2 text-xs text-muted-foreground font-medium">Detail</th>
+                  <th className="text-left px-3 py-2 text-xs text-muted-foreground font-medium">
+                    Check
+                  </th>
+                  <th className="text-left px-3 py-2 text-xs text-muted-foreground font-medium w-16">
+                    Status
+                  </th>
+                  <th className="text-left px-3 py-2 text-xs text-muted-foreground font-medium">
+                    Detail
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -137,28 +167,42 @@ export function SecuritySection({ saving, setSaving, setStatus }: SecuritySectio
           <table className="w-full text-xs">
             <thead>
               <tr className="border-b border-border bg-surface-800 sticky top-0">
-                <th className="text-left px-3 py-1.5 text-muted-foreground font-medium w-32">Time</th>
-                <th className="text-left px-3 py-1.5 text-muted-foreground font-medium w-24">Type</th>
-                <th className="text-left px-3 py-1.5 text-muted-foreground font-medium w-20">User</th>
+                <th className="text-left px-3 py-1.5 text-muted-foreground font-medium w-32">
+                  Time
+                </th>
+                <th className="text-left px-3 py-1.5 text-muted-foreground font-medium w-24">
+                  Type
+                </th>
+                <th className="text-left px-3 py-1.5 text-muted-foreground font-medium w-20">
+                  User
+                </th>
                 <th className="text-left px-3 py-1.5 text-muted-foreground font-medium">Detail</th>
               </tr>
             </thead>
             <tbody>
               {auditEvents.map((e, i) => (
                 <tr key={i} className="border-b border-border/50 last:border-0">
-                  <td className="px-3 py-1.5 text-muted-foreground font-mono">{e.timestamp ? new Date(e.timestamp).toLocaleTimeString() : '—'}</td>
+                  <td className="px-3 py-1.5 text-muted-foreground font-mono">
+                    {e.timestamp ? new Date(e.timestamp).toLocaleTimeString() : '—'}
+                  </td>
                   <td className="px-3 py-1.5">
-                    <span className={cn(
-                      'px-1.5 py-0.5 rounded text-[10px] font-medium',
-                      e.event_type === 'security' ? 'bg-red-400/10 text-red-400' :
-                      e.event_type === 'auth' ? 'bg-amber-400/10 text-amber-400' :
-                      'bg-blue-400/10 text-blue-400'
-                    )}>
+                    <span
+                      className={cn(
+                        'px-1.5 py-0.5 rounded text-[10px] font-medium',
+                        e.event_type === 'security'
+                          ? 'bg-red-400/10 text-red-400'
+                          : e.event_type === 'auth'
+                            ? 'bg-amber-400/10 text-amber-400'
+                            : 'bg-blue-400/10 text-blue-400',
+                      )}
+                    >
                       {e.event_type}
                     </span>
                   </td>
                   <td className="px-3 py-1.5 text-foreground">{e.user || '—'}</td>
-                  <td className="px-3 py-1.5 text-muted-foreground truncate max-w-xs">{e.detail}</td>
+                  <td className="px-3 py-1.5 text-muted-foreground truncate max-w-xs">
+                    {e.detail}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -167,7 +211,9 @@ export function SecuritySection({ saving, setSaving, setStatus }: SecuritySectio
       )}
 
       {showAudit && auditEvents.length === 0 && (
-        <p className="mt-3 text-xs text-muted-foreground text-center py-4">No audit events recorded yet</p>
+        <p className="mt-3 text-xs text-muted-foreground text-center py-4">
+          No audit events recorded yet
+        </p>
       )}
     </div>
   )

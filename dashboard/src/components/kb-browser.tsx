@@ -87,7 +87,11 @@ function FabricDir({
           onClick={() => setOpen(!open)}
           className="flex items-center gap-2 py-1 flex-1 text-left hover:text-foreground text-muted-foreground transition-colors"
         >
-          {open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+          {open ? (
+            <ChevronDown className="h-3.5 w-3.5" />
+          ) : (
+            <ChevronRight className="h-3.5 w-3.5" />
+          )}
           {open ? (
             <FolderOpen className="h-4 w-4 text-brand-400" />
           ) : (
@@ -121,7 +125,9 @@ function FabricDir({
             >
               <FileText className="h-3.5 w-3.5" />
               <span className="text-sm truncate">{f.name}</span>
-              <span className="text-xs text-muted-foreground/60 ml-auto shrink-0">{formatSize(f.size)}</span>
+              <span className="text-xs text-muted-foreground/60 ml-auto shrink-0">
+                {formatSize(f.size)}
+              </span>
             </button>
           ))}
           {data.files.length === 0 && (
@@ -152,7 +158,9 @@ export function KBBrowser({ ventureKey }: { ventureKey: string }) {
     setSearchResults(null)
     setEditMode(false)
     try {
-      const content = await api.get<KBFileContent>(`/ventures/${ventureKey}/kb/file?path=${encodeURIComponent(path)}`)
+      const content = await api.get<KBFileContent>(
+        `/ventures/${ventureKey}/kb/file?path=${encodeURIComponent(path)}`,
+      )
       setSelectedFile(content)
     } catch {
       setSelectedFile({ path, content: 'Failed to load file', size: 0 })
@@ -167,7 +175,9 @@ export function KBBrowser({ ventureKey }: { ventureKey: string }) {
     setSelectedFile(null)
     setEditMode(false)
     try {
-      const results = await api.get<KBSearchResult>(`/ventures/${ventureKey}/kb/search?q=${encodeURIComponent(searchQuery)}`)
+      const results = await api.get<KBSearchResult>(
+        `/ventures/${ventureKey}/kb/search?q=${encodeURIComponent(searchQuery)}`,
+      )
       setSearchResults(results)
     } catch {
       setSearchResults({ query: searchQuery, results: [] })
@@ -198,7 +208,10 @@ export function KBBrowser({ ventureKey }: { ventureKey: string }) {
     setIngesting(true)
     setIngestStatus(null)
     try {
-      const res = await api.post<{ title: string; char_count: number }>(`/ventures/${ventureKey}/ingest`, { url: ingestUrl.trim() })
+      const res = await api.post<{ title: string; char_count: number }>(
+        `/ventures/${ventureKey}/ingest`,
+        { url: ingestUrl.trim() },
+      )
       setIngestStatus(`Ingested "${res.title}" (${res.char_count} chars)`)
       setIngestUrl('')
       refetch()
@@ -240,7 +253,9 @@ export function KBBrowser({ ventureKey }: { ventureKey: string }) {
           onClick={() => setShowIngest(!showIngest)}
           className={cn(
             'flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border transition-colors',
-            showIngest ? 'border-brand-400 text-brand-400' : 'border-border text-muted-foreground hover:text-foreground',
+            showIngest
+              ? 'border-brand-400 text-brand-400'
+              : 'border-border text-muted-foreground hover:text-foreground',
           )}
           title="Ingest URL into knowledge base"
         >
@@ -262,7 +277,11 @@ export function KBBrowser({ ventureKey }: { ventureKey: string }) {
             disabled={ingesting || !ingestUrl.trim()}
             className="flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg bg-brand-400 text-black hover:bg-brand-400/90 disabled:opacity-40 transition-colors"
           >
-            {ingesting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Link className="h-4 w-4" />}
+            {ingesting ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Link className="h-4 w-4" />
+            )}
             {ingesting ? 'Ingesting...' : 'Extract'}
           </button>
           {ingestStatus && (
@@ -290,7 +309,10 @@ export function KBBrowser({ ventureKey }: { ventureKey: string }) {
                 ventureKey={ventureKey}
                 directory={getCreateDir(creatingIn)}
                 extension={getExtension(creatingIn)}
-                onCreated={() => { setCreatingIn(null); refetch() }}
+                onCreated={() => {
+                  setCreatingIn(null)
+                  refetch()
+                }}
                 onCancel={() => setCreatingIn(null)}
               />
             </div>
@@ -307,8 +329,15 @@ export function KBBrowser({ ventureKey }: { ventureKey: string }) {
               filePath={selectedFile.path}
               initialContent={selectedFile.content}
               onClose={() => setEditMode(false)}
-              onSaved={() => { refetch(); openFile(selectedFile.path) }}
-              onDeleted={() => { setSelectedFile(null); setEditMode(false); refetch() }}
+              onSaved={() => {
+                refetch()
+                openFile(selectedFile.path)
+              }}
+              onDeleted={() => {
+                setSelectedFile(null)
+                setEditMode(false)
+                refetch()
+              }}
             />
           )}
 
@@ -345,7 +374,9 @@ export function KBBrowser({ ventureKey }: { ventureKey: string }) {
                     <div className="text-sm font-medium text-foreground">{r.title}</div>
                     <div className="text-xs text-muted-foreground font-mono">{r.path}</div>
                     {r.snippet && (
-                      <div className="text-xs text-muted-foreground mt-1 line-clamp-2">{r.snippet}</div>
+                      <div className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                        {r.snippet}
+                      </div>
                     )}
                   </button>
                 ))}

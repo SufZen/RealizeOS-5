@@ -2,23 +2,19 @@
 Tests for the FABRIC Entity System: parser, writer, refs, tags, CRUD, and validation.
 """
 
-import tempfile
 from datetime import datetime
-from pathlib import Path
 
-import pytest
-
+from realize_core.fabric.crud import create_entity, delete_entity, read_entity, scan_venture, update_entity
 from realize_core.fabric.entity import FabricEntity
 from realize_core.fabric.id_gen import generate_id, parse_id_type
 from realize_core.fabric.parser import parse_entity, parse_frontmatter
 from realize_core.fabric.refs import extract_refs
 from realize_core.fabric.tags import extract_tags
 from realize_core.fabric.validator import SchemaRegistry, validate_entity
-from realize_core.fabric.writer import entity_to_markdown, write_entity
-from realize_core.fabric.crud import create_entity, read_entity, update_entity, delete_entity, scan_venture
-
+from realize_core.fabric.writer import write_entity
 
 # ─── Frontmatter Parsing ─────────────────────────────────────────────────────
+
 
 class TestFrontmatterParsing:
     def test_basic_frontmatter(self):
@@ -73,6 +69,7 @@ This is the body with [[contact-meirav]] reference.
 
 # ─── Reference Extraction ─────────────────────────────────────────────────────
 
+
 class TestRefs:
     def test_wikilinks(self):
         refs = extract_refs({}, "See [[dec-2026-05-pricing-001]] and [[contact-meirav]].")
@@ -100,7 +97,7 @@ class TestRefs:
 
     def test_combined_refs(self):
         fm = {"reviewers": ["contact-meirav"]}
-        body = "See [[dec-2026-05-pricing-001]] and <insight ref=\"insight-2026-05-funnel-001\"/>."
+        body = 'See [[dec-2026-05-pricing-001]] and <insight ref="insight-2026-05-funnel-001"/>.'
         refs = extract_refs(fm, body)
         assert len(refs) >= 3
 
@@ -110,6 +107,7 @@ class TestRefs:
 
 
 # ─── Tag Extraction ───────────────────────────────────────────────────────────
+
 
 class TestTags:
     def test_frontmatter_tags(self):
@@ -137,6 +135,7 @@ class TestTags:
 
 
 # ─── ID Generation ────────────────────────────────────────────────────────────
+
 
 class TestIdGen:
     def test_decision_id(self):
@@ -173,6 +172,7 @@ class TestIdGen:
 
 
 # ─── Entity Round-Trip ────────────────────────────────────────────────────────
+
 
 class TestRoundTrip:
     def test_parse_write_parse(self, tmp_path):
@@ -238,6 +238,7 @@ See [[contact-meirav]] for board review.
 
 
 # ─── CRUD ─────────────────────────────────────────────────────────────────────
+
 
 class TestCRUD:
     def _setup_venture(self, tmp_path):
@@ -307,10 +308,15 @@ class TestCRUD:
     def test_scan_venture(self, tmp_path):
         venture_dir = self._setup_venture(tmp_path)
         create_entity(venture_dir=venture_dir, entity_type="decision", title="Dec 1")
-        create_entity(venture_dir=venture_dir, entity_type="insight", title="Insight 1",
-                       frontmatter={"kind": "observation", "summary": "Test insight summary text."})
-        create_entity(venture_dir=venture_dir, entity_type="contact", title="Contact 1",
-                       frontmatter={"name": "Test Contact"})
+        create_entity(
+            venture_dir=venture_dir,
+            entity_type="insight",
+            title="Insight 1",
+            frontmatter={"kind": "observation", "summary": "Test insight summary text."},
+        )
+        create_entity(
+            venture_dir=venture_dir, entity_type="contact", title="Contact 1", frontmatter={"name": "Test Contact"}
+        )
 
         entities = scan_venture(venture_dir, venture="test-venture")
         assert len(entities) == 3
@@ -321,6 +327,7 @@ class TestCRUD:
 
 
 # ─── Schema Validation ────────────────────────────────────────────────────────
+
 
 class TestValidation:
     def test_valid_decision(self):

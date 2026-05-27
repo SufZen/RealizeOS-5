@@ -69,6 +69,7 @@ class OllamaProvider(BaseLLMProvider):
         model: str | None = None,
         max_tokens: int = 4096,
         temperature: float = 0.7,
+        timeout: float = 60.0,
     ) -> LLMResponse:
         """Text completion via Ollama API (stub)."""
         if not self.is_available():
@@ -86,7 +87,7 @@ class OllamaProvider(BaseLLMProvider):
         host = os.getenv("OLLAMA_HOST", "http://localhost:11434")
         target_model = model or "llama3.1:8b"
         try:
-            async with httpx.AsyncClient(timeout=120.0) as client:
+            async with httpx.AsyncClient(timeout=max(timeout, 1.0)) as client:
                 response = await client.post(
                     f"{host}/api/chat",
                     json={

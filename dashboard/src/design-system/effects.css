@@ -11,7 +11,7 @@
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
 }
-[data-mode="dark"] .fx-glass,
+[data-mode='dark'] .fx-glass,
 .dark .fx-glass {
   background: rgba(10, 10, 15, 0.85);
 }
@@ -25,7 +25,7 @@
     background var(--rz-dur) var(--rz-ease-out),
     border-color var(--rz-dur) var(--rz-ease-out);
 }
-[data-mode="dark"] .fx-glass-card,
+[data-mode='dark'] .fx-glass-card,
 .dark .fx-glass-card {
   background: rgba(26, 26, 36, 0.7);
   border: 1px solid rgba(255, 255, 255, 0.06);
@@ -34,7 +34,7 @@
   border-color: rgba(204, 163, 0, 0.15);
   background: rgba(250, 250, 250, 0.8);
 }
-[data-mode="dark"] .fx-glass-card:hover,
+[data-mode='dark'] .fx-glass-card:hover,
 .dark .fx-glass-card:hover {
   border-color: rgba(255, 204, 0, 0.15);
   background: rgba(34, 34, 46, 0.8);
@@ -46,12 +46,12 @@
 }
 .fx-glow-hover:hover {
   box-shadow:
-    0 0 25px rgba(255, 204, 0, 0.40),
-    0 0 80px rgba(255, 204, 0, 0.10);
+    0 0 25px rgba(255, 204, 0, 0.4),
+    0 0 80px rgba(255, 204, 0, 0.1);
 }
-[data-mode="light"] .fx-glow-hover:hover,
+[data-mode='light'] .fx-glow-hover:hover,
 .light .fx-glow-hover:hover {
-  box-shadow: 0 6px 20px rgba(204, 163, 0, 0.20);
+  box-shadow: 0 6px 20px rgba(204, 163, 0, 0.2);
 }
 
 /* ── Gradient text · the site's hero treatment ────────────────────────── */
@@ -62,7 +62,7 @@
   -webkit-text-fill-color: transparent;
   text-shadow: 0 0 40px rgba(255, 204, 0, 0.3);
 }
-[data-mode="light"] .fx-gradient-text,
+[data-mode='light'] .fx-gradient-text,
 .light .fx-gradient-text {
   background: linear-gradient(135deg, #cc9900 0%, #e6b800 50%, #cc9900 100%);
   -webkit-background-clip: text;
@@ -72,8 +72,10 @@
 }
 
 /* Pair with .fx-gradient-text for the dark-mode glow */
-.fx-text-glow { text-shadow: none; }
-[data-mode="dark"] .fx-text-glow,
+.fx-text-glow {
+  text-shadow: none;
+}
+[data-mode='dark'] .fx-text-glow,
 .dark .fx-text-glow {
   text-shadow: 0 0 40px rgba(255, 204, 0, 0.3);
 }
@@ -82,7 +84,7 @@
 .fx-illustration-glow {
   filter: drop-shadow(0 0 6px rgba(180, 140, 0, 0.25));
 }
-[data-mode="dark"] .fx-illustration-glow,
+[data-mode='dark'] .fx-illustration-glow,
 .dark .fx-illustration-glow {
   filter: drop-shadow(0 0 8px rgba(255, 204, 0, 0.15));
 }
@@ -111,7 +113,9 @@
   animation: rz-rotate-border 4s linear infinite;
 }
 @keyframes rz-rotate-border {
-  to { --rz-border-angle: 360deg; }
+  to {
+    --rz-border-angle: 360deg;
+  }
 }
 
 /* ── Radial halo · positioned absolutely behind hero content ──────────── */

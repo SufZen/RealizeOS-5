@@ -6,6 +6,7 @@ Supports text, vision, and tool use via Anthropic's Claude API.
 
 import asyncio
 import logging
+from typing import Any, ClassVar, Protocol, cast
 
 from realize_core.llm.base_provider import (
     BaseLLMProvider,
@@ -17,22 +18,26 @@ from realize_core.llm.base_provider import (
 logger = logging.getLogger(__name__)
 
 
+class _TextBlock(Protocol):
+    text: str
+
+
 class ClaudeProvider(BaseLLMProvider):
     """Anthropic Claude provider (Sonnet, Opus)."""
 
-    _MODELS = None  # Lazy-loaded to avoid circular imports
+    _MODELS: ClassVar[dict[str, str] | None] = None  # Lazy-loaded to avoid circular imports
 
     @property
     def name(self) -> str:
         return "claude"
 
-    def _get_models_config(self) -> dict:
+    def _get_models_config(self) -> dict[str, str]:
         """Load model IDs from config (lazy, avoids circular import)."""
         if self._MODELS is None:
             from realize_core.config import MODELS
 
             ClaudeProvider._MODELS = MODELS
-        return self._MODELS
+        return ClaudeProvider._MODELS or {}
 
     def list_models(self) -> list[ModelInfo]:
         models = self._get_models_config()
@@ -85,7 +90,7 @@ class ClaudeProvider(BaseLLMProvider):
         from realize_core.llm.claude_client import _log_usage
 
         models = self._get_models_config()
-        model = model or models.get("claude_sonnet")
+        model = model or models.get("claude_sonnet") or "claude-sonnet-4-6-20260217"
 
         try:
             from realize_core.llm.claude_client import _get_client
@@ -98,7 +103,7 @@ class ClaudeProvider(BaseLLMProvider):
                     max_tokens=max_tokens,
                     temperature=temperature,
                     system=system_prompt,
-                    messages=messages,
+                    messages=cast(Any, messages),
                 ),
                 timeout=timeout,
             )
@@ -110,7 +115,7 @@ class ClaudeProvider(BaseLLMProvider):
             _log_usage(model, response.usage)
 
             return LLMResponse(
-                text=response.content[0].text,
+                text=str(getattr(response.content[0], "text", "")),
                 model=model,
                 provider=self.name,
                 input_tokens=input_tokens,
@@ -168,7 +173,7 @@ class ClaudeProvider(BaseLLMProvider):
         from realize_core.llm.claude_client import call_claude_with_tools
 
         models = self._get_models_config()
-        model = model or models.get("claude_sonnet")
+        model = model or models.get("claude_sonnet") or "claude-sonnet-4-6-20260217"
 
         try:
             response = await call_claude_with_tools(
@@ -182,7 +187,7 @@ class ClaudeProvider(BaseLLMProvider):
             output_tokens = getattr(response.usage, "output_tokens", 0)
 
             # Extract text from response (may have tool_use blocks)
-            text_parts = [b.text for b in response.content if hasattr(b, "text")]
+            text_parts = [str(cast(_TextBlock, b).text) for b in response.content if hasattr(b, "text")]
             text = "\n".join(text_parts) if text_parts else ""
 
             return LLMResponse(
@@ -216,7 +221,7 @@ class ClaudeProvider(BaseLLMProvider):
         from realize_core.llm.claude_client import call_claude_vision
 
         models = self._get_models_config()
-        model = model or models.get("claude_sonnet")
+        model = model or models.get("claude_sonnet") or "claude-sonnet-4-6-20260217"
 
         text = await call_claude_vision(
             system_prompt=system_prompt,

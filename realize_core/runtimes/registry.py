@@ -10,15 +10,12 @@ from __future__ import annotations
 import asyncio
 import logging
 from datetime import datetime
-from typing import Any
 
 from realize_core.runtimes.contract import (
     AgentRuntime,
-    Capability,
     CapabilitySet,
     HealthStatus,
     Task,
-    CostEstimate,
 )
 
 logger = logging.getLogger(__name__)
@@ -69,10 +66,7 @@ class RuntimeRegistry:
     @property
     def active_runtimes(self) -> list[str]:
         """List runtime IDs that are ready or degraded."""
-        return [
-            rid for rid, entry in self._runtimes.items()
-            if entry.status in ("ready", "degraded")
-        ]
+        return [rid for rid, entry in self._runtimes.items() if entry.status in ("ready", "degraded")]
 
     def get(self, runtime_id: str) -> RuntimeEntry | None:
         """Get a runtime entry by ID."""
@@ -98,7 +92,7 @@ class RuntimeRegistry:
                 runtime.health_check(),
                 timeout=5.0,
             )
-        except (asyncio.TimeoutError, Exception) as e:
+        except (TimeoutError, Exception) as e:
             logger.error(f"Health check failed for runtime '{rid}': {e}")
             entry.health = HealthStatus(ready=False, error=str(e))
             entry.status = "offline"
@@ -115,8 +109,7 @@ class RuntimeRegistry:
         if entry.health.ready:
             entry.status = "ready"
             logger.info(
-                f"Registered runtime '{rid}' v{runtime.version} "
-                f"({len(entry.capabilities.capabilities)} capabilities)"
+                f"Registered runtime '{rid}' v{runtime.version} ({len(entry.capabilities.capabilities)} capabilities)"
             )
         else:
             entry.status = "degraded" if entry.health.degraded else "offline"
@@ -147,7 +140,7 @@ class RuntimeRegistry:
             )
             entry.consecutive_failures = 0
             entry.status = "ready" if entry.health.ready else "degraded"
-        except (asyncio.TimeoutError, Exception) as e:
+        except (TimeoutError, Exception) as e:
             entry.consecutive_failures += 1
             entry.health = HealthStatus(ready=False, error=str(e))
 
@@ -233,16 +226,18 @@ class RuntimeRegistry:
         """Get a summary of all registered runtimes and their status."""
         summary = []
         for rid, entry in self._runtimes.items():
-            summary.append({
-                "runtime_id": rid,
-                "display_name": entry.runtime.display_name,
-                "version": entry.runtime.version,
-                "status": entry.status,
-                "capabilities_count": len(entry.capabilities.capabilities) if entry.capabilities else 0,
-                "invocation_count": entry.invocation_count,
-                "total_cost_eur": entry.total_cost_eur,
-                "registered_at": entry.registered_at.isoformat(),
-                "last_used": entry.last_used.isoformat() if entry.last_used else None,
-                "health_error": entry.health.error,
-            })
+            summary.append(
+                {
+                    "runtime_id": rid,
+                    "display_name": entry.runtime.display_name,
+                    "version": entry.runtime.version,
+                    "status": entry.status,
+                    "capabilities_count": len(entry.capabilities.capabilities) if entry.capabilities else 0,
+                    "invocation_count": entry.invocation_count,
+                    "total_cost_eur": entry.total_cost_eur,
+                    "registered_at": entry.registered_at.isoformat(),
+                    "last_used": entry.last_used.isoformat() if entry.last_used else None,
+                    "health_error": entry.health.error,
+                }
+            )
         return summary

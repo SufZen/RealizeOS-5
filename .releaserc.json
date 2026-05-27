@@ -43,10 +43,10 @@
       "changelogTitle": "# Changelog\n\nAll notable changes to RealizeOS are documented in this file.\nThis changelog is automatically generated from [Conventional Commits](https://conventionalcommits.org).\n"
     }],
     ["@semantic-release/exec", {
-      "prepareCmd": "node -e \"const fs=require('fs'); const t=fs.readFileSync('pyproject.toml','utf8').replace(/^version = \\\".*\\\"/m, 'version = \\\"${nextRelease.version}\\\"'); fs.writeFileSync('pyproject.toml',t);\" && node -e \"const fs=require('fs'); const p=JSON.parse(fs.readFileSync('package.json','utf8')); p.version='${nextRelease.version}'; fs.writeFileSync('package.json',JSON.stringify(p,null,2)+'\\n');\""
+      "prepareCmd": "node -e \"const fs=require('fs'); const t=fs.readFileSync('pyproject.toml','utf8').replace(/^version = \\\".*\\\"/m, 'version = \\\"${nextRelease.version}\\\"'); fs.writeFileSync('pyproject.toml',t);\" && node -e \"const fs=require('fs'); const p=JSON.parse(fs.readFileSync('package.json','utf8')); p.version='${nextRelease.version}'; fs.writeFileSync('package.json',JSON.stringify(p,null,2)+'\\n');\" && node -e \"const fs=require('fs'); fs.writeFileSync('VERSION','${nextRelease.version}\\n');\" && node -e \"const fs=require('fs'); const p=JSON.parse(fs.readFileSync('realize-os-cli/package.json','utf8')); p.version='${nextRelease.version}'; fs.writeFileSync('realize-os-cli/package.json',JSON.stringify(p,null,2)+'\\n');\" && node -e \"const fs=require('fs'); const p=JSON.parse(fs.readFileSync('dashboard/package.json','utf8')); p.version='${nextRelease.version}'; fs.writeFileSync('dashboard/package.json',JSON.stringify(p,null,2)+'\\n');\""
     }],
     ["@semantic-release/git", {
-      "assets": ["CHANGELOG.md", "pyproject.toml", "package.json", "package-lock.json"],
+      "assets": ["CHANGELOG.md", "pyproject.toml", "package.json", "package-lock.json", "VERSION", "realize-os-cli/package.json", "dashboard/package.json"],
       "message": "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}"
     }]
   ]

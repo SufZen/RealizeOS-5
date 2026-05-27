@@ -23,7 +23,11 @@ export default function ApprovalsPage() {
   }
 
   if (loading) {
-    return <div className="flex items-center justify-center h-64 text-muted-foreground">Loading approvals...</div>
+    return (
+      <div className="flex items-center justify-center h-64 text-muted-foreground">
+        Loading approvals...
+      </div>
+    )
   }
 
   if (error) {
@@ -44,9 +48,7 @@ export default function ApprovalsPage() {
           <ShieldCheck className="h-6 w-6 text-brand-400" />
           <h1 className="text-2xl font-bold text-foreground">Approvals</h1>
           {approvals.length > 0 && (
-            <span className="rz-badge rz-badge--accent">
-              {approvals.length} pending
-            </span>
+            <span className="rz-badge rz-badge--accent">{approvals.length} pending</span>
           )}
         </div>
         <button
@@ -69,11 +71,7 @@ export default function ApprovalsPage() {
         <div className="space-y-4">
           {approvals.map((approval) => (
             <div key={approval.id} className="space-y-2">
-              <ApprovalCard
-                approval={approval}
-                onApprove={handleApprove}
-                onReject={handleReject}
-              />
+              <ApprovalCard approval={approval} onApprove={handleApprove} onReject={handleReject} />
               <input
                 type="text"
                 placeholder="Optional note..."

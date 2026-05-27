@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Literal, Union
+from typing import Literal
 
 
 @dataclass
@@ -106,13 +106,13 @@ class ErrorEvent:
 
 
 # Union type for all runtime events
-RuntimeEvent = Union[
-    ProgressEvent,
-    TextEvent,
-    ToolCallEvent,
-    ToolResultEvent,
-    ApprovalRequestEvent,
-    KnowledgeWriteEvent,
-    FinalResultEvent,
-    ErrorEvent,
-]
+RuntimeEvent = (
+    ProgressEvent
+    | TextEvent
+    | ToolCallEvent
+    | ToolResultEvent
+    | ApprovalRequestEvent
+    | KnowledgeWriteEvent
+    | FinalResultEvent
+    | ErrorEvent
+)

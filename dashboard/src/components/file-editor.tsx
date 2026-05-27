@@ -13,7 +13,14 @@ interface Props {
   onDeleted?: () => void
 }
 
-export function FileEditor({ ventureKey, filePath, initialContent, onClose, onSaved, onDeleted }: Props) {
+export function FileEditor({
+  ventureKey,
+  filePath,
+  initialContent,
+  onClose,
+  onSaved,
+  onDeleted,
+}: Props) {
   const [content, setContent] = useState(initialContent)
   const [saving, setSaving] = useState(false)
   const [status, setStatus] = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
@@ -61,19 +68,29 @@ export function FileEditor({ ventureKey, filePath, initialContent, onClose, onSa
         <div className="flex items-center gap-2 min-w-0">
           <span className="text-xs font-mono text-muted-foreground truncate">{filePath}</span>
           {isYaml && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-400/10 text-amber-400 shrink-0">YAML</span>
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-400/10 text-amber-400 shrink-0">
+              YAML
+            </span>
           )}
           {isDirty && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded bg-brand-400/10 text-brand-400 shrink-0">Modified</span>
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-brand-400/10 text-brand-400 shrink-0">
+              Modified
+            </span>
           )}
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {status && (
-            <span className={cn(
-              'flex items-center gap-1 text-xs',
-              status.type === 'success' ? 'text-green-400' : 'text-red-400',
-            )}>
-              {status.type === 'success' ? <Check className="h-3 w-3" /> : <AlertCircle className="h-3 w-3" />}
+            <span
+              className={cn(
+                'flex items-center gap-1 text-xs',
+                status.type === 'success' ? 'text-green-400' : 'text-red-400',
+              )}
+            >
+              {status.type === 'success' ? (
+                <Check className="h-3 w-3" />
+              ) : (
+                <AlertCircle className="h-3 w-3" />
+              )}
               {status.msg}
             </span>
           )}
@@ -140,7 +157,13 @@ interface CreateFileProps {
   onCancel: () => void
 }
 
-export function CreateFileDialog({ ventureKey, directory, extension, onCreated, onCancel }: CreateFileProps) {
+export function CreateFileDialog({
+  ventureKey,
+  directory,
+  extension,
+  onCreated,
+  onCancel,
+}: CreateFileProps) {
   const [name, setName] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -153,9 +176,10 @@ export function CreateFileDialog({ ventureKey, directory, extension, onCreated, 
     setSaving(true)
     setError('')
     try {
-      const defaultContent = extension === '.yaml'
-        ? `name: ${name.replace(extension, '')}\ntriggers:\n  - example\ntask_type: general\nsteps:\n  - type: agent\n    agent: orchestrator\n    prompt: "Execute the task"\n`
-        : `# ${name.replace(extension, '')}\n\nDescribe this ${directory.includes('A-agents') ? 'agent' : 'document'} here.\n`
+      const defaultContent =
+        extension === '.yaml'
+          ? `name: ${name.replace(extension, '')}\ntriggers:\n  - example\ntask_type: general\nsteps:\n  - type: agent\n    agent: orchestrator\n    prompt: "Execute the task"\n`
+          : `# ${name.replace(extension, '')}\n\nDescribe this ${directory.includes('A-agents') ? 'agent' : 'document'} here.\n`
 
       await api.post(`/ventures/${ventureKey}/kb/file`, { path, content: defaultContent })
       onCreated()
@@ -183,7 +207,10 @@ export function CreateFileDialog({ ventureKey, directory, extension, onCreated, 
       >
         Create
       </button>
-      <button onClick={onCancel} className="px-2 py-1 text-xs text-muted-foreground hover:text-foreground">
+      <button
+        onClick={onCancel}
+        className="px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
+      >
         Cancel
       </button>
       {error && <span className="text-xs text-red-400">{error}</span>}

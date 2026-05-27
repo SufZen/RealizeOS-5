@@ -238,7 +238,7 @@ WEB_ACTION_KEYWORDS = {
 }
 
 
-def classify_task(message: str, system_key: str = None) -> str:
+def classify_task(message: str, system_key: str | None = None) -> str:
     """
     Classify a user message into a task type for model selection.
 

@@ -1,12 +1,5 @@
 /* eslint-disable react-refresh/only-export-components, react-hooks/set-state-in-effect */
-import {
-  createContext,
-  useContext,
-  useState,
-  useEffect,
-  useCallback,
-  type ReactNode,
-} from 'react'
+import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { X, ChevronLeft, ChevronRight, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -46,97 +39,113 @@ export const DEFAULT_TOUR_STEPS: TourStep[] = [
   {
     target: '[data-tour="sidebar"]',
     title: 'Welcome to RealizeOS! 👋',
-    description: 'This is your navigation sidebar. It\u2019s organized into four groups: Core, Build, Monitor, and Configure. Let\u2019s walk through the first steps of using the system.',
+    description:
+      'This is your navigation sidebar. It\u2019s organized into four groups: Core, Build, Monitor, and Configure. Let\u2019s walk through the first steps of using the system.',
     position: 'right',
   },
   {
     target: '[data-tour="nav-overview"]',
     title: '1. Dashboard Overview',
-    description: 'Start here. The Overview page gives you a snapshot of all your ventures, agents, and recent activity in one place.',
+    description:
+      'Start here. The Overview page gives you a snapshot of all your ventures, agents, and recent activity in one place.',
     position: 'right',
   },
   {
     target: '[data-tour="nav-chat"]',
     title: '2. Chat with Your AI',
-    description: 'Talk to your AI agents in natural language. Issue commands, ask questions, or delegate tasks — this is your primary interface.',
+    description:
+      'Talk to your AI agents in natural language. Issue commands, ask questions, or delegate tasks — this is your primary interface.',
     position: 'right',
   },
   {
     target: '[data-tour="nav-ventures"]',
     title: '3. Manage Ventures',
-    description: 'Ventures are your business units or projects. Each venture has its own agents, skills, and knowledge base. Create your first venture here.',
+    description:
+      'Ventures are your business units or projects. Each venture has its own agents, skills, and knowledge base. Create your first venture here.',
     position: 'right',
   },
   {
     target: '[data-tour="nav-skills"]',
     title: '4. Install Skills',
-    description: 'Skills are pre-built capabilities for your agents — like email drafting, research, or scheduling. Browse the library and install what you need.',
+    description:
+      'Skills are pre-built capabilities for your agents — like email drafting, research, or scheduling. Browse the library and install what you need.',
     position: 'right',
   },
   {
     target: '[data-tour="nav-pipelines"]',
     title: '5. Build Pipelines',
-    description: 'Chain multiple agents and tools into automated workflows. Pipelines let you build complex multi-step processes visually.',
+    description:
+      'Chain multiple agents and tools into automated workflows. Pipelines let you build complex multi-step processes visually.',
     position: 'right',
   },
   {
     target: '[data-tour="nav-workflows"]',
     title: '6. Create Workflows',
-    description: 'Define YAML-based workflow templates that your agents can execute. Great for repeatable business processes.',
+    description:
+      'Define YAML-based workflow templates that your agents can execute. Great for repeatable business processes.',
     position: 'right',
   },
   {
     target: '[data-tour="nav-activity"]',
     title: '7. Monitor Activity',
-    description: 'See everything your agents are doing in real-time. Track actions, outputs, and status across all ventures.',
+    description:
+      'See everything your agents are doing in real-time. Track actions, outputs, and status across all ventures.',
     position: 'right',
   },
   {
     target: '[data-tour="nav-approvals"]',
     title: '8. Review Approvals',
-    description: 'When agents need human approval for sensitive actions (sending emails, API calls), requests appear here. You stay in control.',
+    description:
+      'When agents need human approval for sensitive actions (sending emails, API calls), requests appear here. You stay in control.',
     position: 'right',
   },
   {
     target: '[data-tour="nav-evolution"]',
     title: '9. Track Evolution',
-    description: 'Monitor how your agents improve over time. See performance metrics, learning patterns, and optimization suggestions.',
+    description:
+      'Monitor how your agents improve over time. See performance metrics, learning patterns, and optimization suggestions.',
     position: 'right',
   },
   {
     target: '[data-tour="nav-routing"]',
     title: '10. Configure Routing',
-    description: 'Control which AI models handle which tasks. Set up intelligent routing rules based on cost, quality, or speed preferences.',
+    description:
+      'Control which AI models handle which tasks. Set up intelligent routing rules based on cost, quality, or speed preferences.',
     position: 'right',
   },
   {
     target: '[data-tour="nav-tools"]',
     title: '11. Manage Tools',
-    description: 'Tools are integrations your agents can use — web search, browser, file management, and more. Enable or disable them here.',
+    description:
+      'Tools are integrations your agents can use — web search, browser, file management, and more. Enable or disable them here.',
     position: 'right',
   },
   {
     target: '[data-tour="nav-integrations"]',
     title: '12. Connect Integrations',
-    description: 'Link external services like Google Workspace, Slack, Stripe, and more. These let your agents interact with your business tools.',
+    description:
+      'Link external services like Google Workspace, Slack, Stripe, and more. These let your agents interact with your business tools.',
     position: 'right',
   },
   {
     target: '[data-tour="nav-setup"]',
     title: '13. Set Up Connections',
-    description: 'Configure your AI provider API keys (OpenAI, Anthropic, Google) and other connection settings. This is essential to get started.',
+    description:
+      'Configure your AI provider API keys (OpenAI, Anthropic, Google) and other connection settings. This is essential to get started.',
     position: 'right',
   },
   {
     target: '[data-tour="nav-settings"]',
     title: '14. System Settings',
-    description: 'Fine-tune system features like approval gates, heartbeats, auto-memory, and proactive mode. You can also manage databases and providers.',
+    description:
+      'Fine-tune system features like approval gates, heartbeats, auto-memory, and proactive mode. You can also manage databases and providers.',
     position: 'right',
   },
   {
     target: '[data-tour="theme-toggle"]',
     title: '15. Customize Your Theme',
-    description: 'Switch between Dark, Light, or System theme. Your preference is saved automatically. Enjoy using RealizeOS! 🚀',
+    description:
+      'Switch between Dark, Light, or System theme. Your preference is saved automatically. Enjoy using RealizeOS! 🚀',
     position: 'right',
   },
 ]
@@ -205,7 +214,9 @@ export function TourProvider({ children }: { children: ReactNode }) {
   }, [])
 
   return (
-    <TourContext.Provider value={{ isRunning, currentStep, totalSteps: steps.length, startTour, endTour }}>
+    <TourContext.Provider
+      value={{ isRunning, currentStep, totalSteps: steps.length, startTour, endTour }}
+    >
       {children}
       {isRunning && steps[currentStep] && (
         <TourOverlay
@@ -333,7 +344,8 @@ function TourOverlay({ step, stepIndex, totalSteps, onNext, onPrev, onSkip }: To
             top: rect.top - pad,
             width: rect.width + pad * 2,
             height: rect.height + pad * 2,
-            boxShadow: 'var(--rz-shadow-3), 0 0 0 4px var(--rz-glow-subtle), 0 0 24px var(--rz-glow-subtle)',
+            boxShadow:
+              'var(--rz-shadow-3), 0 0 0 4px var(--rz-glow-subtle), 0 0 24px var(--rz-glow-subtle)',
             transition: 'all 0.3s ease',
           }}
         />
@@ -373,7 +385,11 @@ function TourOverlay({ step, stepIndex, totalSteps, onNext, onPrev, onSkip }: To
               key={i}
               className={cn(
                 'h-1 rounded-full transition-all',
-                i === stepIndex ? 'w-4 bg-brand-400' : i < stepIndex ? 'w-1.5 bg-brand-400/40' : 'w-1.5 bg-surface-700',
+                i === stepIndex
+                  ? 'w-4 bg-brand-400'
+                  : i < stepIndex
+                    ? 'w-1.5 bg-brand-400/40'
+                    : 'w-1.5 bg-surface-700',
               )}
             />
           ))}
@@ -397,10 +413,7 @@ function TourOverlay({ step, stepIndex, totalSteps, onNext, onPrev, onSkip }: To
                 Back
               </button>
             )}
-            <button
-              onClick={onNext}
-              className="rz-btn rz-btn--primary rz-btn--sm"
-            >
+            <button onClick={onNext} className="rz-btn rz-btn--primary rz-btn--sm">
               {isLast ? 'Finish' : 'Next'}
               {!isLast && <ChevronRight className="h-3 w-3" />}
             </button>

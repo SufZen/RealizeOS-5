@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 
 # ─── Request Models ───────────────────────────────────────────────────────────
 
+
 class CreateEntityRequest(BaseModel):
     entity_type: str
     title: str
@@ -36,6 +37,7 @@ class UpdateEntityRequest(BaseModel):
 
 
 # ─── FABRIC Entity CRUD ──────────────────────────────────────────────────────
+
 
 @router.get("/fabric/entities")
 async def list_entities(
@@ -103,7 +105,8 @@ async def create_entity(body: CreateEntityRequest, request: Request):
 @router.put("/fabric/entities/{entity_id}")
 async def update_entity(entity_id: str, body: UpdateEntityRequest, request: Request):
     """Update an existing FABRIC entity."""
-    from realize_core.fabric.crud import read_entity, update_entity as _update
+    from realize_core.fabric.crud import read_entity
+    from realize_core.fabric.crud import update_entity as _update
 
     synapse = _get_synapse(request)
     entity_data = synapse.get(entity_id)
@@ -133,7 +136,8 @@ async def update_entity(entity_id: str, body: UpdateEntityRequest, request: Requ
 @router.delete("/fabric/entities/{entity_id}")
 async def delete_entity(entity_id: str, request: Request):
     """Delete a FABRIC entity."""
-    from realize_core.fabric.crud import read_entity, delete_entity as _delete
+    from realize_core.fabric.crud import delete_entity as _delete
+    from realize_core.fabric.crud import read_entity
 
     synapse = _get_synapse(request)
     entity_data = synapse.get(entity_id)
@@ -158,6 +162,7 @@ async def delete_entity(entity_id: str, request: Request):
 
 
 # ─── Synapse Search & Queries ────────────────────────────────────────────────
+
 
 @router.get("/fabric/search")
 async def search_entities(
@@ -215,6 +220,7 @@ async def get_stats(request: Request, venture: str = ""):
 
 # ─── Validation ───────────────────────────────────────────────────────────────
 
+
 @router.post("/fabric/lint")
 async def lint_entities(request: Request, venture: str = ""):
     """Validate all entities against their schemas."""
@@ -248,6 +254,48 @@ async def lint_entities(request: Request, venture: str = ""):
 
 # ─── Runtime Status ──────────────────────────────────────────────────────────
 
+
+@router.post("/fabric/reindex")
+async def reindex_fabric(request: Request, venture: str = ""):
+    """Rebuild the Synapse index from FABRIC files."""
+    systems: dict = getattr(request.app.state, "systems", {})
+    kb_path = Path(getattr(request.app.state, "kb_path", None) or ".")
+    synapse = _get_synapse(request)
+
+    targets: list[tuple[str, Path]] = []
+    if venture:
+        if venture in systems:
+            sys_conf = systems[venture]
+            targets.append((venture, kb_path / sys_conf.get("system_dir", f"systems/{venture}")))
+        else:
+            venture_dir = _resolve_venture_dir(request, venture)
+            if venture_dir is not None:
+                targets.append((venture, venture_dir))
+    else:
+        for key, sys_conf in systems.items():
+            targets.append((key, kb_path / sys_conf.get("system_dir", f"systems/{key}")))
+
+    if not targets:
+        return {
+            "status": "skipped",
+            "message": "No configured FABRIC systems found to reindex",
+            "ventures": {},
+            "count": 0,
+        }
+
+    indexed: dict[str, int] = {}
+    for key, venture_dir in targets:
+        if not venture_dir.exists():
+            raise HTTPException(status_code=404, detail=f"Venture '{key}' directory not found")
+        indexed[key] = synapse.index_venture(venture_dir, venture=key)
+
+    return {
+        "status": "reindexed",
+        "ventures": indexed,
+        "count": sum(indexed.values()),
+    }
+
+
 @router.get("/fabric/runtimes")
 async def list_runtimes(request: Request):
     """List all registered agent runtimes."""
@@ -259,13 +307,14 @@ async def list_runtimes(request: Request):
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 
+
 def _get_synapse(request: Request):
     """Get or create the Synapse instance."""
     if not hasattr(request.app.state, "synapse") or request.app.state.synapse is None:
         from realize_core.fabric.synapse import Synapse
-        from realize_core.config import KB_PATH
 
-        db_path = Path(KB_PATH) / ".synapse" / "synapse.db"
+        kb_path = Path(getattr(request.app.state, "kb_path", None) or ".")
+        db_path = kb_path / ".synapse" / "synapse.db"
         db_path.parent.mkdir(parents=True, exist_ok=True)
         request.app.state.synapse = Synapse(db_path=db_path)
 

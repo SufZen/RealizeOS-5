@@ -3,22 +3,19 @@ Tests for the Dreaming Subsystem.
 """
 
 from datetime import datetime, timedelta
-from pathlib import Path
 
 import pytest
-
+from realize_core.dreaming.inbox import DreamInbox
 from realize_core.dreaming.policy import (
     DreamProposal,
     ProposalStatus,
-    TrustLevel,
     TrustPolicy,
 )
 from realize_core.dreaming.reflex import ReflexCycle
-from realize_core.dreaming.inbox import DreamInbox
 from realize_core.fabric.entity import FabricEntity
 
-
 # ─── Trust Policy ─────────────────────────────────────────────────────────────
+
 
 class TestTrustPolicy:
     def test_default_policy(self):
@@ -30,10 +27,12 @@ class TestTrustPolicy:
         assert policy.is_denied("send_message")
 
     def test_custom_overrides(self):
-        policy = TrustPolicy(overrides={
-            "add_tag": "propose",
-            "create_insight": "full-auto",
-        })
+        policy = TrustPolicy(
+            overrides={
+                "add_tag": "propose",
+                "create_insight": "full-auto",
+            }
+        )
         assert policy.needs_approval("add_tag")  # Was auto, now propose
         assert policy.is_auto("create_insight")  # Was propose, now auto
 
@@ -48,13 +47,18 @@ class TestTrustPolicy:
 
     def test_load_yaml_file(self, tmp_path):
         import yaml
+
         path = tmp_path / "trust-policy.yaml"
-        path.write_text(yaml.dump({
-            "trust_policy": {
-                "add_tag": "deny",
-                "create_insight": "full-auto",
-            }
-        }))
+        path.write_text(
+            yaml.dump(
+                {
+                    "trust_policy": {
+                        "add_tag": "deny",
+                        "create_insight": "full-auto",
+                    }
+                }
+            )
+        )
         policy = TrustPolicy.load(path)
         assert policy.is_denied("add_tag")
         assert policy.is_auto("create_insight")
@@ -68,6 +72,7 @@ class TestTrustPolicy:
 
 
 # ─── Dream Proposal ──────────────────────────────────────────────────────────
+
 
 class TestDreamProposal:
     def test_auto_id(self):
@@ -93,6 +98,7 @@ class TestDreamProposal:
 
 
 # ─── Reflex Cycle ─────────────────────────────────────────────────────────────
+
 
 class TestReflexCycle:
     @pytest.fixture
@@ -159,6 +165,7 @@ class TestReflexCycle:
 
 # ─── Dream Inbox ──────────────────────────────────────────────────────────────
 
+
 class TestDreamInbox:
     @pytest.fixture
     def inbox(self, tmp_path):
@@ -223,10 +230,7 @@ class TestDreamInbox:
         assert len(inbox2.pending()) == 1
 
     def test_batch_submit(self, inbox):
-        proposals = [
-            DreamProposal(action="add_tag", title=f"Tag {i}")
-            for i in range(3)
-        ]
+        proposals = [DreamProposal(action="add_tag", title=f"Tag {i}") for i in range(3)]
         pids = inbox.submit_batch(proposals)
         assert len(pids) == 3
 

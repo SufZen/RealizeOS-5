@@ -26,10 +26,15 @@ export function LLMRoutingSection() {
         <Route className="h-5 w-5 text-brand-400" />
         <h2 className="text-lg font-semibold text-foreground">LLM Routing</h2>
       </div>
-      <p className="text-xs text-muted-foreground mb-4">How tasks are automatically routed to the best model</p>
+      <p className="text-xs text-muted-foreground mb-4">
+        How tasks are automatically routed to the best model
+      </p>
       <div className="space-y-2">
         {Object.entries(data.routing_rules || {}).map(([taskType, rule]) => (
-          <div key={taskType} className="flex items-center justify-between gap-4 rounded-lg border border-border p-3">
+          <div
+            key={taskType}
+            className="flex items-center justify-between gap-4 rounded-lg border border-border p-3"
+          >
             <div>
               <span className="text-sm font-medium text-foreground capitalize">{taskType}</span>
               <span className="text-xs text-muted-foreground ml-2">{rule.description}</span>
@@ -74,7 +79,9 @@ export function MemorySection() {
     if (!query.trim()) return
     setSearching(true)
     try {
-      const res = await api.get<{ results: MemoryResult[] }>(`/memory/search?q=${encodeURIComponent(query)}`)
+      const res = await api.get<{ results: MemoryResult[] }>(
+        `/memory/search?q=${encodeURIComponent(query)}`,
+      )
       setResults(res.results || [])
     } catch {
       setResults([])
@@ -110,7 +117,9 @@ export function MemorySection() {
           {results.map((r, i) => (
             <div key={i} className="rounded-lg bg-surface-800 p-3 text-xs">
               <div className="flex items-center gap-2 mb-1">
-                <span className="px-1.5 py-0.5 rounded bg-brand-400/10 text-brand-400">{r.category}</span>
+                <span className="px-1.5 py-0.5 rounded bg-brand-400/10 text-brand-400">
+                  {r.category}
+                </span>
                 <span className="text-muted-foreground">{r.system_key}</span>
               </div>
               <p className="text-foreground">{r.content}</p>
@@ -122,7 +131,15 @@ export function MemorySection() {
   )
 }
 
-export function ReportsSection({ saving, setSaving, setStatus }: { saving: boolean; setSaving: (v: boolean) => void; setStatus: (v: { message: string; type: 'success' | 'error' } | null) => void }) {
+export function ReportsSection({
+  saving,
+  setSaving,
+  setStatus,
+}: {
+  saving: boolean
+  setSaving: (v: boolean) => void
+  setStatus: (v: { message: string; type: 'success' | 'error' } | null) => void
+}) {
   const [generating, setGenerating] = useState<string | null>(null)
 
   async function triggerReport(type: 'morning-briefing' | 'weekly-review') {
@@ -134,7 +151,10 @@ export function ReportsSection({ saving, setSaving, setStatus }: { saving: boole
       const label = type === 'morning-briefing' ? 'Morning Briefing' : 'Weekly Review'
       setStatus({ message: `${label} generated successfully`, type: 'success' })
     } catch (err) {
-      setStatus({ message: err instanceof Error ? err.message : 'Report generation failed', type: 'error' })
+      setStatus({
+        message: err instanceof Error ? err.message : 'Report generation failed',
+        type: 'error',
+      })
     } finally {
       setGenerating(null)
       setSaving(false)
@@ -147,14 +167,20 @@ export function ReportsSection({ saving, setSaving, setStatus }: { saving: boole
         <FileText className="h-5 w-5 text-brand-400" />
         <h2 className="text-lg font-semibold text-foreground">Reports</h2>
       </div>
-      <p className="text-xs text-muted-foreground mb-4">Generate on-demand reports from your system data</p>
+      <p className="text-xs text-muted-foreground mb-4">
+        Generate on-demand reports from your system data
+      </p>
       <div className="flex gap-3">
         <button
           onClick={() => triggerReport('morning-briefing')}
           disabled={saving}
           className="flex items-center gap-2 px-4 py-2 text-sm rounded-lg border border-border bg-surface-800 text-foreground hover:bg-surface-700 disabled:opacity-50 transition-colors"
         >
-          {generating === 'morning-briefing' ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
+          {generating === 'morning-briefing' ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <FileText className="h-4 w-4" />
+          )}
           Morning Briefing
         </button>
         <button
@@ -162,7 +188,11 @@ export function ReportsSection({ saving, setSaving, setStatus }: { saving: boole
           disabled={saving}
           className="flex items-center gap-2 px-4 py-2 text-sm rounded-lg border border-border bg-surface-800 text-foreground hover:bg-surface-700 disabled:opacity-50 transition-colors"
         >
-          {generating === 'weekly-review' ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
+          {generating === 'weekly-review' ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <FileText className="h-4 w-4" />
+          )}
           Weekly Review
         </button>
       </div>
@@ -229,21 +259,35 @@ export function TrustLadderSection() {
           className="appearance-none bg-surface-800 border border-border rounded-lg px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-brand-400"
         >
           {[1, 2, 3, 4, 5].map((l) => (
-            <option key={l} value={l}>{l} — {TRUST_LEVEL_LABELS[l]}</option>
+            <option key={l} value={l}>
+              {l} — {TRUST_LEVEL_LABELS[l]}
+            </option>
           ))}
         </select>
         {saved && <Check className="h-4 w-4 text-green-400" />}
       </div>
 
-      <p className="text-xs text-muted-foreground mb-3">At level {currentLevel}, each action type has these permissions:</p>
+      <p className="text-xs text-muted-foreground mb-3">
+        At level {currentLevel}, each action type has these permissions:
+      </p>
 
       <div className="space-y-2">
         {Object.entries(actions).map(([action, rules]) => {
           const decision = rules[String(currentLevel)] || 'auto'
           return (
-            <div key={action} className="flex items-center justify-between gap-4 rounded-lg border border-border p-3">
-              <span className="text-sm text-foreground capitalize">{action.replace(/_/g, ' ')}</span>
-              <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium', DECISION_COLORS[decision] || 'text-muted-foreground bg-surface-700')}>
+            <div
+              key={action}
+              className="flex items-center justify-between gap-4 rounded-lg border border-border p-3"
+            >
+              <span className="text-sm text-foreground capitalize">
+                {action.replace(/_/g, ' ')}
+              </span>
+              <span
+                className={cn(
+                  'text-xs px-2 py-0.5 rounded-full font-medium',
+                  DECISION_COLORS[decision] || 'text-muted-foreground bg-surface-700',
+                )}
+              >
                 {decision}
               </span>
             </div>

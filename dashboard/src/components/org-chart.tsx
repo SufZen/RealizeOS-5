@@ -39,9 +39,7 @@ function OrgNode({
       >
         <Bot className="h-4 w-4 text-muted-foreground shrink-0" />
         <span className="text-sm font-medium text-foreground">{node.key}</span>
-        {node.role && (
-          <span className="text-xs text-muted-foreground">{node.role}</span>
-        )}
+        {node.role && <span className="text-xs text-muted-foreground">{node.role}</span>}
         <AgentStatusBadge status={status} className="ml-auto" />
       </div>
       {node.children.map((child) => (
@@ -69,12 +67,7 @@ export function OrgChart({ tree, ventureKey, agentStatuses, className }: OrgChar
   return (
     <div className={cn('space-y-1', className)}>
       {tree.map((node) => (
-        <OrgNode
-          key={node.key}
-          node={node}
-          ventureKey={ventureKey}
-          agentStatuses={agentStatuses}
-        />
+        <OrgNode key={node.key} node={node} ventureKey={ventureKey} agentStatuses={agentStatuses} />
       ))}
     </div>
   )

@@ -41,8 +41,8 @@ export function ConfirmDialog({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div 
-        className="fixed inset-0 bg-background/80 backdrop-blur-sm transition-opacity" 
+      <div
+        className="fixed inset-0 bg-background/80 backdrop-blur-sm transition-opacity"
         onClick={onCancel}
       />
       <div className="relative z-50 grid w-full max-w-lg gap-4 rounded-xl border border-border bg-card p-6 shadow-lg shadow-black/5 animate-in fade-in zoom-in-95 duration-200">
@@ -53,7 +53,7 @@ export function ConfirmDialog({
           </h2>
           <div className="text-sm text-muted-foreground">{message}</div>
         </div>
-        
+
         <div className="flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2 mt-4">
           <button
             onClick={onCancel}

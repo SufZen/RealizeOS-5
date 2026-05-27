@@ -12,7 +12,6 @@ Orchestrates mission lifecycle:
 from __future__ import annotations
 
 import logging
-import uuid
 from datetime import datetime
 
 from realize_core.fabric.event_log import EventLog
@@ -24,9 +23,8 @@ from realize_core.missions.state import (
     MissionStep,
     StepStatus,
 )
-from realize_core.runtimes.contract import Context, Task
+from realize_core.runtimes.contract import Context, StepConstraints, Task
 from realize_core.runtimes.contract import MissionStep as RuntimeMissionStep
-from realize_core.runtimes.contract import StepConstraints
 from realize_core.runtimes.registry import RuntimeRegistry
 
 logger = logging.getLogger(__name__)
@@ -146,9 +144,7 @@ class MissionEngine:
         mission = self._get_mission(mission_id)
 
         if mission.state not in (MissionState.PLANNED, MissionState.PAUSED):
-            raise ValueError(
-                f"Mission {mission_id} cannot be executed from state {mission.state.value}"
-            )
+            raise ValueError(f"Mission {mission_id} cannot be executed from state {mission.state.value}")
 
         mission.transition(MissionState.IN_PROGRESS)
         self._log_event(mission, "started")
@@ -184,7 +180,7 @@ class MissionEngine:
         except Exception as e:
             logger.error(f"Mission {mission_id} execution error: {e}")
             mission.transition(MissionState.FAILED)
-            mission.outcome_summary = f"Execution error: {str(e)}"
+            mission.outcome_summary = f"Execution error: {e!s}"
             self._log_event(mission, "error", error=str(e))
 
         # Update Synapse L4
@@ -198,7 +194,8 @@ class MissionEngine:
         step.started_at = datetime.now()
 
         self._log_event(
-            mission, "step_started",
+            mission,
+            "step_started",
             step_id=step.step_id,
             runtime=step.runtime,
             description=step.description,
@@ -277,7 +274,8 @@ class MissionEngine:
         runtime_entry.total_cost_eur += step.cost_eur
 
         self._log_event(
-            mission, "step_completed",
+            mission,
+            "step_completed",
             step_id=step.step_id,
             status=step.status.value,
             duration_sec=step.duration_sec,
@@ -351,8 +349,5 @@ class MissionEngine:
                 mission_id=mission.mission_id,
                 summary=mission.outcome_summary or f"{mission.title}: {mission.state.value}",
                 decisions=mission.related_decisions,
-                blockers=[
-                    s.error for s in mission.plan
-                    if s.status == StepStatus.FAILED and s.error
-                ],
+                blockers=[s.error for s in mission.plan if s.status == StepStatus.FAILED and s.error],
             )

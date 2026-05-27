@@ -35,10 +35,14 @@ interface SystemInfo {
   config_path: string
 }
 
-export function FeatureFlagsSection({ 
-  features, saving, onToggle 
-}: { 
-  features: Record<string, boolean>; saving: boolean; onToggle: (k: string, v: boolean) => void 
+export function FeatureFlagsSection({
+  features,
+  saving,
+  onToggle,
+}: {
+  features: Record<string, boolean>
+  saving: boolean
+  onToggle: (k: string, v: boolean) => void
 }) {
   return (
     <div className="rounded-xl border border-border bg-card p-6">
@@ -62,10 +66,14 @@ export function FeatureFlagsSection({
   )
 }
 
-export function GovernanceGatesSection({ 
-  gates, saving, onToggle 
-}: { 
-  gates: Record<string, boolean>; saving: boolean; onToggle: (k: string, v: boolean) => void 
+export function GovernanceGatesSection({
+  gates,
+  saving,
+  onToggle,
+}: {
+  gates: Record<string, boolean>
+  saving: boolean
+  onToggle: (k: string, v: boolean) => void
 }) {
   return (
     <div className="rounded-xl border border-border bg-card p-6">
@@ -73,16 +81,14 @@ export function GovernanceGatesSection({
         <Shield className="h-5 w-5 text-brand-400" />
         <h2 className="text-lg font-semibold text-foreground">Governance Gates</h2>
       </div>
-      <p className="text-xs text-muted-foreground mb-4">Actions that require human approval before execution</p>
+      <p className="text-xs text-muted-foreground mb-4">
+        Actions that require human approval before execution
+      </p>
       <div className="space-y-3">
         {Object.entries(GATE_LABELS).map(([key, label]) => (
           <div key={key} className="flex items-center justify-between gap-4">
             <span className="text-sm text-foreground">{label}</span>
-            <Toggle
-              checked={!!gates[key]}
-              onChange={(v) => onToggle(key, v)}
-              disabled={saving}
-            />
+            <Toggle checked={!!gates[key]} onChange={(v) => onToggle(key, v)} disabled={saving} />
           </div>
         ))}
       </div>
@@ -117,11 +123,15 @@ export function LLMProvidersSection({ providers }: { providers: Provider[] }) {
                   p.available && p.models.length > 0
                     ? 'bg-green-400/10 text-green-400'
                     : p.available
-                    ? 'bg-amber-400/10 text-amber-400'
-                    : 'bg-surface-700 text-muted-foreground',
+                      ? 'bg-amber-400/10 text-amber-400'
+                      : 'bg-surface-700 text-muted-foreground',
                 )}
               >
-                {p.available && p.models.length > 0 ? 'Connected' : p.available ? 'Available' : 'Not configured'}
+                {p.available && p.models.length > 0
+                  ? 'Connected'
+                  : p.available
+                    ? 'Available'
+                    : 'Not configured'}
               </span>
             </div>
           ))}
@@ -151,9 +161,13 @@ export function SystemInfoSection({ info }: { info: SystemInfo }) {
         <div className="text-foreground">{info.python_version}</div>
         <div className="text-muted-foreground">Database size</div>
         <div className="text-foreground">
-          {info.db_size_bytes === 0
-            ? <span className="text-muted-foreground italic">Empty — will initialize on first chat</span>
-            : formatBytes(info.db_size_bytes)}
+          {info.db_size_bytes === 0 ? (
+            <span className="text-muted-foreground italic">
+              Empty — will initialize on first chat
+            </span>
+          ) : (
+            formatBytes(info.db_size_bytes)
+          )}
         </div>
         <div className="text-muted-foreground">KB files</div>
         <div className="text-foreground">{info.kb_file_count} markdown files</div>
@@ -162,10 +176,14 @@ export function SystemInfoSection({ info }: { info: SystemInfo }) {
   )
 }
 
-export function MaintenanceSection({ 
-  saving, onReload, onReindex 
-}: { 
-  saving: boolean; onReload: () => void; onReindex: () => void 
+export function MaintenanceSection({
+  saving,
+  onReload,
+  onReindex,
+}: {
+  saving: boolean
+  onReload: () => void
+  onReindex: () => void
 }) {
   return (
     <div className="rounded-xl border border-border bg-card p-6">

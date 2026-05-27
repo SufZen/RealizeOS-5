@@ -60,10 +60,18 @@ interface IntegrationsData {
 /* ------------------------------------------------------------------ */
 
 const STATUS_META: Record<IntegrationStatus, { color: string; bg: string; icon: typeof Wifi }> = {
-  connected:    { color: 'text-green-400',  bg: 'bg-green-400/10 border-green-400/20', icon: CheckCircle2 },
-  disconnected: { color: 'text-surface-500', bg: 'bg-surface-700 border-surface-600',  icon: WifiOff },
-  error:        { color: 'text-red-400',    bg: 'bg-red-400/10 border-red-400/20',     icon: XCircle },
-  pending:      { color: 'text-amber-400',  bg: 'bg-amber-400/10 border-amber-400/20', icon: Loader2 },
+  connected: {
+    color: 'text-green-400',
+    bg: 'bg-green-400/10 border-green-400/20',
+    icon: CheckCircle2,
+  },
+  disconnected: {
+    color: 'text-surface-500',
+    bg: 'bg-surface-700 border-surface-600',
+    icon: WifiOff,
+  },
+  error: { color: 'text-red-400', bg: 'bg-red-400/10 border-red-400/20', icon: XCircle },
+  pending: { color: 'text-amber-400', bg: 'bg-amber-400/10 border-amber-400/20', icon: Loader2 },
 }
 
 /* ------------------------------------------------------------------ */
@@ -79,42 +87,51 @@ export default function IntegrationsPage() {
 
   /* ---- Actions ---- */
 
-  const handleToggle = useCallback(async (id: string, currentStatus: IntegrationStatus) => {
-    setActionInProgress(id)
-    try {
-      const action = currentStatus === 'connected' ? 'disconnect' : 'connect'
-      await api.post(`/integrations/${id}/${action}`)
-      refetch()
-    } catch {
-      // Error handled by refetch
-    } finally {
-      setActionInProgress(null)
-    }
-  }, [refetch])
+  const handleToggle = useCallback(
+    async (id: string, currentStatus: IntegrationStatus) => {
+      setActionInProgress(id)
+      try {
+        const action = currentStatus === 'connected' ? 'disconnect' : 'connect'
+        await api.post(`/integrations/${id}/${action}`)
+        refetch()
+      } catch {
+        // Error handled by refetch
+      } finally {
+        setActionInProgress(null)
+      }
+    },
+    [refetch],
+  )
 
-  const handleRemove = useCallback(async (id: string) => {
-    setActionInProgress(id)
-    try {
-      await api.delete(`/integrations/${id}`)
-      refetch()
-    } catch {
-      // Error handled by refetch
-    } finally {
-      setActionInProgress(null)
-    }
-  }, [refetch])
+  const handleRemove = useCallback(
+    async (id: string) => {
+      setActionInProgress(id)
+      try {
+        await api.delete(`/integrations/${id}`)
+        refetch()
+      } catch {
+        // Error handled by refetch
+      } finally {
+        setActionInProgress(null)
+      }
+    },
+    [refetch],
+  )
 
-  const handleTestConnection = useCallback(async (id: string) => {
-    setActionInProgress(id)
-    try {
-      await api.post(`/integrations/${id}/test`)
-      refetch()
-    } catch {
-      // Error handled by refetch
-    } finally {
-      setActionInProgress(null)
-    }
-  }, [refetch])
+  const handleTestConnection = useCallback(
+    async (id: string) => {
+      setActionInProgress(id)
+      try {
+        await api.post(`/integrations/${id}/test`)
+        refetch()
+      } catch {
+        // Error handled by refetch
+      } finally {
+        setActionInProgress(null)
+      }
+    },
+    [refetch],
+  )
 
   /* ---- Filtering ---- */
 
@@ -148,7 +165,11 @@ export default function IntegrationsPage() {
   /* ---- Render ---- */
 
   if (loading) {
-    return <div className="flex items-center justify-center h-64 text-muted-foreground">Loading integrations...</div>
+    return (
+      <div className="flex items-center justify-center h-64 text-muted-foreground">
+        Loading integrations...
+      </div>
+    )
   }
 
   if (error || !data) {
@@ -228,7 +249,9 @@ export default function IntegrationsPage() {
             onClick={() => setFilter('')}
             className={cn(
               'px-3 py-1.5 text-xs rounded-lg border transition-colors',
-              !filter ? 'border-brand-400 text-brand-400 bg-brand-400/10' : 'border-border text-muted-foreground hover:text-foreground',
+              !filter
+                ? 'border-brand-400 text-brand-400 bg-brand-400/10'
+                : 'border-border text-muted-foreground hover:text-foreground',
             )}
           >
             All
@@ -239,7 +262,9 @@ export default function IntegrationsPage() {
               onClick={() => setFilter(cat)}
               className={cn(
                 'px-3 py-1.5 text-xs rounded-lg border transition-colors capitalize',
-                filter === cat ? 'border-brand-400 text-brand-400 bg-brand-400/10' : 'border-border text-muted-foreground hover:text-foreground',
+                filter === cat
+                  ? 'border-brand-400 text-brand-400 bg-brand-400/10'
+                  : 'border-border text-muted-foreground hover:text-foreground',
               )}
             >
               {cat}
@@ -274,7 +299,10 @@ export default function IntegrationsPage() {
         <AddIntegrationModal
           available={data.available}
           onClose={() => setShowAddModal(false)}
-          onAdded={() => { setShowAddModal(false); refetch() }}
+          onAdded={() => {
+            setShowAddModal(false)
+            refetch()
+          }}
         />
       )}
     </div>
@@ -293,26 +321,41 @@ interface IntegrationCardProps {
   onTest: () => void
 }
 
-function IntegrationCard({ integration, isLoading, onToggle, onRemove, onTest }: IntegrationCardProps) {
+function IntegrationCard({
+  integration,
+  isLoading,
+  onToggle,
+  onRemove,
+  onTest,
+}: IntegrationCardProps) {
   const statusMeta = STATUS_META[integration.status]
   const StatusIcon = statusMeta.icon
 
   return (
-    <div className={cn(
-      'rounded-xl border bg-card p-5 transition-all',
-      integration.status === 'error' ? 'border-red-400/30' : 'border-border',
-    )}>
+    <div
+      className={cn(
+        'rounded-xl border bg-card p-5 transition-all',
+        integration.status === 'error' ? 'border-red-400/30' : 'border-border',
+      )}
+    >
       {/* Header */}
       <div className="flex items-start justify-between mb-3">
         <div>
           <h3 className="text-sm font-semibold text-foreground">{integration.name}</h3>
-          <span className="text-xs text-muted-foreground capitalize">{integration.provider} · {integration.category}</span>
+          <span className="text-xs text-muted-foreground capitalize">
+            {integration.provider} · {integration.category}
+          </span>
         </div>
-        <span className={cn(
-          'flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full border',
-          statusMeta.bg, statusMeta.color,
-        )}>
-          <StatusIcon className={cn('h-3 w-3', integration.status === 'pending' && 'animate-spin')} />
+        <span
+          className={cn(
+            'flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full border',
+            statusMeta.bg,
+            statusMeta.color,
+          )}
+        >
+          <StatusIcon
+            className={cn('h-3 w-3', integration.status === 'pending' && 'animate-spin')}
+          />
           {integration.status}
         </span>
       </div>
@@ -416,19 +459,22 @@ function AddIntegrationModal({ available, onClose, onAdded }: AddIntegrationModa
     )
   }, [available, searchQuery])
 
-  const handleAdd = useCallback(async (integration: AvailableIntegration) => {
-    if (integration.requires_api_key) {
-      setSelectedProvider(integration)
-      return
-    }
-    setAdding(integration.provider)
-    try {
-      await api.post('/integrations', { provider: integration.provider })
-      onAdded()
-    } catch {
-      setAdding(null)
-    }
-  }, [onAdded])
+  const handleAdd = useCallback(
+    async (integration: AvailableIntegration) => {
+      if (integration.requires_api_key) {
+        setSelectedProvider(integration)
+        return
+      }
+      setAdding(integration.provider)
+      try {
+        await api.post('/integrations', { provider: integration.provider })
+        onAdded()
+      } catch {
+        setAdding(null)
+      }
+    },
+    [onAdded],
+  )
 
   const handleAddWithKey = useCallback(async () => {
     if (!selectedProvider || !apiKey) return
@@ -499,13 +545,18 @@ function AddIntegrationModal({ available, onClose, onAdded }: AddIntegrationModa
                   disabled={!apiKey || adding === selectedProvider.provider}
                   className="px-3 py-1.5 text-sm rounded-lg bg-brand-400 text-black hover:bg-brand-400/90 font-medium disabled:opacity-40 transition-colors"
                 >
-                  {adding === selectedProvider.provider
-                    ? <Loader2 className="h-4 w-4 animate-spin" />
-                    : 'Add'}
+                  {adding === selectedProvider.provider ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    'Add'
+                  )}
                 </button>
               </div>
               <button
-                onClick={() => { setSelectedProvider(null); setApiKey('') }}
+                onClick={() => {
+                  setSelectedProvider(null)
+                  setApiKey('')
+                }}
                 className="text-xs text-muted-foreground hover:text-foreground mt-2 transition-colors"
               >
                 ← Back to list
@@ -516,7 +567,9 @@ function AddIntegrationModal({ available, onClose, onAdded }: AddIntegrationModa
           {/* List */}
           <div className="flex-1 overflow-y-auto p-4 space-y-2">
             {filtered.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-8">No integrations found</p>
+              <p className="text-sm text-muted-foreground text-center py-8">
+                No integrations found
+              </p>
             ) : (
               filtered.map((avail) => (
                 <div
@@ -530,7 +583,9 @@ function AddIntegrationModal({ available, onClose, onAdded }: AddIntegrationModa
                         {avail.category}
                       </span>
                     </div>
-                    <p className="text-xs text-muted-foreground mt-0.5 truncate">{avail.description}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                      {avail.description}
+                    </p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     {avail.setup_url && (
@@ -549,9 +604,11 @@ function AddIntegrationModal({ available, onClose, onAdded }: AddIntegrationModa
                       disabled={adding === avail.provider}
                       className="flex items-center gap-1 px-3 py-1.5 text-xs rounded-lg bg-brand-400 text-black hover:bg-brand-400/90 font-medium disabled:opacity-40 transition-colors"
                     >
-                      {adding === avail.provider
-                        ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        : <Plus className="h-3.5 w-3.5" />}
+                      {adding === avail.provider ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Plus className="h-3.5 w-3.5" />
+                      )}
                       Add
                     </button>
                   </div>

@@ -19,23 +19,36 @@ _XML_REF_RE = re.compile(r'<\w+\s+ref="([a-zA-Z0-9][a-zA-Z0-9._-]*)"(?:\s*/>|[^>
 
 # --- Entity ID patterns (for frontmatter value scanning) ---
 _ENTITY_ID_PATTERNS = [
-    re.compile(r"^dec-\d{4}-\d{2}-[a-z0-9-]+(?:-\d+)?$"),           # decision
-    re.compile(r"^m-\d{4}-\d{2}-\d{2}-[a-z0-9-]+(?:-\d+)?$"),      # mission
-    re.compile(r"^contact-[a-z0-9-]+$"),                              # contact
-    re.compile(r"^commitment-\d{4}-\d{2}-[a-z0-9-]+(?:-\d+)?$"),    # commitment
-    re.compile(r"^insight-\d{4}-\d{2}-[a-z0-9-]+(?:-\d+)?$"),       # insight
-    re.compile(r"^risk-\d{4}-\d{2}-[a-z0-9-]+(?:-\d+)?$"),          # risk
-    re.compile(r"^action-[a-z0-9-]+$"),                               # action
+    re.compile(r"^dec-\d{4}-\d{2}-[a-z0-9-]+(?:-\d+)?$"),  # decision
+    re.compile(r"^m-\d{4}-\d{2}-\d{2}-[a-z0-9-]+(?:-\d+)?$"),  # mission
+    re.compile(r"^contact-[a-z0-9-]+$"),  # contact
+    re.compile(r"^commitment-\d{4}-\d{2}-[a-z0-9-]+(?:-\d+)?$"),  # commitment
+    re.compile(r"^insight-\d{4}-\d{2}-[a-z0-9-]+(?:-\d+)?$"),  # insight
+    re.compile(r"^risk-\d{4}-\d{2}-[a-z0-9-]+(?:-\d+)?$"),  # risk
+    re.compile(r"^action-[a-z0-9-]+$"),  # action
 ]
 
 # Frontmatter keys known to contain entity references
 _REF_KEYS = {
-    "reviewers", "ventures", "supersedes", "superseded_by",
-    "followups", "related_risks", "related_decisions",
-    "related_mission", "source_mission", "source_references",
-    "related_actions", "renegotiated_to", "evidence",
-    "produced_entities", "by", "to", "owner",
-    "parent_mission", "partners",
+    "reviewers",
+    "ventures",
+    "supersedes",
+    "superseded_by",
+    "followups",
+    "related_risks",
+    "related_decisions",
+    "related_mission",
+    "source_mission",
+    "source_references",
+    "related_actions",
+    "renegotiated_to",
+    "evidence",
+    "produced_entities",
+    "by",
+    "to",
+    "owner",
+    "parent_mission",
+    "partners",
 }
 
 
@@ -64,8 +77,17 @@ def extract_refs(frontmatter: dict, body: str) -> list[str]:
 def _extract_frontmatter_refs(data: dict, refs: set[str]) -> None:
     """Recursively scan frontmatter for entity ID references."""
     for key, value in data.items():
-        if key in ("id", "type", "title", "slug", "source", "created_by",
-                    "last_modified_by", "verified_by", "content_hash"):
+        if key in (
+            "id",
+            "type",
+            "title",
+            "slug",
+            "source",
+            "created_by",
+            "last_modified_by",
+            "verified_by",
+            "content_hash",
+        ):
             continue  # Skip self-referential fields
 
         if isinstance(value, str):

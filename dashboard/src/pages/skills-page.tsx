@@ -58,7 +58,11 @@ export default function SkillsPage() {
   }
 
   if (loading) {
-    return <div className="flex items-center justify-center h-64 text-muted-foreground">Loading skill library...</div>
+    return (
+      <div className="flex items-center justify-center h-64 text-muted-foreground">
+        Loading skill library...
+      </div>
+    )
   }
 
   if (error || !data) {
@@ -70,9 +74,7 @@ export default function SkillsPage() {
     )
   }
 
-  const filtered = filter
-    ? data.skills.filter((s) => s.category === filter)
-    : data.skills
+  const filtered = filter ? data.skills.filter((s) => s.category === filter) : data.skills
 
   return (
     <div className="space-y-6 max-w-4xl rz-animate-fade-up">
@@ -88,7 +90,9 @@ export default function SkillsPage() {
             onClick={() => setFilter('')}
             className={cn(
               'px-3 py-1.5 text-xs rounded-lg border transition-colors',
-              !filter ? 'border-brand-400 text-brand-400 bg-brand-400/10' : 'border-border text-muted-foreground hover:text-foreground',
+              !filter
+                ? 'border-brand-400 text-brand-400 bg-brand-400/10'
+                : 'border-border text-muted-foreground hover:text-foreground',
             )}
           >
             All ({data.skills.length})
@@ -99,7 +103,9 @@ export default function SkillsPage() {
               onClick={() => setFilter(cat)}
               className={cn(
                 'px-3 py-1.5 text-xs rounded-lg border transition-colors capitalize',
-                filter === cat ? 'border-brand-400 text-brand-400 bg-brand-400/10' : 'border-border text-muted-foreground hover:text-foreground',
+                filter === cat
+                  ? 'border-brand-400 text-brand-400 bg-brand-400/10'
+                  : 'border-border text-muted-foreground hover:text-foreground',
               )}
             >
               {cat}
@@ -116,7 +122,9 @@ export default function SkillsPage() {
           >
             <option value="">Select venture...</option>
             {venturesData?.ventures.map((v) => (
-              <option key={v.key} value={v.key}>{v.name || v.key}</option>
+              <option key={v.key} value={v.key}>
+                {v.name || v.key}
+              </option>
             ))}
           </select>
         </div>
@@ -149,7 +157,11 @@ export default function SkillsPage() {
                   disabled={installing === skill.id || !selectedVenture}
                   className="flex items-center gap-1 px-3 py-1.5 text-xs rounded-lg bg-brand-400 text-black hover:bg-brand-400/90 disabled:opacity-40 transition-colors font-medium"
                 >
-                  {installing === skill.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+                  {installing === skill.id ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Download className="h-3.5 w-3.5" />
+                  )}
                   Install
                 </button>
               )}
@@ -167,7 +179,10 @@ export default function SkillsPage() {
                 </span>
               )}
               {(skill.triggers ?? []).slice(0, 3).map((t) => (
-                <span key={t} className="flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded bg-brand-400/10 text-brand-400">
+                <span
+                  key={t}
+                  className="flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded bg-brand-400/10 text-brand-400"
+                >
                   <Zap className="h-2.5 w-2.5" />
                   {t}
                 </span>

@@ -4,6 +4,7 @@ Supports multiple tiers: Sonnet (reasoning, content) and Opus (complex strategy)
 """
 
 import logging
+from typing import Any, cast
 
 import anthropic
 
@@ -13,7 +14,7 @@ logger = logging.getLogger(__name__)
 _client: anthropic.AsyncAnthropic | None = None
 
 
-def _get_client(api_key: str = None) -> anthropic.AsyncAnthropic:
+def _get_client(api_key: str | None = None) -> anthropic.AsyncAnthropic:
     """Get or create the async Anthropic client."""
     global _client
     if _client is None:
@@ -29,7 +30,7 @@ def _get_client(api_key: str = None) -> anthropic.AsyncAnthropic:
 async def call_claude(
     system_prompt: str,
     messages: list[dict],
-    model: str = None,
+    model: str | None = None,
     max_tokens: int = 4096,
     temperature: float = 0.7,
 ) -> str:
@@ -57,11 +58,12 @@ async def call_claude(
             max_tokens=max_tokens,
             temperature=temperature,
             system=system_prompt,
-            messages=messages,
+            messages=cast(Any, messages),
         )
 
         _log_usage(model, response.usage)
-        return response.content[0].text
+        first_block = response.content[0]
+        return str(getattr(first_block, "text", ""))
 
     except anthropic.RateLimitError:
         logger.warning("Claude rate limit hit.")
@@ -80,7 +82,7 @@ async def call_claude_with_tools(
     system_prompt: str,
     messages: list[dict],
     tools: list[dict],
-    model: str = None,
+    model: str | None = None,
     max_tokens: int = 4096,
 ) -> anthropic.types.Message:
     """
@@ -101,8 +103,8 @@ async def call_claude_with_tools(
             max_tokens=max_tokens,
             temperature=0.3,
             system=system_prompt,
-            messages=messages,
-            tools=tools,
+            messages=cast(Any, messages),
+            tools=cast(Any, tools),
         )
         logger.info(
             f"Claude tool_use: model={model}, stop={response.stop_reason}, "
@@ -129,7 +131,7 @@ async def call_claude_vision(
     messages: list[dict],
     image_data: bytes,
     media_type: str = "image/jpeg",
-    model: str = None,
+    model: str | None = None,
     max_tokens: int = 4096,
     temperature: float = 0.7,
 ) -> str:
@@ -175,9 +177,10 @@ async def call_claude_vision(
             max_tokens=max_tokens,
             temperature=temperature,
             system=system_prompt,
-            messages=vision_messages,
+            messages=cast(Any, vision_messages),
         )
-        return response.content[0].text
+        first_block = response.content[0]
+        return str(getattr(first_block, "text", ""))
 
     except anthropic.RateLimitError:
         logger.warning("Claude rate limit hit (vision).")

@@ -11,6 +11,7 @@ from __future__ import annotations
 import logging
 import os
 from pathlib import Path
+from typing import Any
 
 from realize_core.storage.base import BaseStorageProvider
 
@@ -18,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 # Module-level singletons (reset on reconfigure)
 _primary: BaseStorageProvider | None = None
-_sync_manager = None  # type: Any
+_sync_manager: Any | None = None
 
 
 def get_storage_provider(config: dict | None = None) -> BaseStorageProvider:

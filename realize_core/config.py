@@ -46,7 +46,7 @@ def _interpolate_env(value: str) -> str:
     return re.sub(r"\$\{(\w+)\}", replacer, value)
 
 
-def load_config(config_path: str | Path = None) -> dict:
+def load_config(config_path: str | Path | None = None) -> dict:
     """
     Load RealizeOS configuration from a YAML file.
 
@@ -58,7 +58,7 @@ def load_config(config_path: str | Path = None) -> dict:
     """
     import yaml
 
-    config_path = Path(config_path or os.getenv("REALIZE_CONFIG", "realize-os.yaml"))
+    config_path = Path(config_path) if config_path is not None else Path(os.getenv("REALIZE_CONFIG", "realize-os.yaml"))
 
     if not config_path.exists():
         logger.warning(f"Config file not found: {config_path}. Using defaults.")
@@ -123,7 +123,7 @@ def _default_config() -> dict:
     }
 
 
-def build_systems_dict(config: dict, kb_path: Path = None) -> dict:
+def build_systems_dict(config: dict, kb_path: Path | None = None) -> dict:
     """
     Convert the YAML config systems list into a lookup dictionary
     compatible with the prompt builder and router.
@@ -230,7 +230,7 @@ def discover_workspace_state(root: Path | None = None, config: dict | None = Non
     }
 
 
-def validate_systems(config: dict, kb_path: Path = None) -> list[str]:
+def validate_systems(config: dict, kb_path: Path | None = None) -> list[str]:
     """
     Validate that configured systems have the expected FABRIC structure.
 
@@ -291,7 +291,7 @@ def get_features(config: dict) -> dict:
 
 def _discover_agents(agents_dir: Path) -> dict:
     """Auto-discover agent definitions from markdown files in the agents directory."""
-    agents = {}
+    agents: dict[str, str] = {}
     if not agents_dir.exists():
         return agents
 

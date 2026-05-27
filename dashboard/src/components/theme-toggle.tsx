@@ -5,8 +5,8 @@ import { cn } from '@/lib/utils'
 const CYCLE: Array<'dark' | 'light' | 'system'> = ['dark', 'light', 'system']
 
 const META = {
-  dark:   { icon: Moon,    label: 'Dark' },
-  light:  { icon: Sun,     label: 'Light' },
+  dark: { icon: Moon, label: 'Dark' },
+  light: { icon: Sun, label: 'Light' },
   system: { icon: Monitor, label: 'System' },
 }
 

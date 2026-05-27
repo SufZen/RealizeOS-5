@@ -81,7 +81,7 @@ export default function ChatPage() {
       .get<ConversationResponse>(`/conversations/${selectedVenture}/${USER_ID}`)
       .then((data) => {
         const msgs: ChatMsg[] = (data.messages || []).map((m) => ({
-          role: m.role === 'user' ? 'user' as const : 'assistant' as const,
+          role: m.role === 'user' ? ('user' as const) : ('assistant' as const),
           content: m.content,
           timestamp: m.timestamp,
         }))
@@ -243,7 +243,10 @@ export default function ChatPage() {
       </div>
 
       {/* Input */}
-      <div className="shrink-0 border-t border-border pt-4 fx-glass" style={{ margin: '0 -24px', padding: '16px 24px 0' }}>
+      <div
+        className="shrink-0 border-t border-border pt-4 fx-glass"
+        style={{ margin: '0 -24px', padding: '16px 24px 0' }}
+      >
         <div className="flex gap-3 max-w-3xl">
           <textarea
             ref={inputRef}
@@ -251,7 +254,11 @@ export default function ChatPage() {
             maxLength={4096}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={selectedVenture ? 'Type a message... (Enter to send, Shift+Enter for newline)' : 'Select a venture first...'}
+            placeholder={
+              selectedVenture
+                ? 'Type a message... (Enter to send, Shift+Enter for newline)'
+                : 'Select a venture first...'
+            }
             disabled={!selectedVenture || sending}
             rows={1}
             className={cn(
@@ -280,9 +287,7 @@ export default function ChatPage() {
           </button>
         </div>
         {input.length > 3500 && (
-          <div className="text-xs text-muted-foreground mt-1 text-right">
-            {input.length}/4096
-          </div>
+          <div className="text-xs text-muted-foreground mt-1 text-right">{input.length}/4096</div>
         )}
       </div>
     </div>

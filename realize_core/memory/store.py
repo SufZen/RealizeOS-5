@@ -155,7 +155,7 @@ def init_db():
     logger.info(f"Memory database initialized at {_resolve_db_path()}")
 
 
-def store_memory(system_key: str, category: str, content: str, tags: list[str] = None):
+def store_memory(system_key: str, category: str, content: str, tags: list[str] | None = None):
     """Store a memory record, skipping near-duplicates."""
     with db_connection() as conn:
         # Duplicate detection: check for very similar content in same system/category
@@ -174,7 +174,7 @@ def store_memory(system_key: str, category: str, content: str, tags: list[str] =
         )
 
 
-def search_memories(query: str, system_key: str = None, limit: int = 5) -> list[dict]:
+def search_memories(query: str, system_key: str | None = None, limit: int = 5) -> list[dict]:
     """Search memories using FTS5."""
     with db_connection() as conn:
         if system_key:

@@ -11,7 +11,6 @@ import {
   Zap,
   RefreshCw,
   ChevronRight,
-  Filter,
   BarChart3,
   Network,
   ShieldCheck,
@@ -19,6 +18,7 @@ import {
 } from 'lucide-react'
 import { useApi } from '@/hooks/use-api'
 import { useDebounce } from '@/hooks/use-debounce'
+import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
 
 /* ─── Types ──────────────────────────────────────────────────────── */
@@ -63,34 +63,34 @@ interface StatsResponse {
 /* ─── Type metadata ──────────────────────────────────────────────── */
 
 const typeConfig: Record<string, { icon: typeof FileText; color: string }> = {
-  decision:   { icon: Zap,            color: 'text-amber-400 bg-amber-400/10' },
-  mission:    { icon: Zap,            color: 'text-blue-400 bg-blue-400/10' },
-  contact:    { icon: Users,          color: 'text-emerald-400 bg-emerald-400/10' },
-  commitment: { icon: ShieldCheck,    color: 'text-violet-400 bg-violet-400/10' },
-  insight:    { icon: Lightbulb,      color: 'text-yellow-400 bg-yellow-400/10' },
-  risk:       { icon: AlertTriangle,  color: 'text-red-400 bg-red-400/10' },
-  action:     { icon: Zap,            color: 'text-cyan-400 bg-cyan-400/10' },
-  document:   { icon: FileText,       color: 'text-gray-400 bg-gray-400/10' },
-  learning:   { icon: Lightbulb,      color: 'text-pink-400 bg-pink-400/10' },
+  decision: { icon: Zap, color: 'text-amber-400 bg-amber-400/10' },
+  mission: { icon: Zap, color: 'text-blue-400 bg-blue-400/10' },
+  contact: { icon: Users, color: 'text-emerald-400 bg-emerald-400/10' },
+  commitment: { icon: ShieldCheck, color: 'text-violet-400 bg-violet-400/10' },
+  insight: { icon: Lightbulb, color: 'text-yellow-400 bg-yellow-400/10' },
+  risk: { icon: AlertTriangle, color: 'text-red-400 bg-red-400/10' },
+  action: { icon: Zap, color: 'text-cyan-400 bg-cyan-400/10' },
+  document: { icon: FileText, color: 'text-gray-400 bg-gray-400/10' },
+  learning: { icon: Lightbulb, color: 'text-pink-400 bg-pink-400/10' },
 }
+const fallbackTypeConfig = typeConfig.document!
 
 /* ─── Layer badge ────────────────────────────────────────────────── */
 
 const layerColors: Record<string, string> = {
   foundations: 'text-amber-400 bg-amber-400/10',
-  agents:      'text-blue-400 bg-blue-400/10',
-  brain:       'text-violet-400 bg-violet-400/10',
-  routines:    'text-emerald-400 bg-emerald-400/10',
-  insights:    'text-yellow-400 bg-yellow-400/10',
-  creations:   'text-pink-400 bg-pink-400/10',
+  agents: 'text-blue-400 bg-blue-400/10',
+  brain: 'text-violet-400 bg-violet-400/10',
+  routines: 'text-emerald-400 bg-emerald-400/10',
+  insights: 'text-yellow-400 bg-yellow-400/10',
+  creations: 'text-pink-400 bg-pink-400/10',
 }
 
 /* ─── Entity card ────────────────────────────────────────────────── */
 
-function EntityCard({ entity, isSearch }: { entity: EntityTocEntry | SearchResult; isSearch?: boolean }) {
+function EntityCard({ entity }: { entity: EntityTocEntry | SearchResult }) {
   const [expanded, setExpanded] = useState(false)
-  const entry = entity as EntityTocEntry
-  const cfg = typeConfig[entity.type] || typeConfig.document
+  const cfg = typeConfig[entity.type] ?? fallbackTypeConfig
   const Icon = cfg.icon
   const tags = 'tags' in entity ? (entity as EntityTocEntry).tags : []
   const refs = 'refs' in entity ? (entity as EntityTocEntry).refs : []
@@ -114,19 +114,33 @@ function EntityCard({ entity, isSearch }: { entity: EntityTocEntry | SearchResul
           <div className="flex items-center gap-2 mb-0.5">
             <h3 className="text-sm font-semibold text-foreground truncate">{entity.title}</h3>
             {verified && <ShieldCheck className="h-3.5 w-3.5 text-emerald-400 flex-shrink-0" />}
-            {confidence < 0.7 && <ShieldAlert className="h-3.5 w-3.5 text-amber-400 flex-shrink-0" title={`Confidence: ${(confidence * 100).toFixed(0)}%`} />}
+            {confidence < 0.7 && (
+              <ShieldAlert className="h-3.5 w-3.5 text-amber-400 flex-shrink-0">
+                <title>{`Confidence: ${(confidence * 100).toFixed(0)}%`}</title>
+              </ShieldAlert>
+            )}
           </div>
 
           <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
-            <span className={cn('px-1.5 py-0.5 rounded text-[10px] uppercase font-semibold tracking-wide', cfg.color)}>
+            <span
+              className={cn(
+                'px-1.5 py-0.5 rounded text-[10px] uppercase font-semibold tracking-wide',
+                cfg.color,
+              )}
+            >
               {entity.type}
             </span>
             {entity.venture && (
               <span className="bg-surface-700 px-1.5 py-0.5 rounded">{entity.venture}</span>
             )}
             {layer && (
-              <span className={cn('px-1.5 py-0.5 rounded text-[10px] uppercase', layerColors[layer] || 'bg-surface-700')}>
-                {layer[0].toUpperCase()}
+              <span
+                className={cn(
+                  'px-1.5 py-0.5 rounded text-[10px] uppercase',
+                  layerColors[layer] || 'bg-surface-700',
+                )}
+              >
+                {layer.slice(0, 1).toUpperCase()}
               </span>
             )}
             {refs.length > 0 && (
@@ -141,8 +155,11 @@ function EntityCard({ entity, isSearch }: { entity: EntityTocEntry | SearchResul
           {tags.length > 0 && (
             <div className="flex items-center gap-1 mt-1.5 flex-wrap">
               <Tag className="h-3 w-3 text-muted-foreground flex-shrink-0" />
-              {tags.slice(0, 5).map(tag => (
-                <span key={tag} className="text-[10px] bg-surface-700 text-muted-foreground px-1.5 py-0.5 rounded">
+              {tags.slice(0, 5).map((tag) => (
+                <span
+                  key={tag}
+                  className="text-[10px] bg-surface-700 text-muted-foreground px-1.5 py-0.5 rounded"
+                >
                   {tag}
                 </span>
               ))}
@@ -169,8 +186,11 @@ function EntityCard({ entity, isSearch }: { entity: EntityTocEntry | SearchResul
             <div>
               <span className="text-muted-foreground font-medium">References:</span>
               <div className="flex flex-wrap gap-1 mt-1">
-                {refs.map(ref => (
-                  <span key={ref} className="bg-blue-400/10 text-blue-400 px-1.5 py-0.5 rounded font-mono text-[10px]">
+                {refs.map((ref) => (
+                  <span
+                    key={ref}
+                    className="bg-blue-400/10 text-blue-400 px-1.5 py-0.5 rounded font-mono text-[10px]"
+                  >
                     {ref}
                   </span>
                 ))}
@@ -179,7 +199,8 @@ function EntityCard({ entity, isSearch }: { entity: EntityTocEntry | SearchResul
           )}
           {confidence < 1.0 && (
             <div className="text-muted-foreground">
-              Confidence: {(confidence * 100).toFixed(0)}% · Source: {'source' in entity ? (entity as EntityTocEntry).source : 'manual'}
+              Confidence: {(confidence * 100).toFixed(0)}% · Source:{' '}
+              {'source' in entity ? (entity as EntityTocEntry).source : 'manual'}
             </div>
           )}
         </div>
@@ -194,26 +215,34 @@ export default function KnowledgeMapPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [typeFilter, setTypeFilter] = useState('')
   const [ventureFilter, setVentureFilter] = useState('')
-  const [view, setView] = useState<'grid' | 'list'>('list')
 
   const debouncedSearch = useDebounce(searchQuery, 400)
 
   // Fetch TOC (always loaded)
-  const { data: tocData, loading: tocLoading, refetch: refetchToc } = useApi<TocResponse>(
-    `/fabric/toc${ventureFilter ? `?venture=${ventureFilter}` : ''}`,
-    30000,
-  )
+  const {
+    data: tocData,
+    loading: tocLoading,
+    refetch: refetchToc,
+  } = useApi<TocResponse>(`/fabric/toc${ventureFilter ? `?venture=${ventureFilter}` : ''}`, 30000)
 
   // Fetch search results (only when searching)
   const { data: searchData, loading: searchLoading } = useApi<SearchResponse>(
-    debouncedSearch ? `/fabric/search?q=${encodeURIComponent(debouncedSearch)}&n=20${ventureFilter ? `&venture=${ventureFilter}` : ''}` : '/fabric/stats',
+    debouncedSearch
+      ? `/fabric/search?q=${encodeURIComponent(debouncedSearch)}&n=20${ventureFilter ? `&venture=${ventureFilter}` : ''}`
+      : '/fabric/stats',
     30000,
   )
 
   // Fetch stats
-  const { data: statsData } = useApi<StatsResponse>(
+  const { refetch: refetchStats } = useApi<StatsResponse>(
     `/fabric/stats${ventureFilter ? `?venture=${ventureFilter}` : ''}`,
   )
+
+  const handleRefresh = async () => {
+    await api.post(`/fabric/reindex${ventureFilter ? `?venture=${ventureFilter}` : ''}`)
+    refetchToc()
+    refetchStats()
+  }
 
   const isSearching = Boolean(debouncedSearch)
   const loading = isSearching ? searchLoading : tocLoading
@@ -223,7 +252,7 @@ export default function KnowledgeMapPage() {
     if (!tocData?.toc) return []
     let entries = tocData.toc
     if (typeFilter) {
-      entries = entries.filter(e => e.type === typeFilter)
+      entries = entries.filter((e) => e.type === typeFilter)
     }
     return entries
   }, [tocData, typeFilter])
@@ -231,7 +260,7 @@ export default function KnowledgeMapPage() {
   // Extract unique types from TOC for filter
   const availableTypes = useMemo(() => {
     if (!tocData?.toc) return []
-    const types = new Set(tocData.toc.map(e => e.type))
+    const types = new Set(tocData.toc.map((e) => e.type))
     return Array.from(types).sort()
   }, [tocData])
 
@@ -239,7 +268,7 @@ export default function KnowledgeMapPage() {
   const typeDistribution = useMemo(() => {
     if (!tocData?.toc) return []
     const counts: Record<string, number> = {}
-    tocData.toc.forEach(e => {
+    tocData.toc.forEach((e) => {
       counts[e.type] = (counts[e.type] || 0) + 1
     })
     return Object.entries(counts)
@@ -257,9 +286,9 @@ export default function KnowledgeMapPage() {
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={refetchToc}
+            onClick={handleRefresh}
             className="rounded-lg p-2 text-muted-foreground hover:bg-surface-700 hover:text-foreground transition-colors"
-            aria-label="Refresh"
+            aria-label="Reindex and refresh"
           >
             <RefreshCw className="h-4 w-4" />
           </button>
@@ -297,7 +326,7 @@ export default function KnowledgeMapPage() {
             <span className="text-xs text-muted-foreground">Verified</span>
           </div>
           <div className="text-lg font-bold text-foreground">
-            {tocData?.toc?.filter(e => e.verified).length || 0}
+            {tocData?.toc?.filter((e) => e.verified).length || 0}
           </div>
         </div>
       </div>
@@ -311,18 +340,27 @@ export default function KnowledgeMapPage() {
           </div>
           <div className="space-y-2">
             {typeDistribution.map(([type, count]) => {
-              const cfg = typeConfig[type] || typeConfig.document
+              const cfg = typeConfig[type] ?? fallbackTypeConfig
               const pct = tocData?.count ? (count / tocData.count) * 100 : 0
               return (
                 <div key={type} className="flex items-center gap-3">
-                  <span className={cn('text-xs font-medium w-24 truncate', cfg.color.split(' ')[0])}>{type}</span>
+                  <span
+                    className={cn('text-xs font-medium w-24 truncate', cfg.color.split(' ')[0])}
+                  >
+                    {type}
+                  </span>
                   <div className="flex-1 h-2 rounded-full bg-surface-700 overflow-hidden">
                     <div
-                      className={cn('h-full rounded-full transition-all duration-500', cfg.color.split(' ')[1]?.replace('/10', '/40') || 'bg-brand-400/40')}
+                      className={cn(
+                        'h-full rounded-full transition-all duration-500',
+                        cfg.color.split(' ')[1]?.replace('/10', '/40') || 'bg-brand-400/40',
+                      )}
                       style={{ width: `${pct}%` }}
                     />
                   </div>
-                  <span className="text-xs text-muted-foreground font-mono w-8 text-right">{count}</span>
+                  <span className="text-xs text-muted-foreground font-mono w-8 text-right">
+                    {count}
+                  </span>
                 </div>
               )
             })}
@@ -354,8 +392,10 @@ export default function KnowledgeMapPage() {
           )}
         >
           <option value="">All types</option>
-          {availableTypes.map(t => (
-            <option key={t} value={t}>{t}</option>
+          {availableTypes.map((t) => (
+            <option key={t} value={t}>
+              {t}
+            </option>
           ))}
         </select>
         <input
@@ -381,8 +421,8 @@ export default function KnowledgeMapPage() {
             <p className="text-xs text-muted-foreground">
               {(searchData as SearchResponse).count} result(s) for "{debouncedSearch}"
             </p>
-            {(searchData as SearchResponse).results.map(r => (
-              <EntityCard key={r.id} entity={r as unknown as EntityTocEntry} isSearch />
+            {(searchData as SearchResponse).results.map((r) => (
+              <EntityCard key={r.id} entity={r as unknown as EntityTocEntry} />
             ))}
           </>
         ) : (
@@ -391,7 +431,7 @@ export default function KnowledgeMapPage() {
               {filteredEntries.length} entit{filteredEntries.length === 1 ? 'y' : 'ies'}
               {typeFilter && ` of type "${typeFilter}"`}
             </p>
-            {filteredEntries.map(entry => (
+            {filteredEntries.map((entry) => (
               <EntityCard key={entry.id} entity={entry} />
             ))}
           </>
@@ -402,7 +442,11 @@ export default function KnowledgeMapPage() {
             <Brain className="h-12 w-12 text-muted-foreground/30 mx-auto mb-3" />
             <h3 className="text-sm font-medium text-foreground mb-1">Knowledge map is empty</h3>
             <p className="text-xs text-muted-foreground">
-              Run <code className="bg-surface-700 px-1.5 py-0.5 rounded text-[10px]">realize-os fabric reindex</code> to populate the index.
+              Run{' '}
+              <code className="bg-surface-700 px-1.5 py-0.5 rounded text-[10px]">
+                realize-os fabric reindex
+              </code>{' '}
+              to populate the index.
             </p>
           </div>
         )}

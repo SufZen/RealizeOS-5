@@ -24,11 +24,13 @@ from realize_api.routes import (
     chat,
     dashboard,
     devmode,
+    dreams,
     evolution,
     extensions,
     fabric,
     health,
     integrations,
+    missions,
     routing,
     security,
     settings,
@@ -274,6 +276,28 @@ async def lifespan(app: FastAPI):
         app.state.runtime_registry = None
         logger.warning(f"Runtime Registry initialization skipped: {e}")
 
+    # v5.5.0 — Initialize Mission Engine and Dream Inbox
+    try:
+        from realize_core.dreaming.inbox import DreamInbox
+        from realize_core.dreaming.policy import TrustPolicy
+        from realize_core.missions.engine import MissionEngine
+        from realize_core.runtimes.registry import RuntimeRegistry
+
+        registry = app.state.runtime_registry or RuntimeRegistry()
+        app.state.mission_engine = MissionEngine(
+            registry=registry,
+            synapse=app.state.synapse,
+        )
+        app.state.dream_inbox = DreamInbox(
+            inbox_path=Path(KB_PATH) / ".synapse" / "dream-inbox.jsonl",
+            policy=TrustPolicy.load(Path(KB_PATH) / "shared" / "trust-policy.yaml"),
+        )
+        logger.info("Mission Engine and Dream Inbox initialized")
+    except Exception as e:
+        app.state.mission_engine = None
+        app.state.dream_inbox = None
+        logger.warning(f"Mission/Dream initialization skipped: {e}")
+
     logger.info(f"RealizeOS API ready — {num_systems} system(s) loaded")
     yield
 
@@ -393,6 +417,8 @@ def create_app() -> FastAPI:
     app.include_router(venture_shared.router, prefix="/api", tags=["Shared Files"])
     app.include_router(approvals.router, prefix="/api", tags=["Approvals"])
     app.include_router(evolution.router, prefix="/api", tags=["Evolution"])
+    app.include_router(missions.router, prefix="/api", tags=["Missions"])
+    app.include_router(dreams.router, prefix="/api", tags=["Dreams"])
     app.include_router(settings.router, prefix="/api", tags=["Settings"])
     app.include_router(settings_llm.router, prefix="/api", tags=["Settings LLM"])
     app.include_router(settings_memory.router, prefix="/api", tags=["Settings Memory"])

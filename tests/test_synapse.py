@@ -2,10 +2,6 @@
 Tests for Synapse — Knowledge Indexer.
 """
 
-from pathlib import Path
-
-import pytest
-
 from realize_core.fabric.crud import create_entity
 from realize_core.fabric.synapse import Synapse
 
