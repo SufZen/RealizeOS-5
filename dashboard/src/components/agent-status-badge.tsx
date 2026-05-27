@@ -17,7 +17,13 @@ interface AgentStatusBadgeProps {
 export function AgentStatusBadge({ status, className }: AgentStatusBadgeProps) {
   const config = statusConfig[status] || statusConfig.idle
   return (
-    <span className={cn('inline-flex items-center gap-1.5 text-xs font-medium', config.color, className)}>
+    <span
+      className={cn(
+        'inline-flex items-center gap-1.5 text-xs font-medium',
+        config.color,
+        className,
+      )}
+    >
       <span className={cn('h-2 w-2 rounded-full', config.dot)} />
       {config.label}
     </span>

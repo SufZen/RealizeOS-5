@@ -2,12 +2,7 @@
 Tests for Event Log, SOUL, and Mission Engine.
 """
 
-import asyncio
-from datetime import datetime
-from pathlib import Path
-
 import pytest
-
 from realize_core.fabric.event_log import EventLog
 from realize_core.fabric.event_types import (
     Event,
@@ -19,12 +14,12 @@ from realize_core.fabric.event_types import (
     runtime_event,
 )
 from realize_core.fabric.soul import AgentSoul, UserSoul
-from realize_core.missions.state import Mission, MissionState, MissionStep, StepStatus
 from realize_core.missions.engine import MissionEngine
+from realize_core.missions.state import Mission, MissionState, MissionStep, StepStatus
 from realize_core.runtimes.registry import RuntimeRegistry
 
-
 # ─── Event Types ──────────────────────────────────────────────────────────────
+
 
 class TestEventTypes:
     def test_basic_event(self):
@@ -88,6 +83,7 @@ class TestEventTypes:
 
 # ─── Event Log ────────────────────────────────────────────────────────────────
 
+
 class TestEventLog:
     def test_append_and_query(self, tmp_path):
         log = EventLog(tmp_path / "events.jsonl")
@@ -142,6 +138,7 @@ class TestEventLog:
 
 # ─── SOUL ─────────────────────────────────────────────────────────────────────
 
+
 class TestUserSoul:
     def test_load_save_roundtrip(self, tmp_path):
         path = tmp_path / "user-soul.yaml"
@@ -191,12 +188,17 @@ class TestAgentSoul:
 
     def test_load_from_yaml(self, tmp_path):
         import yaml
+
         path = tmp_path / "agent.yaml"
-        path.write_text(yaml.dump({
-            "name": "Antonio",
-            "role": "Tech Lead",
-            "home_runtime": "claude-code-cli",
-        }))
+        path.write_text(
+            yaml.dump(
+                {
+                    "name": "Antonio",
+                    "role": "Tech Lead",
+                    "home_runtime": "claude-code-cli",
+                }
+            )
+        )
 
         soul = AgentSoul.load(path)
         assert soul.name == "Antonio"
@@ -204,6 +206,7 @@ class TestAgentSoul:
 
 
 # ─── Mission State ────────────────────────────────────────────────────────────
+
 
 class TestMissionState:
     def test_valid_transitions(self):
@@ -284,6 +287,7 @@ class TestMissionState:
 
 # ─── Mission Engine ──────────────────────────────────────────────────────────
 
+
 class TestMissionEngine:
     @pytest.fixture
     def engine(self, tmp_path):
@@ -342,7 +346,7 @@ class TestMissionEngine:
         engine.create_mission(title="Logged Mission", goal="With events")
 
         log = EventLog(tmp_path / "events.jsonl")
-        events = log.query(category="mission")
+        log.query(category="mission")
         # The engine's event log is separate from this log instance
         # But the engine's own log should have the events
         assert engine._event_log.count(category="mission") >= 1

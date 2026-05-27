@@ -68,13 +68,9 @@ export function ActivityFeed({ events, maxItems = 20, className }: ActivityFeedP
             <div className="flex-1 min-w-0">
               <span className="text-foreground">{label}</span>
               {event.entity_id && (
-                <span className="text-muted-foreground ml-1">
-                  &middot; {event.entity_id}
-                </span>
+                <span className="text-muted-foreground ml-1">&middot; {event.entity_id}</span>
               )}
-              <span className="text-muted-foreground ml-1 text-xs">
-                by {event.actor_id}
-              </span>
+              <span className="text-muted-foreground ml-1 text-xs">by {event.actor_id}</span>
             </div>
             <time className="text-xs text-muted-foreground shrink-0">
               {formatTime(event.created_at)}

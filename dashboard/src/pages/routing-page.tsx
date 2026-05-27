@@ -104,7 +104,11 @@ export default function RoutingPage() {
   }, [data])
 
   if (loading) {
-    return <div className="flex items-center justify-center h-64 text-muted-foreground">Loading routing analytics...</div>
+    return (
+      <div className="flex items-center justify-center h-64 text-muted-foreground">
+        Loading routing analytics...
+      </div>
+    )
   }
 
   if (error || !data) {
@@ -158,19 +162,19 @@ export default function RoutingPage() {
           label="Avg Confidence"
           value={`${(data.avg_confidence * 100).toFixed(1)}%`}
           icon={TrendingUp}
-          accent={data.avg_confidence >= 0.8 ? 'green' : data.avg_confidence >= 0.6 ? 'amber' : 'red'}
+          accent={
+            data.avg_confidence >= 0.8 ? 'green' : data.avg_confidence >= 0.6 ? 'amber' : 'red'
+          }
         />
         <SummaryCard
           label="Avg Latency"
           value={`${data.avg_latency_ms.toFixed(0)}ms`}
           icon={Clock}
-          accent={data.avg_latency_ms <= 500 ? 'green' : data.avg_latency_ms <= 1500 ? 'amber' : 'red'}
+          accent={
+            data.avg_latency_ms <= 500 ? 'green' : data.avg_latency_ms <= 1500 ? 'amber' : 'red'
+          }
         />
-        <SummaryCard
-          label="Active Models"
-          value={`${data.model_stats.length}`}
-          icon={Bot}
-        />
+        <SummaryCard label="Active Models" value={`${data.model_stats.length}`} icon={Bot} />
       </div>
 
       {/* Agent performance */}
@@ -183,20 +187,35 @@ export default function RoutingPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border">
-                  <th className="text-left py-2 text-xs text-muted-foreground font-medium">Agent</th>
-                  <th className="text-right py-2 text-xs text-muted-foreground font-medium">Calls</th>
-                  <th className="text-right py-2 text-xs text-muted-foreground font-medium">Avg Confidence</th>
-                  <th className="text-right py-2 text-xs text-muted-foreground font-medium">Avg Latency</th>
-                  <th className="text-right py-2 text-xs text-muted-foreground font-medium">Fallback Rate</th>
+                  <th className="text-left py-2 text-xs text-muted-foreground font-medium">
+                    Agent
+                  </th>
+                  <th className="text-right py-2 text-xs text-muted-foreground font-medium">
+                    Calls
+                  </th>
+                  <th className="text-right py-2 text-xs text-muted-foreground font-medium">
+                    Avg Confidence
+                  </th>
+                  <th className="text-right py-2 text-xs text-muted-foreground font-medium">
+                    Avg Latency
+                  </th>
+                  <th className="text-right py-2 text-xs text-muted-foreground font-medium">
+                    Fallback Rate
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {data.agent_stats.map((agent) => (
-                  <tr key={agent.agent_key} className="border-b border-border/50 hover:bg-surface-800/50 transition-colors">
+                  <tr
+                    key={agent.agent_key}
+                    className="border-b border-border/50 hover:bg-surface-800/50 transition-colors"
+                  >
                     <td className="py-3">
                       <div className="flex items-center gap-2">
                         <Bot className="h-4 w-4 text-brand-400" />
-                        <span className="font-medium text-foreground capitalize">{agent.agent_key}</span>
+                        <span className="font-medium text-foreground capitalize">
+                          {agent.agent_key}
+                        </span>
                       </div>
                     </td>
                     <td className="text-right py-3 text-muted-foreground">{agent.total_calls}</td>
@@ -207,10 +226,12 @@ export default function RoutingPage() {
                       <LatencyBadge value={agent.avg_latency_ms} />
                     </td>
                     <td className="text-right py-3">
-                      <span className={cn(
-                        'text-xs',
-                        agent.fallback_rate > 0.1 ? 'text-amber-400' : 'text-muted-foreground',
-                      )}>
+                      <span
+                        className={cn(
+                          'text-xs',
+                          agent.fallback_rate > 0.1 ? 'text-amber-400' : 'text-muted-foreground',
+                        )}
+                      >
                         {(agent.fallback_rate * 100).toFixed(1)}%
                       </span>
                     </td>
@@ -237,9 +258,9 @@ export default function RoutingPage() {
                   <Clock className="h-3 w-3 inline mr-1" />
                   {model.avg_latency_ms.toFixed(0)}ms
                 </span>
-                <span className={cn(
-                  model.error_rate > 0.05 ? 'text-red-400' : 'text-muted-foreground',
-                )}>
+                <span
+                  className={cn(model.error_rate > 0.05 ? 'text-red-400' : 'text-muted-foreground')}
+                >
                   {model.error_rate > 0 && <AlertCircle className="h-3 w-3 inline mr-1" />}
                   {(model.error_rate * 100).toFixed(1)}% errors
                 </span>
@@ -271,7 +292,9 @@ export default function RoutingPage() {
             >
               <option value="">All agents</option>
               {uniqueAgents.map((a) => (
-                <option key={a} value={a}>{a}</option>
+                <option key={a} value={a}>
+                  {a}
+                </option>
               ))}
             </select>
           </div>
@@ -282,7 +305,10 @@ export default function RoutingPage() {
         ) : (
           <div className="space-y-2">
             {filteredDecisions.map((d) => (
-              <div key={d.id} className="rounded-lg border border-border p-3 hover:bg-surface-800/50 transition-colors">
+              <div
+                key={d.id}
+                className="rounded-lg border border-border p-3 hover:bg-surface-800/50 transition-colors"
+              >
                 <div className="flex items-start gap-3">
                   <div className="flex-1 min-w-0">
                     <p className="text-xs text-foreground truncate">{d.user_message}</p>

@@ -1,5 +1,13 @@
 import { useNavigate } from 'react-router-dom'
-import { LayoutDashboard, Users, Briefcase, AlertCircle, Plug, ArrowRight, ShieldCheck } from 'lucide-react'
+import {
+  LayoutDashboard,
+  Users,
+  Briefcase,
+  AlertCircle,
+  Plug,
+  ArrowRight,
+  ShieldCheck,
+} from 'lucide-react'
 import { useApi } from '@/hooks/use-api'
 import { Skeleton, SkeletonCard, SkeletonText } from '@/components/ui/skeleton'
 import { VentureHealthCard } from '@/components/venture-health-card'
@@ -17,7 +25,15 @@ interface DashboardData {
   agent_summary: Record<string, number>
 }
 
-function StatCard({ label, value, icon: Icon }: { label: string; value: number; icon: typeof Users }) {
+function StatCard({
+  label,
+  value,
+  icon: Icon,
+}: {
+  label: string
+  value: number
+  icon: typeof Users
+}) {
   return (
     <div className="rounded-xl border border-border p-4 fx-glass-card">
       <div className="flex items-center justify-between">
@@ -105,7 +121,8 @@ export default function OverviewPage() {
               <h2 className="text-sm font-semibold text-brand-400">Welcome to RealizeOS</h2>
             </div>
             <p className="text-xs text-muted-foreground">
-              Start by connecting your LLM providers and integrations, then create your first venture.
+              Start by connecting your LLM providers and integrations, then create your first
+              venture.
             </p>
           </div>
           <button
@@ -122,16 +139,8 @@ export default function OverviewPage() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <StatCard label="Ventures" value={data.venture_count} icon={Briefcase} />
         <StatCard label="Total Agents" value={totalAgents} icon={Users} />
-        <StatCard
-          label="Running"
-          value={data.agent_summary.running || 0}
-          icon={Users}
-        />
-        <StatCard
-          label="Errors"
-          value={data.agent_summary.error || 0}
-          icon={AlertCircle}
-        />
+        <StatCard label="Running" value={data.agent_summary.running || 0} icon={Users} />
+        <StatCard label="Errors" value={data.agent_summary.error || 0} icon={AlertCircle} />
       </div>
 
       {/* Security Posture */}
@@ -153,7 +162,8 @@ export default function OverviewPage() {
           ))}
           {data.ventures.length === 0 && (
             <p className="text-muted-foreground text-sm col-span-full">
-              No ventures configured. Use <code>python cli.py venture create --key my-biz</code> to create one.
+              No ventures configured. Use <code>python cli.py venture create --key my-biz</code> to
+              create one.
             </p>
           )}
         </div>
@@ -181,8 +191,14 @@ function SecurityPostureWidget() {
   if (!scan) return null
 
   const score = scan.total > 0 ? Math.round((scan.passed / scan.total) * 100) : 0
-  const color = scan.critical > 0 ? 'text-red-400' : scan.warnings > 2 ? 'text-amber-400' : 'text-emerald-400'
-  const bgColor = scan.critical > 0 ? 'border-red-400/20' : scan.warnings > 2 ? 'border-amber-400/20' : 'border-emerald-400/20'
+  const color =
+    scan.critical > 0 ? 'text-red-400' : scan.warnings > 2 ? 'text-amber-400' : 'text-emerald-400'
+  const bgColor =
+    scan.critical > 0
+      ? 'border-red-400/20'
+      : scan.warnings > 2
+        ? 'border-amber-400/20'
+        : 'border-emerald-400/20'
 
   return (
     <div className={`rounded-xl border ${bgColor} bg-card p-4`}>
@@ -194,9 +210,15 @@ function SecurityPostureWidget() {
         <span className={`text-2xl font-bold ${color}`}>{score}%</span>
       </div>
       <div className="flex gap-4 mt-2 text-xs text-muted-foreground">
-        <span><span className="text-emerald-400 font-medium">{scan.passed}</span> passed</span>
-        <span><span className="text-amber-400 font-medium">{scan.warnings}</span> warnings</span>
-        <span><span className="text-red-400 font-medium">{scan.critical}</span> critical</span>
+        <span>
+          <span className="text-emerald-400 font-medium">{scan.passed}</span> passed
+        </span>
+        <span>
+          <span className="text-amber-400 font-medium">{scan.warnings}</span> warnings
+        </span>
+        <span>
+          <span className="text-red-400 font-medium">{scan.critical}</span> critical
+        </span>
         <span className="ml-auto">of {scan.total} checks</span>
       </div>
     </div>

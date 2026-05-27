@@ -108,13 +108,16 @@ export default function WorkflowEditorPage() {
   const [activeFileId, setActiveFileId] = useState<string | null>(null)
 
   /* ---- Format switch ---- */
-  const handleFormatSwitch = useCallback((newFormat: EditorFormat) => {
-    setFormat(newFormat)
-    if (!activeFileId) {
-      setContent(newFormat === 'skill_md' ? SKILL_MD_TEMPLATE : YAML_TEMPLATE)
-      setFilename(newFormat === 'skill_md' ? 'new_skill' : 'new_pipeline')
-    }
-  }, [activeFileId])
+  const handleFormatSwitch = useCallback(
+    (newFormat: EditorFormat) => {
+      setFormat(newFormat)
+      if (!activeFileId) {
+        setContent(newFormat === 'skill_md' ? SKILL_MD_TEMPLATE : YAML_TEMPLATE)
+        setFilename(newFormat === 'skill_md' ? 'new_skill' : 'new_pipeline')
+      }
+    },
+    [activeFileId],
+  )
 
   /* ---- New file ---- */
   const handleNew = useCallback(() => {
@@ -200,7 +203,9 @@ export default function WorkflowEditorPage() {
           >
             <option value="">All ventures</option>
             {venturesData?.ventures.map((v) => (
-              <option key={v.key} value={v.key}>{v.name || v.key}</option>
+              <option key={v.key} value={v.key}>
+                {v.name || v.key}
+              </option>
             ))}
           </select>
         </div>
@@ -253,12 +258,14 @@ export default function WorkflowEditorPage() {
                   <div className="flex items-center gap-2">
                     <FileText className="h-3.5 w-3.5 shrink-0" />
                     <span className="truncate font-medium">{file.name}</span>
-                    <span className={cn(
-                      'ml-auto text-[9px] px-1 py-0.5 rounded uppercase tracking-wider shrink-0',
-                      file.format === 'skill_md'
-                        ? 'bg-purple-400/10 text-purple-400'
-                        : 'bg-cyan-400/10 text-cyan-400',
-                    )}>
+                    <span
+                      className={cn(
+                        'ml-auto text-[9px] px-1 py-0.5 rounded uppercase tracking-wider shrink-0',
+                        file.format === 'skill_md'
+                          ? 'bg-purple-400/10 text-purple-400'
+                          : 'bg-cyan-400/10 text-cyan-400',
+                      )}
+                    >
                       {file.format === 'skill_md' ? 'MD' : 'YAML'}
                     </span>
                   </div>
@@ -394,12 +401,14 @@ export default function WorkflowEditorPage() {
                 <div className="space-y-4">
                   <div className="flex items-center gap-2">
                     <h2 className="text-lg font-semibold text-foreground">{preview.name}</h2>
-                    <span className={cn(
-                      'text-[10px] px-1.5 py-0.5 rounded uppercase tracking-wider',
-                      format === 'skill_md'
-                        ? 'bg-purple-400/10 text-purple-400'
-                        : 'bg-cyan-400/10 text-cyan-400',
-                    )}>
+                    <span
+                      className={cn(
+                        'text-[10px] px-1.5 py-0.5 rounded uppercase tracking-wider',
+                        format === 'skill_md'
+                          ? 'bg-purple-400/10 text-purple-400'
+                          : 'bg-cyan-400/10 text-cyan-400',
+                      )}
+                    >
                       {format === 'skill_md' ? 'SKILL.MD' : 'YAML'}
                     </span>
                   </div>
@@ -410,10 +419,15 @@ export default function WorkflowEditorPage() {
 
                   {preview.triggers.length > 0 && (
                     <div>
-                      <h3 className="text-xs text-muted-foreground uppercase tracking-wider mb-2">Triggers</h3>
+                      <h3 className="text-xs text-muted-foreground uppercase tracking-wider mb-2">
+                        Triggers
+                      </h3>
                       <div className="flex flex-wrap gap-1.5">
                         {preview.triggers.map((t: string) => (
-                          <span key={t} className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-lg bg-brand-400/10 text-brand-400 border border-brand-400/20">
+                          <span
+                            key={t}
+                            className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-lg bg-brand-400/10 text-brand-400 border border-brand-400/20"
+                          >
                             <Zap className="h-2.5 w-2.5" /> {t}
                           </span>
                         ))}
@@ -423,10 +437,15 @@ export default function WorkflowEditorPage() {
 
                   {preview.tags.length > 0 && (
                     <div>
-                      <h3 className="text-xs text-muted-foreground uppercase tracking-wider mb-2">Tags</h3>
+                      <h3 className="text-xs text-muted-foreground uppercase tracking-wider mb-2">
+                        Tags
+                      </h3>
                       <div className="flex flex-wrap gap-1.5">
                         {preview.tags.map((t: string) => (
-                          <span key={t} className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-lg bg-surface-700 text-muted-foreground">
+                          <span
+                            key={t}
+                            className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-lg bg-surface-700 text-muted-foreground"
+                          >
                             <Tag className="h-2.5 w-2.5" /> {t}
                           </span>
                         ))}
@@ -436,7 +455,9 @@ export default function WorkflowEditorPage() {
 
                   {preview.body && (
                     <div>
-                      <h3 className="text-xs text-muted-foreground uppercase tracking-wider mb-2">Instructions</h3>
+                      <h3 className="text-xs text-muted-foreground uppercase tracking-wider mb-2">
+                        Instructions
+                      </h3>
                       <div className="prose prose-invert prose-sm max-w-none">
                         <pre className="text-xs text-muted-foreground whitespace-pre-wrap font-mono bg-surface-900 rounded-lg p-4">
                           {preview.body}
@@ -492,7 +513,10 @@ function parseSkillMdPreview(content: string): PreviewData | null {
   // Parse triggers
   const triggersMatch = fm.match(/^triggers:\s*\n((?:\s+-\s*.+\n?)*)/m)
   const triggers = triggersMatch?.[1]
-    ? triggersMatch[1].split('\n').map((l) => l.replace(/^\s*-\s*/, '').trim()).filter(Boolean)
+    ? triggersMatch[1]
+        .split('\n')
+        .map((l) => l.replace(/^\s*-\s*/, '').trim())
+        .filter(Boolean)
     : []
 
   // Parse tags
@@ -514,7 +538,10 @@ function parseYamlPreview(content: string): PreviewData | null {
 
   const triggersMatch = content.match(/^triggers:\s*\n((?:\s+-\s*.+\n?)*)/m)
   const triggers = triggersMatch?.[1]
-    ? triggersMatch[1].split('\n').map((l) => l.replace(/^\s*-\s*/, '').trim()).filter(Boolean)
+    ? triggersMatch[1]
+        .split('\n')
+        .map((l) => l.replace(/^\s*-\s*/, '').trim())
+        .filter(Boolean)
     : []
 
   return {

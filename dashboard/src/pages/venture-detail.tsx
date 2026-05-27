@@ -58,7 +58,13 @@ const fabricLabels: Record<string, { letter: string; name: string }> = {
   'C-creations': { letter: 'C', name: 'Creations' },
 }
 
-function FabricGrid({ directories, completeness }: { directories: Record<string, FabricDir>; completeness: number }) {
+function FabricGrid({
+  directories,
+  completeness,
+}: {
+  directories: Record<string, FabricDir>
+  completeness: number
+}) {
   return (
     <div>
       <div className="flex items-center justify-between mb-3">

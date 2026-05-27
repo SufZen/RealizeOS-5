@@ -85,7 +85,7 @@ class SynapseDB:
 
     def __init__(self, db_path: Path | str = "synapse.db"):
         self._db_path = str(db_path)
-        self._conn = sqlite3.connect(self._db_path)
+        self._conn = sqlite3.connect(self._db_path, check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
         self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.execute("PRAGMA foreign_keys=ON")
@@ -181,9 +181,7 @@ class SynapseDB:
     def clear_venture(self, venture: str) -> None:
         """Remove all entities for a venture."""
         # Get entity IDs first
-        rows = self._conn.execute(
-            "SELECT id FROM entities WHERE venture = ?", (venture,)
-        ).fetchall()
+        rows = self._conn.execute("SELECT id FROM entities WHERE venture = ?", (venture,)).fetchall()
         ids = [row["id"] for row in rows]
 
         if ids:
@@ -235,9 +233,7 @@ class SynapseDB:
 
     def get_entity(self, entity_id: str) -> dict | None:
         """Get a single entity by ID."""
-        row = self._conn.execute(
-            "SELECT * FROM entities WHERE id = ?", (entity_id,)
-        ).fetchone()
+        row = self._conn.execute("SELECT * FROM entities WHERE id = ?", (entity_id,)).fetchone()
         if row is None:
             return None
         return self._row_to_dict(row)
@@ -314,14 +310,10 @@ class SynapseDB:
         visited.add(entity_id)
 
         # Outbound refs
-        outbound = self._conn.execute(
-            "SELECT to_entity FROM refs WHERE from_entity = ?", (entity_id,)
-        ).fetchall()
+        outbound = self._conn.execute("SELECT to_entity FROM refs WHERE from_entity = ?", (entity_id,)).fetchall()
 
         # Inbound refs
-        inbound = self._conn.execute(
-            "SELECT from_entity FROM refs WHERE to_entity = ?", (entity_id,)
-        ).fetchall()
+        inbound = self._conn.execute("SELECT from_entity FROM refs WHERE to_entity = ?", (entity_id,)).fetchall()
 
         neighbor_ids = {r[0] for r in outbound} | {r[0] for r in inbound}
 
@@ -404,9 +396,7 @@ class SynapseDB:
 
     def get_mission_memory(self, mission_id: str) -> dict | None:
         """Get mission memory entry."""
-        row = self._conn.execute(
-            "SELECT * FROM mission_memory WHERE mission_id = ?", (mission_id,)
-        ).fetchone()
+        row = self._conn.execute("SELECT * FROM mission_memory WHERE mission_id = ?", (mission_id,)).fetchone()
         if row is None:
             return None
         return {
@@ -439,9 +429,9 @@ class SynapseDB:
     def get_stats(self, venture: str | None = None) -> dict:
         """Get index statistics."""
         if venture:
-            entity_count = self._conn.execute(
-                "SELECT COUNT(*) FROM entities WHERE venture = ?", (venture,)
-            ).fetchone()[0]
+            entity_count = self._conn.execute("SELECT COUNT(*) FROM entities WHERE venture = ?", (venture,)).fetchone()[
+                0
+            ]
             tag_count = self._conn.execute(
                 "SELECT COUNT(DISTINCT tag) FROM tags t JOIN entities e ON t.entity_id = e.id WHERE e.venture = ?",
                 (venture,),
@@ -457,9 +447,9 @@ class SynapseDB:
 
         type_counts = {}
         rows = self._conn.execute(
-            "SELECT type, COUNT(*) as cnt FROM entities " +
-            ("WHERE venture = ? " if venture else "") +
-            "GROUP BY type ORDER BY cnt DESC",
+            "SELECT type, COUNT(*) as cnt FROM entities "
+            + ("WHERE venture = ? " if venture else "")
+            + "GROUP BY type ORDER BY cnt DESC",
             (venture,) if venture else (),
         ).fetchall()
         for row in rows:

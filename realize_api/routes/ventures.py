@@ -197,9 +197,13 @@ async def delete_venture(venture_key: str, request: Request):
     return {"status": "deleted", "key": venture_key}
 
 
+@router.get("/ventures/{venture_key}/export")
 @router.post("/ventures/{venture_key}/export")
 async def export_venture(venture_key: str, request: Request):
-    """Export a venture as a zip file."""
+    """Export a venture as a zip file.
+
+    GET supports browser download buttons; POST is kept for existing API clients.
+    """
     systems: dict = getattr(request.app.state, "systems", {})
     kb_path: Path = getattr(request.app.state, "kb_path", Path("."))
 

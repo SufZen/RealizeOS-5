@@ -12,14 +12,10 @@ knowledge enrichment:
 from __future__ import annotations
 
 import logging
-import re
-from datetime import datetime
 
 from realize_core.dreaming.policy import DreamProposal, TrustPolicy
 from realize_core.fabric.entity import FabricEntity
-from realize_core.fabric.event_types import dream_event
 from realize_core.fabric.refs import extract_refs
-from realize_core.fabric.tags import extract_tags
 
 logger = logging.getLogger(__name__)
 
@@ -76,18 +72,20 @@ class ReflexCycle:
                 suggested.append(tag)
 
         if suggested and not self._policy.is_denied("add_tag"):
-            proposals.append(DreamProposal(
-                cycle_type="reflex",
-                action="add_tag",
-                entity_id=entity.id,
-                entity_type=entity.type,
-                venture=entity.venture,
-                title=f"Add tags to {entity.title}",
-                description=f"Suggested tags based on content analysis: {', '.join(suggested)}",
-                diff={"add_tags": suggested},
-                confidence=0.7,
-                rationale="Keywords found in body content",
-            ))
+            proposals.append(
+                DreamProposal(
+                    cycle_type="reflex",
+                    action="add_tag",
+                    entity_id=entity.id,
+                    entity_type=entity.type,
+                    venture=entity.venture,
+                    title=f"Add tags to {entity.title}",
+                    description=f"Suggested tags based on content analysis: {', '.join(suggested)}",
+                    diff={"add_tags": suggested},
+                    confidence=0.7,
+                    rationale="Keywords found in body content",
+                )
+            )
 
         return proposals
 
@@ -101,18 +99,20 @@ class ReflexCycle:
         new_refs = [r for r in body_refs if r not in fm_refs]
 
         if new_refs and not self._policy.is_denied("add_ref"):
-            proposals.append(DreamProposal(
-                cycle_type="reflex",
-                action="add_ref",
-                entity_id=entity.id,
-                entity_type=entity.type,
-                venture=entity.venture,
-                title=f"Add references to {entity.title}",
-                description=f"Found {len(new_refs)} reference(s) in body not tracked in frontmatter",
-                diff={"add_refs": new_refs},
-                confidence=0.9,
-                rationale="References detected in body text via wikilink/XML patterns",
-            ))
+            proposals.append(
+                DreamProposal(
+                    cycle_type="reflex",
+                    action="add_ref",
+                    entity_id=entity.id,
+                    entity_type=entity.type,
+                    venture=entity.venture,
+                    title=f"Add references to {entity.title}",
+                    description=f"Found {len(new_refs)} reference(s) in body not tracked in frontmatter",
+                    diff={"add_refs": new_refs},
+                    confidence=0.9,
+                    rationale="References detected in body text via wikilink/XML patterns",
+                )
+            )
 
         return proposals
 
@@ -122,32 +122,36 @@ class ReflexCycle:
 
         # Decisions without status
         if entity.type == "decision" and "status" not in entity.frontmatter:
-            proposals.append(DreamProposal(
-                cycle_type="reflex",
-                action="annotate_entity",
-                entity_id=entity.id,
-                entity_type=entity.type,
-                venture=entity.venture,
-                title=f"Missing status on decision: {entity.title}",
-                description="Decision entity is missing a 'status' field (proposed/committed/deferred/reversed)",
-                diff={"suggest_field": "status", "suggested_value": "proposed"},
-                confidence=0.6,
-                rationale="All decisions should have a status for tracking",
-            ))
+            proposals.append(
+                DreamProposal(
+                    cycle_type="reflex",
+                    action="annotate_entity",
+                    entity_id=entity.id,
+                    entity_type=entity.type,
+                    venture=entity.venture,
+                    title=f"Missing status on decision: {entity.title}",
+                    description="Decision entity is missing a 'status' field (proposed/committed/deferred/reversed)",
+                    diff={"suggest_field": "status", "suggested_value": "proposed"},
+                    confidence=0.6,
+                    rationale="All decisions should have a status for tracking",
+                )
+            )
 
         # Commitments without deadline
         if entity.type == "commitment" and "deadline" not in entity.frontmatter:
-            proposals.append(DreamProposal(
-                cycle_type="reflex",
-                action="annotate_entity",
-                entity_id=entity.id,
-                entity_type=entity.type,
-                venture=entity.venture,
-                title=f"Missing deadline on commitment: {entity.title}",
-                description="Commitment entity is missing a 'deadline' field",
-                diff={"suggest_field": "deadline"},
-                confidence=0.7,
-                rationale="Commitments need deadlines for accountability tracking",
-            ))
+            proposals.append(
+                DreamProposal(
+                    cycle_type="reflex",
+                    action="annotate_entity",
+                    entity_id=entity.id,
+                    entity_type=entity.type,
+                    venture=entity.venture,
+                    title=f"Missing deadline on commitment: {entity.title}",
+                    description="Commitment entity is missing a 'deadline' field",
+                    diff={"suggest_field": "deadline"},
+                    confidence=0.7,
+                    rationale="Commitments need deadlines for accountability tracking",
+                )
+            )
 
         return proposals

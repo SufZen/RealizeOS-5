@@ -4,14 +4,21 @@
  * Applies Rubik automatically when the document/element direction is RTL.
  * ========================================================================= */
 
-@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Rubik:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
-
 /* Body inherits sans by default; RTL contexts swap to Rubik */
-html        { font-family: var(--rz-font-sans); }
-[dir="rtl"] { font-family: var(--rz-font-rtl); }
+html {
+  font-family: var(--rz-font-sans);
+}
+[dir='rtl'] {
+  font-family: var(--rz-font-rtl);
+}
 
 /* Heading defaults — overridable per-component */
-h1, h2, h3, h4, h5, h6 {
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
   font-family: var(--rz-font-display);
   font-weight: 600;
   line-height: 1.15;
@@ -19,6 +26,9 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 /* Code defaults */
-code, kbd, samp, pre {
+code,
+kbd,
+samp,
+pre {
   font-family: var(--rz-font-mono);
 }

@@ -53,10 +53,15 @@ export default function LoginPage() {
       <div className="fx-dot-grid absolute inset-0 pointer-events-none" />
       <div className="fx-radial-halo" />
 
-      <div className="w-full max-w-sm rounded-2xl border border-border p-8 fx-glass-card relative z-10 rz-animate-fade-up" style={{ boxShadow: 'var(--rz-shadow-3)' }}>
+      <div
+        className="w-full max-w-sm rounded-2xl border border-border p-8 fx-glass-card relative z-10 rz-animate-fade-up"
+        style={{ boxShadow: 'var(--rz-shadow-3)' }}
+      >
         <div className="mb-6 flex items-center gap-2">
           <Bot className="h-8 w-8 text-brand-400" />
-          <span className="text-xl font-bold tracking-tight fx-gradient-text fx-text-glow">RealizeOS</span>
+          <span className="text-xl font-bold tracking-tight fx-gradient-text fx-text-glow">
+            RealizeOS
+          </span>
         </div>
         <h1 className="mb-1 text-lg font-semibold text-foreground">Sign in</h1>
         <p className="mb-6 text-sm text-muted-foreground">Access your operations dashboard.</p>
@@ -80,7 +85,10 @@ export default function LoginPage() {
           </div>
 
           <div>
-            <label htmlFor="password" className="mb-1 block text-xs font-medium text-muted-foreground">
+            <label
+              htmlFor="password"
+              className="mb-1 block text-xs font-medium text-muted-foreground"
+            >
               Password
             </label>
             <input
@@ -121,8 +129,21 @@ export default function LoginPage() {
         </form>
 
         <p className="mt-6 text-center text-xs text-muted-foreground">
-          New deployment? See <code className="rz-code" style={{ display: 'inline', margin: 0, padding: '2px 6px', fontSize: 'inherit' }}>users.yaml.example</code> and{' '}
-          <code className="rz-code" style={{ display: 'inline', margin: 0, padding: '2px 6px', fontSize: 'inherit' }}>scripts/hash_password.py</code>.
+          New deployment? See{' '}
+          <code
+            className="rz-code"
+            style={{ display: 'inline', margin: 0, padding: '2px 6px', fontSize: 'inherit' }}
+          >
+            users.yaml.example
+          </code>{' '}
+          and{' '}
+          <code
+            className="rz-code"
+            style={{ display: 'inline', margin: 0, padding: '2px 6px', fontSize: 'inherit' }}
+          >
+            scripts/hash_password.py
+          </code>
+          .
         </p>
       </div>
     </div>

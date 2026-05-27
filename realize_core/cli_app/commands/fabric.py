@@ -29,7 +29,6 @@ def lint(
     from realize_core.fabric.crud import scan_venture
     from realize_core.fabric.validator import SchemaRegistry, validate_entity
 
-    root = Path(directory)
     config = load_config()
     kb_path = Path(config.get("kb_path", "."))
 
@@ -137,7 +136,7 @@ def stats(
     synapse = Synapse(db_path=db_path)
     s = synapse.stats(venture=venture or None)
 
-    typer.echo(f"Synapse Index Statistics")
+    typer.echo("Synapse Index Statistics")
     typer.echo(f"{'=' * 40}")
     for key, value in s.items():
         typer.echo(f"  {key}: {value}")
@@ -254,7 +253,7 @@ def dream(
     typer.echo(f"  Denied: {denied}")
 
     if pending > 0:
-        typer.echo(f"\nReview pending proposals in the Dream Inbox:")
+        typer.echo("\nReview pending proposals in the Dream Inbox:")
         for pid in pids:
             p = inbox.get(pid)
             if p and p.status.value == "pending":

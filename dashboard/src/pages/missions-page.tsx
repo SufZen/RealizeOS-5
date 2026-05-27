@@ -10,7 +10,6 @@ import {
   RefreshCw,
   AlertTriangle,
   Loader2,
-  Plus,
   Filter,
   BarChart3,
 } from 'lucide-react'
@@ -52,21 +51,35 @@ interface MissionsResponse {
 /* ─── State badge ────────────────────────────────────────────────── */
 
 const stateConfig: Record<string, { icon: typeof Target; color: string; label: string }> = {
-  proposed:           { icon: Target,        color: 'text-blue-400 bg-blue-400/10',    label: 'Proposed' },
-  planned:            { icon: Clock,         color: 'text-violet-400 bg-violet-400/10', label: 'Planned' },
-  'in-progress':      { icon: Loader2,       color: 'text-amber-400 bg-amber-400/10',  label: 'In Progress' },
-  paused:             { icon: Pause,         color: 'text-gray-400 bg-gray-400/10',    label: 'Paused' },
-  'awaiting-approval':{ icon: AlertTriangle, color: 'text-orange-400 bg-orange-400/10',label: 'Awaiting Approval' },
-  completed:          { icon: CheckCircle2,  color: 'text-emerald-400 bg-emerald-400/10', label: 'Completed' },
-  failed:             { icon: XCircle,       color: 'text-red-400 bg-red-400/10',      label: 'Failed' },
-  cancelled:          { icon: XCircle,       color: 'text-gray-500 bg-gray-500/10',    label: 'Cancelled' },
+  proposed: { icon: Target, color: 'text-blue-400 bg-blue-400/10', label: 'Proposed' },
+  planned: { icon: Clock, color: 'text-violet-400 bg-violet-400/10', label: 'Planned' },
+  'in-progress': { icon: Loader2, color: 'text-amber-400 bg-amber-400/10', label: 'In Progress' },
+  paused: { icon: Pause, color: 'text-gray-400 bg-gray-400/10', label: 'Paused' },
+  'awaiting-approval': {
+    icon: AlertTriangle,
+    color: 'text-orange-400 bg-orange-400/10',
+    label: 'Awaiting Approval',
+  },
+  completed: {
+    icon: CheckCircle2,
+    color: 'text-emerald-400 bg-emerald-400/10',
+    label: 'Completed',
+  },
+  failed: { icon: XCircle, color: 'text-red-400 bg-red-400/10', label: 'Failed' },
+  cancelled: { icon: XCircle, color: 'text-gray-500 bg-gray-500/10', label: 'Cancelled' },
 }
+const fallbackStateConfig = stateConfig.proposed!
 
 function StateBadge({ state }: { state: string }) {
-  const cfg = stateConfig[state] || stateConfig.proposed
+  const cfg = stateConfig[state] ?? fallbackStateConfig
   const Icon = cfg.icon
   return (
-    <span className={cn('inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium', cfg.color)}>
+    <span
+      className={cn(
+        'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium',
+        cfg.color,
+      )}
+    >
       <Icon className={cn('h-3 w-3', state === 'in-progress' && 'animate-spin')} />
       {cfg.label}
     </span>
@@ -92,21 +105,28 @@ function StepList({ steps }: { steps: MissionStep[] }) {
   if (!steps?.length) return null
 
   const stepStatusIcon: Record<string, { icon: typeof CheckCircle2; color: string }> = {
-    succeeded:   { icon: CheckCircle2, color: 'text-emerald-400' },
-    failed:      { icon: XCircle,      color: 'text-red-400' },
-    'in-progress': { icon: Loader2,    color: 'text-amber-400' },
-    pending:     { icon: Clock,        color: 'text-muted-foreground' },
-    skipped:     { icon: XCircle,      color: 'text-gray-500' },
+    succeeded: { icon: CheckCircle2, color: 'text-emerald-400' },
+    failed: { icon: XCircle, color: 'text-red-400' },
+    'in-progress': { icon: Loader2, color: 'text-amber-400' },
+    pending: { icon: Clock, color: 'text-muted-foreground' },
+    skipped: { icon: XCircle, color: 'text-gray-500' },
   }
+  const fallbackStepStatusIcon = stepStatusIcon.pending!
 
   return (
     <div className="space-y-1">
       {steps.map((step) => {
-        const cfg = stepStatusIcon[step.status] || stepStatusIcon.pending
+        const cfg = stepStatusIcon[step.status] ?? fallbackStepStatusIcon
         const Icon = cfg.icon
         return (
           <div key={step.step_id} className="flex items-center gap-2 text-xs">
-            <Icon className={cn('h-3.5 w-3.5 flex-shrink-0', cfg.color, step.status === 'in-progress' && 'animate-spin')} />
+            <Icon
+              className={cn(
+                'h-3.5 w-3.5 flex-shrink-0',
+                cfg.color,
+                step.status === 'in-progress' && 'animate-spin',
+              )}
+            />
             <span className="text-foreground truncate flex-1">{step.description}</span>
             <span className="text-muted-foreground font-mono">{step.runtime}</span>
             {step.cost_eur > 0 && (
@@ -124,7 +144,8 @@ function StepList({ steps }: { steps: MissionStep[] }) {
 function MissionCard({ mission }: { mission: Mission }) {
   const [expanded, setExpanded] = useState(false)
   const hasSteps = mission.plan && mission.plan.length > 0
-  const completedSteps = mission.plan?.filter(s => ['succeeded', 'failed', 'skipped'].includes(s.status)).length || 0
+  const completedSteps =
+    mission.plan?.filter((s) => ['succeeded', 'failed', 'skipped'].includes(s.status)).length || 0
 
   return (
     <div
@@ -147,7 +168,9 @@ function MissionCard({ mission }: { mission: Mission }) {
               <span className="bg-surface-700 px-2 py-0.5 rounded">{mission.venture}</span>
             )}
             {hasSteps && (
-              <span>{completedSteps}/{mission.plan.length} steps</span>
+              <span>
+                {completedSteps}/{mission.plan.length} steps
+              </span>
             )}
             {mission.budget_eur != null && (
               <span className="font-mono">
@@ -201,76 +224,19 @@ export default function MissionsPage() {
   if (stateFilter) params.set('state', stateFilter)
   if (ventureFilter) params.set('venture', ventureFilter)
 
-  // Missions endpoint (in-memory for now, will use API when missions are persisted)
+  const query = params.toString()
   const { data, loading, error, refetch } = useApi<MissionsResponse>(
-    `/fabric/entities?entity_type=mission${ventureFilter ? `&venture=${ventureFilter}` : ''}`,
+    `/missions${query ? `?${query}` : ''}`,
     30000,
     10000,
   )
 
-  // Mock data for visual richness until real missions are dispatched
-  const mockMissions: Mission[] = [
-    {
-      mission_id: 'm-2026-05-24-find-properties-001',
-      title: 'Find Distressed Properties',
-      goal: 'Search for 3 distressed properties in Setúbal under €150k',
-      venture: 'burtucala',
-      state: 'completed',
-      progress: 1.0,
-      plan: [
-        { step_id: 's1', description: 'Search property databases', runtime: 'internal', status: 'succeeded', cost_eur: 0.012, duration_sec: 8.2 },
-        { step_id: 's2', description: 'Filter by criteria', runtime: 'internal', status: 'succeeded', cost_eur: 0.003, duration_sec: 1.1 },
-        { step_id: 's3', description: 'Generate summary report', runtime: 'internal', status: 'succeeded', cost_eur: 0.008, duration_sec: 3.5 },
-      ],
-      budget_eur: 0.10,
-      cost_consumed_eur: 0.023,
-      created_at: '2026-05-24T10:30:00Z',
-      started_at: '2026-05-24T10:30:05Z',
-      completed_at: '2026-05-24T10:30:18Z',
-      outcome_summary: 'Found 3 distressed properties matching criteria in Setúbal region',
-    },
-    {
-      mission_id: 'm-2026-05-24-draft-email-001',
-      title: 'Draft Client Follow-up',
-      goal: 'Write a professional follow-up email to Meirav about the property viewing',
-      venture: 'burtucala',
-      state: 'in-progress',
-      progress: 0.33,
-      plan: [
-        { step_id: 's1', description: 'Gather context from previous conversations', runtime: 'internal', status: 'succeeded', cost_eur: 0.005, duration_sec: 2.1 },
-        { step_id: 's2', description: 'Draft email body', runtime: 'internal', status: 'in-progress', cost_eur: 0, duration_sec: null },
-        { step_id: 's3', description: 'Review and send for approval', runtime: 'internal', status: 'pending', cost_eur: 0, duration_sec: null },
-      ],
-      budget_eur: 0.05,
-      cost_consumed_eur: 0.005,
-      created_at: '2026-05-24T14:00:00Z',
-      started_at: '2026-05-24T14:00:02Z',
-      completed_at: null,
-      outcome_summary: '',
-    },
-    {
-      mission_id: 'm-2026-05-24-weekly-report-001',
-      title: 'Generate Weekly Report',
-      goal: 'Compile weekly activity report for all ventures',
-      venture: '',
-      state: 'proposed',
-      progress: 0.0,
-      plan: [],
-      budget_eur: 0.20,
-      cost_consumed_eur: 0,
-      created_at: '2026-05-24T18:00:00Z',
-      started_at: null,
-      completed_at: null,
-      outcome_summary: '',
-    },
-  ]
-
-  const missions = mockMissions
+  const missions = data?.missions ?? []
 
   // Stats
   const totalMissions = missions.length
-  const activeMissions = missions.filter(m => ['in-progress', 'planned'].includes(m.state)).length
-  const completedMissions = missions.filter(m => m.state === 'completed').length
+  const activeMissions = missions.filter((m) => ['in-progress', 'planned'].includes(m.state)).length
+  const completedMissions = missions.filter((m) => m.state === 'completed').length
   const totalCost = missions.reduce((sum, m) => sum + m.cost_consumed_eur, 0)
 
   return (
@@ -297,8 +263,18 @@ export default function MissionsPage() {
         {[
           { label: 'Total', value: totalMissions, icon: Target, color: 'text-brand-400' },
           { label: 'Active', value: activeMissions, icon: Play, color: 'text-amber-400' },
-          { label: 'Completed', value: completedMissions, icon: CheckCircle2, color: 'text-emerald-400' },
-          { label: 'Cost', value: `€${totalCost.toFixed(3)}`, icon: BarChart3, color: 'text-violet-400' },
+          {
+            label: 'Completed',
+            value: completedMissions,
+            icon: CheckCircle2,
+            color: 'text-emerald-400',
+          },
+          {
+            label: 'Cost',
+            value: `€${totalCost.toFixed(3)}`,
+            icon: BarChart3,
+            color: 'text-violet-400',
+          },
         ].map(({ label, value, icon: Icon, color }) => (
           <div key={label} className="rounded-xl border border-border bg-card p-3 fx-glass">
             <div className="flex items-center gap-2 mb-1">
@@ -326,7 +302,9 @@ export default function MissionsPage() {
         >
           <option value="">All states</option>
           {Object.entries(stateConfig).map(([key, { label }]) => (
-            <option key={key} value={key}>{label}</option>
+            <option key={key} value={key}>
+              {label}
+            </option>
           ))}
         </select>
         <input
@@ -343,15 +321,24 @@ export default function MissionsPage() {
 
       {/* Missions list */}
       <div className="space-y-3">
-        {missions
-          .filter(m => !stateFilter || m.state === stateFilter)
-          .filter(m => !ventureFilter || m.venture.includes(ventureFilter))
-          .map((mission) => (
-            <MissionCard key={mission.mission_id} mission={mission} />
-          ))
-        }
+        {error && (
+          <div className="rounded-xl border border-red-400/30 bg-red-400/10 p-4 text-sm text-red-300">
+            {error}
+          </div>
+        )}
 
-        {missions.length === 0 && !loading && (
+        {loading && (
+          <div className="rounded-xl border border-border bg-card p-8 text-center text-muted-foreground text-sm">
+            Loading missions...
+          </div>
+        )}
+
+        {!loading &&
+          missions.map((mission) => (
+            <MissionCard key={mission.mission_id} mission={mission} />
+          ))}
+
+        {missions.length === 0 && !loading && !error && (
           <div className="rounded-xl border border-border bg-card p-12 text-center">
             <Target className="h-12 w-12 text-muted-foreground/30 mx-auto mb-3" />
             <h3 className="text-sm font-medium text-foreground mb-1">No missions yet</h3>

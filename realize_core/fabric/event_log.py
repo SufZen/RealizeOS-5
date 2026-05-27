@@ -11,9 +11,8 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from datetime import datetime
+from collections.abc import AsyncIterator
 from pathlib import Path
-from typing import AsyncIterator, Callable
 
 from realize_core.fabric.event_types import Event
 

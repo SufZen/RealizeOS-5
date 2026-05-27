@@ -9,10 +9,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 
 
-class MissionState(str, Enum):
+class MissionState(StrEnum):
     """Mission lifecycle states."""
 
     PROPOSED = "proposed"
@@ -25,7 +25,7 @@ class MissionState(str, Enum):
     CANCELLED = "cancelled"
 
 
-class StepStatus(str, Enum):
+class StepStatus(StrEnum):
     """Individual step execution status."""
 
     PENDING = "pending"

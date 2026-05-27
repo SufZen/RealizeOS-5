@@ -45,7 +45,7 @@ class UserSoul:
     _raw: dict = field(default_factory=dict, repr=False)
 
     @classmethod
-    def load(cls, path: Path) -> "UserSoul":
+    def load(cls, path: Path) -> UserSoul:
         """Load UserSoul from a YAML file."""
         if not path.exists():
             logger.info(f"User SOUL file not found: {path}, using defaults")
@@ -134,7 +134,7 @@ class AgentSoul:
     _raw: dict = field(default_factory=dict, repr=False)
 
     @classmethod
-    def from_config(cls, config: dict) -> "AgentSoul":
+    def from_config(cls, config: dict) -> AgentSoul:
         """Create AgentSoul from an agent configuration dict."""
         return cls(
             name=config.get("name", ""),
@@ -151,7 +151,7 @@ class AgentSoul:
         )
 
     @classmethod
-    def load(cls, path: Path) -> "AgentSoul":
+    def load(cls, path: Path) -> AgentSoul:
         """Load AgentSoul from a YAML file (agent persona file)."""
         if not path.exists():
             return cls()

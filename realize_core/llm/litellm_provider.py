@@ -13,6 +13,7 @@ Key features:
 """
 
 import logging
+from typing import Any
 
 from realize_core.llm.base_provider import (
     BaseLLMProvider,
@@ -199,6 +200,7 @@ class LiteLLMProvider(BaseLLMProvider):
         model: str | None = None,
         max_tokens: int = 4096,
         temperature: float = 0.7,
+        timeout: float = 60.0,
     ) -> LLMResponse:
         """Text completion via LiteLLM.
 
@@ -220,6 +222,7 @@ class LiteLLMProvider(BaseLLMProvider):
                 messages=openai_messages,
                 max_tokens=max_tokens,
                 temperature=temperature,
+                timeout=timeout,
             )
 
             # Extract response data
@@ -257,6 +260,7 @@ class LiteLLMProvider(BaseLLMProvider):
         tools: list[dict],
         model: str | None = None,
         max_tokens: int = 4096,
+        timeout: float = 60.0,
     ) -> LLMResponse:
         """Tool-use completion via LiteLLM.
 
@@ -277,6 +281,7 @@ class LiteLLMProvider(BaseLLMProvider):
                 messages=openai_messages,
                 tools=tools,
                 max_tokens=max_tokens,
+                timeout=timeout,
             )
 
             choice = response.choices[0]
@@ -326,7 +331,7 @@ class LiteLLMProvider(BaseLLMProvider):
         b64_image = base64.b64encode(image_data).decode("utf-8")
 
         # Build vision message
-        openai_messages = []
+        openai_messages: list[dict[str, Any]] = []
         if system_prompt:
             openai_messages.append({"role": "system", "content": system_prompt})
 

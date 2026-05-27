@@ -17,7 +17,7 @@ _DB_PATH: Path | None = None
 _SCHEMA_VERSION = 1
 
 
-def get_db_path(base_path: Path = None) -> Path:
+def get_db_path(base_path: Path | None = None) -> Path:
     """Get the database file path. Defaults to <cwd>/realize_data.db."""
     global _DB_PATH
     if _DB_PATH is not None:
@@ -29,13 +29,13 @@ def get_db_path(base_path: Path = None) -> Path:
     return _DB_PATH
 
 
-def set_db_path(path=None):
+def set_db_path(path: str | Path | None = None):
     """Override the database path (useful for testing). Pass None to reset."""
     global _DB_PATH
     _DB_PATH = Path(path) if path is not None else None
 
 
-def get_connection(db_path: Path = None, retries: int = 3) -> sqlite3.Connection:
+def get_connection(db_path: Path | None = None, retries: int = 3) -> sqlite3.Connection:
     """Get a SQLite connection with row factory enabled.
 
     Retries on SQLITE_BUSY with exponential backoff.
@@ -69,7 +69,7 @@ def get_connection(db_path: Path = None, retries: int = 3) -> sqlite3.Connection
     raise sqlite3.OperationalError("Database connection failed after retries")
 
 
-def init_schema(db_path: Path = None):
+def init_schema(db_path: Path | None = None):
     """
     Create all operational tables if they don't exist.
     Safe to call multiple times (uses IF NOT EXISTS).

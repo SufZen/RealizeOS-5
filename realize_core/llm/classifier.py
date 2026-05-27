@@ -185,7 +185,7 @@ def _get_legacy_keywords():
     return _LEGACY_KEYWORD_SETS
 
 
-def classify_task_advanced(message: str, system_key: str = None) -> TaskClassification:
+def classify_task_advanced(message: str, system_key: str | None = None) -> TaskClassification:
     """
     Classify a user message into a multi-modal task type.
 

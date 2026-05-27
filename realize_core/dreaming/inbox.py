@@ -61,10 +61,7 @@ class DreamInbox:
 
     def _save(self) -> None:
         """Persist proposals to JSONL file."""
-        lines = [
-            json.dumps(p.to_dict(), ensure_ascii=False)
-            for p in self._proposals.values()
-        ]
+        lines = [json.dumps(p.to_dict(), ensure_ascii=False) for p in self._proposals.values()]
         self._inbox_path.write_text(
             "\n".join(lines) + ("\n" if lines else ""),
             encoding="utf-8",
@@ -95,14 +92,16 @@ class DreamInbox:
         self._save()
 
         if self._event_log:
-            self._event_log.append(dream_event(
-                action="proposal_submitted",
-                cycle_type=proposal.cycle_type,
-                venture=proposal.venture,
-                proposal_id=proposal.proposal_id,
-                action_type=proposal.action,
-                status=proposal.status.value,
-            ))
+            self._event_log.append(
+                dream_event(
+                    action="proposal_submitted",
+                    cycle_type=proposal.cycle_type,
+                    venture=proposal.venture,
+                    proposal_id=proposal.proposal_id,
+                    action_type=proposal.action,
+                    status=proposal.status.value,
+                )
+            )
 
         return proposal.proposal_id
 

@@ -8,23 +8,24 @@ OpenClaw, Grok CLI, or future) plugs into the kernel as a peer.
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from datetime import datetime
-from enum import Enum
-from typing import AsyncIterator, Protocol, runtime_checkable
+from enum import StrEnum
+from typing import Protocol, runtime_checkable
 
 from realize_core.runtimes.events import RuntimeEvent
 
-
 # ─── Enums ────────────────────────────────────────────────────────────────────
 
-class CostClass(str, Enum):
+
+class CostClass(StrEnum):
     CHEAP = "cheap"
     MODERATE = "moderate"
     EXPENSIVE = "expensive"
 
 
-class Modality(str, Enum):
+class Modality(StrEnum):
     TEXT = "text"
     CODE = "code"
     IMAGE = "image"
@@ -32,14 +33,14 @@ class Modality(str, Enum):
     VIDEO = "video"
 
 
-class ToolProtocol(str, Enum):
+class ToolProtocol(StrEnum):
     MCP = "mcp"
     OPENAI_FUNCTION = "openai_function"
     ANTHROPIC_TOOL = "anthropic_tool"
     CUSTOM = "custom"
 
 
-class ErrorType(str, Enum):
+class ErrorType(StrEnum):
     AUTH = "auth"
     RATE_LIMIT = "rate_limit"
     TIMEOUT = "timeout"
@@ -53,6 +54,7 @@ class ErrorType(str, Enum):
 
 
 # ─── Data Types ───────────────────────────────────────────────────────────────
+
 
 @dataclass
 class Capability:
@@ -179,6 +181,7 @@ class Skill:
 
 
 # ─── Protocol ─────────────────────────────────────────────────────────────────
+
 
 @runtime_checkable
 class AgentRuntime(Protocol):

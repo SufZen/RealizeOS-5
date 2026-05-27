@@ -115,8 +115,8 @@ function StepIndicator({ current, total }: { current: number; total: number }) {
             i === current
               ? 'w-8 bg-brand-400'
               : i < current
-              ? 'w-2 bg-brand-400/50'
-              : 'w-2 bg-surface-600',
+                ? 'w-2 bg-brand-400/50'
+                : 'w-2 bg-surface-600',
           )}
         />
       ))}
@@ -176,9 +176,7 @@ function ProviderInput({
           <div className="flex items-center gap-2">
             <h3 className="text-sm font-semibold text-foreground">{provider.name}</h3>
             {provider.recommended && !saved && (
-              <span className="rz-badge rz-badge--accent">
-                Recommended
-              </span>
+              <span className="rz-badge rz-badge--accent">Recommended</span>
             )}
             {saved && (
               <span className="rz-badge rz-badge--success">
@@ -417,7 +415,10 @@ export default function OnboardingWizard({ onComplete }: { onComplete: () => voi
                 {[
                   { label: 'Start a conversation', desc: 'Chat with your AI agents' },
                   { label: 'Explore Ventures', desc: 'See your business units and agents' },
-                  { label: 'Configure Settings', desc: 'Adjust features, governance, and trust levels' },
+                  {
+                    label: 'Configure Settings',
+                    desc: 'Adjust features, governance, and trust levels',
+                  },
                 ].map((tip) => (
                   <div
                     key={tip.label}

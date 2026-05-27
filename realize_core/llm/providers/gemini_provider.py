@@ -6,6 +6,7 @@ Supports text and vision via Google's Gemini API.
 
 import asyncio
 import logging
+from typing import ClassVar
 
 from realize_core.llm.base_provider import (
     BaseLLMProvider,
@@ -20,18 +21,18 @@ logger = logging.getLogger(__name__)
 class GeminiProvider(BaseLLMProvider):
     """Google Gemini provider (Flash)."""
 
-    _MODELS = None
+    _MODELS: ClassVar[dict[str, str] | None] = None
 
     @property
     def name(self) -> str:
         return "gemini"
 
-    def _get_models_config(self) -> dict:
+    def _get_models_config(self) -> dict[str, str]:
         if self._MODELS is None:
             from realize_core.config import MODELS
 
             GeminiProvider._MODELS = MODELS
-        return self._MODELS
+        return GeminiProvider._MODELS or {}
 
     def list_models(self) -> list[ModelInfo]:
         models = self._get_models_config()
@@ -74,7 +75,7 @@ class GeminiProvider(BaseLLMProvider):
         from realize_core.llm.gemini_client import _get_client
 
         models = self._get_models_config()
-        model = model or models.get("gemini_flash")
+        model = model or models.get("gemini_flash") or "gemini-2.5-flash"
 
         try:
             client = _get_client()
@@ -153,7 +154,7 @@ class GeminiProvider(BaseLLMProvider):
         from realize_core.llm.gemini_client import call_gemini_vision
 
         models = self._get_models_config()
-        model = model or models.get("gemini_flash")
+        model = model or models.get("gemini_flash") or "gemini-2.5-flash"
 
         text = await call_gemini_vision(
             system_prompt=system_prompt,

@@ -5,6 +5,7 @@ To activate: pip install openai, set OPENAI_API_KEY, and uncomment registration 
 """
 
 import logging
+from typing import Any
 
 from realize_core.llm.base_provider import (
     BaseLLMProvider,
@@ -64,6 +65,7 @@ class OpenAIProvider(BaseLLMProvider):
         model: str | None = None,
         max_tokens: int = 4096,
         temperature: float = 0.7,
+        timeout: float = 60.0,
     ) -> LLMResponse:
         """Text completion via OpenAI API (stub)."""
         if not self.is_available():
@@ -79,15 +81,18 @@ class OpenAIProvider(BaseLLMProvider):
         target_model = model or "gpt-4o"
         client = openai.AsyncOpenAI()
         try:
+            openai_messages: Any = [{"role": "system", "content": system_prompt}] + messages
             response = await client.chat.completions.create(
                 model=target_model,
-                messages=[{"role": "system", "content": system_prompt}] + messages,
+                messages=openai_messages,
                 max_tokens=max_tokens,
                 temperature=temperature,
+                timeout=timeout,
             )
             choice = response.choices[0]
+            text = choice.message.content or ""
             return LLMResponse(
-                text=choice.message.content or "",
+                text=text,
                 model=target_model,
                 provider=self.name,
                 input_tokens=response.usage.prompt_tokens if response.usage else 0,

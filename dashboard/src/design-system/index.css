@@ -5,8 +5,8 @@
  * root stylesheet (after Tailwind's `@tailwind base;` if applicable).
  * ========================================================================= */
 
-@import "./tokens.css";
-@import "./fonts.css";
-@import "./keyframes.css";
-@import "./effects.css";
-@import "./components.css";
+@import './tokens.css';
+@import './fonts.css';
+@import './keyframes.css';
+@import './effects.css';
+@import './components.css';

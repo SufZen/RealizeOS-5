@@ -138,7 +138,9 @@ function Logo() {
   return (
     <div className="flex items-center gap-2 px-2 mb-8">
       <Bot className="h-8 w-8 text-brand-400" />
-      <span className="text-xl font-bold tracking-tight fx-gradient-text fx-text-glow">RealizeOS</span>
+      <span className="text-xl font-bold tracking-tight fx-gradient-text fx-text-glow">
+        RealizeOS
+      </span>
     </div>
   )
 }
@@ -187,7 +189,11 @@ function MobileSheet({ open, onClose }: { open: boolean; onClose: () => void }) 
 
   return (
     <>
-      <div className="fixed inset-0 z-40" style={{ background: 'var(--rz-overlay)' }} onClick={onClose} />
+      <div
+        className="fixed inset-0 z-40"
+        style={{ background: 'var(--rz-overlay)' }}
+        onClick={onClose}
+      />
       <div
         className="fixed inset-y-0 left-0 z-50 w-72 bg-surface-950 fx-glass border-r border-border p-4 shadow-xl rz-animate-slide-in-right"
         role="dialog"
@@ -237,10 +243,7 @@ function NotFoundPage() {
         <p className="text-sm text-muted-foreground mb-4">
           The page you are looking for does not exist or has been moved.
         </p>
-        <NavLink
-          to="/"
-          className="rz-btn rz-btn--primary fx-glow-hover"
-        >
+        <NavLink to="/" className="rz-btn rz-btn--primary fx-glow-hover">
           Go to Overview
         </NavLink>
       </div>
@@ -248,7 +251,10 @@ function NotFoundPage() {
   )
 }
 
-class ErrorBoundary extends Component<{ children: ReactNode; resetKey?: string }, { hasError: boolean; error: string }> {
+class ErrorBoundary extends Component<
+  { children: ReactNode; resetKey?: string },
+  { hasError: boolean; error: string }
+> {
   constructor(props: { children: ReactNode; resetKey?: string }) {
     super(props)
     this.state = { hasError: false, error: '' }
@@ -269,7 +275,9 @@ class ErrorBoundary extends Component<{ children: ReactNode; resetKey?: string }
           <div className="text-center max-w-md">
             <div className="text-4xl mb-4">:(</div>
             <h2 className="text-xl font-bold text-foreground mb-2">Something went wrong</h2>
-            <p className="text-sm text-muted-foreground mb-4">{this.state.error || 'An unexpected error occurred.'}</p>
+            <p className="text-sm text-muted-foreground mb-4">
+              {this.state.error || 'An unexpected error occurred.'}
+            </p>
             <div className="flex gap-3 justify-center">
               <button
                 onClick={() => this.setState({ hasError: false, error: '' })}
@@ -277,10 +285,7 @@ class ErrorBoundary extends Component<{ children: ReactNode; resetKey?: string }
               >
                 Retry
               </button>
-              <button
-                onClick={() => window.location.reload()}
-                className="rz-btn rz-btn--secondary"
-              >
+              <button onClick={() => window.location.reload()} className="rz-btn rz-btn--secondary">
                 Reload Page
               </button>
             </div>
@@ -310,7 +315,10 @@ function AuthenticatedShell() {
 
   return (
     <>
-      <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:z-[60] focus:top-4 focus:left-4 focus:px-4 focus:py-2 focus:rounded-lg focus:bg-brand-400 focus:text-black focus:text-sm focus:font-medium">
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:z-[60] focus:top-4 focus:left-4 focus:px-4 focus:py-2 focus:rounded-lg focus:bg-brand-400 focus:text-black focus:text-sm focus:font-medium"
+      >
         Skip to content
       </a>
       <div className="flex h-screen bg-background">

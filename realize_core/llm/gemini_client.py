@@ -4,14 +4,15 @@ Uses Gemini Flash for routine tasks (cheap/free tier).
 """
 
 import logging
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 # Lazy-initialized client
-_client = None
+_client: Any = None
 
 
-def _get_client(api_key: str = None):
+def _get_client(api_key: str | None = None) -> Any:
     """Get or create the Gemini client."""
     global _client
     if _client is None:
@@ -29,7 +30,7 @@ def _get_client(api_key: str = None):
 async def call_gemini(
     system_prompt: str,
     messages: list[dict],
-    model: str = None,
+    model: str | None = None,
     max_tokens: int = 4096,
     temperature: float = 0.7,
 ) -> str:
@@ -93,7 +94,7 @@ async def call_gemini_vision(
     messages: list[dict],
     image_data: bytes,
     media_type: str = "image/jpeg",
-    model: str = None,
+    model: str | None = None,
     max_tokens: int = 4096,
     temperature: float = 0.7,
 ) -> str:

@@ -10,16 +10,15 @@ from __future__ import annotations
 
 import logging
 import uuid
+from collections.abc import AsyncIterator
 from datetime import datetime
-from typing import AsyncIterator
 
 from realize_core.runtimes.contract import (
-    AgentRuntime,
     Capability,
     CapabilitySet,
+    Context,
     CostClass,
     CostEstimate,
-    Context,
     HealthStatus,
     MissionStep,
     Modality,

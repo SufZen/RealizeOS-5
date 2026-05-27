@@ -11,7 +11,7 @@ Runs on a schedule (e.g., nightly). Performs maintenance tasks:
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from realize_core.dreaming.policy import DreamProposal, TrustPolicy
 from realize_core.fabric.synapse import Synapse
@@ -47,10 +47,7 @@ class CuratorCycle:
         proposals.extend(self._check_orphans(venture))
         proposals.extend(self._check_entity_health(venture))
 
-        logger.info(
-            f"Curator cycle complete for venture '{venture or 'all'}': "
-            f"{len(proposals)} proposal(s)"
-        )
+        logger.info(f"Curator cycle complete for venture '{venture or 'all'}': {len(proposals)} proposal(s)")
         return proposals
 
     def _check_stale_commitments(self, venture: str) -> list[DreamProposal]:
@@ -75,18 +72,20 @@ class CuratorCycle:
                 deadline_dt = datetime.fromisoformat(deadline)
                 if deadline_dt < now:
                     days_overdue = (now - deadline_dt).days
-                    proposals.append(DreamProposal(
-                        cycle_type="curator",
-                        action="flag_stale_commitment",
-                        entity_id=c.get("id", ""),
-                        entity_type="commitment",
-                        venture=venture or c.get("venture", ""),
-                        title=f"Overdue commitment: {c.get('title', 'Untitled')}",
-                        description=f"Commitment is {days_overdue} day(s) past deadline ({deadline})",
-                        diff={"days_overdue": days_overdue, "deadline": deadline},
-                        confidence=1.0,
-                        rationale="Deadline has passed with status still open",
-                    ))
+                    proposals.append(
+                        DreamProposal(
+                            cycle_type="curator",
+                            action="flag_stale_commitment",
+                            entity_id=c.get("id", ""),
+                            entity_type="commitment",
+                            venture=venture or c.get("venture", ""),
+                            title=f"Overdue commitment: {c.get('title', 'Untitled')}",
+                            description=f"Commitment is {days_overdue} day(s) past deadline ({deadline})",
+                            diff={"days_overdue": days_overdue, "deadline": deadline},
+                            confidence=1.0,
+                            rationale="Deadline has passed with status still open",
+                        )
+                    )
             except (ValueError, TypeError):
                 continue
 
@@ -103,17 +102,19 @@ class CuratorCycle:
             if orphan.get("type") == "contact":
                 continue
 
-            proposals.append(DreamProposal(
-                cycle_type="curator",
-                action="flag_orphan",
-                entity_id=orphan.get("id", ""),
-                entity_type=orphan.get("type", ""),
-                venture=venture or orphan.get("venture", ""),
-                title=f"Orphan entity: {orphan.get('title', 'Untitled')}",
-                description="This entity has no inbound references from other entities",
-                confidence=0.6,
-                rationale="Orphan entities may indicate missing connections or stale content",
-            ))
+            proposals.append(
+                DreamProposal(
+                    cycle_type="curator",
+                    action="flag_orphan",
+                    entity_id=orphan.get("id", ""),
+                    entity_type=orphan.get("type", ""),
+                    venture=venture or orphan.get("venture", ""),
+                    title=f"Orphan entity: {orphan.get('title', 'Untitled')}",
+                    description="This entity has no inbound references from other entities",
+                    confidence=0.6,
+                    rationale="Orphan entities may indicate missing connections or stale content",
+                )
+            )
 
         return proposals
 
@@ -127,16 +128,18 @@ class CuratorCycle:
             # Flag entities with no tags
             tags = entry.get("tags", [])
             if not tags and entry.get("type") not in ("contact",):
-                proposals.append(DreamProposal(
-                    cycle_type="curator",
-                    action="annotate_entity",
-                    entity_id=entry.get("id", ""),
-                    entity_type=entry.get("type", ""),
-                    venture=venture or entry.get("venture", ""),
-                    title=f"Untagged entity: {entry.get('title', 'Untitled')}",
-                    description="Entity has no tags, making it harder to discover",
-                    confidence=0.5,
-                    rationale="Tags improve discoverability and agent context relevance",
-                ))
+                proposals.append(
+                    DreamProposal(
+                        cycle_type="curator",
+                        action="annotate_entity",
+                        entity_id=entry.get("id", ""),
+                        entity_type=entry.get("type", ""),
+                        venture=venture or entry.get("venture", ""),
+                        title=f"Untagged entity: {entry.get('title', 'Untitled')}",
+                        description="Entity has no tags, making it harder to discover",
+                        confidence=0.5,
+                        rationale="Tags improve discoverability and agent context relevance",
+                    )
+                )
 
         return proposals

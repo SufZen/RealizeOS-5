@@ -3,10 +3,33 @@
     "default": true,
     "MD013": false,
     "MD024": { "siblings_only": true },
+    "MD031": false,
+    "MD032": false,
     "MD033": false,
+    "MD034": false,
     "MD036": false,
-    "MD041": false
+    "MD040": false,
+    "MD041": false,
+    "MD058": false,
+    "MD060": false
   },
   "globs": ["**/*.md"],
-  "ignores": ["node_modules", "dist", ".specify/templates", "dashboard/node_modules", "realize-os-cli/node_modules"]
+  "ignores": [
+    "node_modules",
+    ".venv",
+    ".claude",
+    ".github/ISSUE_TEMPLATE",
+    ".github/PULL_REQUEST_TEMPLATE.md",
+    ".github/workflows",
+    "dist",
+    ".specify/templates",
+    ".specify/memory",
+    "dashboard/node_modules",
+    "dashboard/src/design-system/**",
+    "realize-os-cli/node_modules",
+    "templates/**",
+    "shared/**",
+    "docs/**",
+    "realize_lite/**"
+  ]
 }

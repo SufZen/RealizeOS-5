@@ -62,13 +62,7 @@ const CONN_ICONS: Record<string, typeof Plug> = {
   cost_limit: Settings2,
 }
 
-function ConnectionCard({
-  conn,
-  onSaved,
-}: {
-  conn: Connection
-  onSaved: () => void
-}) {
+function ConnectionCard({ conn, onSaved }: { conn: Connection; onSaved: () => void }) {
   const [editing, setEditing] = useState(false)
   const [value, setValue] = useState('')
   const [saving, setSaving] = useState(false)
@@ -108,17 +102,26 @@ function ConnectionCard({
   }
 
   return (
-    <div className={cn(
-      'rounded-xl border p-5 transition-colors',
-      conn.configured ? 'border-green-400/30 bg-green-400/5' : 'border-border bg-card',
-    )}>
+    <div
+      className={cn(
+        'rounded-xl border p-5 transition-colors',
+        conn.configured ? 'border-green-400/30 bg-green-400/5' : 'border-border bg-card',
+      )}
+    >
       <div className="flex items-start justify-between mb-2">
         <div className="flex items-center gap-3">
-          <div className={cn(
-            'flex items-center justify-center w-10 h-10 rounded-lg',
-            conn.configured ? 'bg-green-400/10' : 'bg-surface-700',
-          )}>
-            <Icon className={cn('h-5 w-5', conn.configured ? 'text-green-400' : 'text-muted-foreground')} />
+          <div
+            className={cn(
+              'flex items-center justify-center w-10 h-10 rounded-lg',
+              conn.configured ? 'bg-green-400/10' : 'bg-surface-700',
+            )}
+          >
+            <Icon
+              className={cn(
+                'h-5 w-5',
+                conn.configured ? 'text-green-400' : 'text-muted-foreground',
+              )}
+            />
           </div>
           <div>
             <h3 className="text-sm font-semibold text-foreground">{conn.name}</h3>
@@ -144,10 +147,10 @@ function ConnectionCard({
           {conn.type === 'secret'
             ? `••••••••${conn.masked_value.split('...')[1] ?? ''}`
             : conn.type === 'number' && conn.id === 'rate_limit'
-            ? `${conn.masked_value} requests/min`
-            : conn.type === 'number' && conn.id === 'cost_limit'
-            ? `$${conn.masked_value}/hour`
-            : conn.masked_value}
+              ? `${conn.masked_value} requests/min`
+              : conn.type === 'number' && conn.id === 'cost_limit'
+                ? `$${conn.masked_value}/hour`
+                : conn.masked_value}
         </div>
       )}
 
@@ -163,10 +166,12 @@ function ConnectionCard({
               saving && 'opacity-50',
             )}
           >
-            <span className={cn(
-              'inline-block h-4 w-4 rounded-full bg-white transition-transform',
-              conn.configured ? 'translate-x-6' : 'translate-x-1',
-            )} />
+            <span
+              className={cn(
+                'inline-block h-4 w-4 rounded-full bg-white transition-transform',
+                conn.configured ? 'translate-x-6' : 'translate-x-1',
+              )}
+            />
           </button>
         </div>
       )}
@@ -208,11 +213,19 @@ function ConnectionCard({
               disabled={saving || !value.trim()}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg bg-brand-400 text-black hover:bg-brand-400/90 disabled:opacity-40 font-medium transition-colors"
             >
-              {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+              {saving ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Check className="h-3.5 w-3.5" />
+              )}
               Save
             </button>
             <button
-              onClick={() => { setEditing(false); setValue(''); setStatus(null) }}
+              onClick={() => {
+                setEditing(false)
+                setValue('')
+                setStatus(null)
+              }}
               className="px-3 py-1.5 text-xs rounded-lg border border-border text-muted-foreground hover:text-foreground transition-colors"
             >
               Cancel
@@ -226,7 +239,11 @@ function ConnectionCard({
                     setEditing(false)
                     setValue('')
                     onSaved()
-                  } catch { /* ignore */ } finally { setSaving(false) }
+                  } catch {
+                    /* ignore */
+                  } finally {
+                    setSaving(false)
+                  }
                 }}
                 disabled={saving}
                 className="px-3 py-1.5 text-xs rounded-lg border border-red-400/30 text-red-400 hover:bg-red-400/10 transition-colors ml-auto"
@@ -239,10 +256,12 @@ function ConnectionCard({
       )}
 
       {status && (
-        <div className={cn(
-          'flex items-center gap-1.5 text-xs mt-2',
-          status.ok ? 'text-green-400' : 'text-red-400',
-        )}>
+        <div
+          className={cn(
+            'flex items-center gap-1.5 text-xs mt-2',
+            status.ok ? 'text-green-400' : 'text-red-400',
+          )}
+        >
           {status.ok ? <Check className="h-3.5 w-3.5" /> : <AlertCircle className="h-3.5 w-3.5" />}
           {status.msg}
         </div>
@@ -255,7 +274,11 @@ export default function SetupPage() {
   const { data, loading, error, refetch } = useApi<ConnectionsData>('/setup/connections')
 
   if (loading) {
-    return <div className="flex items-center justify-center h-64 text-muted-foreground">Loading connections...</div>
+    return (
+      <div className="flex items-center justify-center h-64 text-muted-foreground">
+        Loading connections...
+      </div>
+    )
   }
 
   if (error || !data) {
@@ -274,7 +297,7 @@ export default function SetupPage() {
   const byCategory = data.categories
     .map((cat) => ({
       category: cat,
-      ...CATEGORY_LABELS[cat] || { label: cat, icon: Plug },
+      ...(CATEGORY_LABELS[cat] || { label: cat, icon: Plug }),
       connections: data.connections.filter((c) => c.category === cat),
     }))
     .filter((g) => g.connections.length > 0)
@@ -299,8 +322,8 @@ export default function SetupPage() {
         <div className="rounded-xl border border-brand-400/30 bg-brand-400/5 p-5">
           <h2 className="text-sm font-semibold text-brand-400 mb-1">Get Started</h2>
           <p className="text-xs text-muted-foreground">
-            Start by connecting at least one LLM provider (Claude, Gemini, OpenAI, or Ollama).
-            This is the only requirement — everything else is optional.
+            Start by connecting at least one LLM provider (Claude, Gemini, OpenAI, or Ollama). This
+            is the only requirement — everything else is optional.
           </p>
         </div>
       )}
@@ -311,7 +334,9 @@ export default function SetupPage() {
           <div key={group.category}>
             <div className="flex items-center gap-2 mb-3">
               <CatIcon className="h-4 w-4 text-muted-foreground" />
-              <h2 className="text-sm font-semibold text-foreground uppercase tracking-wide">{group.label}</h2>
+              <h2 className="text-sm font-semibold text-foreground uppercase tracking-wide">
+                {group.label}
+              </h2>
             </div>
             <div className="grid gap-4 md:grid-cols-2">
               {group.connections.map((conn) => (

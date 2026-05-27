@@ -25,10 +25,18 @@ interface ToastCtx {
 }
 
 const TOAST_META: Record<ToastType, { icon: typeof Info; color: string; bg: string }> = {
-  success: { icon: CheckCircle2, color: 'text-green-400', bg: 'border-green-400/20 bg-green-400/5' },
-  error:   { icon: AlertCircle,  color: 'text-red-400',   bg: 'border-red-400/20 bg-red-400/5' },
-  info:    { icon: Info,         color: 'text-blue-400',  bg: 'border-blue-400/20 bg-blue-400/5' },
-  warning: { icon: AlertTriangle, color: 'text-amber-400', bg: 'border-amber-400/20 bg-amber-400/5' },
+  success: {
+    icon: CheckCircle2,
+    color: 'text-green-400',
+    bg: 'border-green-400/20 bg-green-400/5',
+  },
+  error: { icon: AlertCircle, color: 'text-red-400', bg: 'border-red-400/20 bg-red-400/5' },
+  info: { icon: Info, color: 'text-blue-400', bg: 'border-blue-400/20 bg-blue-400/5' },
+  warning: {
+    icon: AlertTriangle,
+    color: 'text-amber-400',
+    bg: 'border-amber-400/20 bg-amber-400/5',
+  },
 }
 
 /* ------------------------------------------------------------------ */
@@ -67,8 +75,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
   const ctx: ToastCtx = {
     success: (msg) => addToast('success', msg),
-    error:   (msg) => addToast('error', msg),
-    info:    (msg) => addToast('info', msg),
+    error: (msg) => addToast('error', msg),
+    info: (msg) => addToast('info', msg),
     warning: (msg) => addToast('warning', msg),
   }
 

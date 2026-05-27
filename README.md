@@ -39,6 +39,33 @@ RealizeOS is a **self-hosted AI operations system** that gives your business a c
 
 ---
 
+## 🆕 What's New in v5.5.0
+
+v5.5.0 marks the **open-source relaunch** under BSL 1.1 — free core; monetize via guided installation sessions + vertical consulting. The positioning thesis:
+
+> **You own the Heart** (FABRIC knowledge graph + event log + identity) forever; agent runtimes, models, channels, and even the dashboard are swappable adapters; local-first.
+
+### Shipped
+
+| Feature | What it does |
+|---------|-------------|
+| **FABRIC Entity System** | Markdown↔entity round-trip, provenance/trust, 3 reference mechanisms, soft JSON-Schema validation (5 entity types) |
+| **Synapse Knowledge Index** | 4-tier agent memory: L1 Hot TOC, L2 FTS5 search, L3 Tool Catalog, L4 Mission Memory |
+| **Event Log + SOUL** | JSONL append-only audit trail w/ SSE; persistent User/Agent identity |
+| **Runtime Adapter Layer** | `AgentRuntime` Protocol, Registry w/ health polling, FABRIC REST API |
+| **Mission Engine (Spine)** | 8-state mission/step machine, planning, runtime routing, cost tracking |
+| **Dreaming Subsystem** | Trust Policy, Reflex + Curator cycles, Dream Inbox with human-in-the-loop |
+| **Dashboard Pages** | `/missions`, `/knowledge`, `/dreams` — styled with the `@realizeos/design-system` |
+| **FABRIC Operator CLI** | `realize-os fabric` — lint, reindex, stats, search, toc, dream |
+
+### Roadmap (coming)
+
+Voice channel (STT/TTS) · Full Workspace UI redesign · Cytoscape visual graph · React Native mobile companion · Host-satellite sync
+
+> 📖 Full details: **[docs/v5.5.0/](docs/v5.5.0/)** · Claims verification: **[SITE-CLAIMS.md](docs/v5.5.0/SITE-CLAIMS.md)**
+
+---
+
 ## ⚡ Quick Start
 
 <details open>

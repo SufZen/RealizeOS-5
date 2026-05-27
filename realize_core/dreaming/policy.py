@@ -15,7 +15,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 from pathlib import Path
 
 import yaml
@@ -23,7 +23,7 @@ import yaml
 logger = logging.getLogger(__name__)
 
 
-class ProposalStatus(str, Enum):
+class ProposalStatus(StrEnum):
     """Status of a dream proposal."""
 
     PENDING = "pending"
@@ -33,7 +33,7 @@ class ProposalStatus(str, Enum):
     EXPIRED = "expired"
 
 
-class TrustLevel(str, Enum):
+class TrustLevel(StrEnum):
     """Trust level for a dreaming action."""
 
     FULL_AUTO = "full-auto"
@@ -48,19 +48,16 @@ _DEFAULT_POLICY = {
     "add_ref": TrustLevel.FULL_AUTO,
     "update_summary": TrustLevel.PROPOSE,
     "annotate_entity": TrustLevel.PROPOSE,
-
     # Curator cycle — maintenance
     "flag_stale_commitment": TrustLevel.FULL_AUTO,
     "flag_orphan": TrustLevel.FULL_AUTO,
     "update_trust_score": TrustLevel.PROPOSE,
     "suggest_archive": TrustLevel.PROPOSE,
-
     # Synthesis cycle — creative
     "create_insight": TrustLevel.PROPOSE,
     "create_hypothesis": TrustLevel.PROPOSE,
     "merge_entities": TrustLevel.PROPOSE,
     "suggest_decision": TrustLevel.PROPOSE,
-
     # Dangerous — never auto
     "delete_entity": TrustLevel.DENY,
     "modify_decision": TrustLevel.DENY,
@@ -104,6 +101,7 @@ class DreamProposal:
     def __post_init__(self):
         if not self.proposal_id:
             import uuid
+
             self.proposal_id = f"dream-{uuid.uuid4().hex[:12]}"
 
     def to_dict(self) -> dict:
@@ -128,7 +126,15 @@ class DreamProposal:
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> "DreamProposal":
+    def from_dict(cls, data: dict) -> DreamProposal:
+        def parse_datetime(value: str | None) -> datetime | None:
+            if not value:
+                return None
+            try:
+                return datetime.fromisoformat(value)
+            except (TypeError, ValueError):
+                return None
+
         return cls(
             proposal_id=data.get("proposal_id", ""),
             cycle_type=data.get("cycle_type", ""),
@@ -143,6 +149,10 @@ class DreamProposal:
             rationale=data.get("rationale", ""),
             evidence=data.get("evidence", []),
             status=ProposalStatus(data.get("status", "pending")),
+            created_at=parse_datetime(data.get("created_at")) or datetime.now(),
+            reviewed_at=parse_datetime(data.get("reviewed_at")),
+            reviewed_by=data.get("reviewed_by", ""),
+            rejection_reason=data.get("rejection_reason", ""),
         )
 
 
@@ -164,7 +174,7 @@ class TrustPolicy:
                     logger.warning(f"Unknown trust level '{level}' for action '{action}'")
 
     @classmethod
-    def load(cls, path: Path) -> "TrustPolicy":
+    def load(cls, path: Path) -> TrustPolicy:
         """Load policy from a YAML file."""
         if not path.exists():
             return cls()

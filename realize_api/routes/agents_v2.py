@@ -16,6 +16,7 @@ Endpoints:
 import logging
 import uuid
 from collections import OrderedDict
+from datetime import datetime
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
@@ -77,6 +78,21 @@ class PipelineExecuteBody(BaseModel):
     )
     input_text: str
     max_retries: int = 3
+
+
+class PipelineDefinitionBody(BaseModel):
+    """Dashboard pipeline builder save/test payload."""
+
+    id: str = ""
+    name: str
+    description: str = ""
+    steps: list[dict] = Field(default_factory=list)
+    version: int = 1
+    venture_key: str = ""
+
+
+_pipeline_definitions: OrderedDict[str, dict] = OrderedDict()
+_MAX_PIPELINE_DEFINITIONS = 500
 
 
 # ---------------------------------------------------------------------------
@@ -297,6 +313,89 @@ async def reload_agents(request: Request):
 # ---------------------------------------------------------------------------
 # Pipeline management endpoints
 # ---------------------------------------------------------------------------
+
+
+def _pipeline_definition_to_dict(pipeline_id: str, data: dict) -> dict:
+    """Return a stable JSON shape for saved dashboard pipelines."""
+    return {
+        "id": pipeline_id,
+        "name": data.get("name", pipeline_id),
+        "description": data.get("description", ""),
+        "steps": data.get("steps", []),
+        "version": data.get("version", 1),
+        "venture_key": data.get("venture_key", ""),
+        "updated_at": data.get("updated_at"),
+    }
+
+
+def _pipeline_steps_to_stages(steps: list[dict]) -> list[dict]:
+    """Convert dashboard builder steps into executable pipeline stages."""
+    stages = []
+    for index, step in enumerate(steps, start=1):
+        step_type = step.get("type", "agent")
+        agent_key = step.get("agent") or "orchestrator"
+        if step_type == "tool":
+            agent_key = step.get("tool") or "tool"
+        elif step_type == "human":
+            agent_key = "human"
+        elif step_type == "condition":
+            agent_key = "condition"
+        stages.append(
+            {
+                "name": step.get("label") or step.get("id") or f"step-{index}",
+                "agent_key": agent_key,
+                "handoff_type": "standard",
+            }
+        )
+    return stages
+
+
+@router.get("/pipelines")
+async def list_pipeline_definitions(venture_key: str = ""):
+    """List dashboard-saved pipeline definitions."""
+    pipelines = [
+        _pipeline_definition_to_dict(pipeline_id, data)
+        for pipeline_id, data in _pipeline_definitions.items()
+        if not venture_key or data.get("venture_key") == venture_key
+    ]
+    return {"pipelines": pipelines, "count": len(pipelines)}
+
+
+@router.post("/pipelines", status_code=201)
+async def save_pipeline_definition(body: PipelineDefinitionBody):
+    """Save a dashboard pipeline definition for later reuse."""
+    pipeline_id = body.id.strip() or f"pipeline-{uuid.uuid4().hex[:12]}"
+    data = body.model_dump()
+    data["id"] = pipeline_id
+    data["updated_at"] = datetime.now().isoformat()
+
+    _pipeline_definitions[pipeline_id] = data
+    _pipeline_definitions.move_to_end(pipeline_id)
+    if len(_pipeline_definitions) > _MAX_PIPELINE_DEFINITIONS:
+        _pipeline_definitions.popitem(last=False)
+
+    return {"status": "saved", "pipeline": _pipeline_definition_to_dict(pipeline_id, data)}
+
+
+@router.post("/pipelines/test")
+async def test_pipeline_definition(body: PipelineDefinitionBody, request: Request):
+    """Run a lightweight dashboard pipeline smoke test."""
+    stages = _pipeline_steps_to_stages(body.steps)
+    if not stages:
+        raise HTTPException(status_code=400, detail="Pipeline must have at least one step")
+
+    exec_body = PipelineExecuteBody(
+        pipeline_id=body.id or f"test-{uuid.uuid4().hex[:12]}",
+        stages=stages,
+        input_text=f"Test run for {body.name}",
+    )
+    result = await execute_pipeline_endpoint(exec_body, request)
+    return {
+        "result": (
+            f"Pipeline test {result['status']}: {result['stages_completed']}/{result['total_stages']} step(s) completed"
+        ),
+        **result,
+    }
 
 
 @router.post("/pipelines/execute", status_code=202)

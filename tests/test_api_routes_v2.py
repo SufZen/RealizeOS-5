@@ -21,6 +21,7 @@ def client():
     import realize_api.routes.routing as _routing_mod
 
     _agents_mod._registry = None
+    _agents_mod._pipeline_definitions.clear()
     _agents_mod._pipeline_states.clear()
     _routing_mod._routing_analytics.clear()
 
@@ -164,6 +165,42 @@ class TestAgentsV2Routes:
 
 
 class TestPipelineRoutes:
+    def test_list_pipelines_empty(self, client):
+        resp = client.get("/api/pipelines")
+        assert resp.status_code == 200
+        assert resp.json()["pipelines"] == []
+
+    def test_save_and_list_pipeline_definition(self, client):
+        resp = client.post(
+            "/api/pipelines",
+            json={
+                "name": "Release Smoke",
+                "description": "Verify builder persistence",
+                "venture_key": "test",
+                "steps": [{"id": "s1", "type": "agent", "label": "Draft", "agent": "writer"}],
+            },
+        )
+        assert resp.status_code == 201
+        pipeline = resp.json()["pipeline"]
+        assert pipeline["id"]
+        assert pipeline["name"] == "Release Smoke"
+
+        list_resp = client.get("/api/pipelines", params={"venture_key": "test"})
+        assert list_resp.status_code == 200
+        assert list_resp.json()["pipelines"][0]["id"] == pipeline["id"]
+
+    def test_pipeline_test_endpoint(self, client):
+        resp = client.post(
+            "/api/pipelines/test",
+            json={
+                "name": "Testable",
+                "venture_key": "test",
+                "steps": [{"id": "s1", "type": "agent", "label": "Run", "agent": "writer"}],
+            },
+        )
+        assert resp.status_code == 200
+        assert "Pipeline test" in resp.json()["result"]
+
     def test_execute_pipeline(self, client):
         resp = client.post(
             "/api/pipelines/execute",
@@ -211,6 +248,78 @@ class TestPipelineRoutes:
             },
         )
         assert resp.status_code == 400
+
+
+class TestReleaseSurfaceRoutes:
+    def test_missions_create_and_list(self, client):
+        create_resp = client.post(
+            "/api/missions",
+            json={
+                "title": "Release Mission",
+                "goal": "Verify mission API wiring",
+                "venture": "test",
+                "steps": [{"description": "Check the release surface", "agent": "orchestrator"}],
+            },
+        )
+        assert create_resp.status_code == 201
+        mission = create_resp.json()["mission"]
+        assert mission["title"] == "Release Mission"
+        assert mission["state"] == "planned"
+
+        list_resp = client.get("/api/missions", params={"venture": "test"})
+        assert list_resp.status_code == 200
+        assert list_resp.json()["missions"][0]["mission_id"] == mission["mission_id"]
+
+    def test_dream_inbox_list_and_review(self, client, tmp_path):
+        from realize_core.dreaming.inbox import DreamInbox
+        from realize_core.dreaming.policy import DreamProposal
+
+        inbox = DreamInbox(tmp_path / "dream-inbox.jsonl")
+        proposal_id = inbox.submit(
+            DreamProposal(
+                cycle_type="curator",
+                action="annotate_entity",
+                entity_id="decision-1",
+                title="Add missing status",
+            )
+        )
+        client.app.state.dream_inbox = inbox
+        client.app.state.kb_path = tmp_path
+
+        list_resp = client.get("/api/dreams", params={"status": "pending"})
+        assert list_resp.status_code == 200
+        assert list_resp.json()["proposals"][0]["proposal_id"] == proposal_id
+
+        approve_resp = client.post(f"/api/dreams/{proposal_id}/approve")
+        assert approve_resp.status_code == 200
+        assert approve_resp.json()["proposal"]["status"] == "approved"
+
+    def test_fabric_reindex_endpoint(self, client, tmp_path):
+        from realize_core.fabric.crud import create_entity
+        from realize_core.fabric.synapse import Synapse
+
+        venture_dir = tmp_path / "systems" / "test"
+        (venture_dir / "I-insights").mkdir(parents=True)
+        create_entity(venture_dir=venture_dir, entity_type="insight", title="Release Insight")
+
+        client.app.state.kb_path = tmp_path
+        client.app.state.systems = {"test": {"system_dir": "systems/test"}}
+        (tmp_path / ".synapse").mkdir()
+        client.app.state.synapse = Synapse(tmp_path / ".synapse" / "synapse.db")
+
+        resp = client.post("/api/fabric/reindex")
+        assert resp.status_code == 200
+        assert resp.json()["ventures"]["test"] == 1
+
+    def test_fabric_reindex_without_configured_systems_is_noop(self, client, tmp_path):
+        client.app.state.kb_path = tmp_path
+        client.app.state.systems = {}
+
+        resp = client.post("/api/fabric/reindex")
+
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "skipped"
+        assert resp.json()["count"] == 0
 
 
 # ---------------------------------------------------------------------------

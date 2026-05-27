@@ -13,7 +13,9 @@ describe('api client', () => {
     })
     vi.stubGlobal('fetch', fetchMock)
 
-    await expect(api.post('/settings/features', { features: { heartbeats: true } })).resolves.toEqual({
+    await expect(
+      api.post('/settings/features', { features: { heartbeats: true } }),
+    ).resolves.toEqual({
       status: 'ok',
     })
 

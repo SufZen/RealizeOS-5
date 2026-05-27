@@ -10,11 +10,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from enum import Enum
-from typing import Any
+from enum import StrEnum
 
 
-class EventCategory(str, Enum):
+class EventCategory(StrEnum):
     """Top-level event categories."""
 
     MESSAGE = "message"
@@ -67,6 +66,7 @@ class Event:
             self.timestamp = datetime.now().isoformat()
         if not self.event_id:
             import uuid
+
             self.event_id = uuid.uuid4().hex[:16]
 
     def to_dict(self) -> dict:
@@ -87,7 +87,7 @@ class Event:
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> "Event":
+    def from_dict(cls, data: dict) -> Event:
         """Deserialize from dict."""
         return cls(
             event_id=data.get("event_id", ""),
@@ -106,6 +106,7 @@ class Event:
 
 
 # ─── Convenience constructors ────────────────────────────────────────────────
+
 
 def message_event(
     actor: str,

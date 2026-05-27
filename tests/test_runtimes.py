@@ -2,23 +2,17 @@
 Tests for the Runtime Adapter System.
 """
 
-import asyncio
-from datetime import datetime
-
 import pytest
-
 from realize_core.runtimes.contract import (
-    AgentRuntime,
     Capability,
     CapabilitySet,
+    Context,
     CostClass,
     CostEstimate,
-    Context,
     HealthStatus,
     MissionStep,
     Modality,
     Skill,
-    StepConstraints,
     Task,
     ToolProtocol,
 )
@@ -26,13 +20,12 @@ from realize_core.runtimes.events import (
     ErrorEvent,
     FinalResultEvent,
     ProgressEvent,
-    RuntimeEvent,
     TextEvent,
 )
 from realize_core.runtimes.registry import RuntimeRegistry
 
-
 # ─── Mock Runtime ─────────────────────────────────────────────────────────────
+
 
 class MockRuntime:
     """A minimal mock runtime for testing the registry."""
@@ -48,10 +41,7 @@ class MockRuntime:
 
     def capabilities(self) -> CapabilitySet:
         return CapabilitySet(
-            capabilities=[
-                Capability(name=c, confidence=0.9, cost_class=CostClass.MODERATE)
-                for c in self._caps
-            ],
+            capabilities=[Capability(name=c, confidence=0.9, cost_class=CostClass.MODERATE) for c in self._caps],
             languages=["en"],
             modalities=[Modality.TEXT, Modality.CODE],
             streaming=True,
@@ -101,6 +91,7 @@ class MockRuntime:
 
 # ─── Contract Tests ───────────────────────────────────────────────────────────
 
+
 class TestContract:
     def test_data_types(self):
         """Verify all data types can be instantiated."""
@@ -129,6 +120,7 @@ class TestContract:
 
 
 # ─── Registry Tests ──────────────────────────────────────────────────────────
+
 
 class TestRegistry:
     @pytest.fixture
@@ -189,6 +181,7 @@ class TestRegistry:
 
 # ─── Task Matching Tests ─────────────────────────────────────────────────────
 
+
 class TestTaskMatching:
     @pytest.fixture
     def registry(self):
@@ -240,6 +233,7 @@ class TestTaskMatching:
 
 
 # ─── Event Tests ──────────────────────────────────────────────────────────────
+
 
 class TestEvents:
     def test_event_types(self):
