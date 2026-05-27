@@ -3,6 +3,24 @@
 All notable changes to RealizeOS are documented in this file.
 This changelog is automatically generated from [Conventional Commits](https://conventionalcommits.org).
 
+
+## [5.3.0](https://github.com/SufZen/RealizeOS-5/compare/v5.2.1...v5.3.0) (2026-05-27)
+
+### Features
+
+* **core:** add Event Log, SOUL identity, Mission Engine — Sprints 3 + 5 ([b9adb26](https://github.com/SufZen/RealizeOS-5/commit/b9adb266126bafbcb6e94abb4314f699bf3e1712))
+* **dashboard:** add Missions, Knowledge Map, and Dream Inbox pages ([3be5715](https://github.com/SufZen/RealizeOS-5/commit/3be5715b9cf7b3d289a28f741ce4170c32afc77e))
+* **dreaming:** add Dreaming subsystem + FABRIC CLI + version bump to v5.5.0 ([4596be3](https://github.com/SufZen/RealizeOS-5/commit/4596be31ddfd4134d970c62dabb7de78570a7993))
+* **fabric:** add FABRIC Entity System — the Heart of RealizeOS ([de15472](https://github.com/SufZen/RealizeOS-5/commit/de15472d7aea5d3c25d50e6b14436e5a0d80ce20))
+* **runtimes:** add Runtime Adapter Contract + Registry + FABRIC REST API ([d71e500](https://github.com/SufZen/RealizeOS-5/commit/d71e5008476586e8c46500ad4fc60c42667afe92))
+* **synapse:** add Synapse knowledge indexer — L1 TOC, L2 FTS search, graph queries, L4 mission memory ([8d2e6a4](https://github.com/SufZen/RealizeOS-5/commit/8d2e6a4e7c707f5d5e950eb81ee24202431cd39f))
+* v5.5.0 production hardening and site-alignment ([#5](https://github.com/SufZen/RealizeOS-5/issues/5)) ([cf9e8fa](https://github.com/SufZen/RealizeOS-5/commit/cf9e8fa138b4fa21d297454a1ff2bca89b0ca6a6))
+
+### Bug Fixes
+
+* **ci:** allowlist tests/test_auth_middleware.py in .gitleaks.toml ([fd4ab77](https://github.com/SufZen/RealizeOS-5/commit/fd4ab771d322976ef52c36aafda686e146722aff))
+* **fabric:** audit fixes — unused import, round-trip fidelity, FTS cleanup, const validation ([9fd2089](https://github.com/SufZen/RealizeOS-5/commit/9fd2089787c68a7ed6ff212fe5cf189af6afb788))
+
 > **Note:** Starting after v5.2.1, versions are automatically determined from
 > Conventional Commits via [semantic-release](https://github.com/semantic-release/semantic-release).
 > Entries below v5.2.1 were manually authored.
