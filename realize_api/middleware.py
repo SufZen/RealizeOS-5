@@ -94,6 +94,27 @@ class AuthMiddleware(BaseHTTPMiddleware):
         self.api_key = api_key or ""
         self.jwt_enabled = bool(jwt_enabled)
 
+    async def __call__(self, scope, receive, send):
+        # __mcp_sse_bypass__: MCP SSE transport is incompatible with
+        # BaseHTTPMiddleware response buffering. Enforce auth at the ASGI layer
+        # for /mcp/* and then stream through unbuffered.
+        if scope.get("type") == "http" and scope.get("path", "").startswith("/mcp/"):
+            request = Request(scope, receive)
+            provided_key = self._extract_api_key(request)
+            authorized = bool(self.api_key and provided_key and provided_key == self.api_key)
+            if not authorized and self.jwt_enabled:
+                authorized = (await self._try_jwt(request)) is True
+            if not authorized:
+                response = JSONResponse(
+                    status_code=401,
+                    content={"error": "auth_required", "message": "Authentication required."},
+                )
+                await response(scope, receive, send)
+                return
+            await self.app(scope, receive, send)
+            return
+        await super().__call__(scope, receive, send)
+
     async def dispatch(self, request: Request, call_next):
         path = request.url.path
 
