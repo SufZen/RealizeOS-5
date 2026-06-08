@@ -25,7 +25,10 @@ services:
       - realize-data:/app/data                           # SQLite database persistence
       - realize-shared:/app/shared                       # Shared KB content across ventures
       # Bind mounts for user-editable config
-      - ./realize-os.yaml:/app/realize-os.yaml:ro        # System configuration (read-only)
+      # Keep realize-os.yaml writable for dashboard/API venture CRUD. Operators
+      # can switch this to :ro for locked config mode; mutation endpoints will
+      # then return CONFIG_NOT_WRITABLE instead of partially deleting files.
+      - ./realize-os.yaml:/app/realize-os.yaml:rw        # System configuration (managed/writable)
       - ./systems:/app/systems                           # Venture-specific FABRIC directories
       - ./.credentials:/app/.credentials:ro              # Google OAuth (optional, read-only)
     env_file:
@@ -55,7 +58,7 @@ services:
   #   volumes:
   #     - realize-data:/app/data
   #     - realize-shared:/app/shared
-  #     - ./realize-os.yaml:/app/realize-os.yaml:ro
+  #     - ./realize-os.yaml:/app/realize-os.yaml:rw
   #     - ./systems:/app/systems
   #     - ./.credentials:/app/.credentials:ro
   #   env_file:

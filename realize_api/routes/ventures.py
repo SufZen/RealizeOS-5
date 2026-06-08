@@ -124,6 +124,18 @@ async def list_venture_skills(venture_key: str, request: Request):
 # ---------------------------------------------------------------------------
 
 
+def _config_locked_http_error(exc: Exception) -> HTTPException:
+    """Build a structured operator-facing error for locked config mutations."""
+    return HTTPException(
+        status_code=409,
+        detail={
+            "code": "CONFIG_NOT_WRITABLE",
+            "message": str(exc),
+            "hint": "Mount realize-os.yaml as writable or set REALIZE_CONFIG to a writable config path.",
+        },
+    )
+
+
 @router.post("/ventures")
 async def create_venture(body: CreateVentureBody, request: Request):
     """Create a new venture with FABRIC scaffolding."""
@@ -140,17 +152,20 @@ async def create_venture(body: CreateVentureBody, request: Request):
 
     kb_path: Path = getattr(request.app.state, "kb_path", Path("."))
 
-    from realize_core.scaffold import scaffold_venture
+    from realize_core.scaffold import ConfigMutationError, scaffold_venture
 
-    result = scaffold_venture(str(kb_path), key, name=name, description=description)
+    try:
+        result = scaffold_venture(str(kb_path), key, name=name, description=description)
+    except ConfigMutationError as exc:
+        raise _config_locked_http_error(exc) from exc
 
     if not result.get("created"):
         raise HTTPException(status_code=409, detail=result.get("error", "Venture already exists"))
 
     # Reload config to pick up the new venture
-    from realize_core.config import build_systems_dict, load_config
+    from realize_core.config import build_systems_dict, get_config_path, load_config
 
-    config = load_config()
+    config = load_config(get_config_path(kb_path))
     request.app.state.config = config
     request.app.state.systems = build_systems_dict(config, kb_path)
 
@@ -180,19 +195,34 @@ async def delete_venture(venture_key: str, request: Request):
 
     kb_path: Path = getattr(request.app.state, "kb_path", Path("."))
 
+    from realize_core.scaffold import ConfigMutationError
     from realize_core.scaffold import delete_venture as _delete
 
-    success = _delete(str(kb_path), venture_key, confirm_name=venture_key)
+    try:
+        success = _delete(str(kb_path), venture_key, confirm_name=venture_key)
+    except ConfigMutationError as exc:
+        raise _config_locked_http_error(exc) from exc
 
     if not success:
         raise HTTPException(status_code=500, detail="Failed to delete venture")
 
-    # Reload config
-    from realize_core.config import build_systems_dict, load_config
+    # Remove derived Synapse index records so deleted ventures do not appear in
+    # FABRIC search/TOC results after their source files are gone.
+    synapse = getattr(request.app.state, "synapse", None)
+    if synapse is not None:
+        try:
+            synapse.db.clear_venture(venture_key)
+        except Exception as exc:
+            logger.warning("Synapse cleanup failed for venture '%s': %s", venture_key, exc)
 
-    config = load_config()
+    # Reload config from the same KB root used by the app. Passing kb_path keeps
+    # agent discovery scoped to this workspace and prevents stale in-memory
+    # systems from surviving after deletion.
+    from realize_core.config import build_systems_dict, get_config_path, load_config
+
+    config = load_config(get_config_path(kb_path))
     request.app.state.config = config
-    request.app.state.systems = build_systems_dict(config)
+    request.app.state.systems = build_systems_dict(config, kb_path)
 
     return {"status": "deleted", "key": venture_key}
 

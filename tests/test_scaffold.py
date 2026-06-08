@@ -8,7 +8,9 @@ Covers:
 - Stats tracking
 """
 
-from realize_core.scaffold import scaffold_dev_process
+import pytest
+import yaml
+from realize_core.scaffold import ConfigMutationError, delete_venture, scaffold_dev_process
 
 
 class TestScaffold:
@@ -98,3 +100,49 @@ class TestScaffold:
         # Should still create the missing dirs
         assert (tmp_path / "docs" / "dev-process" / "decisions").is_dir()
         assert (tmp_path / "docs" / "dev-process" / "reference").is_dir()
+
+
+class TestVentureDeletionConfigMutation:
+    def test_delete_venture_refuses_when_config_not_writable(self, tmp_path, monkeypatch):
+        config = tmp_path / "realize-os.yaml"
+        config.write_text(
+            yaml.dump({"systems": [{"key": "ghost", "directory": "systems/ghost"}]}),
+            encoding="utf-8",
+        )
+        venture_dir = tmp_path / "systems" / "ghost"
+        venture_dir.mkdir(parents=True)
+
+        monkeypatch.setattr("realize_core.scaffold.is_config_writable", lambda path: False)
+
+        with pytest.raises(ConfigMutationError) as exc:
+            delete_venture(tmp_path, "ghost", confirm_name="ghost")
+
+        assert "not writable" in str(exc.value).lower()
+        assert venture_dir.exists(), "files must remain when config cannot be updated"
+
+    def test_delete_venture_removes_config_and_directory_when_writable(self, tmp_path):
+        config = tmp_path / "realize-os.yaml"
+        config.write_text(
+            yaml.dump({"systems": [{"key": "ghost", "directory": "systems/ghost"}]}),
+            encoding="utf-8",
+        )
+        venture_dir = tmp_path / "systems" / "ghost"
+        venture_dir.mkdir(parents=True)
+
+        assert delete_venture(tmp_path, "ghost", confirm_name="ghost") is True
+
+        assert not venture_dir.exists()
+        updated = yaml.safe_load(config.read_text(encoding="utf-8"))
+        assert updated["systems"] == []
+
+    def test_delete_venture_cleans_registry_when_directory_already_missing(self, tmp_path):
+        config = tmp_path / "realize-os.yaml"
+        config.write_text(
+            yaml.dump({"systems": [{"key": "ghost", "directory": "systems/ghost"}]}),
+            encoding="utf-8",
+        )
+
+        assert delete_venture(tmp_path, "ghost", confirm_name="ghost") is True
+
+        updated = yaml.safe_load(config.read_text(encoding="utf-8"))
+        assert updated["systems"] == []

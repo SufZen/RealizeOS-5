@@ -27,7 +27,10 @@ services:
       - realize-data:/app/data
       - realize-shared:/app/shared
       # Bind mounts for user-editable config
-      - ./realize-os.yaml:/app/realize-os.yaml:ro
+      # Writable config enables API-managed venture create/delete even with
+      # read_only: true below. Switch to :ro for locked config mode; mutation
+      # endpoints will return CONFIG_NOT_WRITABLE before touching files.
+      - ./realize-os.yaml:/app/realize-os.yaml:rw
       - ./systems:/app/systems
       - ./.credentials:/app/.credentials:ro
     env_file:
@@ -73,7 +76,7 @@ services:
   #   volumes:
   #     - realize-data:/app/data
   #     - realize-shared:/app/shared
-  #     - ./realize-os.yaml:/app/realize-os.yaml:ro
+  #     - ./realize-os.yaml:/app/realize-os.yaml:rw
   #     - ./systems:/app/systems
   #     - ./.credentials:/app/.credentials:ro
   #   env_file:

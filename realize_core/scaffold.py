@@ -6,11 +6,20 @@ giving users a guided development framework from day one.
 """
 
 import logging
+import os
 import re
 import shutil
+import tempfile
 from pathlib import Path
 
+from realize_core.config import get_config_path, is_config_writable
+
 logger = logging.getLogger(__name__)
+
+
+class ConfigMutationError(RuntimeError):
+    """Raised when RealizeOS cannot safely persist realize-os.yaml changes."""
+
 
 VENTURE_KEY_PATTERN = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$")
 WINDOWS_RESERVED_NAMES = {
@@ -226,6 +235,12 @@ def scaffold_venture(
     root = Path(project_root)
     validate_venture_key(key)
     name = name or key.replace("-", " ").replace("_", " ").title()
+    config_path = get_config_path(root)
+    if not is_config_writable(config_path):
+        raise ConfigMutationError(
+            f"Config file is not writable: {config_path}. "
+            "Mount realize-os.yaml as writable or set REALIZE_CONFIG to a writable config path."
+        )
     venture_dir = root / "systems" / key
     stats = {"created": False, "dirs_created": 0, "files_created": 0}
 
@@ -299,32 +314,46 @@ def delete_venture(project_root: str | Path, key: str, confirm_name: str = "") -
     """
     Delete a venture directory, clean up DB references, and remove from config.
 
+    Deletion may be re-run after a previous partial delete. In that case the
+    FABRIC directory can already be gone while the venture is still registered
+    in realize-os.yaml or in derived indexes. Treat the missing directory as an
+    idempotent cleanup path instead of raising and leaving a ghost venture.
+
     Args:
         project_root: Root directory of the project.
         key: Venture key to delete.
         confirm_name: Must match key to confirm deletion (safety check).
 
     Returns:
-        True if deleted successfully.
+        True if cleanup completed successfully.
     """
     if confirm_name != key:
         raise ValueError(f"Confirmation name '{confirm_name}' does not match key '{key}'")
 
     root = Path(project_root)
     venture_dir = root / "systems" / key
+    config_path = get_config_path(root)
+    if not is_config_writable(config_path):
+        raise ConfigMutationError(
+            f"Config file is not writable: {config_path}. "
+            "Mount realize-os.yaml as writable or set REALIZE_CONFIG to a writable config path."
+        )
 
-    if not venture_dir.exists():
-        raise FileNotFoundError(f"Venture directory not found: {venture_dir}")
-
-    # Clean up DB references (sessions, activity) before removing files
+    # Clean up DB references (sessions, activity) before removing files.
     _cleanup_venture_db_references(key)
 
-    # Remove directory
-    shutil.rmtree(venture_dir)
-    logger.info(f"Deleted venture directory: {venture_dir}")
-
-    # Remove from realize-os.yaml
+    # Remove from realize-os.yaml before deleting files. If config write fails,
+    # we prefer to leave the files in place rather than creating a ghost venture
+    # that remains registered but has no FABRIC directory.
     _remove_venture_from_config(root, key)
+
+    # Remove directory if present. Missing directories are expected when
+    # recovering from a partial delete and should not block registry cleanup.
+    if venture_dir.exists():
+        shutil.rmtree(venture_dir)
+        logger.info(f"Deleted venture directory: {venture_dir}")
+    else:
+        logger.info(f"Venture directory already absent during delete: {venture_dir}")
 
     return True
 
@@ -419,15 +448,44 @@ def _find_venture_template(template: str = "") -> Path | None:
     return None
 
 
+def _write_yaml_atomic(config_path: Path, config: dict):
+    """Persist YAML via same-directory temp file and atomic replace."""
+    import yaml
+
+    if not is_config_writable(config_path):
+        raise ConfigMutationError(f"Config file is not writable: {config_path}")
+
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    temp_name = ""
+    try:
+        with tempfile.NamedTemporaryFile(
+            "w",
+            encoding="utf-8",
+            dir=config_path.parent,
+            delete=False,
+            prefix=f".{config_path.name}.",
+            suffix=".tmp",
+        ) as tmp:
+            yaml.dump(config, tmp, default_flow_style=False, sort_keys=False, allow_unicode=True)
+            temp_name = tmp.name
+
+        os.replace(temp_name, config_path)
+    except OSError as exc:
+        if temp_name:
+            try:
+                Path(temp_name).unlink(missing_ok=True)
+            except OSError:
+                pass
+        raise ConfigMutationError(f"Failed to write config file {config_path}: {exc}") from exc
+
+
 def _add_venture_to_config(root: Path, key: str, name: str, description: str):
     """Add a venture entry to realize-os.yaml."""
     import yaml
 
-    config_path = root / "realize-os.yaml"
+    config_path = get_config_path(root)
     if not config_path.exists():
-        # Create a minimal config so the new venture is registered
-        import yaml
-
+        # Create a minimal config so the new venture is registered.
         config = {
             "name": "RealizeOS",
             "systems": [],
@@ -437,10 +495,7 @@ def _add_venture_to_config(root: Path, key: str, name: str, description: str):
                 "proactive_mode": True,
             },
         }
-        config_path.write_text(
-            yaml.dump(config, default_flow_style=False, sort_keys=False, allow_unicode=True),
-            encoding="utf-8",
-        )
+        _write_yaml_atomic(config_path, config)
         logger.info("Created minimal config at %s for new venture '%s'", config_path, key)
 
     with open(config_path, encoding="utf-8") as f:
@@ -475,8 +530,7 @@ def _add_venture_to_config(root: Path, key: str, name: str, description: str):
 
     systems.append(new_system)
 
-    with open(config_path, "w", encoding="utf-8") as f:
-        yaml.dump(config, f, default_flow_style=False, sort_keys=False, allow_unicode=True)
+    _write_yaml_atomic(config_path, config)
 
     logger.info(f"Added venture '{key}' to {config_path}")
 
@@ -485,7 +539,7 @@ def _remove_venture_from_config(root: Path, key: str):
     """Remove a venture entry from realize-os.yaml."""
     import yaml
 
-    config_path = root / "realize-os.yaml"
+    config_path = get_config_path(root)
     if not config_path.exists():
         return
 
@@ -495,8 +549,7 @@ def _remove_venture_from_config(root: Path, key: str):
     systems = config.get("systems", [])
     config["systems"] = [s for s in systems if s.get("key") != key]
 
-    with open(config_path, "w", encoding="utf-8") as f:
-        yaml.dump(config, f, default_flow_style=False, sort_keys=False, allow_unicode=True)
+    _write_yaml_atomic(config_path, config)
 
     logger.info(f"Removed venture '{key}' from {config_path}")
 

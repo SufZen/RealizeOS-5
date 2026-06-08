@@ -36,6 +36,28 @@ KB_PATH = Path(os.getenv("KB_PATH", ".")).resolve()
 DATA_PATH = Path(os.getenv("DATA_PATH", "./data")).resolve()
 
 
+def get_config_path(workspace_root: str | Path | None = None) -> Path:
+    """Resolve the active realize-os.yaml path.
+
+    REALIZE_CONFIG wins. Relative REALIZE_CONFIG paths are resolved against
+    workspace_root when provided, otherwise against the current working directory.
+    """
+    raw = os.getenv("REALIZE_CONFIG", "realize-os.yaml")
+    path = Path(raw)
+    if path.is_absolute():
+        return path
+    base = Path(workspace_root) if workspace_root is not None else Path.cwd()
+    return (base / path).resolve()
+
+
+def is_config_writable(config_path: str | Path) -> bool:
+    """Return whether config_path can be written/created by this process."""
+    path = Path(config_path)
+    if path.exists():
+        return os.access(path, os.W_OK)
+    return path.parent.exists() and os.access(path.parent, os.W_OK)
+
+
 def _interpolate_env(value: str) -> str:
     """Replace ${ENV_VAR} placeholders with environment variable values."""
 
@@ -58,7 +80,7 @@ def load_config(config_path: str | Path | None = None) -> dict:
     """
     import yaml
 
-    config_path = Path(config_path) if config_path is not None else Path(os.getenv("REALIZE_CONFIG", "realize-os.yaml"))
+    config_path = Path(config_path) if config_path is not None else get_config_path()
 
     if not config_path.exists():
         logger.warning(f"Config file not found: {config_path}. Using defaults.")
