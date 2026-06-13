@@ -14,12 +14,10 @@ from datetime import datetime
 from pathlib import Path
 
 import pytest
-
 from realize_core.dreaming.apply import apply_approved
 from realize_core.dreaming.inbox import DreamInbox
 from realize_core.dreaming.policy import DreamProposal, ProposalStatus, TrustPolicy
 from realize_core.fabric.crud import read_entity
-
 
 # ── Fixtures / helpers ───────────────────────────────────────────────────────
 
