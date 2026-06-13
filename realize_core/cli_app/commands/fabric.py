@@ -268,7 +268,7 @@ def apply(
     directory: str = typer.Option(".", "--directory", "-d", help="Project root"),
 ) -> None:
     """Apply approved Dream Inbox proposals to FABRIC (reversible git commits)."""
-    from realize_core.config import load_config
+    from realize_core.config import get_email_digest_config, get_features, load_config
     from realize_core.dreaming.apply import apply_approved
     from realize_core.dreaming.inbox import DreamInbox
     from realize_core.dreaming.policy import TrustPolicy
@@ -290,7 +290,14 @@ def apply(
     elif systems_dir.exists():
         venture_dirs = {d.name: d for d in systems_dir.iterdir() if d.is_dir()}
 
-    results = apply_approved(inbox, venture_dirs, dry_run=dry_run)
+    # Urgent alerts piggyback on the email_digest recipient: when the feature is
+    # enabled and a recipient is configured, blocked (forbidden-write) outcomes
+    # trigger an immediate alert. Dry-runs never alert.
+    urgent_recipient = ""
+    if not dry_run and get_features(config).get("email_digest"):
+        urgent_recipient = str(get_email_digest_config(config).get("recipient", ""))
+
+    results = apply_approved(inbox, venture_dirs, dry_run=dry_run, urgent_recipient=urgent_recipient)
 
     if not results:
         typer.echo("No approved proposals to apply.")

@@ -129,6 +129,12 @@ email_digest:
   timezone: "Europe/Lisbon"           # time zone for the schedule
 ```
 
+Immediate **urgent alerts** piggyback on the same `email_digest.recipient`:
+when the feature is enabled, `realize-os fabric apply` sends a one-off alert
+email the moment the apply-loop *blocks* an approved-but-hard-denied action (a
+forbidden write attempt). These blocked items never appear in the digest, so
+the alert is their only notification. Dry-runs never alert.
+
 The API server starts a dedicated scheduler at startup only when the flag is
 on. You can also send or preview the digest on demand from the CLI:
 

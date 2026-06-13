@@ -259,3 +259,58 @@ async def send_dream_digest(
             )
         )
     return True
+
+
+async def send_urgent_alert(
+    recipient: str,
+    subject: str,
+    body: str,
+    event_log: EventLog | None = None,
+) -> bool:
+    """
+    Send a single immediate "urgent" alert email via Gmail.
+
+    Unlike the digest, this fires the moment something genuinely alarming
+    happens (e.g. the apply-loop BLOCKS a hard-denied action that was somehow
+    marked approved). It is sent immediately, one email per call.
+
+    Returns ``False`` (and sends nothing) when ``recipient`` is empty. Gmail
+    failures are logged and result in a ``False`` return — this function never
+    raises, so it is safe to call from the apply-loop / scheduler.
+    """
+    from realize_core.fabric.event_types import dream_event
+
+    if not recipient:
+        logger.warning("Urgent alert: no recipient configured — skipping send")
+        return False
+
+    try:
+        # Lazy import — google libs are an optional dependency.
+        from realize_core.tools.google_workspace import gmail_send
+
+        await gmail_send(to=recipient, subject=subject, body=body)
+    except Exception as exc:  # caller (apply-loop) must never crash
+        logger.error("Urgent alert: failed to send email to %s: %s", recipient, exc, exc_info=True)
+        if event_log is not None:
+            event_log.append(
+                dream_event(
+                    action="urgent_alert_failed",
+                    actor="email-digest",
+                    recipient=recipient,
+                    subject=subject[:200],
+                    error=str(exc)[:200],
+                )
+            )
+        return False
+
+    logger.info("Urgent alert: sent to %s (subject=%r)", recipient, subject)
+    if event_log is not None:
+        event_log.append(
+            dream_event(
+                action="urgent_alert_sent",
+                actor="email-digest",
+                recipient=recipient,
+                subject=subject[:200],
+            )
+        )
+    return True

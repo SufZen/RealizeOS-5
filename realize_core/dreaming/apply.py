@@ -283,6 +283,7 @@ def apply_approved(
     venture_dirs: dict[str, Path],
     dry_run: bool = False,
     event_log: EventLog | None = None,
+    urgent_recipient: str = "",
 ) -> list[ApplyResult]:
     """
     Apply all approved proposals in ``inbox`` to FABRIC.
@@ -294,6 +295,12 @@ def apply_approved(
             and ZERO commits; supported writes report ``outcome="applied"`` with
             ``reason="dry-run"``.
         event_log: Optional event log for per-outcome audit events.
+        urgent_recipient: When non-empty (and NOT a dry-run), an immediate
+            urgent alert email is sent for every ``blocked`` outcome — a
+            hard-denied action that was nonetheless marked approved (a forbidden
+            write was attempted). Blocked items never appear in the morning
+            digest, so this is the only notification for them. When empty
+            (default), behavior is byte-for-byte unchanged.
 
     Returns:
         One :class:`ApplyResult` per approved proposal. Never raises — each
@@ -308,9 +315,63 @@ def apply_approved(
             logger.error("Apply failed for %s: %s", proposal.proposal_id, exc, exc_info=True)
             result = ApplyResult(proposal.proposal_id, "failed", reason=str(exc)[:200])
         _log(event_log, result, proposal)
+
+        # Immediate urgent alert for a forbidden write that was attempted. Guarded
+        # so alert failures can never affect the apply loop or raise. Dry-runs do
+        # not alert (no write was actually attempted).
+        if result.outcome == "blocked" and urgent_recipient and not dry_run:
+            _send_block_alert(urgent_recipient, result, proposal, event_log)
+
         results.append(result)
 
     return results
+
+
+def _send_block_alert(
+    urgent_recipient: str,
+    result: ApplyResult,
+    proposal: DreamProposal,
+    event_log: EventLog | None,
+) -> None:
+    """Send an immediate urgent alert for a blocked (hard-denied) proposal.
+
+    Fully guarded: any failure here is logged and swallowed so the apply loop
+    is never affected and never raises.
+    """
+    try:
+        import asyncio
+
+        # Lazy import to avoid a hard dependency / import cycle on the channels
+        # package (and its optional google libs) at module load time.
+        from realize_core.channels.email import send_urgent_alert
+
+        subject = f"[RealizeOS URGENT] Blocked forbidden write: {proposal.action or '?'}"
+        body = (
+            "The Dreaming apply-loop BLOCKED an approved proposal because it "
+            "attempted a hard-denied action (a forbidden write).\n\n"
+            f"  proposal: {proposal.proposal_id}\n"
+            f"  action:   {proposal.action or '?'}\n"
+            f"  venture:  {proposal.venture or '(no venture)'}\n"
+            f"  entity:   {proposal.entity_id or '(none)'}\n"
+            f"  reason:   {result.reason or '(no reason given)'}\n\n"
+            "No change was written. Review the Dream Inbox to investigate how an "
+            "approved proposal carried a hard-denied action."
+        )
+        asyncio.run(
+            send_urgent_alert(
+                recipient=urgent_recipient,
+                subject=subject,
+                body=body,
+                event_log=event_log,
+            )
+        )
+    except Exception as exc:  # alerting must never affect the apply loop
+        logger.error(
+            "Urgent alert dispatch failed for blocked proposal %s: %s",
+            proposal.proposal_id,
+            exc,
+            exc_info=True,
+        )
 
 
 def _apply_one(
