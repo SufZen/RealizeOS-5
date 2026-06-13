@@ -276,6 +276,41 @@ async def lifespan(app: FastAPI):
         app.state.runtime_registry = None
         logger.warning(f"Runtime Registry initialization skipped: {e}")
 
+    # v5.5.0 — Register runtime adapters into the registry.
+    # The InternalAdapter wraps the existing engine and is ALWAYS registered
+    # (zero behavior change by design). External runtimes (e.g. Hermes) are
+    # only registered when configured; an offline/failed adapter must never
+    # break startup (the registry marks failed adapters offline).
+    if app.state.runtime_registry is not None:
+        registry = app.state.runtime_registry
+
+        # Always register the internal runtime.
+        try:
+            from realize_core.runtimes.internal import InternalAdapter
+
+            await registry.register(InternalAdapter())
+            logger.info("Registered runtime 'internal'")
+        except Exception as e:
+            logger.warning(f"Internal runtime registration skipped: {e}")
+
+        # Register Hermes only when a base_url is configured.
+        try:
+            from realize_core.config import get_runtimes_config
+
+            hermes_cfg = get_runtimes_config(config).get("hermes", {})
+            if isinstance(hermes_cfg, dict) and hermes_cfg.get("base_url"):
+                from realize_core.runtimes.hermes import HermesAdapter
+
+                ok = await registry.register(HermesAdapter.from_config(hermes_cfg))
+                logger.info(
+                    "Registered runtime 'hermes' (%s)",
+                    "ready" if ok else "offline — configured but not reachable",
+                )
+        except Exception as e:
+            logger.warning(f"Hermes runtime registration skipped: {e}")
+
+        logger.info("Active runtimes: %s", registry.active_runtimes or "none")
+
     # v5.5.0 — Initialize Mission Engine and Dream Inbox
     try:
         from realize_core.dreaming.inbox import DreamInbox

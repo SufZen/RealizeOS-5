@@ -313,6 +313,28 @@ def get_email_digest_config(config: dict) -> dict:
     return {**defaults, **section}
 
 
+def get_runtimes_config(config: dict) -> dict:
+    """
+    Extract the ``runtimes`` configuration section.
+
+    Runtimes are governed agent peers registered into the Runtime Registry at
+    startup. The internal runtime is always registered; external runtimes are
+    only registered when explicitly configured here. Example block::
+
+        runtimes:
+          hermes:
+            base_url: "http://your-vps-host:8642/v1"  # OpenAI-compatible gateway
+            api_key: "${HERMES_API_KEY}"              # optional; env-ref supported
+            model: "hermes"                           # optional; defaults to "hermes"
+
+    Returns an empty dict when no ``runtimes`` section is present.
+    """
+    section = config.get("runtimes", {})
+    if not isinstance(section, dict):
+        return {}
+    return section
+
+
 def get_dreaming_config(config: dict) -> dict:
     """
     Extract the scheduled-Curator configuration, merged over sane defaults.

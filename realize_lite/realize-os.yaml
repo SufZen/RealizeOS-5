@@ -74,3 +74,13 @@ email_digest:
 dreaming:
   hour: 3                             # Wall-clock hour (0–23) the Curator runs daily
   timezone: "Europe/Lisbon"           # Time zone for the schedule
+
+# Runtime adapters — governed agent peers registered into the kernel at startup.
+# The internal runtime (the existing engine) is ALWAYS registered automatically.
+# External runtimes are inert unless configured here. Uncomment to add Hermes:
+#
+# runtimes:
+#   hermes:
+#     base_url: "http://your-vps-host:8642/v1"  # Hermes OpenAI-compatible gateway
+#     api_key: "${HERMES_API_KEY}"              # Optional; ${ENV_VAR} refs supported
+#     model: "hermes"                           # Optional; defaults to "hermes"
