@@ -72,9 +72,7 @@ class _HoldGate:
 
     def decide(self, action_name, params=None):
         self.calls.append(action_name)
-        return GateDecision(
-            GateOutcome.NEEDS_APPROVAL, action_name, request_id="req-123", reason="needs approval"
-        )
+        return GateDecision(GateOutcome.NEEDS_APPROVAL, action_name, request_id="req-123", reason="needs approval")
 
 
 class _RaiseGate:
