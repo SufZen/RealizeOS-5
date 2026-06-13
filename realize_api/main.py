@@ -298,11 +298,65 @@ async def lifespan(app: FastAPI):
         app.state.dream_inbox = None
         logger.warning(f"Mission/Dream initialization skipped: {e}")
 
+    # Email Dream Inbox digest — default-OFF behind features.email_digest.
+    # Only starts a scheduler when explicitly enabled, so existing
+    # deployments are completely unaffected.
+    app.state.digest_scheduler = None
+    try:
+        from realize_core.config import get_email_digest_config, get_features
+
+        if get_features(config).get("email_digest") and app.state.dream_inbox is not None:
+            digest_cfg = get_email_digest_config(config)
+            recipient = str(digest_cfg.get("recipient", "")).strip()
+            if not recipient:
+                logger.warning("Email digest enabled but no recipient configured — staying inert")
+            else:
+                from realize_core.channels.email import send_dream_digest
+                from realize_core.channels.scheduler import CronScheduler, ScheduledJob, parse_interval
+
+                inbox = app.state.dream_inbox
+                base_url = str(digest_cfg.get("base_url", ""))
+                event_log = getattr(app.state, "event_log", None)
+
+                async def _run_digest(**_kwargs):
+                    # Scheduler passes (user_id, text, system_key, channel); the
+                    # digest ignores them and reads the inbox directly.
+                    await send_dream_digest(
+                        inbox,
+                        recipient=recipient,
+                        base_url=base_url,
+                        event_log=event_log,
+                    )
+
+                digest_scheduler = CronScheduler()
+                digest_scheduler.set_handler(_run_digest)
+                digest_scheduler.add_job(
+                    ScheduledJob(
+                        name="email_dream_digest",
+                        system_key="",
+                        message="email dream inbox digest",
+                        interval_seconds=parse_interval(str(digest_cfg.get("schedule", "daily"))),
+                        user_id="email-digest",
+                        metadata={"channel": "email", "workdays_only": digest_cfg.get("workdays_only", True)},
+                    )
+                )
+                await digest_scheduler.start()
+                app.state.digest_scheduler = digest_scheduler
+                logger.info("Email Dream Inbox digest scheduler started (recipient=%s)", recipient)
+    except Exception as e:
+        logger.warning(f"Email digest scheduler skipped: {e}")
+
     logger.info(f"RealizeOS API ready — {num_systems} system(s) loaded")
     yield
 
     # Shutdown
     logger.info("RealizeOS API shutting down...")
+    try:
+        digest_scheduler = getattr(app.state, "digest_scheduler", None)
+        if digest_scheduler is not None:
+            await digest_scheduler.stop()
+    except Exception as exc:
+        logger.debug("Digest scheduler stop failed: %s", exc)
     try:
         from realize_core.scheduler.heartbeat import stop_scheduler
 

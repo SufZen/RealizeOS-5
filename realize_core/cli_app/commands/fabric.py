@@ -258,3 +258,56 @@ def dream(
             p = inbox.get(pid)
             if p and p.status.value == "pending":
                 typer.echo(f"  [{p.action}] {p.title}")
+
+
+@fabric_app.command()
+def digest(
+    recipient: str = typer.Option("", "--recipient", "-r", help="Override the digest recipient"),
+    base_url: str = typer.Option("", "--base-url", help="Public base URL for approve/reject links"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Print the digest instead of emailing it"),
+    directory: str = typer.Option(".", "--directory", "-d", help="Project root"),
+) -> None:
+    """Send (or preview) the Dream Inbox email digest on demand."""
+    import asyncio
+
+    from realize_core.channels.email import build_dream_digest, send_dream_digest
+    from realize_core.config import get_email_digest_config, load_config
+    from realize_core.dreaming.inbox import DreamInbox
+    from realize_core.dreaming.policy import TrustPolicy
+
+    config = load_config()
+    kb_path = Path(config.get("kb_path", directory))
+    digest_cfg = get_email_digest_config(config)
+
+    resolved_recipient = recipient or str(digest_cfg.get("recipient", ""))
+    resolved_base_url = base_url or str(digest_cfg.get("base_url", ""))
+
+    policy = TrustPolicy.load(kb_path / "shared" / "trust-policy.yaml")
+    inbox = DreamInbox(
+        inbox_path=kb_path / ".synapse" / "dream-inbox.jsonl",
+        policy=policy,
+    )
+
+    if dry_run:
+        text = build_dream_digest(inbox.pending(), base_url=resolved_base_url)
+        if text is None:
+            typer.echo("No pending proposals — digest would be suppressed (no email).")
+            return
+        typer.echo(text)
+        return
+
+    if not resolved_recipient:
+        typer.echo("No recipient configured. Set email_digest.recipient or pass --recipient.")
+        raise typer.Exit(1)
+
+    sent = asyncio.run(
+        send_dream_digest(
+            inbox,
+            recipient=resolved_recipient,
+            base_url=resolved_base_url,
+        )
+    )
+    if sent:
+        typer.echo(f"Digest emailed to {resolved_recipient}.")
+    else:
+        typer.echo("No email sent (nothing pending, or send failed — check logs).")

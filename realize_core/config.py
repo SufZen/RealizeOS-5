@@ -283,10 +283,32 @@ def get_features(config: dict) -> dict:
         "auto_memory": True,
         "proactive_mode": True,
         "cross_system": False,
+        "email_digest": False,
     }
     features = config.get("features", {})
     merged = {**defaults, **features}
     return merged
+
+
+def get_email_digest_config(config: dict) -> dict:
+    """
+    Extract the email digest configuration, merged over sane defaults.
+
+    The digest is only active when ``features.email_digest`` is true; this
+    helper just resolves the settings (recipient, schedule, etc.) and is safe
+    to call regardless of the flag.
+    """
+    defaults = {
+        "recipient": "info@realization.co.il",
+        "base_url": "",
+        "schedule": "daily",
+        "workdays_only": True,
+        "timezone": "Europe/Lisbon",
+    }
+    section = config.get("email_digest", {})
+    if not isinstance(section, dict):
+        section = {}
+    return {**defaults, **section}
 
 
 def _discover_agents(agents_dir: Path) -> dict:

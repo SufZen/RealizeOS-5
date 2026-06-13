@@ -56,3 +56,14 @@ features:
   auto_memory: true         # Automatically log learnings to I-insights/
   proactive_mode: true      # AI suggests next steps and asks clarifying questions
   cross_system: false       # Enable cross-system context (for multi-system setups)
+  email_digest: false       # Email a daily Dream Inbox digest (see email_digest block)
+
+# Email Dream Inbox digest — push-only outbound channel.
+# Disabled by default; set features.email_digest: true to enable.
+# Requires Google Workspace credentials (the `gws` extra + OAuth setup).
+email_digest:
+  recipient: info@realization.co.il   # Where the digest is emailed
+  base_url: ""                        # Public base URL for approve/reject links, e.g. https://app.example.com
+  schedule: daily                     # Scheduler interval (daily, weekly, 12h, ...)
+  workdays_only: true                 # Only run Mon–Fri
+  timezone: "Europe/Lisbon"           # Time zone for the schedule

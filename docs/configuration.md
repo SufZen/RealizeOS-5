@@ -94,8 +94,46 @@ To add a new agent, create a `.md` file in `A-agents/` and add routing keywords 
 | `auto_memory` | `true` | Log learnings after meaningful interactions |
 | `proactive_mode` | `true` | Enable proactive suggestions in prompts |
 | `cross_system` | `false` | Share context across all configured systems |
+| `email_digest` | `false` | Email a daily Dream Inbox digest (see below) |
 
 Custom flags are passed through without error — the engine ignores unknown flags.
+
+### Email Dream Inbox Digest
+
+When `features.email_digest` is `true`, RealizeOS emails a deterministic,
+grouped-by-venture digest of the **pending** Dream Inbox proposals so you can
+supervise the Dreaming subsystem by exception without opening the dashboard.
+It is **disabled by default**, so existing deployments are unaffected.
+
+Each item shows its cycle type, action, title, confidence and creation date,
+plus per-proposal approve/reject links targeting
+`/api/dreams/{proposal_id}/approve|reject`. Low-confidence (`<0.6`) or
+high-impact items are surfaced in a "NEEDS YOUR ATTENTION" section at the top.
+If nothing is pending, **no email is sent** (the run is still recorded in the
+event log). Gmail send failures are logged and never crash the scheduler.
+
+It requires Google Workspace credentials (the `gws` extra + OAuth setup). When
+enabled without a recipient it warns and stays inert.
+
+```yaml
+features:
+  email_digest: true          # turn the digest on
+
+email_digest:
+  recipient: info@realization.co.il   # where the digest is emailed
+  base_url: ""                        # public base URL for links, e.g. https://app.example.com
+  schedule: daily                     # scheduler interval (daily, weekly, 12h, ...)
+  workdays_only: true                 # only run Mon–Fri
+  timezone: "Europe/Lisbon"           # time zone for the schedule
+```
+
+The API server starts a dedicated scheduler at startup only when the flag is
+on. You can also send or preview the digest on demand from the CLI:
+
+```bash
+realize-os fabric digest --dry-run     # print the digest, send nothing
+realize-os fabric digest               # email it to the configured recipient
+```
 
 ### LLM Routing
 
