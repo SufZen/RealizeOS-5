@@ -59,6 +59,8 @@ features:
   email_digest: false       # Email a daily Dream Inbox digest (see email_digest block)
   dreaming_curator: false   # Run the Curator on a schedule, per venture (see dreaming block)
   dreaming_reflex: false    # Run Reflex enrichment over recently-changed entities (see dreaming block)
+  enforce_gates: false      # Enforce the trust ladder at tool dispatch (see trust block). OFF = unchanged behavior.
+  enforce_guardrails: false # Reserved; guardrail post-response enforcement is deferred (no-op).
 
 # Email Dream Inbox digest — push-only outbound channel.
 # Disabled by default; set features.email_digest: true to enable.

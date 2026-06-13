@@ -97,8 +97,30 @@ To add a new agent, create a `.md` file in `A-agents/` and add routing keywords 
 | `email_digest` | `false` | Email a daily Dream Inbox digest (see below) |
 | `dreaming_curator` | `false` | Run the Curator per venture on a daily schedule |
 | `dreaming_reflex` | `false` | Run Reflex enrichment over recently-changed entities |
+| `enforce_gates` | `false` | Enforce the trust ladder at the tool-dispatch chokepoint (see below) |
+| `enforce_guardrails` | `false` | Reserved placeholder; guardrail post-response enforcement is deferred (no-op) |
 
 Custom flags are passed through without error — the engine ignores unknown flags.
+
+### Governance Enforcement (`enforce_gates`)
+
+By default RealizeOS does **not** intercept tool execution: the trust ladder
+under `trust:` is advisory only. Setting `features.enforce_gates: true` installs
+a governance gate at the single tool-dispatch chokepoint
+(`ToolRegistry.execute`). Before each tool action runs, the gate consults
+`realize_core.governance.trust_ladder.check_trust` for the current trust level:
+
+- **AUTO** → the action runs as normal.
+- **APPROVE** → the action is held; an approval request is created (visible at
+  `GET /api/approvals`) and the tool returns a "requires operator approval"
+  result instead of executing.
+- **BLOCK** → the action is refused.
+
+The gate **fails open**: any internal gate error logs and allows the action, so
+a gate bug can never brick tool execution. When `enforce_gates` is `false`
+(the default) the gate is never installed and tool dispatch is byte-for-byte
+unchanged. Tune per-action behavior with the `trust:` block (level + action
+rules) documented above.
 
 ### Email Dream Inbox Digest
 

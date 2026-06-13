@@ -33,6 +33,19 @@ class ToolRegistry:
     def __init__(self):
         self._tools: dict[str, BaseTool] = {}
         self._action_map: dict[str, BaseTool] = {}  # action_name → tool
+        # Optional governance gate. When None (default), execute() behaves
+        # byte-for-byte as before. Injected at startup only when the
+        # ``features.enforce_gates`` flag is on.
+        self._gate: Any = None
+
+    def set_gate(self, gate: Any) -> None:
+        """
+        Install (or clear) the governance gate consulted before tool dispatch.
+
+        Pass ``None`` to disable. When no gate is set, ``execute()`` runs tools
+        exactly as it did before any gating existed.
+        """
+        self._gate = gate
 
     def register(self, tool: BaseTool) -> bool:
         """
@@ -91,6 +104,32 @@ class ToolRegistry:
 
         if not tool.is_available():
             return ToolResult.fail(f"Tool '{tool.name}' is not available (missing API key or dependency)")
+
+        # Governance gate (only when injected; default path is unchanged).
+        if self._gate is not None:
+            try:
+                decision = self._gate.decide(action_name, params)
+            except Exception as gate_exc:  # a raising gate must fail OPEN, never block tools
+                logger.error(
+                    "Tool gate raised for '%s' — failing open (allow): %s",
+                    action_name,
+                    gate_exc,
+                    exc_info=True,
+                )
+                decision = None
+            if decision is not None and not decision.allowed:
+                outcome = getattr(decision, "outcome", None)
+                request_id = getattr(decision, "request_id", None)
+                if outcome is not None and getattr(outcome, "value", "") == "block" and not request_id:
+                    return ToolResult.fail(
+                        f"Action '{action_name}' is blocked by governance policy",
+                        requires_human=True,
+                    )
+                return ToolResult.ok(
+                    output=f"⏳ Action '{action_name}' requires operator approval (request {request_id})",
+                    requires_human=True,
+                    request_id=request_id,
+                )
 
         try:
             return await tool.execute(action_name, params)

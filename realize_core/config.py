@@ -286,6 +286,13 @@ def get_features(config: dict) -> dict:
         "email_digest": False,
         "dreaming_curator": False,
         "dreaming_reflex": False,
+        # Governance enforcement (RISKIEST surface — default OFF).
+        # enforce_gates: install the trust-ladder tool gate at the tool-dispatch
+        #   chokepoint. When false, tool execution is byte-for-byte unchanged.
+        # enforce_guardrails: reserved placeholder; guardrail post-response
+        #   wiring is currently deferred (no-op when set).
+        "enforce_gates": False,
+        "enforce_guardrails": False,
     }
     features = config.get("features", {})
     merged = {**defaults, **features}
