@@ -135,6 +135,42 @@ realize-os fabric digest --dry-run     # print the digest, send nothing
 realize-os fabric digest               # email it to the configured recipient
 ```
 
+### Dreaming Trust Policy (per-venture)
+
+The Trust Policy controls what autonomous **Dreaming** cycles may do to your
+knowledge base. Each action maps to one of three levels:
+
+| Level | Behavior |
+|-------|----------|
+| `full-auto` | Applied without approval (e.g. adding a tag) |
+| `propose` | Queued in the Dream Inbox for human review |
+| `deny` | Never allowed |
+
+Policies are resolved **per venture** with later layers merging over earlier
+ones, so each file only needs to specify what differs:
+
+1. Built-in defaults (safe: most actions `propose`, dangerous ones `deny`).
+2. Global `shared/trust-policy.yaml`.
+3. Venture override `systems/<venture_key>/trust-policy.yaml`.
+
+A venture file may be **partial** — only the actions it lists are overridden,
+the rest are inherited. This lets one venture be stricter than another (e.g.
+Arena can `deny` an action that is `propose` globally) without duplicating the
+whole policy. Missing files are skipped silently, falling back to the global
+policy and then the built-in defaults.
+
+```yaml
+# systems/<venture_key>/trust-policy.yaml — merges over the global policy
+trust_policy:
+  add_tag: propose        # stricter than the global/default full-auto
+  update_summary: full-auto
+  suggest_decision: deny
+```
+
+The same `trust_policy:` map format is used for the global
+`shared/trust-policy.yaml`. A bare action→level map (without the
+`trust_policy:` key) is also accepted for backward compatibility.
+
 ### LLM Routing
 
 Maps task complexity to models. The defaults use Claude and Gemini, but any provider can be substituted:

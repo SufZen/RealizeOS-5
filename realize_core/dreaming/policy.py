@@ -182,6 +182,27 @@ class TrustPolicy:
                     logger.warning(f"Unknown trust level '{level}' for action '{action}'")
 
     @classmethod
+    def _read_overrides(cls, path: Path) -> dict[str, str]:
+        """Read the action->level override map from a YAML file.
+
+        Returns an empty dict when the file is missing, unreadable, or does not
+        contain a mapping. Accepts either a top-level ``trust_policy:`` map or a
+        bare action->level map (matching :meth:`load`).
+        """
+        if not path.exists():
+            return {}
+        try:
+            data = yaml.safe_load(path.read_text(encoding="utf-8"))
+        except (yaml.YAMLError, OSError) as e:
+            logger.warning(f"Failed to load trust policy: {e}")
+            return {}
+        if isinstance(data, dict):
+            overrides = data.get("trust_policy", data)
+            if isinstance(overrides, dict):
+                return overrides
+        return {}
+
+    @classmethod
     def load(cls, path: Path) -> TrustPolicy:
         """Load policy from a YAML file."""
         if not path.exists():
@@ -195,6 +216,28 @@ class TrustPolicy:
             logger.warning(f"Failed to load trust policy: {e}")
 
         return cls()
+
+    @classmethod
+    def load_for_venture(cls, kb_path: Path, venture_key: str) -> TrustPolicy:
+        """Load the effective Trust Policy for a single venture.
+
+        Resolution order (later layers MERGE over earlier ones, so each layer
+        only needs to specify what differs):
+
+        1. Built-in defaults (``_DEFAULT_POLICY``).
+        2. Global ``shared/trust-policy.yaml`` (if present).
+        3. Venture override ``systems/<venture_key>/trust-policy.yaml`` (if present).
+
+        A venture file may contain a *partial* ``trust_policy:`` map; only the
+        actions it lists are overridden, the rest are inherited from the global
+        policy / built-in defaults. Never raises: any read/parse failure for a
+        layer is logged and that layer is skipped.
+        """
+        kb_path = Path(kb_path)
+        merged: dict[str, str] = {}
+        merged.update(cls._read_overrides(kb_path / "shared" / "trust-policy.yaml"))
+        merged.update(cls._read_overrides(kb_path / "systems" / venture_key / "trust-policy.yaml"))
+        return cls(overrides=merged)
 
     def check(self, action: str) -> TrustLevel:
         """Check the trust level for a given action."""

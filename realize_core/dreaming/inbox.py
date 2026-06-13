@@ -67,19 +67,25 @@ class DreamInbox:
             encoding="utf-8",
         )
 
-    def submit(self, proposal: DreamProposal) -> str:
+    def submit(self, proposal: DreamProposal, policy: TrustPolicy | None = None) -> str:
         """
         Submit a proposal to the inbox.
 
         If the Trust Policy says full-auto, the proposal is auto-approved.
         If denied, it's immediately rejected.
         Otherwise, it goes to pending.
+
+        ``policy`` optionally overrides the inbox's default policy for gating
+        THIS proposal only (e.g. a per-venture policy). When ``None`` (the
+        default), the inbox's own ``self._policy`` is used — identical to the
+        previous behavior.
         """
-        if self._policy.is_denied(proposal.action):
+        policy = policy or self._policy
+        if policy.is_denied(proposal.action):
             proposal.status = ProposalStatus.REJECTED
             proposal.rejection_reason = "Denied by trust policy"
             logger.info(f"Proposal {proposal.proposal_id} denied by policy: {proposal.action}")
-        elif self._policy.is_auto(proposal.action):
+        elif policy.is_auto(proposal.action):
             proposal.status = ProposalStatus.APPROVED
             proposal.reviewed_by = "trust-policy-auto"
             proposal.reviewed_at = datetime.now()
@@ -105,9 +111,14 @@ class DreamInbox:
 
         return proposal.proposal_id
 
-    def submit_batch(self, proposals: list[DreamProposal]) -> list[str]:
-        """Submit multiple proposals."""
-        return [self.submit(p) for p in proposals]
+    def submit_batch(self, proposals: list[DreamProposal], policy: TrustPolicy | None = None) -> list[str]:
+        """Submit multiple proposals.
+
+        ``policy`` is forwarded to :meth:`submit` to gate every proposal in the
+        batch (e.g. a per-venture policy). When ``None``, the inbox default is
+        used — unchanged behavior.
+        """
+        return [self.submit(p, policy=policy) for p in proposals]
 
     def approve(self, proposal_id: str, reviewed_by: str = "user") -> bool:
         """Approve a pending proposal."""

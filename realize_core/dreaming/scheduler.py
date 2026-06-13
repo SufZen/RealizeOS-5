@@ -146,16 +146,36 @@ def build_dream_scheduler(
         dreaming_cfg = get_dreaming_config(config)
         callback = curator_callback
         if callback is None:
-            policy = getattr(dream_inbox, "_policy", None)
+            default_policy = getattr(dream_inbox, "_policy", None)
             venture_keys = list(systems.keys())
 
             async def _run_curator() -> None:
+                from pathlib import Path
+
+                from realize_core.config import KB_PATH
                 from realize_core.dreaming.curator import CuratorCycle
+                from realize_core.dreaming.policy import TrustPolicy
+
+                kb_path = Path(KB_PATH)
 
                 for venture_key in venture_keys:
                     try:
-                        proposals = CuratorCycle(synapse=synapse, policy=policy).run(venture=venture_key)
-                        dream_inbox.submit_batch(proposals)
+                        # Each venture gets its OWN effective Trust Policy:
+                        # systems/<venture>/trust-policy.yaml merged over
+                        # shared/trust-policy.yaml merged over built-in defaults.
+                        # Fall back to the inbox's default policy on any failure.
+                        try:
+                            venture_policy = TrustPolicy.load_for_venture(kb_path, venture_key)
+                        except Exception as policy_exc:
+                            logger.warning(
+                                "Per-venture policy load failed for '%s' (using default): %s",
+                                venture_key,
+                                policy_exc,
+                            )
+                            venture_policy = default_policy
+
+                        proposals = CuratorCycle(synapse=synapse, policy=venture_policy).run(venture=venture_key)
+                        dream_inbox.submit_batch(proposals, policy=venture_policy)
                     except Exception as exc:  # never crash the scheduler
                         logger.warning("Scheduled Curator failed for venture '%s': %s", venture_key, exc)
 

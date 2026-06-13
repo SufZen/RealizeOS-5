@@ -1,0 +1,43 @@
+# Dreaming Trust Policy — example
+#
+# Controls what autonomous Dreaming cycles may do to the knowledge base.
+# Copy to `shared/trust-policy.yaml` for the GLOBAL policy, or to
+# `systems/<venture_key>/trust-policy.yaml` for a PER-VENTURE override.
+#
+# Resolution order (later layers MERGE over earlier, so each file may be partial):
+#   1. Built-in defaults
+#   2. shared/trust-policy.yaml              (global)
+#   3. systems/<venture_key>/trust-policy.yaml  (venture override)
+#
+# A venture file only needs to list the actions that DIFFER from the global /
+# default policy; everything else is inherited. This lets one venture be
+# stricter than another (e.g. Arena stricter than Burtucala).
+#
+# Levels:
+#   full-auto  applied without approval
+#   propose    queued in the Dream Inbox for human review
+#   deny       never allowed
+
+trust_policy:
+  # Reflex cycle — low-risk enrichment
+  add_tag: full-auto
+  add_ref: full-auto
+  update_summary: propose
+  annotate_entity: propose
+
+  # Curator cycle — maintenance
+  flag_stale_commitment: full-auto
+  flag_orphan: full-auto
+  update_trust_score: propose
+  suggest_archive: propose
+
+  # Synthesis cycle — creative
+  create_insight: propose
+  create_hypothesis: propose
+  merge_entities: propose
+  suggest_decision: propose
+
+  # Dangerous — never auto
+  delete_entity: deny
+  modify_decision: deny
+  send_message: deny
