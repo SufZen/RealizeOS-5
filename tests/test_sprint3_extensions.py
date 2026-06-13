@@ -412,35 +412,47 @@ class TestCronExtension:
     def test_on_load_and_unload(self):
         from realize_core.extensions.cron import CronExtension
 
-        ext = CronExtension()
-        asyncio.run(ext.on_load())
-        assert ext._loaded
-        assert ext.is_running  # NoOp scheduler starts
-        asyncio.run(ext.on_unload())
-        assert not ext._loaded
+        async def _body():
+            ext = CronExtension()
+            await ext.on_load()
+            assert ext._loaded
+            assert ext.is_running  # scheduler starts
+            await ext.on_unload()
+            assert not ext._loaded
+
+        # Whole lifecycle in ONE event loop: a real AsyncIOScheduler binds to the
+        # running loop, so on_load/add_job/on_unload must share it (separate
+        # asyncio.run() calls would close the loop the scheduler depends on).
+        asyncio.run(_body())
 
     def test_add_job(self):
         from realize_core.extensions.cron import CronExtension
 
-        ext = CronExtension()
-        asyncio.run(ext.on_load())
-        result = ext.add_job("test-job", func=lambda: None, trigger="interval", seconds=60)
-        assert result
-        assert ext.job_count == 1
-        jobs = ext.list_jobs()
-        assert len(jobs) == 1
-        assert jobs[0]["id"] == "test-job"
-        asyncio.run(ext.on_unload())
+        async def _body():
+            ext = CronExtension()
+            await ext.on_load()
+            result = ext.add_job("test-job", func=lambda: None, trigger="interval", seconds=60)
+            assert result
+            assert ext.job_count == 1
+            jobs = ext.list_jobs()
+            assert len(jobs) == 1
+            assert jobs[0]["id"] == "test-job"
+            await ext.on_unload()
+
+        asyncio.run(_body())
 
     def test_remove_job(self):
         from realize_core.extensions.cron import CronExtension
 
-        ext = CronExtension()
-        asyncio.run(ext.on_load())
-        ext.add_job("rm-job", func=lambda: None)
-        assert ext.remove_job("rm-job")
-        assert ext.job_count == 0
-        asyncio.run(ext.on_unload())
+        async def _body():
+            ext = CronExtension()
+            await ext.on_load()
+            ext.add_job("rm-job", func=lambda: None)
+            assert ext.remove_job("rm-job")
+            assert ext.job_count == 0
+            await ext.on_unload()
+
+        asyncio.run(_body())
 
     def test_add_job_before_load(self):
         from realize_core.extensions.cron import CronExtension
