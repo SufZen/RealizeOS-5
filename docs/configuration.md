@@ -95,6 +95,8 @@ To add a new agent, create a `.md` file in `A-agents/` and add routing keywords 
 | `proactive_mode` | `true` | Enable proactive suggestions in prompts |
 | `cross_system` | `false` | Share context across all configured systems |
 | `email_digest` | `false` | Email a daily Dream Inbox digest (see below) |
+| `dreaming_curator` | `false` | Run the Curator per venture on a daily schedule |
+| `dreaming_reflex` | `false` | Run Reflex enrichment over recently-changed entities |
 
 Custom flags are passed through without error — the engine ignores unknown flags.
 
@@ -133,6 +135,37 @@ on. You can also send or preview the digest on demand from the CLI:
 ```bash
 realize-os fabric digest --dry-run     # print the digest, send nothing
 realize-os fabric digest               # email it to the configured recipient
+```
+
+### Scheduled Dreaming (Curator & Reflex)
+
+Two background Dreaming jobs can run on a schedule. Both are **disabled by
+default** and gated behind feature flags, so existing deployments are
+unaffected. Each runs **per venture** under that venture's effective Trust
+Policy, and every proposal lands in the Dream Inbox for review.
+
+- **Curator** (`features.dreaming_curator`) runs once daily at `dreaming.hour`
+  in `dreaming.timezone`, generating FABRIC-hygiene proposals.
+- **Reflex** (`features.dreaming_reflex`) runs every
+  `dreaming.reflex_interval_minutes` (default `60`). On each pass it finds
+  entities modified since the previous run (lookback = one interval plus a
+  small buffer), caps the batch at 200 entities per venture per run, and emits
+  low-risk enrichment proposals (tags, references, missing-field annotations).
+
+Reflex is a **scheduled** pass rather than a live-pipeline hook: it reuses the
+Dream scheduler so recently-changed entities get enrichment with zero risk to
+the message-handling path. Each venture and the overall pass are fully guarded —
+a failure for one venture is logged and never crashes the scheduler.
+
+```yaml
+features:
+  dreaming_curator: true     # turn the scheduled Curator on
+  dreaming_reflex: true      # turn scheduled Reflex on
+
+dreaming:
+  hour: 3                          # wall-clock hour the Curator runs daily
+  timezone: "Europe/Lisbon"        # time zone for the Curator schedule
+  reflex_interval_minutes: 60      # how often Reflex enriches changed entities
 ```
 
 ### Dreaming Trust Policy (per-venture)

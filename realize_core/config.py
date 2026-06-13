@@ -285,6 +285,7 @@ def get_features(config: dict) -> dict:
         "cross_system": False,
         "email_digest": False,
         "dreaming_curator": False,
+        "dreaming_reflex": False,
     }
     features = config.get("features", {})
     merged = {**defaults, **features}
@@ -347,6 +348,7 @@ def get_dreaming_config(config: dict) -> dict:
         "schedule": "daily",
         "hour": 3,
         "timezone": "Europe/Lisbon",
+        "reflex_interval_minutes": 60,
     }
     section = config.get("dreaming", {})
     if not isinstance(section, dict):
