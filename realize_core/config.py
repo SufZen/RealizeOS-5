@@ -284,6 +284,7 @@ def get_features(config: dict) -> dict:
         "proactive_mode": True,
         "cross_system": False,
         "email_digest": False,
+        "dreaming_curator": False,
     }
     features = config.get("features", {})
     merged = {**defaults, **features}
@@ -306,6 +307,23 @@ def get_email_digest_config(config: dict) -> dict:
         "timezone": "Europe/Lisbon",
     }
     section = config.get("email_digest", {})
+    if not isinstance(section, dict):
+        section = {}
+    return {**defaults, **section}
+
+
+def get_dreaming_config(config: dict) -> dict:
+    """
+    Extract the scheduled-Curator configuration, merged over sane defaults.
+
+    The scheduled Curator is only active when ``features.dreaming_curator`` is
+    true; this helper just resolves the settings (schedule, etc.) and is safe to
+    call regardless of the flag.
+    """
+    defaults = {
+        "schedule": "daily",
+    }
+    section = config.get("dreaming", {})
     if not isinstance(section, dict):
         section = {}
     return {**defaults, **section}

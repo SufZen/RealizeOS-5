@@ -98,6 +98,10 @@ class DreamProposal:
     reviewed_by: str = ""
     rejection_reason: str = ""
 
+    # Apply provenance (set by the apply-loop once written to FABRIC)
+    applied_commit: str = ""
+    applied_at: datetime | None = None
+
     def __post_init__(self):
         if not self.proposal_id:
             import uuid
@@ -123,6 +127,8 @@ class DreamProposal:
             "reviewed_at": self.reviewed_at.isoformat() if self.reviewed_at else None,
             "reviewed_by": self.reviewed_by,
             "rejection_reason": self.rejection_reason,
+            "applied_commit": self.applied_commit,
+            "applied_at": self.applied_at.isoformat() if self.applied_at else None,
         }
 
     @classmethod
@@ -153,6 +159,8 @@ class DreamProposal:
             reviewed_at=parse_datetime(data.get("reviewed_at")),
             reviewed_by=data.get("reviewed_by", ""),
             rejection_reason=data.get("rejection_reason", ""),
+            applied_commit=data.get("applied_commit", ""),
+            applied_at=parse_datetime(data.get("applied_at")),
         )
 
 

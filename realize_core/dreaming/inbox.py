@@ -143,6 +143,28 @@ class DreamInbox:
         logger.info(f"Proposal {proposal_id} rejected: {reason}")
         return True
 
+    def mark_applied(self, proposal_id: str, commit_sha: str = "") -> bool:
+        """
+        Mark a proposal as applied to FABRIC.
+
+        Sets ``status = APPLIED``, records the git commit SHA and the apply
+        timestamp, then persists. Returns ``False`` if the proposal is unknown.
+
+        This is the public, persistence-safe entry point for the apply-loop —
+        callers MUST NOT mutate proposal status and call ``_save()`` directly.
+        """
+        proposal = self._proposals.get(proposal_id)
+        if proposal is None:
+            return False
+
+        proposal.status = ProposalStatus.APPLIED
+        proposal.applied_commit = commit_sha
+        proposal.applied_at = datetime.now()
+        self._save()
+
+        logger.info(f"Proposal {proposal_id} marked applied (commit={commit_sha or 'none'})")
+        return True
+
     def get(self, proposal_id: str) -> DreamProposal | None:
         """Get a proposal by ID."""
         return self._proposals.get(proposal_id)

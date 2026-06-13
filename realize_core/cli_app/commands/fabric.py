@@ -8,6 +8,7 @@ Commands:
     realize-os fabric search QUERY            Search entities
     realize-os fabric toc [--venture KEY]     Show Table of Contents
     realize-os fabric dream [--venture KEY]   Run Dreaming maintenance cycle
+    realize-os fabric apply [--dry-run]       Apply approved proposals to FABRIC
 """
 
 from __future__ import annotations
@@ -258,6 +259,55 @@ def dream(
             p = inbox.get(pid)
             if p and p.status.value == "pending":
                 typer.echo(f"  [{p.action}] {p.title}")
+
+
+@fabric_app.command()
+def apply(
+    dry_run: bool = typer.Option(False, "--dry-run", help="Compute writes but make zero changes"),
+    venture: str = typer.Option("", "--venture", "-v", help="Only apply proposals for this venture"),
+    directory: str = typer.Option(".", "--directory", "-d", help="Project root"),
+) -> None:
+    """Apply approved Dream Inbox proposals to FABRIC (reversible git commits)."""
+    from realize_core.config import load_config
+    from realize_core.dreaming.apply import apply_approved
+    from realize_core.dreaming.inbox import DreamInbox
+    from realize_core.dreaming.policy import TrustPolicy
+
+    config = load_config()
+    kb_path = Path(config.get("kb_path", directory))
+
+    policy = TrustPolicy.load(kb_path / "shared" / "trust-policy.yaml")
+    inbox = DreamInbox(
+        inbox_path=kb_path / ".synapse" / "dream-inbox.jsonl",
+        policy=policy,
+    )
+
+    # Build venture_dirs map: venture key → on-disk FABRIC directory.
+    systems_dir = kb_path / "systems"
+    venture_dirs: dict[str, Path] = {}
+    if venture:
+        venture_dirs = {venture: systems_dir / venture}
+    elif systems_dir.exists():
+        venture_dirs = {d.name: d for d in systems_dir.iterdir() if d.is_dir()}
+
+    results = apply_approved(inbox, venture_dirs, dry_run=dry_run)
+
+    if not results:
+        typer.echo("No approved proposals to apply.")
+        return
+
+    mode = " (dry-run)" if dry_run else ""
+    typer.echo(f"Apply results{mode}: {len(results)} proposal(s)\n")
+    typer.echo(f"  {'OUTCOME':9s} {'PROPOSAL':22s} {'COMMIT':10s} REASON")
+    typer.echo(f"  {'-' * 9} {'-' * 22} {'-' * 10} {'-' * 20}")
+    counts: dict[str, int] = {}
+    for r in results:
+        counts[r.outcome] = counts.get(r.outcome, 0) + 1
+        sha = (r.commit_sha or "")[:9]
+        typer.echo(f"  {r.outcome:9s} {r.proposal_id:22s} {sha:10s} {r.reason}")
+
+    summary = ", ".join(f"{k}={v}" for k, v in sorted(counts.items()))
+    typer.echo(f"\nSummary: {summary}")
 
 
 @fabric_app.command()

@@ -346,6 +346,57 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Email digest scheduler skipped: {e}")
 
+    # Scheduled Curator — default-OFF behind features.dreaming_curator.
+    # When enabled, runs the Curator per venture on a schedule and submits the
+    # generated proposals into the Dream Inbox. Fully guarded: any failure here
+    # (or inside the job) must never break startup or crash the scheduler.
+    app.state.curator_scheduler = None
+    try:
+        from realize_core.config import get_dreaming_config, get_features
+
+        if (
+            get_features(config).get("dreaming_curator")
+            and app.state.synapse is not None
+            and app.state.dream_inbox is not None
+        ):
+            from realize_core.channels.scheduler import CronScheduler, ScheduledJob, parse_interval
+            from realize_core.dreaming.curator import CuratorCycle
+
+            dreaming_cfg = get_dreaming_config(config)
+            synapse = app.state.synapse
+            inbox = app.state.dream_inbox
+            policy = getattr(inbox, "_policy", None)
+            venture_keys = list(app.state.systems.keys())
+
+            async def _run_curator(**_kwargs):
+                # Construct the Curator exactly as routes/dreams.py does and run
+                # it per venture, submitting proposals to the inbox. Isolated so
+                # one venture's failure never stops the others.
+                for venture_key in venture_keys:
+                    try:
+                        proposals = CuratorCycle(synapse=synapse, policy=policy).run(venture=venture_key)
+                        inbox.submit_batch(proposals)
+                    except Exception as exc:  # never crash the scheduler
+                        logger.warning("Scheduled Curator failed for venture '%s': %s", venture_key, exc)
+
+            curator_scheduler = CronScheduler()
+            curator_scheduler.set_handler(_run_curator)
+            curator_scheduler.add_job(
+                ScheduledJob(
+                    name="dreaming_curator",
+                    system_key="",
+                    message="scheduled curator cycle",
+                    interval_seconds=parse_interval(str(dreaming_cfg.get("schedule", "daily"))),
+                    user_id="dreaming-curator",
+                    metadata={"cycle": "curator"},
+                )
+            )
+            await curator_scheduler.start()
+            app.state.curator_scheduler = curator_scheduler
+            logger.info("Scheduled Curator started (%d venture(s))", len(venture_keys))
+    except Exception as e:
+        logger.warning(f"Scheduled Curator skipped: {e}")
+
     logger.info(f"RealizeOS API ready — {num_systems} system(s) loaded")
     yield
 
@@ -357,6 +408,12 @@ async def lifespan(app: FastAPI):
             await digest_scheduler.stop()
     except Exception as exc:
         logger.debug("Digest scheduler stop failed: %s", exc)
+    try:
+        curator_scheduler = getattr(app.state, "curator_scheduler", None)
+        if curator_scheduler is not None:
+            await curator_scheduler.stop()
+    except Exception as exc:
+        logger.debug("Curator scheduler stop failed: %s", exc)
     try:
         from realize_core.scheduler.heartbeat import stop_scheduler
 
