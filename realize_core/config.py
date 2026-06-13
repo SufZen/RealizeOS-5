@@ -303,6 +303,7 @@ def get_email_digest_config(config: dict) -> dict:
         "recipient": "info@realization.co.il",
         "base_url": "",
         "schedule": "daily",
+        "hour": 8,
         "workdays_only": True,
         "timezone": "Europe/Lisbon",
     }
@@ -322,6 +323,8 @@ def get_dreaming_config(config: dict) -> dict:
     """
     defaults = {
         "schedule": "daily",
+        "hour": 3,
+        "timezone": "Europe/Lisbon",
     }
     section = config.get("dreaming", {})
     if not isinstance(section, dict):

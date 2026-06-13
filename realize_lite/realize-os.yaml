@@ -65,11 +65,12 @@ features:
 email_digest:
   recipient: info@realization.co.il   # Where the digest is emailed
   base_url: ""                        # Public base URL for approve/reject links, e.g. https://app.example.com
-  schedule: daily                     # Scheduler interval (daily, weekly, 12h, ...)
-  workdays_only: true                 # Only run Mon–Fri
+  hour: 8                             # Wall-clock hour (0–23) the digest fires
+  workdays_only: true                 # Only run Mon–Fri (false → every day)
   timezone: "Europe/Lisbon"           # Time zone for the schedule
 
 # Scheduled Curator — generates FABRIC-hygiene proposals per venture on a schedule.
 # Disabled by default; set features.dreaming_curator: true to enable.
 dreaming:
-  schedule: daily                     # Scheduler interval (daily, weekly, 12h, ...)
+  hour: 3                             # Wall-clock hour (0–23) the Curator runs daily
+  timezone: "Europe/Lisbon"           # Time zone for the schedule
