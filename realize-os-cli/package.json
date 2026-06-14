@@ -1,6 +1,6 @@
 {
   "name": "@realize-os/cli",
-  "version": "5.5.2",
+  "version": "5.5.3",
   "description": "RealizeOS CLI — Deploy and manage your AI operations system with Docker",
   "keywords": [
     "realize-os",

@@ -4,6 +4,12 @@ All notable changes to RealizeOS are documented in this file.
 This changelog is automatically generated from [Conventional Commits](https://conventionalcommits.org).
 
 
+## [5.5.3](https://github.com/SufZen/RealizeOS-5/compare/v5.5.2...v5.5.3) (2026-06-14)
+
+### Bug Fixes
+
+* **mcp:** make built-in MCP SSE transport actually work ([c964b9f](https://github.com/SufZen/RealizeOS-5/commit/c964b9f3cde52207e93be16b8b94cb42719c191a))
+
 ## [5.5.2](https://github.com/SufZen/RealizeOS-5/compare/v5.5.1...v5.5.2) (2026-05-27)
 
 ### Bug Fixes
