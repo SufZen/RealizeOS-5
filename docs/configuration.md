@@ -94,8 +94,143 @@ To add a new agent, create a `.md` file in `A-agents/` and add routing keywords 
 | `auto_memory` | `true` | Log learnings after meaningful interactions |
 | `proactive_mode` | `true` | Enable proactive suggestions in prompts |
 | `cross_system` | `false` | Share context across all configured systems |
+| `email_digest` | `false` | Email a daily Dream Inbox digest (see below) |
+| `dreaming_curator` | `false` | Run the Curator per venture on a daily schedule |
+| `dreaming_reflex` | `false` | Run Reflex enrichment over recently-changed entities |
+| `enforce_gates` | `false` | Enforce the trust ladder at the tool-dispatch chokepoint (see below) |
+| `enforce_guardrails` | `false` | Reserved placeholder; guardrail post-response enforcement is deferred (no-op) |
 
 Custom flags are passed through without error — the engine ignores unknown flags.
+
+### Governance Enforcement (`enforce_gates`)
+
+By default RealizeOS does **not** intercept tool execution: the trust ladder
+under `trust:` is advisory only. Setting `features.enforce_gates: true` installs
+a governance gate at the single tool-dispatch chokepoint
+(`ToolRegistry.execute`). Before each tool action runs, the gate consults
+`realize_core.governance.trust_ladder.check_trust` for the current trust level:
+
+- **AUTO** → the action runs as normal.
+- **APPROVE** → the action is held; an approval request is created (visible at
+  `GET /api/approvals`) and the tool returns a "requires operator approval"
+  result instead of executing.
+- **BLOCK** → the action is refused.
+
+The gate **fails open**: any internal gate error logs and allows the action, so
+a gate bug can never brick tool execution. When `enforce_gates` is `false`
+(the default) the gate is never installed and tool dispatch is byte-for-byte
+unchanged. Tune per-action behavior with the `trust:` block (level + action
+rules) documented above.
+
+### Email Dream Inbox Digest
+
+When `features.email_digest` is `true`, RealizeOS emails a deterministic,
+grouped-by-venture digest of the **pending** Dream Inbox proposals so you can
+supervise the Dreaming subsystem by exception without opening the dashboard.
+It is **disabled by default**, so existing deployments are unaffected.
+
+Each item shows its cycle type, action, title, confidence and creation date,
+plus per-proposal approve/reject links targeting
+`/api/dreams/{proposal_id}/approve|reject`. Low-confidence (`<0.6`) or
+high-impact items are surfaced in a "NEEDS YOUR ATTENTION" section at the top.
+If nothing is pending, **no email is sent** (the run is still recorded in the
+event log). Gmail send failures are logged and never crash the scheduler.
+
+It requires Google Workspace credentials (the `gws` extra + OAuth setup). When
+enabled without a recipient it warns and stays inert.
+
+```yaml
+features:
+  email_digest: true          # turn the digest on
+
+email_digest:
+  recipient: info@realization.co.il   # where the digest is emailed
+  base_url: ""                        # public base URL for links, e.g. https://app.example.com
+  schedule: daily                     # scheduler interval (daily, weekly, 12h, ...)
+  workdays_only: true                 # only run Mon–Fri
+  timezone: "Europe/Lisbon"           # time zone for the schedule
+```
+
+Immediate **urgent alerts** piggyback on the same `email_digest.recipient`:
+when the feature is enabled, `realize-os fabric apply` sends a one-off alert
+email the moment the apply-loop *blocks* an approved-but-hard-denied action (a
+forbidden write attempt). These blocked items never appear in the digest, so
+the alert is their only notification. Dry-runs never alert.
+
+The API server starts a dedicated scheduler at startup only when the flag is
+on. You can also send or preview the digest on demand from the CLI:
+
+```bash
+realize-os fabric digest --dry-run     # print the digest, send nothing
+realize-os fabric digest               # email it to the configured recipient
+```
+
+### Scheduled Dreaming (Curator & Reflex)
+
+Two background Dreaming jobs can run on a schedule. Both are **disabled by
+default** and gated behind feature flags, so existing deployments are
+unaffected. Each runs **per venture** under that venture's effective Trust
+Policy, and every proposal lands in the Dream Inbox for review.
+
+- **Curator** (`features.dreaming_curator`) runs once daily at `dreaming.hour`
+  in `dreaming.timezone`, generating FABRIC-hygiene proposals.
+- **Reflex** (`features.dreaming_reflex`) runs every
+  `dreaming.reflex_interval_minutes` (default `60`). On each pass it finds
+  entities modified since the previous run (lookback = one interval plus a
+  small buffer), caps the batch at 200 entities per venture per run, and emits
+  low-risk enrichment proposals (tags, references, missing-field annotations).
+
+Reflex is a **scheduled** pass rather than a live-pipeline hook: it reuses the
+Dream scheduler so recently-changed entities get enrichment with zero risk to
+the message-handling path. Each venture and the overall pass are fully guarded —
+a failure for one venture is logged and never crashes the scheduler.
+
+```yaml
+features:
+  dreaming_curator: true     # turn the scheduled Curator on
+  dreaming_reflex: true      # turn scheduled Reflex on
+
+dreaming:
+  hour: 3                          # wall-clock hour the Curator runs daily
+  timezone: "Europe/Lisbon"        # time zone for the Curator schedule
+  reflex_interval_minutes: 60      # how often Reflex enriches changed entities
+```
+
+### Dreaming Trust Policy (per-venture)
+
+The Trust Policy controls what autonomous **Dreaming** cycles may do to your
+knowledge base. Each action maps to one of three levels:
+
+| Level | Behavior |
+|-------|----------|
+| `full-auto` | Applied without approval (e.g. adding a tag) |
+| `propose` | Queued in the Dream Inbox for human review |
+| `deny` | Never allowed |
+
+Policies are resolved **per venture** with later layers merging over earlier
+ones, so each file only needs to specify what differs:
+
+1. Built-in defaults (safe: most actions `propose`, dangerous ones `deny`).
+2. Global `shared/trust-policy.yaml`.
+3. Venture override `systems/<venture_key>/trust-policy.yaml`.
+
+A venture file may be **partial** — only the actions it lists are overridden,
+the rest are inherited. This lets one venture be stricter than another (e.g.
+Arena can `deny` an action that is `propose` globally) without duplicating the
+whole policy. Missing files are skipped silently, falling back to the global
+policy and then the built-in defaults.
+
+```yaml
+# systems/<venture_key>/trust-policy.yaml — merges over the global policy
+trust_policy:
+  add_tag: propose        # stricter than the global/default full-auto
+  update_summary: full-auto
+  suggest_decision: deny
+```
+
+The same `trust_policy:` map format is used for the global
+`shared/trust-policy.yaml`. A bare action→level map (without the
+`trust_policy:` key) is also accepted for backward compatibility.
 
 ### LLM Routing
 

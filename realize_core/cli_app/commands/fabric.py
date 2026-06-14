@@ -8,6 +8,7 @@ Commands:
     realize-os fabric search QUERY            Search entities
     realize-os fabric toc [--venture KEY]     Show Table of Contents
     realize-os fabric dream [--venture KEY]   Run Dreaming maintenance cycle
+    realize-os fabric apply [--dry-run]       Apply approved proposals to FABRIC
 """
 
 from __future__ import annotations
@@ -258,3 +259,112 @@ def dream(
             p = inbox.get(pid)
             if p and p.status.value == "pending":
                 typer.echo(f"  [{p.action}] {p.title}")
+
+
+@fabric_app.command()
+def apply(
+    dry_run: bool = typer.Option(False, "--dry-run", help="Compute writes but make zero changes"),
+    venture: str = typer.Option("", "--venture", "-v", help="Only apply proposals for this venture"),
+    directory: str = typer.Option(".", "--directory", "-d", help="Project root"),
+) -> None:
+    """Apply approved Dream Inbox proposals to FABRIC (reversible git commits)."""
+    from realize_core.config import get_email_digest_config, get_features, load_config
+    from realize_core.dreaming.apply import apply_approved
+    from realize_core.dreaming.inbox import DreamInbox
+    from realize_core.dreaming.policy import TrustPolicy
+
+    config = load_config()
+    kb_path = Path(config.get("kb_path", directory))
+
+    policy = TrustPolicy.load(kb_path / "shared" / "trust-policy.yaml")
+    inbox = DreamInbox(
+        inbox_path=kb_path / ".synapse" / "dream-inbox.jsonl",
+        policy=policy,
+    )
+
+    # Build venture_dirs map: venture key → on-disk FABRIC directory.
+    systems_dir = kb_path / "systems"
+    venture_dirs: dict[str, Path] = {}
+    if venture:
+        venture_dirs = {venture: systems_dir / venture}
+    elif systems_dir.exists():
+        venture_dirs = {d.name: d for d in systems_dir.iterdir() if d.is_dir()}
+
+    # Urgent alerts piggyback on the email_digest recipient: when the feature is
+    # enabled and a recipient is configured, blocked (forbidden-write) outcomes
+    # trigger an immediate alert. Dry-runs never alert.
+    urgent_recipient = ""
+    if not dry_run and get_features(config).get("email_digest"):
+        urgent_recipient = str(get_email_digest_config(config).get("recipient", ""))
+
+    results = apply_approved(inbox, venture_dirs, dry_run=dry_run, urgent_recipient=urgent_recipient)
+
+    if not results:
+        typer.echo("No approved proposals to apply.")
+        return
+
+    mode = " (dry-run)" if dry_run else ""
+    typer.echo(f"Apply results{mode}: {len(results)} proposal(s)\n")
+    typer.echo(f"  {'OUTCOME':9s} {'PROPOSAL':22s} {'COMMIT':10s} REASON")
+    typer.echo(f"  {'-' * 9} {'-' * 22} {'-' * 10} {'-' * 20}")
+    counts: dict[str, int] = {}
+    for r in results:
+        counts[r.outcome] = counts.get(r.outcome, 0) + 1
+        sha = (r.commit_sha or "")[:9]
+        typer.echo(f"  {r.outcome:9s} {r.proposal_id:22s} {sha:10s} {r.reason}")
+
+    summary = ", ".join(f"{k}={v}" for k, v in sorted(counts.items()))
+    typer.echo(f"\nSummary: {summary}")
+
+
+@fabric_app.command()
+def digest(
+    recipient: str = typer.Option("", "--recipient", "-r", help="Override the digest recipient"),
+    base_url: str = typer.Option("", "--base-url", help="Public base URL for approve/reject links"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Print the digest instead of emailing it"),
+    directory: str = typer.Option(".", "--directory", "-d", help="Project root"),
+) -> None:
+    """Send (or preview) the Dream Inbox email digest on demand."""
+    import asyncio
+
+    from realize_core.channels.email import build_dream_digest, send_dream_digest
+    from realize_core.config import get_email_digest_config, load_config
+    from realize_core.dreaming.inbox import DreamInbox
+    from realize_core.dreaming.policy import TrustPolicy
+
+    config = load_config()
+    kb_path = Path(config.get("kb_path", directory))
+    digest_cfg = get_email_digest_config(config)
+
+    resolved_recipient = recipient or str(digest_cfg.get("recipient", ""))
+    resolved_base_url = base_url or str(digest_cfg.get("base_url", ""))
+
+    policy = TrustPolicy.load(kb_path / "shared" / "trust-policy.yaml")
+    inbox = DreamInbox(
+        inbox_path=kb_path / ".synapse" / "dream-inbox.jsonl",
+        policy=policy,
+    )
+
+    if dry_run:
+        text = build_dream_digest(inbox.pending(), base_url=resolved_base_url)
+        if text is None:
+            typer.echo("No pending proposals — digest would be suppressed (no email).")
+            return
+        typer.echo(text)
+        return
+
+    if not resolved_recipient:
+        typer.echo("No recipient configured. Set email_digest.recipient or pass --recipient.")
+        raise typer.Exit(1)
+
+    sent = asyncio.run(
+        send_dream_digest(
+            inbox,
+            recipient=resolved_recipient,
+            base_url=resolved_base_url,
+        )
+    )
+    if sent:
+        typer.echo(f"Digest emailed to {resolved_recipient}.")
+    else:
+        typer.echo("No email sent (nothing pending, or send failed — check logs).")

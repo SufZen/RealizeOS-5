@@ -98,6 +98,10 @@ class DreamProposal:
     reviewed_by: str = ""
     rejection_reason: str = ""
 
+    # Apply provenance (set by the apply-loop once written to FABRIC)
+    applied_commit: str = ""
+    applied_at: datetime | None = None
+
     def __post_init__(self):
         if not self.proposal_id:
             import uuid
@@ -123,6 +127,8 @@ class DreamProposal:
             "reviewed_at": self.reviewed_at.isoformat() if self.reviewed_at else None,
             "reviewed_by": self.reviewed_by,
             "rejection_reason": self.rejection_reason,
+            "applied_commit": self.applied_commit,
+            "applied_at": self.applied_at.isoformat() if self.applied_at else None,
         }
 
     @classmethod
@@ -153,6 +159,8 @@ class DreamProposal:
             reviewed_at=parse_datetime(data.get("reviewed_at")),
             reviewed_by=data.get("reviewed_by", ""),
             rejection_reason=data.get("rejection_reason", ""),
+            applied_commit=data.get("applied_commit", ""),
+            applied_at=parse_datetime(data.get("applied_at")),
         )
 
 
@@ -174,6 +182,27 @@ class TrustPolicy:
                     logger.warning(f"Unknown trust level '{level}' for action '{action}'")
 
     @classmethod
+    def _read_overrides(cls, path: Path) -> dict[str, str]:
+        """Read the action->level override map from a YAML file.
+
+        Returns an empty dict when the file is missing, unreadable, or does not
+        contain a mapping. Accepts either a top-level ``trust_policy:`` map or a
+        bare action->level map (matching :meth:`load`).
+        """
+        if not path.exists():
+            return {}
+        try:
+            data = yaml.safe_load(path.read_text(encoding="utf-8"))
+        except (yaml.YAMLError, OSError) as e:
+            logger.warning(f"Failed to load trust policy: {e}")
+            return {}
+        if isinstance(data, dict):
+            overrides = data.get("trust_policy", data)
+            if isinstance(overrides, dict):
+                return overrides
+        return {}
+
+    @classmethod
     def load(cls, path: Path) -> TrustPolicy:
         """Load policy from a YAML file."""
         if not path.exists():
@@ -187,6 +216,51 @@ class TrustPolicy:
             logger.warning(f"Failed to load trust policy: {e}")
 
         return cls()
+
+    @classmethod
+    def load_for_venture(cls, kb_path: Path, venture_key: str) -> TrustPolicy:
+        """Load the effective Trust Policy for a single venture.
+
+        Resolution order (later layers MERGE over earlier ones, so each layer
+        only needs to specify what differs):
+
+        1. Built-in defaults (``_DEFAULT_POLICY``).
+        2. Global ``shared/trust-policy.yaml`` (if present).
+        3. Venture override ``systems/<venture_key>/trust-policy.yaml`` (if present).
+
+        A venture file may contain a *partial* ``trust_policy:`` map; only the
+        actions it lists are overridden, the rest are inherited from the global
+        policy / built-in defaults. Never raises: any read/parse failure for a
+        layer is logged and that layer is skipped.
+        """
+        kb_path = Path(kb_path)
+        merged: dict[str, str] = {}
+        merged.update(cls._read_overrides(kb_path / "shared" / "trust-policy.yaml"))
+        venture_file = cls._safe_venture_policy_path(kb_path, venture_key)
+        if venture_file is not None:
+            merged.update(cls._read_overrides(venture_file))
+        return cls(overrides=merged)
+
+    @staticmethod
+    def _safe_venture_policy_path(kb_path: Path, venture_key: str) -> Path | None:
+        """Resolve a venture's ``trust-policy.yaml`` without path injection.
+
+        ``venture_key`` can arrive from untrusted callers (e.g. the
+        ``GET /api/policy?venture=`` query param). Rather than building a path
+        from that value (which would allow ``..`` traversal), MATCH it against
+        the actual venture directories under ``systems/`` and return a path
+        derived from the filesystem entry — so the untrusted value never reaches
+        a path expression. Returns ``None`` when no venture matches.
+        """
+        if not venture_key:
+            return None
+        systems_root = kb_path / "systems"
+        if not systems_root.is_dir():
+            return None
+        for child in systems_root.iterdir():
+            if child.is_dir() and child.name == venture_key:
+                return child / "trust-policy.yaml"
+        return None
 
     def check(self, action: str) -> TrustLevel:
         """Check the trust level for a given action."""

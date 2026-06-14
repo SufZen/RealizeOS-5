@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from realize_core.dreaming.curator import CuratorCycle
 from realize_core.dreaming.inbox import DreamInbox
 from realize_core.dreaming.policy import TrustPolicy
+from realize_core.governance.policy_overview import effective_policy
 
 router = APIRouter()
 
@@ -55,6 +56,18 @@ async def list_dreams(
         "count": len(proposals),
         "stats": inbox.stats(),
     }
+
+
+@router.get("/policy")
+async def get_effective_policy(request: Request, venture: str = ""):
+    """Read-only combined view of both trust surfaces (knowledge + tools).
+
+    See ADR 0002. Returns the Dreaming (knowledge) policy and the Governance
+    (tools) decisions in one snapshot. Never mutates state.
+    """
+    config = getattr(request.app.state, "config", None) or {}
+    kb_path = getattr(request.app.state, "kb_path", None)
+    return effective_policy(config, kb_path=kb_path, venture=venture or None)
 
 
 @router.post("/dreams/run")

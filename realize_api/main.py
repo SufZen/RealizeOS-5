@@ -227,6 +227,29 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.debug(f"RBAC initialization skipped: {e}")
 
+    # Governance tool gate — RISKIEST surface; default OFF.
+    # Only when features.enforce_gates is true do we construct a ToolGate and
+    # inject it into the tool-execution registry. When off, the registry's gate
+    # stays None and tool dispatch is byte-for-byte unchanged.
+    try:
+        from realize_core.config import get_features
+
+        if get_features(config).get("enforce_gates"):
+            from realize_core.governance.tool_gate import ToolGate
+            from realize_core.tools.approval import ApprovalStore
+            from realize_core.tools.tool_registry import get_tool_registry
+
+            approval_store = getattr(app.state, "approval_store", None) or ApprovalStore()
+            app.state.approval_store = approval_store
+            gate = ToolGate(config=config, approval_store=approval_store)
+            get_tool_registry().set_gate(gate)
+            app.state.tool_gate = gate
+            logger.warning("Governance ENFORCEMENT ON: tool gate installed (features.enforce_gates=true)")
+        else:
+            logger.info("Governance enforcement off (features.enforce_gates not set)")
+    except Exception as e:
+        logger.error("Tool gate wiring skipped: %s", e, exc_info=True)
+
     # Initialize audit logger with persistent log directory
     try:
         from realize_core.security.audit import get_audit_logger
@@ -276,6 +299,41 @@ async def lifespan(app: FastAPI):
         app.state.runtime_registry = None
         logger.warning(f"Runtime Registry initialization skipped: {e}")
 
+    # v5.5.0 — Register runtime adapters into the registry.
+    # The InternalAdapter wraps the existing engine and is ALWAYS registered
+    # (zero behavior change by design). External runtimes (e.g. Hermes) are
+    # only registered when configured; an offline/failed adapter must never
+    # break startup (the registry marks failed adapters offline).
+    if app.state.runtime_registry is not None:
+        registry = app.state.runtime_registry
+
+        # Always register the internal runtime.
+        try:
+            from realize_core.runtimes.internal import InternalAdapter
+
+            await registry.register(InternalAdapter())
+            logger.info("Registered runtime 'internal'")
+        except Exception as e:
+            logger.warning(f"Internal runtime registration skipped: {e}")
+
+        # Register Hermes only when a base_url is configured.
+        try:
+            from realize_core.config import get_runtimes_config
+
+            hermes_cfg = get_runtimes_config(config).get("hermes", {})
+            if isinstance(hermes_cfg, dict) and hermes_cfg.get("base_url"):
+                from realize_core.runtimes.hermes import HermesAdapter
+
+                ok = await registry.register(HermesAdapter.from_config(hermes_cfg))
+                logger.info(
+                    "Registered runtime 'hermes' (%s)",
+                    "ready" if ok else "offline — configured but not reachable",
+                )
+        except Exception as e:
+            logger.warning(f"Hermes runtime registration skipped: {e}")
+
+        logger.info("Active runtimes: %s", registry.active_runtimes or "none")
+
     # v5.5.0 — Initialize Mission Engine and Dream Inbox
     try:
         from realize_core.dreaming.inbox import DreamInbox
@@ -298,11 +356,42 @@ async def lifespan(app: FastAPI):
         app.state.dream_inbox = None
         logger.warning(f"Mission/Dream initialization skipped: {e}")
 
+    # Unified wall-clock scheduler for background Dreaming jobs — default-OFF.
+    # Registers the email digest (08:00 Europe/Lisbon, workdays) behind
+    # features.email_digest, and the per-venture Curator (daily) behind
+    # features.dreaming_curator, using true CronTrigger wall-clock times instead
+    # of fixed 24h intervals. Fully guarded: any failure here (or inside a job)
+    # must never break startup or crash the scheduler. Manual CLI triggers
+    # (fabric digest / apply / dream) are unaffected.
+    app.state.dream_scheduler = None
+    try:
+        from realize_core.dreaming.scheduler import build_dream_scheduler
+
+        dream_scheduler = build_dream_scheduler(
+            config,
+            dream_inbox=app.state.dream_inbox,
+            synapse=app.state.synapse,
+            systems=app.state.systems,
+            event_log=getattr(app.state, "event_log", None),
+        )
+        if dream_scheduler is not None:
+            dream_scheduler.start()
+            app.state.dream_scheduler = dream_scheduler
+            logger.info("Dream scheduler started (%d job(s))", len(dream_scheduler.get_jobs()))
+    except Exception as e:
+        logger.warning(f"Dream scheduler skipped: {e}")
+
     logger.info(f"RealizeOS API ready — {num_systems} system(s) loaded")
     yield
 
     # Shutdown
     logger.info("RealizeOS API shutting down...")
+    try:
+        dream_scheduler = getattr(app.state, "dream_scheduler", None)
+        if dream_scheduler is not None:
+            dream_scheduler.shutdown(wait=False)
+    except Exception as exc:
+        logger.debug("Dream scheduler stop failed: %s", exc)
     try:
         from realize_core.scheduler.heartbeat import stop_scheduler
 

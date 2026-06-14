@@ -283,10 +283,84 @@ def get_features(config: dict) -> dict:
         "auto_memory": True,
         "proactive_mode": True,
         "cross_system": False,
+        "email_digest": False,
+        "dreaming_curator": False,
+        "dreaming_reflex": False,
+        # Governance enforcement (RISKIEST surface — default OFF).
+        # enforce_gates: install the trust-ladder tool gate at the tool-dispatch
+        #   chokepoint. When false, tool execution is byte-for-byte unchanged.
+        # enforce_guardrails: reserved placeholder; guardrail post-response
+        #   wiring is currently deferred (no-op when set).
+        "enforce_gates": False,
+        "enforce_guardrails": False,
     }
     features = config.get("features", {})
     merged = {**defaults, **features}
     return merged
+
+
+def get_email_digest_config(config: dict) -> dict:
+    """
+    Extract the email digest configuration, merged over sane defaults.
+
+    The digest is only active when ``features.email_digest`` is true; this
+    helper just resolves the settings (recipient, schedule, etc.) and is safe
+    to call regardless of the flag.
+    """
+    defaults = {
+        "recipient": "info@realization.co.il",
+        "base_url": "",
+        "schedule": "daily",
+        "hour": 8,
+        "workdays_only": True,
+        "timezone": "Europe/Lisbon",
+    }
+    section = config.get("email_digest", {})
+    if not isinstance(section, dict):
+        section = {}
+    return {**defaults, **section}
+
+
+def get_runtimes_config(config: dict) -> dict:
+    """
+    Extract the ``runtimes`` configuration section.
+
+    Runtimes are governed agent peers registered into the Runtime Registry at
+    startup. The internal runtime is always registered; external runtimes are
+    only registered when explicitly configured here. Example block::
+
+        runtimes:
+          hermes:
+            base_url: "http://your-vps-host:8642/v1"  # OpenAI-compatible gateway
+            api_key: "${HERMES_API_KEY}"              # optional; env-ref supported
+            model: "hermes"                           # optional; defaults to "hermes"
+
+    Returns an empty dict when no ``runtimes`` section is present.
+    """
+    section = config.get("runtimes", {})
+    if not isinstance(section, dict):
+        return {}
+    return section
+
+
+def get_dreaming_config(config: dict) -> dict:
+    """
+    Extract the scheduled-Curator configuration, merged over sane defaults.
+
+    The scheduled Curator is only active when ``features.dreaming_curator`` is
+    true; this helper just resolves the settings (schedule, etc.) and is safe to
+    call regardless of the flag.
+    """
+    defaults = {
+        "schedule": "daily",
+        "hour": 3,
+        "timezone": "Europe/Lisbon",
+        "reflex_interval_minutes": 60,
+    }
+    section = config.get("dreaming", {})
+    if not isinstance(section, dict):
+        section = {}
+    return {**defaults, **section}
 
 
 def _discover_agents(agents_dir: Path) -> dict:

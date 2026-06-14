@@ -56,3 +56,35 @@ features:
   auto_memory: true         # Automatically log learnings to I-insights/
   proactive_mode: true      # AI suggests next steps and asks clarifying questions
   cross_system: false       # Enable cross-system context (for multi-system setups)
+  email_digest: false       # Email a daily Dream Inbox digest (see email_digest block)
+  dreaming_curator: false   # Run the Curator on a schedule, per venture (see dreaming block)
+  dreaming_reflex: false    # Run Reflex enrichment over recently-changed entities (see dreaming block)
+  enforce_gates: false      # Enforce the trust ladder at tool dispatch (see trust block). OFF = unchanged behavior.
+  enforce_guardrails: false # Reserved; guardrail post-response enforcement is deferred (no-op).
+
+# Email Dream Inbox digest — push-only outbound channel.
+# Disabled by default; set features.email_digest: true to enable.
+# Requires Google Workspace credentials (the `gws` extra + OAuth setup).
+email_digest:
+  recipient: info@realization.co.il   # Where the digest is emailed
+  base_url: ""                        # Public base URL for approve/reject links, e.g. https://app.example.com
+  hour: 8                             # Wall-clock hour (0–23) the digest fires
+  workdays_only: true                 # Only run Mon–Fri (false → every day)
+  timezone: "Europe/Lisbon"           # Time zone for the schedule
+
+# Scheduled Dreaming jobs (Curator + Reflex) — generate proposals per venture.
+# Both are disabled by default; toggle them via the features block above.
+dreaming:
+  hour: 3                             # Wall-clock hour (0–23) the Curator runs daily
+  timezone: "Europe/Lisbon"           # Time zone for the Curator schedule
+  reflex_interval_minutes: 60         # How often Reflex enriches recently-changed entities
+
+# Runtime adapters — governed agent peers registered into the kernel at startup.
+# The internal runtime (the existing engine) is ALWAYS registered automatically.
+# External runtimes are inert unless configured here. Uncomment to add Hermes:
+#
+# runtimes:
+#   hermes:
+#     base_url: "http://your-vps-host:8642/v1"  # Hermes OpenAI-compatible gateway
+#     api_key: "${HERMES_API_KEY}"              # Optional; ${ENV_VAR} refs supported
+#     model: "hermes"                           # Optional; defaults to "hermes"
