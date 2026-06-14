@@ -52,7 +52,18 @@ def _is_public(path: str) -> bool:
 # ---------------------------------------------------------------------------
 
 
-class RateLimitMiddleware(BaseHTTPMiddleware):
+class _MCPStreamBypassMixin:
+    """Let /mcp/* stream through unbuffered. BaseHTTPMiddleware buffers responses,
+    which breaks the built-in MCP SSE transport (/mcp/sse + /mcp/messages/)."""
+
+    async def __call__(self, scope, receive, send):
+        if scope.get("type") == "http" and scope.get("path", "").startswith("/mcp/"):
+            await self.app(scope, receive, send)
+            return
+        await super().__call__(scope, receive, send)
+
+
+class RateLimitMiddleware(_MCPStreamBypassMixin, BaseHTTPMiddleware):
     """
     Enforces per-tenant request-rate and cost limits.
 
@@ -99,7 +110,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 # ---------------------------------------------------------------------------
 
 
-class InjectionGuardMiddleware(BaseHTTPMiddleware):
+class InjectionGuardMiddleware(_MCPStreamBypassMixin, BaseHTTPMiddleware):
     """
     Scan POST/PUT/PATCH request bodies for prompt injection patterns.
 
@@ -186,7 +197,7 @@ class InjectionGuardMiddleware(BaseHTTPMiddleware):
 # ---------------------------------------------------------------------------
 
 
-class AuditMiddleware(BaseHTTPMiddleware):
+class AuditMiddleware(_MCPStreamBypassMixin, BaseHTTPMiddleware):
     """
     Record every API request in the audit log.
 
@@ -242,7 +253,7 @@ class AuditMiddleware(BaseHTTPMiddleware):
 # ---------------------------------------------------------------------------
 
 
-class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+class SecurityHeadersMiddleware(_MCPStreamBypassMixin, BaseHTTPMiddleware):
     """
     Add standard security response headers to every API response.
 

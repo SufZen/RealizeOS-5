@@ -59,26 +59,6 @@ async def sse_endpoint(
     return Response(status_code=200)
 
 
-@router.post("/messages/{session_id}", include_in_schema=False)
-async def messages_endpoint(
-    session_id: str,
-    request: Request,
-    user: CurrentUser = Depends(get_current_user),
-) -> Response:
-    """Forward a JSON-RPC client payload into the active SSE session."""
-    _, transport = _resources()
-    token = bind_user(user)
-    try:
-        await transport.handle_post_message(
-            request.scope,
-            request.receive,
-            request._send,  # type: ignore[arg-type]
-        )
-    finally:
-        reset_user(token)
-    return Response(status_code=202)
-
-
 @router.get("/health", include_in_schema=False)
 async def mcp_health(request: Request) -> dict:
     """Lightweight liveness probe for monitoring (no auth required)."""

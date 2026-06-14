@@ -45,6 +45,12 @@ def mount_mcp(app: Any, *, config: dict | None = None) -> McpConfig:
     mcp_router_module.attach(server, transport)
 
     app.include_router(mcp_router_module.router, prefix="/mcp", tags=["MCP"])
+    # SDK-standard: serve the JSON-RPC POST endpoint as a raw ASGI app so the
+    # query-param session URL (/mcp/messages/?session_id=) is matched and the
+    # transport emits its own 202 (avoids the path-param 405 + double-send).
+    from starlette.routing import Mount
+
+    app.router.routes.append(Mount("/mcp/messages", app=transport.handle_post_message))
 
     logger.info(
         "MCP server mounted at /mcp/sse — families=%s, allow_admin=%s",
