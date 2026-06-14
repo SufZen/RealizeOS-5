@@ -52,7 +52,6 @@ def _is_public(path: str) -> bool:
 # ---------------------------------------------------------------------------
 
 
-
 class _MCPStreamBypassMixin:
     """Let /mcp/* stream through unbuffered. BaseHTTPMiddleware buffers responses,
     which breaks the built-in MCP SSE transport (/mcp/sse + /mcp/messages/)."""
