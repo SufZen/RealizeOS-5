@@ -4,6 +4,24 @@ All notable changes to RealizeOS are documented in this file.
 This changelog is automatically generated from [Conventional Commits](https://conventionalcommits.org).
 
 
+## [5.6.0](https://github.com/SufZen/RealizeOS-5/compare/v5.5.3...v5.6.0) (2026-06-14)
+
+### Features
+
+* **channels:** add email Dream-Inbox digest channel (spec 003) ([9e50b6a](https://github.com/SufZen/RealizeOS-5/commit/9e50b6aeb3dd8d5b566ca87b78caac4c3020df29))
+* **dreaming:** close the loop — apply-loop + scheduled Curator (spec 004) ([cfd97d2](https://github.com/SufZen/RealizeOS-5/commit/cfd97d2621a23a84eac95404cd2c9d0fa9494ce5))
+* **dreaming:** per-venture trust policy ([ef0f2f0](https://github.com/SufZen/RealizeOS-5/commit/ef0f2f04783d7b9ce7e9a6dae7f431bf82bcec9d))
+* **dreaming:** scheduled Reflex enrichment pass ([a810e8a](https://github.com/SufZen/RealizeOS-5/commit/a810e8ad22181289eee915ef96df62d85d261818))
+* **dreaming:** unified wall-clock scheduler for digest + curator ([4973d49](https://github.com/SufZen/RealizeOS-5/commit/4973d49e3ee20e122758ec5bbebf49cc75abcf4c))
+* **dreaming:** urgent email alert on blocked forbidden-write (spec 003 US2) ([f0b8a15](https://github.com/SufZen/RealizeOS-5/commit/f0b8a15799707a9435e2f1b5d4d75a77621231e6))
+* **governance:** enforce trust ladder at the tool-dispatch chokepoint ([a8430e2](https://github.com/SufZen/RealizeOS-5/commit/a8430e2d949853082c8e95bbf633bd3d51411734))
+* **runtimes:** add HermesAdapter + register adapters at startup ([4bc1d1f](https://github.com/SufZen/RealizeOS-5/commit/4bc1d1fcbd269321068e7f27cd5fe45da90a670b))
+
+### Bug Fixes
+
+* **security:** confine venture_key in load_for_venture (path-injection) ([7d53174](https://github.com/SufZen/RealizeOS-5/commit/7d531745cf186b74773f0708f21b82ec3e8a1303))
+* **security:** match venture_key against real dirs (no path expr) ([f1da630](https://github.com/SufZen/RealizeOS-5/commit/f1da6300cacb8ffbcf305828e1ca7ebf30b9bca7))
+
 ## [5.5.3](https://github.com/SufZen/RealizeOS-5/compare/v5.5.2...v5.5.3) (2026-06-14)
 
 ### Bug Fixes

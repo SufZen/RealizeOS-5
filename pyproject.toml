@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "realize-os"
-version = "5.5.3"
+version = "5.6.0"
 description = "AI-native personal operations system — coordinated agents for your business"
 readme = "README.md"
 license = {text = "BSL-1.1"}
