@@ -13,7 +13,6 @@ Three trust levels:
 from __future__ import annotations
 
 import logging
-import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import StrEnum
@@ -244,21 +243,24 @@ class TrustPolicy:
 
     @staticmethod
     def _safe_venture_policy_path(kb_path: Path, venture_key: str) -> Path | None:
-        """Resolve ``systems/<venture_key>/trust-policy.yaml`` only when safe.
+        """Resolve a venture's ``trust-policy.yaml`` without path injection.
 
         ``venture_key`` can arrive from untrusted callers (e.g. the
-        ``GET /api/policy?venture=`` query param), so guard against path
-        injection / traversal: it must be a single path component matching a
-        strict allowlist, AND the resolved path must stay under ``systems/``.
-        Returns ``None`` (skip the venture override) otherwise.
+        ``GET /api/policy?venture=`` query param). Rather than building a path
+        from that value (which would allow ``..`` traversal), MATCH it against
+        the actual venture directories under ``systems/`` and return a path
+        derived from the filesystem entry — so the untrusted value never reaches
+        a path expression. Returns ``None`` when no venture matches.
         """
-        if not venture_key or venture_key in (".", "..") or not re.fullmatch(r"[A-Za-z0-9._-]+", venture_key):
+        if not venture_key:
             return None
-        systems_root = (kb_path / "systems").resolve()
-        candidate = (systems_root / venture_key / "trust-policy.yaml").resolve()
-        if not candidate.is_relative_to(systems_root):
+        systems_root = kb_path / "systems"
+        if not systems_root.is_dir():
             return None
-        return candidate
+        for child in systems_root.iterdir():
+            if child.is_dir() and child.name == venture_key:
+                return child / "trust-policy.yaml"
+        return None
 
     def check(self, action: str) -> TrustLevel:
         """Check the trust level for a given action."""
