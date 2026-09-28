@@ -1,0 +1,341 @@
+<!doctype html><html data-mode="dark"><head><meta charset="utf-8"><title>RealizeOS Overview</title>
+
+<link rel="stylesheet" href="../../dashboard/src/design-system/tokens.css">
+<style>
+@font-face{font-family:'Poppins';font-weight:400;src:url(fonts/poppins-latin-400-normal.woff2)}@font-face{font-family:'Poppins';font-weight:500;src:url(fonts/poppins-latin-500-normal.woff2)}@font-face{font-family:'Poppins';font-weight:600;src:url(fonts/poppins-latin-600-normal.woff2)}@font-face{font-family:'Poppins';font-weight:700;src:url(fonts/poppins-latin-700-normal.woff2)}@font-face{font-family:'JetBrains Mono';font-weight:400;src:url(fonts/jetbrains-mono-latin-400-normal.woff2)}@font-face{font-family:'JetBrains Mono';font-weight:500;src:url(fonts/jetbrains-mono-latin-500-normal.woff2)}
+@page{size:1280px 720px;margin:0}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--rz-bg);color:var(--rz-fg);font-family:var(--rz-font-sans);-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.s{width:1280px;height:720px;position:relative;overflow:hidden;padding:64px 72px;page-break-after:always;background:var(--rz-bg)}
+.s::before{content:"";position:absolute;inset:0;background-image:radial-gradient(rgba(255,204,0,.07) 1px,transparent 1px);background-size:32px 32px;-webkit-mask-image:radial-gradient(ellipse at 80% 20%,#000 10%,transparent 60%);pointer-events:none}
+.ft{position:absolute;bottom:28px;left:72px;right:72px;display:flex;justify-content:space-between;font:500 11px var(--rz-font-mono);color:var(--rz-fg-subtle);letter-spacing:.08em;text-transform:uppercase}
+.k{font:500 12px var(--rz-font-mono);color:var(--rz-accent);letter-spacing:.14em;text-transform:uppercase;margin-bottom:14px}
+h1{font-size:72px;font-weight:700;letter-spacing:-.03em;line-height:1.02}
+h2{font-size:40px;font-weight:600;letter-spacing:-.02em;line-height:1.12;margin-bottom:10px;max-width:1000px}
+.lede{font-size:18px;color:var(--rz-fg-muted);line-height:1.55;max-width:860px}
+.g{background:linear-gradient(135deg,#ffcc00 0%,#fff5cc 50%,#ffcc00 100%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.card{background:var(--rz-bg-raised);border:1px solid var(--rz-border);border-radius:var(--rz-radius-lg);padding:22px}
+.card h3{font-size:18px;font-weight:600;margin-bottom:8px}
+.card p,.card li{font-size:14px;color:var(--rz-fg-muted);line-height:1.5}
+.grid{display:grid;gap:16px}
+.c2{grid-template-columns:1fr 1fr}.c3{grid-template-columns:repeat(3,1fr)}.c4{grid-template-columns:repeat(4,1fr)}
+.badge{display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 8px;border-radius:8px;font:500 11px var(--rz-font-mono);letter-spacing:.04em;text-transform:uppercase;border:1px solid var(--rz-border-accent);color:var(--rz-accent);background:var(--rz-accent-soft)}
+.num{font-size:44px;font-weight:700;letter-spacing:-.03em;color:var(--rz-accent)}
+.lbl{font:500 11px var(--rz-font-mono);text-transform:uppercase;letter-spacing:.08em;color:var(--rz-fg-subtle);margin-top:4px}
+svg text{font-family:Poppins,sans-serif}
+.mono{font-family:var(--rz-font-mono)}
+.acc{color:var(--rz-accent)}
+.mt{margin-top:28px}
+ul.clean{list-style:none}ul.clean li{padding-left:16px;position:relative;margin-bottom:6px}ul.clean li::before{content:"";position:absolute;left:0;top:8px;width:6px;height:6px;border-radius:50%;background:var(--rz-accent)}
+.bar{height:10px;border-radius:99px;background:var(--rz-surface);overflow:hidden}.bar>i{display:block;height:100%;background:var(--rz-accent);border-radius:99px}
+</style></head><body>
+
+<!-- 1 COVER -->
+<section class="s" style="display:flex;flex-direction:column;justify-content:center">
+ <div style="position:absolute;right:-120px;top:-120px;width:620px;height:620px;border-radius:50%;background:radial-gradient(circle,rgba(255,204,0,.18),transparent 65%)"></div>
+ <img src="../assets/logo.png" style="width:120px;margin-bottom:28px;mix-blend-mode:lighten">
+ <div class="k">Project overview · v5.6.0 · 2026</div>
+ <h1>Realize<span class="g">OS</span></h1>
+ <p class="lede" style="font-size:24px;margin-top:18px;max-width:780px">The self-hosted AI operations system for your business — a coordinated team of AI agents that knows your venture, remembers, and executes.</p>
+ <div style="display:flex;gap:10px;margin-top:36px"><span class="badge">Open core · BSL 1.1</span><span class="badge">Local-first</span><span class="badge">Multi-LLM</span><span class="badge">MCP-native</span></div>
+ <div class="ft"><span>RealizeOS · realization.co.il</span><span>01</span></div>
+</section>
+
+<!-- 2 PROBLEM -->
+<section class="s">
+ <div class="k">01 — The problem</div>
+ <h2>Businesses adopted AI.<br>They didn't get an <span class="g">AI operation</span>.</h2>
+ <p class="lede">Small and mid-size ventures use chatbots as clever text boxes. The work around them — context, follow-through, approvals, memory — is still manual.</p>
+ <div class="grid c4 mt">
+  <div class="card"><div class="num">∅</div><h3>No memory</h3><p>Every chat starts from zero. Voice, clients, decisions and past work must be re-explained.</p></div>
+  <div class="card"><div class="num">1:1</div><h3>One-shot answers</h3><p>Chatbots reply; they don't run multi-step workflows, hand off between specialists or chase outcomes.</p></div>
+  <div class="card"><div class="num">$↑</div><h3>Wrong model, wrong cost</h3><p>A flagship model formats a date; a cheap model drafts strategy. No one routes by task.</p></div>
+  <div class="card"><div class="num">🔒</div><h3>Lock-in &amp; risk</h3><p>Knowledge lives inside a vendor. No audit trail, no approval gates, no ownership.</p></div>
+ </div>
+ <div class="card mt" style="border-color:var(--rz-border-accent);background:var(--rz-accent-soft)"><p style="color:var(--rz-fg);font-size:16px"><b class="acc">The gap:</b> owners need an operations layer — agents that share one knowledge base, act under governance, and belong to the business, not the model vendor.</p></div>
+ <div class="ft"><span>RealizeOS · Project overview</span><span>02</span></div>
+</section>
+
+<!-- 3 COMPLEXITY -->
+<section class="s">
+ <div class="k">02 — Why it's hard</div>
+ <h2>An "AI employee" is six hard problems stacked on top of each other</h2>
+ <div style="display:grid;grid-template-columns:1.1fr 1fr;gap:40px;margin-top:26px;align-items:center">
+  <div style="display:flex;flex-direction:column;gap:8px">
+   <div class="card" style="padding:14px 20px;margin-left:0"><b class="acc mono">6</b>&nbsp; <b>Governance</b> <span style="color:var(--rz-fg-muted);font-size:14px">— who may do what, with approval &amp; audit</span></div>
+   <div class="card" style="padding:14px 20px;margin-left:18px"><b class="acc mono">5</b>&nbsp; <b>Security</b> <span style="color:var(--rz-fg-muted);font-size:14px">— prompt injection, secrets, RBAC</span></div>
+   <div class="card" style="padding:14px 20px;margin-left:36px"><b class="acc mono">4</b>&nbsp; <b>Orchestration</b> <span style="color:var(--rz-fg-muted);font-size:14px">— missions, handoffs, retries</span></div>
+   <div class="card" style="padding:14px 20px;margin-left:54px"><b class="acc mono">3</b>&nbsp; <b>Model economics</b> <span style="color:var(--rz-fg-muted);font-size:14px">— 4 providers, cost/quality</span></div>
+   <div class="card" style="padding:14px 20px;margin-left:72px"><b class="acc mono">2</b>&nbsp; <b>Memory</b> <span style="color:var(--rz-fg-muted);font-size:14px">— what to recall, when, how cheaply</span></div>
+   <div class="card" style="padding:14px 20px;margin-left:90px;border-color:var(--rz-accent)"><b class="acc mono">1</b>&nbsp; <b>Business knowledge</b> <span style="color:var(--rz-fg-muted);font-size:14px">— structured, owned, portable</span></div>
+  </div>
+  <div>
+   <p class="lede" style="font-size:16px">Each layer depends on the one below it. Get knowledge wrong and memory is noise; get memory wrong and orchestration drifts; skip governance and nobody can trust the output.</p>
+   <div class="grid c2 mt">
+    <div><div class="num">40+</div><div class="lbl">core subsystems</div></div>
+    <div><div class="num">8</div><div class="lbl">mission states</div></div>
+    <div><div class="num">7</div><div class="lbl">agent handoff types</div></div>
+    <div><div class="num">5</div><div class="lbl">security layers</div></div>
+   </div>
+  </div>
+ </div>
+ <div class="ft"><span>RealizeOS · Project overview</span><span>03</span></div>
+</section>
+
+<!-- 4 SOLUTION -->
+<section class="s">
+ <div class="k">03 — The solution</div>
+ <h2>You own the <span class="g">Heart</span>. Everything else is a swappable adapter.</h2>
+ <p class="lede">RealizeOS separates the durable asset — your knowledge, history and identity — from the fast-moving parts: models, agent runtimes, channels and even the UI.</p>
+ <div style="display:flex;align-items:center;justify-content:center;margin-top:30px;gap:30px">
+  <div style="display:flex;flex-direction:column;gap:12px;width:250px">
+   <div class="card" style="padding:14px"><div class="lbl" style="margin:0 0 4px">Models</div><p>Claude · Gemini · OpenAI · Ollama</p></div>
+   <div class="card" style="padding:14px"><div class="lbl" style="margin:0 0 4px">Runtimes</div><p>Pluggable AgentRuntime protocol</p></div>
+  </div>
+  <div style="width:300px;height:300px;border-radius:50%;border:1px solid var(--rz-border-accent);background:radial-gradient(circle,rgba(255,204,0,.22),rgba(255,204,0,.03) 70%);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;box-shadow:0 0 60px rgba(255,204,0,.15)">
+   <div class="lbl acc" style="color:var(--rz-accent)">The Heart · owned forever</div>
+   <div style="font-size:26px;font-weight:700;margin:10px 0">FABRIC</div>
+   <p style="font-size:14px;color:var(--rz-fg-muted);line-height:1.6">Knowledge graph<br>Event log<br>SOUL identity</p>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:12px;width:250px">
+   <div class="card" style="padding:14px"><div class="lbl" style="margin:0 0 4px">Channels</div><p>Web · API · Telegram · Slack · MCP</p></div>
+   <div class="card" style="padding:14px"><div class="lbl" style="margin:0 0 4px">Interfaces</div><p>Dashboard · CLI · REPL</p></div>
+  </div>
+ </div>
+ <div class="ft"><span>RealizeOS · Project overview</span><span>04</span></div>
+</section>
+
+<!-- 5 ARCHITECTURE -->
+<section class="s">
+ <div class="k">04 — Architecture</div>
+ <h2>How a request flows through the system</h2>
+ <svg width="1136" height="470" viewBox="0 0 1136 470" style="margin-top:14px;font-family:Poppins">
+  <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#ffcc00"/></marker></defs>
+  <g font-size="14" fill="#e8e8ed">
+  <!-- column 1 -->
+  <text x="0" y="16" font-family="JetBrains Mono" font-size="11" fill="#6b6b80" letter-spacing="1">ENTRY</text>
+  <g><rect x="0" y="30" width="170" height="52" rx="10" fill="#1a1a24" stroke="rgba(255,255,255,.12)"/><text x="18" y="61">Dashboard (React)</text></g>
+  <g><rect x="0" y="94" width="170" height="52" rx="10" fill="#1a1a24" stroke="rgba(255,255,255,.12)"/><text x="18" y="125">CLI / REPL</text></g>
+  <g><rect x="0" y="158" width="170" height="52" rx="10" fill="#1a1a24" stroke="rgba(255,255,255,.12)"/><text x="18" y="189">Telegram · Slack</text></g>
+  <g><rect x="0" y="222" width="170" height="52" rx="10" fill="#1a1a24" stroke="rgba(255,255,255,.12)"/><text x="18" y="253">MCP clients</text></g>
+  <g><rect x="0" y="286" width="170" height="52" rx="10" fill="#1a1a24" stroke="rgba(255,255,255,.12)"/><text x="18" y="317">Scheduler / cron</text></g>
+  <!-- security -->
+  <text x="220" y="16" font-family="JetBrains Mono" font-size="11" fill="#6b6b80" letter-spacing="1">GATEWAY</text>
+  <rect x="220" y="30" width="190" height="308" rx="12" fill="rgba(248,113,113,.06)" stroke="rgba(248,113,113,.4)"/>
+  <text x="240" y="60" font-weight="600">FastAPI + security</text>
+  <g font-size="13" fill="#9a9ab0"><text x="240" y="96">① Security headers</text><text x="240" y="136">② Audit log</text><text x="240" y="176">③ Rate limiting</text><text x="240" y="216">④ Injection guard</text><text x="240" y="256">⑤ JWT · RBAC</text></g>
+  <!-- core -->
+  <text x="460" y="16" font-family="JetBrains Mono" font-size="11" fill="#6b6b80" letter-spacing="1">ORCHESTRATION</text>
+  <rect x="460" y="30" width="330" height="308" rx="12" fill="rgba(255,204,0,.05)" stroke="rgba(255,204,0,.35)"/>
+  <g><rect x="480" y="48" width="290" height="56" rx="10" fill="#1a1a24" stroke="rgba(255,255,255,.1)"/><text x="498" y="72" font-weight="600">Task classifier + LLM router</text><text x="498" y="92" font-size="12" fill="#9a9ab0">picks model per task · tracks cost</text></g>
+  <g><rect x="480" y="116" width="290" height="56" rx="10" fill="#1a1a24" stroke="rgba(255,255,255,.1)"/><text x="498" y="140" font-weight="600">Agents + pipelines</text><text x="498" y="160" font-size="12" fill="#9a9ab0">SOUL identity · tool gating · handoffs</text></g>
+  <g><rect x="480" y="184" width="290" height="56" rx="10" fill="#1a1a24" stroke="rgba(255,255,255,.1)"/><text x="498" y="208" font-weight="600">Mission engine (Spine)</text><text x="498" y="228" font-size="12" fill="#9a9ab0">8-state machine · planning · routing</text></g>
+  <g><rect x="480" y="252" width="290" height="68" rx="10" fill="#1a1a24" stroke="rgba(255,255,255,.1)"/><text x="498" y="276" font-weight="600">Governance</text><text x="498" y="296" font-size="12" fill="#9a9ab0">approval gates · human-in-the-loop</text><text x="498" y="312" font-size="12" fill="#9a9ab0">Dreaming: reflex + curator cycles</text></g>
+  <!-- right -->
+  <text x="840" y="16" font-family="JetBrains Mono" font-size="11" fill="#6b6b80" letter-spacing="1">PROVIDERS &amp; TOOLS</text>
+  <g><rect x="840" y="30" width="296" height="130" rx="12" fill="#1a1a24" stroke="rgba(147,197,253,.4)"/><text x="860" y="58" font-weight="600">LLM providers</text>
+   <g font-size="13" fill="#9a9ab0"><text x="860" y="86">Anthropic Claude (Opus · Sonnet)</text><text x="860" y="108">Google Gemini (Flash)</text><text x="860" y="130">OpenAI via LiteLLM</text><text x="860" y="152">Ollama — fully local</text></g></g>
+  <g><rect x="840" y="176" width="296" height="162" rx="12" fill="#1a1a24" stroke="rgba(74,222,128,.4)"/><text x="860" y="204" font-weight="600">Tools</text>
+   <g font-size="13" fill="#9a9ab0"><text x="860" y="230">Google Workspace — 24 tools</text><text x="860" y="252">Stripe · telephony · voice</text><text x="860" y="274">Web search · scraping · browser</text><text x="860" y="296">Any MCP tool server</text><text x="860" y="318">Social · PM · doc generation</text></g></g>
+  </g>
+  <!-- heart -->
+  <rect x="0" y="378" width="1136" height="86" rx="14" fill="rgba(255,204,0,.1)" stroke="#ffcc00"/>
+  <text x="24" y="410" font-size="16" font-weight="700" fill="#ffcc00">THE HEART</text>
+  <g font-size="14" fill="#e8e8ed"><text x="24" y="440">FABRIC knowledge base (markdown ⇄ entities)</text><text x="400" y="440">Synapse 4-tier memory index (SQLite FTS5)</text><text x="760" y="440">JSONL event log · SOUL identities</text></g>
+  <g stroke="#ffcc00" stroke-width="1.6" fill="none" marker-end="url(#a)">
+   <path d="M172 184H216"/><path d="M412 184H456"/><path d="M792 95H836"/><path d="M792 257H836"/><path d="M625 340V374"/>
+  </g>
+ </svg>
+ <div class="ft"><span>RealizeOS · Project overview</span><span>05</span></div>
+</section>
+
+<!-- 6 FABRIC + SYNAPSE -->
+<section class="s">
+ <div class="k">05 — Knowledge &amp; memory</div>
+ <h2>FABRIC structures the business. Synapse decides what the agent recalls.</h2>
+ <div style="display:grid;grid-template-columns:1.25fr 1fr;gap:36px;margin-top:22px">
+  <div>
+   <div class="lbl" style="margin-bottom:12px">FABRIC — six knowledge layers per venture</div>
+   <div class="grid c3" style="gap:10px">
+    <div class="card" style="padding:16px"><div class="num" style="font-size:34px">F</div><h3 style="font-size:15px">Foundations</h3><p style="font-size:12.5px">Identity, voice, standards</p></div>
+    <div class="card" style="padding:16px"><div class="num" style="font-size:34px">A</div><h3 style="font-size:15px">Agents</h3><p style="font-size:12.5px">AI team &amp; routing guide</p></div>
+    <div class="card" style="padding:16px"><div class="num" style="font-size:34px">B</div><h3 style="font-size:15px">Brain</h3><p style="font-size:12.5px">Domain &amp; market knowledge</p></div>
+    <div class="card" style="padding:16px"><div class="num" style="font-size:34px">R</div><h3 style="font-size:15px">Routines</h3><p style="font-size:12.5px">Skills, workflows, SOPs</p></div>
+    <div class="card" style="padding:16px"><div class="num" style="font-size:34px">I</div><h3 style="font-size:15px">Insights</h3><p style="font-size:12.5px">Learnings, feedback, decisions</p></div>
+    <div class="card" style="padding:16px"><div class="num" style="font-size:34px">C</div><h3 style="font-size:15px">Creations</h3><p style="font-size:12.5px">Drafts &amp; deliverables</p></div>
+   </div>
+   <p style="font-size:13.5px;color:var(--rz-fg-muted);margin-top:14px;line-height:1.5">Plain markdown a human can edit — round-tripped into typed entities (contacts, decisions, commitments…) with provenance, trust scores and JSON-Schema validation.</p>
+  </div>
+  <div>
+   <div class="lbl" style="margin-bottom:12px">Synapse — 4-tier memory, cheapest first</div>
+   <div style="display:flex;flex-direction:column;gap:10px">
+    <div class="card" style="padding:14px 18px;width:100%"><b class="acc mono">L1</b> <b>Hot TOC</b><p>Always in context — the map of what exists</p></div>
+    <div class="card" style="padding:14px 18px;width:92%"><b class="acc mono">L2</b> <b>Full-text search</b><p>SQLite FTS5 over the knowledge base</p></div>
+    <div class="card" style="padding:14px 18px;width:84%"><b class="acc mono">L3</b> <b>Tool catalog</b><p>Which capability to reach for</p></div>
+    <div class="card" style="padding:14px 18px;width:76%"><b class="acc mono">L4</b> <b>Mission memory</b><p>State of long-running goals</p></div>
+   </div>
+  </div>
+ </div>
+ <div class="ft"><span>RealizeOS · Project overview</span><span>06</span></div>
+</section>
+
+<!-- 7 AI SOLUTIONS -->
+<section class="s">
+ <div class="k">06 — AI solutions</div>
+ <h2>Right model, right agent, right moment</h2>
+ <div style="display:grid;grid-template-columns:1fr 1fr;gap:36px;margin-top:22px">
+  <div class="card">
+   <h3>Multi-LLM routing</h3><p>Every task is classified, then sent to the cheapest model that can do it well.</p>
+   <div style="margin-top:20px;display:flex;flex-direction:column;gap:16px">
+    <div><div style="display:flex;justify-content:space-between;font-size:14px;margin-bottom:6px"><span><b>Simple</b> · lookups, formatting</span><span class="mono acc">Gemini Flash</span></div><div class="bar"><i style="width:12%"></i></div></div>
+    <div><div style="display:flex;justify-content:space-between;font-size:14px;margin-bottom:6px"><span><b>Content</b> · writing, analysis</span><span class="mono acc">Claude Sonnet</span></div><div class="bar"><i style="width:45%"></i></div></div>
+    <div><div style="display:flex;justify-content:space-between;font-size:14px;margin-bottom:6px"><span><b>Complex</b> · strategy, reasoning</span><span class="mono acc">Claude Opus</span></div><div class="bar"><i style="width:100%"></i></div></div>
+    <div><div style="display:flex;justify-content:space-between;font-size:14px;margin-bottom:6px"><span><b>Private</b> · sensitive data</span><span class="mono acc">Ollama (local)</span></div><div class="bar"><i style="width:4%;background:var(--rz-success)"></i></div></div>
+   </div>
+   <p class="lbl" style="margin-top:16px">Bar = relative capability / cost tier (illustrative)</p>
+  </div>
+  <div class="grid" style="gap:12px">
+   <div class="card" style="padding:18px"><h3>Composable agents</h3><p>Scope, inputs, outputs, guardrails and allow-listed tools. Hot-reloaded from disk. Each carries a persistent SOUL: role, personality, expertise.</p></div>
+   <div class="card" style="padding:18px"><h3>Pipelines &amp; 7 handoff types</h3><p>Standard, QA-pass / QA-fail, escalation, phase-gate, sprint, incident — with Dev→QA retry loops.</p></div>
+   <div class="card" style="padding:18px"><h3>Dreaming</h3><p>Background reflex &amp; curator cycles propose knowledge updates into a Dream Inbox — a human approves before anything becomes "truth".</p></div>
+  </div>
+ </div>
+ <div class="ft"><span>RealizeOS · Project overview</span><span>07</span></div>
+</section>
+
+<!-- 8 MISSIONS -->
+<section class="s">
+ <div class="k">07 — Mission engine</div>
+ <h2>Goals, not prompts: an 8-state machine that sees work through</h2>
+ <p class="lede">A mission is planned into steps, each routed to the best runtime and model, cost-tracked, and paused for approval where it matters.</p>
+ <svg width="1136" height="250" viewBox="0 0 1136 250" style="margin-top:30px">
+  <defs><marker id="b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#ffcc00"/></marker></defs>
+  <g font-size="14" text-anchor="middle">
+   <rect x="0" y="80" width="130" height="48" rx="24" fill="#1a1a24" stroke="rgba(255,255,255,.15)"/><text x="65" y="109" fill="#e8e8ed">Proposed</text>
+   <rect x="170" y="80" width="130" height="48" rx="24" fill="#1a1a24" stroke="rgba(255,255,255,.15)"/><text x="235" y="109" fill="#e8e8ed">Planned</text>
+   <rect x="340" y="80" width="150" height="48" rx="24" fill="rgba(255,204,0,.14)" stroke="#ffcc00"/><text x="415" y="109" fill="#ffcc00" font-weight="600">In progress</text>
+   <rect x="570" y="10" width="180" height="48" rx="24" fill="rgba(251,191,36,.1)" stroke="#fbbf24"/><text x="660" y="39" fill="#fbbf24">Awaiting approval</text>
+   <rect x="570" y="150" width="180" height="48" rx="24" fill="#1a1a24" stroke="rgba(255,255,255,.15)"/><text x="660" y="179" fill="#e8e8ed">Paused</text>
+   <rect x="890" y="0" width="170" height="48" rx="24" fill="rgba(74,222,128,.1)" stroke="#4ade80"/><text x="975" y="29" fill="#4ade80">Completed</text>
+   <rect x="890" y="80" width="170" height="48" rx="24" fill="rgba(248,113,113,.1)" stroke="#f87171"/><text x="975" y="109" fill="#f87171">Failed</text>
+   <rect x="890" y="160" width="170" height="48" rx="24" fill="#1a1a24" stroke="rgba(255,255,255,.25)"/><text x="975" y="189" fill="#9a9ab0">Cancelled</text>
+  </g>
+  <g stroke="#ffcc00" stroke-width="1.5" fill="none" marker-end="url(#b)">
+   <path d="M132 104H166"/><path d="M302 104H336"/><path d="M492 94L566 44"/><path d="M492 114L566 164"/><path d="M752 34L886 24"/><path d="M492 104H886" opacity=".7"/><path d="M752 174L886 184"/>
+  </g>
+  <g stroke="#6b6b80" stroke-width="1.2" fill="none" stroke-dasharray="4 4" marker-end="url(#b)"><path d="M570 26C530 26,470 50,440 76"/><path d="M570 184C530 184,470 160,440 132"/></g>
+  <text x="0" y="240" font-family="JetBrains Mono" font-size="12" fill="#6b6b80">per-step: runtime routing · model selection · € cost ledger · event-log entry   (dashed = resume)</text>
+ </svg>
+ <div class="grid c3" style="margin-top:0">
+  <div class="card" style="padding:16px"><div class="num" style="font-size:32px">€0.028</div><div class="lbl">tracked cost · 3 demo missions</div></div>
+  <div class="card" style="padding:16px"><div class="num" style="font-size:32px">JSONL</div><div class="lbl">append-only event log per mission</div></div>
+  <div class="card" style="padding:16px"><div class="num" style="font-size:32px">HITL</div><div class="lbl">approval gates on consequential actions</div></div>
+ </div>
+ <div class="ft"><span>RealizeOS · Project overview</span><span>08</span></div>
+</section>
+
+<!-- 9 TECH STACK -->
+<section class="s">
+ <div class="k">08 — Tech stack</div>
+ <h2>Boring where it should be, modern where it matters</h2>
+ <div class="grid c4 mt" style="gap:14px">
+  <div class="card"><div class="lbl" style="margin:0 0 10px">Backend</div><ul class="clean"><li>Python 3.11+</li><li>FastAPI · Uvicorn</li><li>httpx (async)</li><li>Typer CLI</li></ul></div>
+  <div class="card"><div class="lbl" style="margin:0 0 10px">AI layer</div><ul class="clean"><li>Anthropic SDK</li><li>Google GenAI</li><li>LiteLLM (OpenAI &amp; more)</li><li>Ollama (local)</li></ul></div>
+  <div class="card"><div class="lbl" style="margin:0 0 10px">Data</div><ul class="clean"><li>Markdown FABRIC files</li><li>SQLite + FTS5 index</li><li>JSONL event log</li><li>JSON-Schema entities</li></ul></div>
+  <div class="card"><div class="lbl" style="margin:0 0 10px">Frontend</div><ul class="clean"><li>React 19 · TypeScript 5.9</li><li>Vite 8 · Tailwind 4</li><li>TanStack Query</li><li>@realizeos/design-system</li></ul></div>
+  <div class="card"><div class="lbl" style="margin:0 0 10px">Protocols</div><ul class="clean"><li>MCP server (24 tools)</li><li>HTTP + SSE streaming</li><li>REST FABRIC API</li></ul></div>
+  <div class="card"><div class="lbl" style="margin:0 0 10px">Security</div><ul class="clean"><li>JWT · API keys</li><li>6-role RBAC</li><li>Injection scanner</li></ul></div>
+  <div class="card"><div class="lbl" style="margin:0 0 10px">Distribution</div><ul class="clean"><li>Docker (GHCR)</li><li>PyPI · npm CLI</li><li>One-line installers</li></ul></div>
+  <div class="card"><div class="lbl" style="margin:0 0 10px">Quality</div><ul class="clean"><li>pytest suite · CI</li><li>Commitlint · Renovate</li><li>ADRs &amp; audit playbook</li></ul></div>
+ </div>
+ <div class="ft"><span>RealizeOS · Project overview</span><span>09</span></div>
+</section>
+
+<!-- 10 SECURITY -->
+<section class="s">
+ <div class="k">09 — Security &amp; governance</div>
+ <h2>Trust is a feature: every request passes five gates</h2>
+ <div style="display:grid;grid-template-columns:1.2fr 1fr;gap:40px;margin-top:26px;align-items:start">
+  <div style="display:flex;flex-direction:column;align-items:center;gap:8px">
+   <div class="card" style="width:100%;padding:14px 20px;text-align:center"><b>① Security headers</b></div>
+   <div class="card" style="width:90%;padding:14px 20px;text-align:center"><b>② Audit logging</b> — JSONL + live SSE</div>
+   <div class="card" style="width:80%;padding:14px 20px;text-align:center"><b>③ Rate limiting</b></div>
+   <div class="card" style="width:70%;padding:14px 20px;text-align:center"><b>④ Injection guard</b> — pattern + heuristic + Unicode</div>
+   <div class="card" style="width:60%;padding:14px 20px;text-align:center;border-color:var(--rz-accent)"><b class="acc">⑤ JWT auth + RBAC</b></div>
+  </div>
+  <div>
+   <div class="lbl" style="margin-bottom:12px">Six roles, least privilege</div>
+   <div style="display:flex;flex-wrap:wrap;gap:8px"><span class="badge">owner</span><span class="badge">admin</span><span class="badge">operator</span><span class="badge">user</span><span class="badge">viewer</span><span class="badge">guest</span></div>
+   <ul class="clean mt" style="font-size:15px;color:var(--rz-fg-muted);line-height:1.6">
+    <li>Human-in-the-loop approvals for payments, emails and other consequential actions</li>
+    <li>Per-agent tool allow- and deny-lists</li>
+    <li>Secrets redacted from errors and logs</li>
+    <li>Self-hosted: data never has to leave your server</li>
+   </ul>
+  </div>
+ </div>
+ <div class="ft"><span>RealizeOS · Project overview</span><span>10</span></div>
+</section>
+
+<!-- 11 NUMBERS -->
+<section class="s">
+ <div class="k">10 — By the numbers</div>
+ <h2>A production-scale codebase, not a prototype</h2>
+ <div class="grid c4 mt" style="gap:14px">
+  <div class="card"><div class="num">54.5k</div><div class="lbl">lines of Python (core + API)</div></div>
+  <div class="card"><div class="num">11.5k</div><div class="lbl">lines of TSX dashboard</div></div>
+  <div class="card"><div class="num">2,032</div><div class="lbl">automated tests · 99 files</div></div>
+  <div class="card"><div class="num">40+</div><div class="lbl">core modules</div></div>
+  <div class="card"><div class="num">24</div><div class="lbl">MCP tools · 4 families</div></div>
+  <div class="card"><div class="num">4</div><div class="lbl">LLM providers</div></div>
+  <div class="card"><div class="num">12</div><div class="lbl">business templates</div></div>
+  <div class="card"><div class="num">5.6</div><div class="lbl">current release</div></div>
+ </div>
+ <div class="card mt" style="padding:20px 24px">
+  <div class="lbl" style="margin:0 0 12px">Code distribution (approx. lines)</div>
+  <div style="display:flex;height:26px;border-radius:8px;overflow:hidden">
+   <div style="width:82.5%;background:#ffcc00"></div><div style="width:17.5%;background:#93c5fd"></div>
+  </div>
+  <div style="display:flex;gap:28px;margin-top:10px;font-size:13px;color:var(--rz-fg-muted)"><span><b class="acc">■</b> Python backend 82.5%</span><span><b style="color:#93c5fd">■</b> TypeScript dashboard 17.5%</span></div>
+ </div>
+ <div class="ft"><span>RealizeOS · Project overview · counts from repository, Sep 2026</span><span>11</span></div>
+</section>
+
+<!-- 12 BUSINESS -->
+<section class="s">
+ <div class="k">11 — Business case</div>
+ <h2>Free core. Paid expertise. No per-seat tax.</h2>
+ <p class="lede">Open-source under BSL 1.1 lowers adoption friction to zero; revenue comes from making it work for a specific business.</p>
+ <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:28px">
+  <div class="card"><span class="badge">Tier 0 · Free</span><h3 style="margin-top:14px">Open core</h3><p>Self-host via Docker, pip or npx. Builds community, trust and a funnel.</p></div>
+  <div class="card" style="border-color:var(--rz-accent)"><span class="badge">Tier 1 · Setup</span><h3 style="margin-top:14px">Guided installation</h3><p>Onboarding sessions: venture modelling, FABRIC population, agents &amp; integrations wired.</p></div>
+  <div class="card"><span class="badge">Tier 2 · Recurring</span><h3 style="margin-top:14px">Maintenance + vertical consulting</h3><p>Setup-plus-maintenance pricing: recurring revenue without SaaS lock-in.</p></div>
+ </div>
+ <div class="card mt" style="padding:20px 24px">
+  <div class="lbl" style="margin:0 0 12px">Target verticals — shipped as ready templates</div>
+  <div style="display:flex;flex-wrap:wrap;gap:8px"><span class="badge">consulting</span><span class="badge">agency</span><span class="badge">saas</span><span class="badge">ecommerce</span><span class="badge">accounting</span><span class="badge">coaching</span><span class="badge">freelance</span><span class="badge">portfolio</span><span class="badge">real-estate</span><span class="badge">real-estate developer</span><span class="badge">property mgmt</span><span class="badge">architecture firm</span></div>
+  <p style="font-size:14px;color:var(--rz-fg-muted);margin-top:12px"><b class="acc">Why it wins:</b> owners keep their data &amp; knowledge; model costs drop through routing; each vertical template is reusable IP that shortens every new install.</p>
+ </div>
+ <div class="ft"><span>RealizeOS · Project overview</span><span>12</span></div>
+</section>
+
+<!-- 13 ROADMAP -->
+<section class="s">
+ <div class="k">12 — Roadmap</div>
+ <h2>Where it goes next</h2>
+ <div style="position:relative;margin-top:50px">
+  <div style="position:absolute;top:9px;left:0;right:0;height:2px;background:linear-gradient(90deg,#ffcc00,rgba(255,204,0,.1))"></div>
+  <div class="grid c4" style="gap:20px;position:relative">
+   <div><div style="width:20px;height:20px;border-radius:50%;background:#ffcc00;box-shadow:0 0 20px rgba(255,204,0,.6)"></div><div class="lbl mt" style="margin-top:18px">Shipped · v5.5</div><h3 style="margin:6px 0">Open-source relaunch</h3><p style="font-size:14px;color:var(--rz-fg-muted)">FABRIC entities, Synapse, missions, dreaming, MCP server</p></div>
+   <div><div style="width:20px;height:20px;border-radius:50%;background:#ffcc00"></div><div class="lbl" style="margin-top:18px">Now · v5.6</div><h3 style="margin:6px 0">Hardening &amp; design system</h3><p style="font-size:14px;color:var(--rz-fg-muted)">Unified site + dashboard look, operator CLI</p></div>
+   <div><div style="width:20px;height:20px;border-radius:50%;border:2px solid #ffcc00;background:var(--rz-bg)"></div><div class="lbl" style="margin-top:18px">Next</div><h3 style="margin:6px 0">Voice &amp; workspace</h3><p style="font-size:14px;color:var(--rz-fg-muted)">STT/TTS channel, full workspace UI, visual knowledge graph</p></div>
+   <div><div style="width:20px;height:20px;border-radius:50%;border:2px solid var(--rz-fg-faint);background:var(--rz-bg)"></div><div class="lbl" style="margin-top:18px">Later</div><h3 style="margin:6px 0">Everywhere</h3><p style="font-size:14px;color:var(--rz-fg-muted)">React Native companion, host–satellite sync</p></div>
+  </div>
+ </div>
+ <div class="card" style="margin-top:70px;text-align:center;padding:30px;border-color:var(--rz-border-accent)">
+  <div style="font-size:28px;font-weight:600">Your business knowledge is the asset.<br><span class="g">RealizeOS makes it work.</span></div>
+  <p class="mono" style="margin-top:14px;color:var(--rz-fg-muted);font-size:13px">github.com/SufZen/RealizeOS-5 · realization.co.il</p>
+ </div>
+ <div class="ft"><span>RealizeOS · Project overview</span><span>13</span></div>
+</section>
+</body></html>
