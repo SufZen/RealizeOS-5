@@ -293,3 +293,10 @@ RealizeOS is licensed under the [Business Source License 1.1](LICENSE).
 - ❌ Cannot offer as a hosted/managed service without a commercial license
 
 For commercial licensing inquiries, contact [realizeos@realization.co.il](mailto:realizeos@realization.co.il).
+
+## Built by Realization
+
+RealizeOS is designed and built by [Realization](https://realization.world), which runs its own research, documentation and coordination on it.
+
+- Case study: [realization.world/work/realizeos](https://realization.world/work/realizeos)
+- Setup and implementation for your business: [realization.world/advisory](https://realization.world/advisory)
