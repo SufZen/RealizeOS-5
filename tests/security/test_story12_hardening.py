@@ -159,7 +159,8 @@ class TestGuardedGetRedirects:
 
         with pytest.raises(UnsafeURLError):
             await guarded_get("http://public.test/", transport=httpx.MockTransport(handler))
-        assert requested == ["http://public.test/"]  # the internal hop was never contacted
+        # Only the first (public, pinned) hop was contacted; the internal one never was.
+        assert requested == ["http://93.184.216.34/"]
 
     @pytest.mark.asyncio
     async def test_public_redirect_chain_followed(self, fake_dns):
@@ -185,6 +186,74 @@ class TestGuardedGetRedirects:
 
         with pytest.raises(UnsafeURLError, match="redirects"):
             await guarded_get("http://public.test/", transport=httpx.MockTransport(handler))
+
+
+class TestDnsRebinding:
+    """The connection must go to the IP that was checked, never a fresh lookup."""
+
+    @pytest.mark.asyncio
+    async def test_request_pinned_to_vetted_ip_with_original_host(self, monkeypatch):
+        import socket
+
+        import httpx
+        from realize_core.security.url_guard import guarded_get
+
+        answers = iter(["93.184.216.34", "127.0.0.1"])  # rebinding DNS: public, then loopback
+
+        def _getaddrinfo(host, *_a, **_k):
+            return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", (next(answers), 0))]
+
+        monkeypatch.setattr(socket, "getaddrinfo", _getaddrinfo)
+        seen: list[httpx.Request] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen.append(request)
+            return httpx.Response(200, text="ok")
+
+        await guarded_get("https://rebind.test:8443/x", transport=httpx.MockTransport(handler))
+
+        (req,) = seen
+        assert req.url.host == "93.184.216.34"  # vetted IP, not a second lookup
+        assert req.url.port == 8443
+        assert req.headers["host"] == "rebind.test:8443"
+        assert req.extensions["sni_hostname"] == "rebind.test"
+
+    def test_mixed_public_and_internal_records_refused(self, monkeypatch):
+        import socket
+
+        from realize_core.security.url_guard import UnsafeURLError, check_url
+
+        def _getaddrinfo(host, *_a, **_k):
+            return [
+                (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", 0)),
+                (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("10.0.0.1", 0)),
+            ]
+
+        monkeypatch.setattr(socket, "getaddrinfo", _getaddrinfo)
+        with pytest.raises(UnsafeURLError):
+            check_url("http://mixed.test/")
+
+    @pytest.mark.asyncio
+    async def test_ipv6_target_pinned_with_brackets(self, monkeypatch):
+        import socket
+
+        import httpx
+        from realize_core.security.url_guard import guarded_get
+
+        def _getaddrinfo(host, *_a, **_k):
+            return [(socket.AF_INET6, socket.SOCK_STREAM, 6, "", ("2606:4700:4700::1111", 0, 0, 0))]
+
+        monkeypatch.setattr(socket, "getaddrinfo", _getaddrinfo)
+        seen: list[httpx.Request] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen.append(request)
+            return httpx.Response(200)
+
+        await guarded_get("http://v6.test/", transport=httpx.MockTransport(handler))
+        assert seen[0].url.host == "2606:4700:4700::1111"
+        assert seen[0].headers["host"] == "v6.test"
+        assert "sni_hostname" not in seen[0].extensions  # plain http: no TLS
 
 
 class TestIngestionUsesGuard:

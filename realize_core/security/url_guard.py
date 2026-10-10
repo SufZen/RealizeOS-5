@@ -13,10 +13,10 @@ ranges with ``ingestion.allow_private_urls: true`` in ``realize-os.yaml``.
 Loopback, link-local/metadata and the other special ranges stay blocked
 even then.
 
-Limitation: the check resolves DNS before httpx connects, so a hostile DNS
-server could still rebind between the two lookups. This guard removes the
-direct attack (a URL naming an internal host or IP), which is what CodeQL
-``py/full-ssrf`` reports.
+DNS rebinding: the request is pinned to the exact IP that passed the check
+(the URL host is replaced by that IP, the original name is sent as the
+``Host`` header and as TLS SNI, so certificates still verify against the
+name). httpx never performs a second, unchecked DNS lookup.
 """
 
 from __future__ import annotations
@@ -68,12 +68,19 @@ def _resolve(host: str) -> list[IPAddress]:
     return [ipaddress.ip_address(info[4][0].split("%", 1)[0]) for info in infos]
 
 
-def check_url(url: str, *, allow_private: bool = False) -> None:
-    """Validate *url* for outbound fetching, raising :class:`UnsafeURLError`.
+def check_url(url: str, *, allow_private: bool = False) -> IPAddress:
+    """Validate *url* for outbound fetching and return the vetted IP to connect to.
+
+    Every address the host resolves to must be allowed — a name that mixes
+    public and internal records is refused outright.
 
     Args:
         url: Absolute URL to check.
         allow_private: Permit private (RFC 1918 / ULA) addresses.
+
+    Raises:
+        UnsafeURLError: Disallowed scheme, missing/unresolvable host, or a
+            non-public address.
     """
     parts = urlsplit(url)
     if parts.scheme.lower() not in _ALLOWED_SCHEMES:
@@ -81,9 +88,27 @@ def check_url(url: str, *, allow_private: bool = False) -> None:
     host = parts.hostname
     if not host:
         raise UnsafeURLError("URL has no host")
-    for ip in _resolve(host):
+    addresses = _resolve(host)
+    for ip in addresses:
         if _is_forbidden(ip, allow_private=allow_private):
             raise UnsafeURLError(f"Refusing to fetch '{host}': it resolves to a non-public address")
+    return addresses[0]
+
+
+def _pinned_request(
+    client: httpx.AsyncClient, url: str, ip: IPAddress, headers: dict[str, str] | None
+) -> httpx.Request:
+    """Build a GET for *url* that connects to *ip* but presents the original host.
+
+    The Host header and TLS SNI keep the original name, so virtual hosting
+    and certificate verification behave exactly as for a normal request.
+    """
+    original = httpx.URL(url)
+    pinned = original.copy_with(host=str(ip))
+    host_header = original.host if original.port is None else f"{original.host}:{original.port}"
+    merged = {**(headers or {}), "Host": host_header}
+    extensions = {"sni_hostname": original.host} if original.scheme == "https" else {}
+    return client.build_request("GET", pinned, headers=merged, extensions=extensions)
 
 
 async def guarded_get(
@@ -106,8 +131,8 @@ async def guarded_get(
     current = url
     async with httpx.AsyncClient(timeout=timeout, follow_redirects=False, transport=transport) as client:
         for _ in range(max_redirects + 1):
-            await asyncio.to_thread(check_url, current, allow_private=allow_private)
-            resp = await client.get(current, headers=headers)
+            ip = await asyncio.to_thread(check_url, current, allow_private=allow_private)
+            resp = await client.send(_pinned_request(client, current, ip, headers))
             location = resp.headers.get("location")
             if resp.status_code not in _REDIRECT_CODES or not location:
                 return resp
