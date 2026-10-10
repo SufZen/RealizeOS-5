@@ -92,17 +92,21 @@ def no_limits(monkeypatch):
     monkeypatch.setattr(router, "_check_cost_limit", lambda: True)
 
 
-TOOLS = [{"name": "sheets_read", "description": "read", "input_schema": {"type": "object"}}]
+TOOLS = [
+    {"name": name, "description": name, "input_schema": {"type": "object"}}
+    for name in ("sheets_read", "sheets_append", "sheets_broken")
+]
+READ_ONLY_TOOLS = TOOLS[:1]
 
 
-async def _run(provider, registry, **kw):
+async def _run(provider, registry, tools=None, **kw):
     from realize_core.agents.tool_loop import run_tool_loop
 
     events: list[dict] = []
     result = await run_tool_loop(
         "You are the finance agent.",
         [{"role": "user", "content": "What is the budget?"}],
-        TOOLS,
+        TOOLS if tools is None else tools,
         registry=registry,
         provider=provider,
         emit=events.append,
@@ -378,3 +382,21 @@ async def test_internal_runtime_streams_tool_events(monkeypatch):
     ]
 
     assert kinds == ["progress", "tool_call", "tool_result", "approval_request", "text", "final"]
+
+
+@pytest.mark.asyncio
+async def test_tool_not_offered_is_never_executed(registry):
+    """A model naming a tool it wasn't given (e.g. via prompt injection) is refused."""
+    reg, tool = registry  # sheets_append exists in the registry, but isn't offered (no gate)
+    provider = ScriptedProvider(
+        message(tool_use("x1", "sheets_append", values=[["pwned"]]), stop="tool_use"),
+        message(text("I can't do that.")),
+    )
+
+    result, events = await _run(provider, reg, tools=READ_ONLY_TOOLS)
+
+    assert tool.calls == []
+    block = provider.requests[1]["messages"][-1]["content"][0]
+    assert block["is_error"] is True
+    assert "not available" in block["content"]
+    assert result.tool_calls[0].success is False

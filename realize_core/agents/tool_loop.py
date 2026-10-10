@@ -98,11 +98,35 @@ def _block_text(content: list[Any]) -> str:
     return "\n".join(b.text for b in content if getattr(b, "type", "") == "text" and getattr(b, "text", ""))
 
 
-async def _run_one(registry, block, emit: Emit | None) -> ToolCallRecord:
-    """Execute one ``tool_use`` block through the registry (and its gate)."""
+async def _run_one(registry, block, emit: Emit | None, allowed: frozenset[str]) -> ToolCallRecord:
+    """Execute one ``tool_use`` block through the registry (and its gate).
+
+    Only tools that were offered to the model (``allowed``) are executed. The
+    model may name any action — e.g. after a prompt injection — and the offered
+    set is what encodes persona restrictions and the read-only policy when no
+    gate is installed.
+    """
     params = dict(block.input or {})
     record = ToolCallRecord(id=block.id, name=block.name, input=params)
     await _emit(emit, {"type": "tool_call", "id": block.id, "name": block.name, "input": params})
+
+    if block.name not in allowed:
+        logger.warning("Tool loop: model called '%s', which was not offered; refused", block.name)
+        record.error = f"Tool '{block.name}' is not available to this agent."
+        await _emit(
+            emit,
+            {
+                "type": "tool_result",
+                "id": block.id,
+                "name": block.name,
+                "success": False,
+                "held": False,
+                "output": "",
+                "error": record.error,
+                "duration_ms": 0.0,
+            },
+        )
+        return record
 
     started = time.perf_counter()
     result = await registry.execute(block.name, params)
@@ -195,6 +219,7 @@ async def run_tool_loop(
         raise RuntimeError("No tool-capable LLM provider is available")
 
     convo: list[dict[str, Any]] = list(messages)
+    allowed = frozenset(t["name"] for t in tools)
     result = LoopResult(text="")
     prompt = system_prompt
 
@@ -239,7 +264,7 @@ async def run_tool_loop(
             break
 
         # Run this turn's tool calls concurrently; answer them in ONE user message.
-        records = await asyncio.gather(*(_run_one(registry, b, emit) for b in tool_blocks))
+        records = await asyncio.gather(*(_run_one(registry, b, emit, allowed) for b in tool_blocks))
         result.tool_calls.extend(records)
         convo.append({"role": "assistant", "content": message.content})
         convo.append({"role": "user", "content": [_tool_result_block(r) for r in records]})
