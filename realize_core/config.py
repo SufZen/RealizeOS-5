@@ -293,6 +293,9 @@ def get_features(config: dict) -> dict:
         #   wiring is currently deferred (no-op when set).
         "enforce_gates": False,
         "enforce_guardrails": False,
+        # agent_tools: agents may call registry tools (Google, Sheets, MCP, ...)
+        #   while answering. Without enforce_gates only read-only tools are offered.
+        "agent_tools": False,
     }
     features = config.get("features", {})
     merged = {**defaults, **features}

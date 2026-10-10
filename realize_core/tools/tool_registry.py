@@ -39,6 +39,11 @@ class ToolRegistry:
         # ``features.enforce_gates`` flag is on.
         self._gate: Any = None
 
+    @property
+    def has_gate(self) -> bool:
+        """True when a governance gate is installed (``features.enforce_gates``)."""
+        return self._gate is not None
+
     def set_gate(self, gate: Any) -> None:
         """
         Install (or clear) the governance gate consulted before tool dispatch.

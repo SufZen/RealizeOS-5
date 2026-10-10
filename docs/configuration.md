@@ -99,8 +99,20 @@ To add a new agent, create a `.md` file in `A-agents/` and add routing keywords 
 | `dreaming_reflex` | `false` | Run Reflex enrichment over recently-changed entities |
 | `enforce_gates` | `false` | Enforce the trust ladder at the tool-dispatch chokepoint (see below) |
 | `enforce_guardrails` | `false` | Reserved placeholder; guardrail post-response enforcement is deferred (no-op) |
+| `agent_tools` | `false` | Agents call registry tools (Google, Sheets, ClickUp, MCP) while answering. Without `enforce_gates`, only read-only tools are offered (see below) |
 
 Custom flags are passed through without error — the engine ignores unknown flags.
+
+### Agent Tools (`agent_tools`)
+
+With `features.agent_tools: true`, agents answer through a tool loop: the model may call any
+available registry tool and gets the results back before answering. Every call goes through
+the tool registry, so the governance gate applies. Write actions (sending mail, appending to
+a sheet, creating tasks, any MCP tool not listed as read-only) are offered **only when
+`enforce_gates` is also on**; otherwise agents get read-only tools. Narrow an agent's tools with
+`tools_allowlist` / `tools_denylist` in `A-agents/<agent>.persona.yaml`. MCP tools are writes
+unless listed under `read_only_tools` for their server in `mcp-servers.yaml`. Agent Drive
+uploads/downloads are confined to `REALIZE_AGENT_FILES_DIR` (default `<KB_PATH>/data/agent-files`).
 
 ### Governance Enforcement (`enforce_gates`)
 
