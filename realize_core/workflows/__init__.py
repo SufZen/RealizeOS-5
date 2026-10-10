@@ -389,14 +389,22 @@ class WorkflowRunner:
     async def _run_prompt(self, node: WorkflowNode, ctx: WorkflowContext) -> dict:
         """Execute a prompt node — send to LLM."""
         prompt = self._substitute(node.config.get("prompt", ""), ctx.variables)
-        model = node.config.get("model", "")
+        system_prompt = self._substitute(node.config.get("system_prompt", ""), ctx.variables)
 
-        # Import and call LLM
+        from realize_core.llm.router import classify_task, route_to_llm
+
+        # ``task_type`` lets a workflow author force model selection
+        # ("simple", "reasoning", ...); otherwise classify like chat does.
+        task_type = node.config.get("task_type") or classify_task(prompt)
         try:
-            from realize_core.llm.router import route_and_query
-
-            response = await route_and_query(prompt, model=model) if model else await route_and_query(prompt)
+            response = await route_to_llm(
+                system_prompt=system_prompt,
+                messages=[{"role": "user", "content": prompt}],
+                task_type=task_type,
+                system_key=ctx.variables.get("system_key", ""),
+            )
         except Exception:
+            logger.warning("Workflow %s: prompt node %s failed", ctx.workflow_name, node.id, exc_info=True)
             response = f"[LLM unavailable] Prompt: {prompt[:200]}"
 
         return {"output": response}

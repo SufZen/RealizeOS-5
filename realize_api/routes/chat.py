@@ -67,6 +67,7 @@ async def chat(body: ChatRequest, request: Request):
     system_config = systems[body.system_key]
 
     from realize_core.base_handler import process_message
+    from realize_core.config import get_features
 
     try:
         response = await asyncio.wait_for(
@@ -78,15 +79,19 @@ async def chat(body: ChatRequest, request: Request):
                 system_config=system_config,
                 shared_config=shared_config,
                 channel=body.channel,
+                # Without these, activity logging, cross-system context and
+                # every other feature-flagged branch is silently off for API chat.
+                features=get_features(getattr(request.app.state, "config", None) or {}),
+                all_systems=systems,
             ),
             timeout=CHAT_TIMEOUT_SECONDS,
         )
     except TimeoutError:
-        logger.error(f"Chat timeout after {CHAT_TIMEOUT_SECONDS}s for {body.system_key}")
+        logger.error("Chat timeout after %ss for %s", CHAT_TIMEOUT_SECONDS, body.system_key)
         raise HTTPException(status_code=504, detail=f"Request timed out after {CHAT_TIMEOUT_SECONDS}s")
-    except Exception as e:
-        logger.error(f"Chat error: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Processing error: {str(e)[:200]}")
+    except Exception:
+        logger.error("Chat processing failed for %s", body.system_key, exc_info=True)
+        raise HTTPException(status_code=500, detail="Processing error — see server logs")
 
     # Determine which agent handled it
     agent_used = body.agent_key or "orchestrator"

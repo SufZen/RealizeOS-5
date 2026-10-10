@@ -78,8 +78,9 @@ async def receive_webhook(source: str, request: Request):
 
         log_event(
             venture_key="shared",
-            actor_type="webhook",
-            actor_id=source,
+            # activity_events.actor_type is CHECK-constrained to agent/system/user
+            actor_type="system",
+            actor_id=f"webhook:{source}",
             action="webhook_received",
             entity_type="event",
             entity_id=event["event_type"],
@@ -107,8 +108,8 @@ async def receive_webhook(source: str, request: Request):
 
                 _log(
                     venture_key="shared",
-                    actor_type="webhook",
-                    actor_id=source,
+                    actor_type="system",
+                    actor_id=f"webhook:{source}",
                     action="webhook_trigger_fired",
                     entity_type="skill",
                     entity_id=skill_name,

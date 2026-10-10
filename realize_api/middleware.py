@@ -77,6 +77,26 @@ def _is_public(path: str) -> bool:
     return False
 
 
+def _is_signed_webhook_delivery(request: Request) -> bool:
+    """True for an inbound webhook POST that the route will HMAC-verify itself.
+
+    External services (GitHub, Stripe, ...) can't present a session or API
+    key, so ``POST /api/webhooks/{source}`` bypasses normal auth — but only
+    when ``features.webhook_secret`` is configured, because the route then
+    rejects any delivery without a valid ``X-Webhook-Signature``. Without a
+    secret the endpoint stays behind normal auth. ``/api/webhooks/events``
+    (which exposes stored payloads) is never public.
+    """
+    path = request.url.path
+    if request.method != "POST" or not path.startswith("/api/webhooks/"):
+        return False
+    source = path[len("/api/webhooks/") :]
+    if not source or "/" in source or source == "events":
+        return False
+    config = getattr(request.app.state, "config", None) or {}
+    return bool(config.get("features", {}).get("webhook_secret"))
+
+
 class AuthMiddleware(BaseHTTPMiddleware):
     """Unified credential check for the API.
 
@@ -118,7 +138,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         path = request.url.path
 
-        if _is_public(path):
+        if _is_public(path) or _is_signed_webhook_delivery(request):
             return await call_next(request)
 
         # 1. Cookie session

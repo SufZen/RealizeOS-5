@@ -49,12 +49,13 @@ async def get_tools(request: Request):
         from realize_core.tools.mcp import get_mcp_hub
 
         hub = get_mcp_hub()
-        for name, conn in hub._connections.items():
+        for name, conn in hub.servers.items():
             mcp_servers.append(
                 {
                     "name": name,
-                    "connected": conn.connected if hasattr(conn, "connected") else False,
-                    "tools_count": len(conn.tools) if hasattr(conn, "tools") else 0,
+                    "enabled": conn.enabled,
+                    "connected": conn.connected,
+                    "tools_count": len(conn.tools),
                 }
             )
     except Exception as exc:

@@ -156,11 +156,11 @@ async def generate_weekly_review(
 
             conn = get_connection()
             approved = conn.execute(
-                "SELECT COUNT(*) FROM approval_queue WHERE status = 'approved' AND updated_at > ?",
+                "SELECT COUNT(*) FROM approval_queue WHERE status = 'approved' AND decided_at > ?",
                 (week_ago,),
             ).fetchone()[0]
             rejected = conn.execute(
-                "SELECT COUNT(*) FROM approval_queue WHERE status = 'rejected' AND updated_at > ?",
+                "SELECT COUNT(*) FROM approval_queue WHERE status = 'rejected' AND decided_at > ?",
                 (week_ago,),
             ).fetchone()[0]
             conn.close()
