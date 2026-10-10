@@ -4,6 +4,12 @@ All notable changes to RealizeOS are documented in this file.
 This changelog is automatically generated from [Conventional Commits](https://conventionalcommits.org).
 
 
+## [5.6.3](https://github.com/SufZen/RealizeOS-5/compare/v5.6.2...v5.6.3) (2026-10-10)
+
+### Bug Fixes
+
+* repair code paths that referenced missing modules and columns ([c734b4f](https://github.com/SufZen/RealizeOS-5/commit/c734b4ff865c5164673a5aa763bb7c69785e896d))
+
 ## [5.6.2](https://github.com/SufZen/RealizeOS-5/compare/v5.6.1...v5.6.2) (2026-10-10)
 
 ### Bug Fixes
