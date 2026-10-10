@@ -4,6 +4,17 @@ All notable changes to RealizeOS are documented in this file.
 This changelog is automatically generated from [Conventional Commits](https://conventionalcommits.org).
 
 
+## [5.7.0](https://github.com/SufZen/RealizeOS-5/compare/v5.6.3...v5.7.0) (2026-10-10)
+
+### Features
+
+* **tools:** register Google, Sheets, ClickUp and MCP tools in the registry ([2dcc256](https://github.com/SufZen/RealizeOS-5/commit/2dcc2562f93baeaf43d8d7795e038189cd169ffa))
+
+### Bug Fixes
+
+* **security:** confine agent Drive paths; don't trust MCP read-only hints ([7768fe1](https://github.com/SufZen/RealizeOS-5/commit/7768fe15abfbc4c8fc4a67ec2cc85c35516422a1))
+* **security:** sanitize Drive file names before writing downloads ([a04107f](https://github.com/SufZen/RealizeOS-5/commit/a04107f328ad0f24430a32d52f5c545cc900afea))
+
 ## [5.6.3](https://github.com/SufZen/RealizeOS-5/compare/v5.6.2...v5.6.3) (2026-10-10)
 
 ### Bug Fixes
