@@ -52,27 +52,32 @@ async def list_approvals(
 
 @router.post("/approvals/{approval_id}/approve")
 async def approve(approval_id: str, body: DecisionBody = None):
-    """Approve a pending request."""
-    from realize_core.governance.gates import approve_request
+    """Approve a pending request — a held tool action is executed now."""
+    from realize_core.governance.gates import decide_approval
 
     note = body.decision_note if body else None
-    result = approve_request(approval_id, decision_note=note)
+    result = await decide_approval(approval_id, approve=True, decision_note=note)
 
     if result is None:
         raise HTTPException(status_code=404, detail="Approval not found or not pending")
 
-    return result
+    return _flatten(result)
 
 
 @router.post("/approvals/{approval_id}/reject")
 async def reject(approval_id: str, body: DecisionBody = None):
     """Reject a pending request."""
-    from realize_core.governance.gates import reject_request
+    from realize_core.governance.gates import decide_approval
 
     note = body.decision_note if body else None
-    result = reject_request(approval_id, decision_note=note)
+    result = await decide_approval(approval_id, approve=False, decision_note=note)
 
     if result is None:
         raise HTTPException(status_code=404, detail="Approval not found or not pending")
 
-    return result
+    return _flatten(result)
+
+
+def _flatten(result: dict) -> dict:
+    """Keep the historical response shape (the approval row) and add outcomes."""
+    return {**result["approval"], "execution": result["execution"], "skill_output": result["skill_output"]}

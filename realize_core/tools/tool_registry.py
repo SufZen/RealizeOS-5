@@ -159,6 +159,24 @@ class ToolRegistry:
             logger.error(f"Tool execution error: {action_name}: {e}", exc_info=True)
             return ToolResult.fail(f"Execution failed: {str(e)[:300]}")
 
+    async def execute_approved(self, action_name: str, params: dict[str, Any]) -> ToolResult:
+        """Execute an action an operator has explicitly approved, skipping the gate.
+
+        Only :func:`realize_core.governance.gates.execute_approved_action` should
+        call this, after atomically claiming an approved ``approval_queue`` row
+        for exactly this action and these parameters.
+        """
+        tool = self.get_tool_for_action(action_name)
+        if not tool:
+            return ToolResult.fail(f"Unknown action: '{action_name}'")
+        if not tool.is_available():
+            return ToolResult.fail(f"Tool '{tool.name}' is not available (missing API key or dependency)")
+        try:
+            return await tool.execute(action_name, params)
+        except Exception as e:
+            logger.error("Approved tool execution error: %s", action_name, exc_info=True)
+            return ToolResult.fail(f"Execution failed: {str(e)[:300]}")
+
     def get_all_schemas(self, available_only: bool = True) -> list[dict]:
         """
         Get all tool schemas in Claude tool_use format.

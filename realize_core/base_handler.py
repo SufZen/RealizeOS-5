@@ -134,7 +134,12 @@ async def standard_llm_handling(
 
     response = None
     if (features or {}).get("agent_tools"):
-        response = await _answer_with_tools(system_prompt, messages, agent_key, kb_path, system_config or {}, emit=emit)
+        from realize_core.governance.context import tool_call_context
+
+        with tool_call_context(system_key=system_key, agent_key=agent_key, user_id=user_id, channel=channel):
+            response = await _answer_with_tools(
+                system_prompt, messages, agent_key, kb_path, system_config or {}, emit=emit
+            )
     if response is None:
         task_class = classify_task(message, system_key=system_key)
         response = await route_to_llm(system_prompt, messages, task_class)
@@ -324,6 +329,11 @@ async def process_message(
         except Exception:
             pass
 
+    # Step 0: a skill paused at a human step? This message is the answer.
+    resumed = await _resume_paused_skill(system_key, user_id, message, kb_path, system_config, shared_config, channel)
+    if resumed is not None:
+        return resumed
+
     # Step 1: Active session?
     session = get_session(system_key, user_id)
     if session and session.stage not in ("completed", "approved"):
@@ -473,3 +483,24 @@ async def process_message(
             except Exception:
                 pass
         raise
+
+
+async def _resume_paused_skill(system_key, user_id, message, kb_path, system_config, shared_config, channel):
+    """If this user's skill is waiting on a human step in this venture, resume it."""
+    from realize_core.skills.executor import peek_skill_resume_context, resume_pending_skill
+
+    pending = peek_skill_resume_context(user_id)
+    if not pending or getattr(pending.get("context"), "system_key", None) != system_key:
+        return None
+    approval_id = pending.get("approval_id")
+    result = await resume_pending_skill(user_id, message, kb_path, system_config, shared_config, channel)
+    if approval_id:
+        try:
+            from realize_core.governance.gates import approve_request
+
+            approve_request(approval_id, decision_note=f"Answered in chat: {message[:200]}")
+        except Exception:
+            logger.debug("Could not close approval item %s", approval_id, exc_info=True)
+    add_message(system_key, user_id, "user", message)
+    add_message(system_key, user_id, "assistant", result)
+    return result

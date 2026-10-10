@@ -158,36 +158,47 @@ class ToolGate:
         """
         Record a held/blocked action as an approval request.
 
-        Writes to the injected in-memory ApprovalStore (authoritative for the
-        returned id), and best-effort to the DB-backed ``approval_queue`` so the
-        existing dashboard surfaces it. Never raises.
+        ``approval_queue`` (what the dashboard shows and what approving acts on)
+        is authoritative: the row stores the full parameters and the origin of
+        the call (venture, agent, user, from the current tool-call context) so
+        an approval can execute the action and report back. The returned id is
+        that row's id. The in-memory ApprovalStore gets a copy under the same id.
+        Never raises.
         """
+        from realize_core.governance.context import current_tool_context
+
+        origin = current_tool_context()
+        system_key = origin.system_key or self._system_key
+        agent_key = origin.agent_key or self._agent_key
+
         request = ApprovalRequest(
             action=ApprovalAction.REQUEST_DECISION,
             description=f"Tool action '{action_name}' {status} by governance gate",
-            agent_key=self._agent_key,
-            system_key=self._system_key,
+            agent_key=agent_key,
+            system_key=system_key,
             metadata={
                 "tool_action": action_name,
                 "gate_status": status,
                 "params": _safe_params(params),
             },
         )
-        self._store.create(request)
-
-        # Best-effort mirror into the DB-backed approval_queue the dashboard reads.
         try:
             from realize_core.governance.gates import create_approval_request
 
-            create_approval_request(
-                venture_key=self._system_key,
-                agent_key=self._agent_key,
+            request.id = create_approval_request(
+                venture_key=system_key,
+                agent_key=agent_key,
                 action_type=action_name,
                 payload={"gate_status": status, "params": _safe_params(params)},
+                action_name=action_name if status == "approve" else None,
+                params=params if status == "approve" else None,
+                requested_by=origin.user_id or None,
+                session_ref=origin.session_ref or None,
             )
         except Exception as exc:
-            logger.debug("approval_queue mirror skipped for '%s': %s", action_name, exc)
+            logger.warning("approval_queue write failed for '%s': %s", action_name, exc)
 
+        self._store.create(request)
         return request.id
 
 

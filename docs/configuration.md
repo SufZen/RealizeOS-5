@@ -116,6 +116,15 @@ uploads/downloads are confined to `REALIZE_AGENT_FILES_DIR` (default `<KB_PATH>/
 
 ### Governance Enforcement (`enforce_gates`)
 
+> **Since 5.7.0, approving executes.** A held action is stored in `approval_queue` with its full
+> parameters and the conversation it came from. Approving it (dashboard, `POST /api/approvals/{id}/approve`,
+> or the MCP `approve_request` tool) runs it exactly once through the tool registry, stores the result or
+> error on the approval, and posts the outcome back into that conversation. Rejecting never runs it.
+> Skill `human` steps also create approval items; answering in chat or approving/rejecting in the
+> dashboard resumes the skill. New installs from `realize_lite` ship with `enforce_gates: true`;
+> the engine default stays `false` for existing configs.
+
+
 By default RealizeOS does **not** intercept tool execution: the trust ladder
 under `trust:` is advisory only. Setting `features.enforce_gates: true` installs
 a governance gate at the single tool-dispatch chokepoint

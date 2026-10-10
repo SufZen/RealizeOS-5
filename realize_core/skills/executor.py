@@ -22,12 +22,26 @@ logger = logging.getLogger(__name__)
 _pending_skill_contexts: dict[str, dict] = {}
 
 
-def store_skill_resume_context(user_id: str, skill_name: str, ctx, remaining_steps: list):
-    """Store skill context for resumption after user confirms an action."""
+def store_skill_resume_context(
+    user_id: str,
+    skill_name: str,
+    ctx,
+    remaining_steps: list,
+    *,
+    step_id: str = "",
+    approval_id: str | None = None,
+):
+    """Store skill context for resumption after the user answers a human step.
+
+    ``step_id`` is the human step whose answer resumes the skill;
+    ``approval_id`` is the approval item created for it (dashboard answer).
+    """
     _pending_skill_contexts[user_id] = {
         "skill_name": skill_name,
         "context": ctx,
         "remaining_steps": remaining_steps,
+        "step_id": step_id,
+        "approval_id": approval_id,
     }
     logger.info(
         f"Stored skill resume context for user {user_id}, skill={skill_name}, {len(remaining_steps)} steps remaining"
@@ -37,6 +51,41 @@ def store_skill_resume_context(user_id: str, skill_name: str, ctx, remaining_ste
 def pop_skill_resume_context(user_id: str) -> dict | None:
     """Pop and return the stored skill context for a user, if any."""
     return _pending_skill_contexts.pop(user_id, None)
+
+
+def peek_skill_resume_context(user_id: str) -> dict | None:
+    """Return the stored skill context for a user without removing it."""
+    return _pending_skill_contexts.get(user_id)
+
+
+async def resume_pending_skill(
+    user_id: str,
+    answer: str,
+    kb_path=None,
+    system_config=None,
+    shared_config=None,
+    channel: str = "api",
+) -> str | None:
+    """Continue a skill paused at a human step, using *answer* as that step's result.
+
+    Returns the skill's output, or None when the user has no paused skill.
+    """
+    pending = pop_skill_resume_context(user_id)
+    if pending is None:
+        return None
+    ctx = pending["context"]
+    step_id = pending.get("step_id") or "human"
+    ctx.step_results[step_id] = answer
+    logger.info("Resuming skill %s for %s after step %s", pending.get("skill_name"), user_id, step_id)
+    return await _run_v2_steps(
+        pending.get("remaining_steps", []),
+        ctx,
+        pending.get("skill_name", ""),
+        kb_path,
+        system_config,
+        shared_config,
+        channel,
+    )
 
 
 class SkillContext:
@@ -201,6 +250,11 @@ async def _execute_v2_steps(
         return "Skill has no steps defined."
 
     ctx = SkillContext(user_message, system_key, user_id)
+    return await _run_v2_steps(steps, ctx, skill.get("name", ""), kb_path, system_config, shared_config, channel)
+
+
+async def _run_v2_steps(steps: list, ctx, skill_name: str, kb_path, system_config, shared_config, channel) -> str:
+    """Run v2 steps in order; pauses (and stores a resume point) at a human step."""
     outputs = []
 
     for i, step in enumerate(steps):
@@ -246,10 +300,12 @@ async def _execute_v2_steps(
         elif step_type == "human":
             result = await _execute_human_step(step, ctx)
             if result.startswith("__HUMAN_INPUT_NEEDED__"):
-                # Store context for resumption
-                remaining = steps[i + 1 :]
-                store_skill_resume_context(user_id, skill.get("name", ""), ctx, remaining)
-                return result.replace("__HUMAN_INPUT_NEEDED__\n", "")
+                question = result.replace("__HUMAN_INPUT_NEEDED__\n", "")
+                approval_id = _create_skill_input_approval(ctx, skill_name, question)
+                store_skill_resume_context(
+                    ctx.user_id, skill_name, ctx, steps[i + 1 :], step_id=step_id, approval_id=approval_id
+                )
+                return question
         else:
             result = f"Unknown step type: {step_type}"
 
@@ -358,7 +414,10 @@ async def _execute_tool_step(step, ctx) -> str:
     if registry.get_tool_for_action(tool_name) is None:
         return f"Error: unknown tool '{tool_name}'"
 
-    result = await registry.execute(tool_name, params)
+    from realize_core.governance.context import tool_call_context
+
+    with tool_call_context(system_key=ctx.system_key, agent_key="skill", user_id=ctx.user_id, channel="skill"):
+        result = await registry.execute(tool_name, params)
     if result.metadata.get("requires_human"):
         request_id = result.metadata.get("request_id")
         if request_id:
@@ -395,6 +454,25 @@ async def _execute_condition_step(step, ctx) -> str:
         return "__STOP__"
 
     return f"Condition evaluated: matched '{matched_branch}'"
+
+
+def _create_skill_input_approval(ctx, skill_name: str, question: str) -> str | None:
+    """Create an approval item for a human step so it can be answered from the dashboard."""
+    try:
+        from realize_core.governance.gates import create_approval_request
+
+        return create_approval_request(
+            venture_key=ctx.system_key,
+            agent_key=f"skill:{skill_name}" if skill_name else "skill",
+            action_type="skill_input",
+            payload={"question": question, "skill": skill_name},
+            expires_minutes=24 * 60,
+            requested_by=ctx.user_id,
+            session_ref=f"{ctx.system_key}|{ctx.user_id}" if ctx.system_key and ctx.user_id else None,
+        )
+    except Exception:
+        logger.warning("Could not create approval item for skill %s", skill_name, exc_info=True)
+        return None
 
 
 async def _execute_human_step(step, ctx) -> str:
