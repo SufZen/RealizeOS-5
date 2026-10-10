@@ -48,9 +48,9 @@ APScheduler>=3.10
 python-telegram-bot>=21.0
 pdfplumber>=0.11.0  # PDF parsing for Telegram document uploads
 
-# Optional: Google Workspace tools
-# google-api-python-client>=2.100.0
-# google-auth-oauthlib>=1.2.0
+# Google Workspace tools (Gmail, Calendar, Drive, Sheets) — agent tools since 5.7.0. Apache-2.0.
+google-api-python-client>=2.100.0,<3
+google-auth-oauthlib>=1.2.0,<2
 
 # Optional: Web search
 # trafilatura>=1.12.0  # URL content extraction

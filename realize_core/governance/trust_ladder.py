@@ -44,16 +44,38 @@ DEFAULT_TRUST_RULES: dict[str, dict[int, str]] = {
     "social_post": {1: "block", 2: "approve", 3: "approve", 4: "approve", 5: "approve"},
     "financial_action": {1: "block", 2: "block", 3: "approve", 4: "approve", 5: "approve"},
     "drive_upload": {1: "block", 2: "approve", 3: "approve", 4: "auto", 5: "auto"},
+    # Writes into business systems (Sheets, Docs, ClickUp, ...): approval by default.
+    "data_write": {1: "block", 2: "approve", 3: "approve", 4: "auto", 5: "auto"},
+    # A write action with no explicit mapping (e.g. a new MCP tool) is never
+    # silently auto-approved below the highest trust level.
+    "unknown_write": {1: "block", 2: "approve", 3: "approve", 4: "approve", 5: "auto"},
 }
 
 # Map tool actions to trust action types
 ACTION_MAP: dict[str, str] = {
+    # Gmail
     "gmail_send": "send_email",
     "gmail_create_draft": "send_email",
+    "gmail_reply": "send_email",
+    "gmail_forward": "send_email",
+    "gmail_triage": "external_api",
+    "gmail_add_label": "external_api",
+    # Calendar
     "calendar_create_event": "create_event",
     "calendar_update_event": "create_event",
-    "drive_create_doc": "external_api",
-    "drive_upload_file": "drive_upload",
+    # Drive
+    "drive_create_doc": "data_write",
+    "drive_append_doc": "data_write",
+    "drive_upload": "drive_upload",
+    "drive_upload_file": "drive_upload",  # legacy name
+    "drive_move": "data_write",
+    "drive_set_permissions": "publish_content",  # sharing can expose documents
+    # Sheets
+    "sheets_append": "data_write",
+    "sheets_create": "data_write",
+    # ClickUp
+    "clickup_create_task": "data_write",
+    "clickup_update_task_status": "data_write",
     "browser_click": "external_api",
     "browser_type": "external_api",
     "web_search": "external_api",
@@ -86,7 +108,13 @@ def get_trust_rules(config: dict = None) -> dict[str, dict[int, str]]:
     return rules
 
 
-def check_trust(action: str, config: dict = None, channel: str = "dashboard") -> TrustDecision:
+def check_trust(
+    action: str,
+    config: dict = None,
+    channel: str = "dashboard",
+    *,
+    is_destructive: bool | None = None,
+) -> TrustDecision:
     """
     Check whether an action is allowed under the current trust level.
 
@@ -94,6 +122,9 @@ def check_trust(action: str, config: dict = None, channel: str = "dashboard") ->
         action: The action to check (e.g., "gmail_send", "send_email")
         config: System configuration dict
         channel: The channel making the request
+        is_destructive: Whether the tool declares the action as a write. Used
+            only when no rule covers the action: unknown writes fall under the
+            ``unknown_write`` rule; unknown reads are AUTO.
 
     Returns:
         TrustDecision: BLOCK, APPROVE, or AUTO
@@ -107,8 +138,9 @@ def check_trust(action: str, config: dict = None, channel: str = "dashboard") ->
     # Get the rule for this action
     action_rules = rules.get(trust_action)
     if not action_rules:
-        # No rule defined — default to auto for known actions, approve for unknown
-        return TrustDecision.AUTO
+        if not is_destructive:
+            return TrustDecision.AUTO
+        action_rules = rules.get("unknown_write", {})
 
     # Look up the decision for the current trust level
     decision_str = action_rules.get(level, "approve")

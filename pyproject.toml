@@ -42,11 +42,13 @@ dependencies = [
     "APScheduler>=3.10",
     "python-telegram-bot>=21.0",
     "pdfplumber>=0.11.0",
+    "google-api-python-client>=2.100.0,<3",
+    "google-auth-oauthlib>=1.2.0,<2",
 ]
 
 [project.optional-dependencies]
 openai = ["openai>=1.30.0"]
-gws = ["google-api-python-client>=2.100.0", "google-auth-oauthlib>=1.2.0"]
+gws = []  # Google libraries are core dependencies since 5.7.0; extra kept for compatibility
 dev = [
     "pytest",
     "pytest-asyncio",

@@ -228,6 +228,23 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.debug(f"RBAC initialization skipped: {e}")
 
+    # Tool registry — the single dispatch point agents use (and the gate hooks).
+    try:
+        from realize_core.tools.tool_registry import get_tool_registry
+
+        registry = get_tool_registry()
+        if registry.tool_count == 0:
+            registry.auto_discover()
+        summary = registry.status_summary()
+        logger.info(
+            "Tool registry: %d tools, %d actions, %d available",
+            summary["total_tools"],
+            summary["total_actions"],
+            summary["available"],
+        )
+    except Exception as e:
+        logger.error("Tool registry discovery failed: %s", e, exc_info=True)
+
     # Governance tool gate — RISKIEST surface; default OFF.
     # Only when features.enforce_gates is true do we construct a ToolGate and
     # inject it into the tool-execution registry. When off, the registry's gate

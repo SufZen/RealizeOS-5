@@ -361,3 +361,21 @@ SHEETS_TOOL_FUNCTIONS = {
     "sheets_append": sheets_append,
     "sheets_create": sheets_create,
 }
+
+
+def get_tool():
+    """Registry factory: expose Google Sheets as a BaseTool."""
+    from realize_core.tools.base_tool import ToolCategory
+    from realize_core.tools.function_tool import FunctionMapTool
+    from realize_core.tools.google_auth import has_stored_credentials
+
+    return FunctionMapTool(
+        name="google_sheets",
+        description="Read, append to and create Google Sheets spreadsheets",
+        category=ToolCategory.PRODUCTIVITY,
+        schemas=SHEETS_TOOL_SCHEMAS,
+        functions=SHEETS_TOOL_FUNCTIONS,
+        write_actions=SHEETS_WRITE_TOOLS,
+        availability=has_stored_credentials,
+        requires_auth=True,
+    )

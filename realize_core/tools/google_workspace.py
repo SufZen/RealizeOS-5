@@ -1207,3 +1207,21 @@ TOOL_FUNCTIONS = {
     "drive_set_permissions": drive_set_permissions,
     "drive_move": drive_move,
 }
+
+
+def get_tool():
+    """Registry factory: expose Gmail, Calendar and Drive as one BaseTool."""
+    from realize_core.tools.base_tool import ToolCategory
+    from realize_core.tools.function_tool import FunctionMapTool
+    from realize_core.tools.google_auth import has_stored_credentials
+
+    return FunctionMapTool(
+        name="google_workspace",
+        description="Gmail, Google Calendar and Google Drive for the connected Google account",
+        category=ToolCategory.PRODUCTIVITY,
+        schemas=GOOGLE_TOOL_SCHEMAS,
+        functions=TOOL_FUNCTIONS,
+        write_actions=WRITE_TOOLS,
+        availability=has_stored_credentials,
+        requires_auth=True,
+    )

@@ -124,6 +124,18 @@ class MCPServerConnection:
     def get_tool_names(self) -> list[str]:
         return [t.name for t in self._raw_tools]
 
+    def describe_tools(self) -> list[tuple[dict, bool]]:
+        """Return ``(claude_schema, read_only)`` for each tool on this server.
+
+        ``read_only`` comes from the MCP ``readOnlyHint`` annotation; tools
+        without it are treated as writes by the governance gate.
+        """
+        out = []
+        for t in self._raw_tools:
+            annotations = getattr(t, "annotations", None)
+            out.append((self._mcp_to_claude_schema(t), bool(getattr(annotations, "readOnlyHint", False))))
+        return out
+
     def status_dict(self) -> dict:
         return {
             "name": self.name,

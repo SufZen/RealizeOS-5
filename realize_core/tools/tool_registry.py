@@ -9,6 +9,7 @@ Supports:
 """
 
 import importlib
+import inspect
 import logging
 from pathlib import Path
 from typing import Any
@@ -46,6 +47,22 @@ class ToolRegistry:
         exactly as it did before any gating existed.
         """
         self._gate = gate
+
+    def _decide(self, action_name: str, params: dict[str, Any]) -> Any:
+        """Ask the gate, passing ``is_destructive`` when the gate accepts it.
+
+        Gates written against the original ``decide(action, params)`` protocol
+        must keep working — a TypeError here would otherwise make the registry
+        fail OPEN and run actions the gate meant to hold.
+        """
+        decide = self._gate.decide
+        try:
+            accepts_flag = "is_destructive" in inspect.signature(decide).parameters
+        except (TypeError, ValueError):
+            accepts_flag = False
+        if accepts_flag:
+            return decide(action_name, params, is_destructive=self.is_destructive(action_name))
+        return decide(action_name, params)
 
     def register(self, tool: BaseTool) -> bool:
         """
@@ -98,7 +115,7 @@ class ToolRegistry:
         Returns:
             ToolResult with the execution outcome
         """
-        tool = self._action_map.get(action_name)
+        tool = self.get_tool_for_action(action_name)
         if not tool:
             return ToolResult.fail(f"Unknown action: '{action_name}'")
 
@@ -108,7 +125,7 @@ class ToolRegistry:
         # Governance gate (only when injected; default path is unchanged).
         if self._gate is not None:
             try:
-                decision = self._gate.decide(action_name, params)
+                decision = self._decide(action_name, params)
             except Exception as gate_exc:  # a raising gate must fail OPEN, never block tools
                 logger.error(
                     "Tool gate raised for '%s' — failing open (allow): %s",
@@ -167,8 +184,29 @@ class ToolRegistry:
         return self._tools.get(name)
 
     def get_tool_for_action(self, action_name: str) -> BaseTool | None:
-        """Get the tool that handles a specific action."""
-        return self._action_map.get(action_name)
+        """Get the tool that handles a specific action.
+
+        Actions are mapped at registration; tools whose actions appear later
+        (e.g. the MCP bridge, whose servers connect after startup) are
+        resolved by asking each tool for its current action names.
+        """
+        tool = self._action_map.get(action_name)
+        if tool is not None:
+            return tool
+        for candidate in self._tools.values():
+            if getattr(candidate, "dynamic_actions", False) and action_name in candidate.get_action_names():
+                return candidate
+        return None
+
+    def is_destructive(self, action_name: str) -> bool | None:
+        """Whether *action_name* is declared as a write, or None if unknown."""
+        tool = self.get_tool_for_action(action_name)
+        if tool is None:
+            return None
+        for schema in tool.get_schemas():
+            if schema.name == action_name:
+                return schema.is_destructive
+        return None
 
     @property
     def tool_count(self) -> int:
@@ -231,6 +269,7 @@ class ToolRegistry:
             "realize_core.tools.google_sheets",  # was google_sheets_tool
             "realize_core.tools.approval",
             "realize_core.tools.messaging",
+            "realize_core.tools.mcp_bridge_tool",
             # Optional tools — may not have required dependencies
             "realize_core.tools.pm_tools",
             "realize_core.tools.stripe_tools",
