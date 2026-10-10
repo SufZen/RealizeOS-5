@@ -396,33 +396,33 @@ APPROVE_REQUEST_SCHEMA = {
 async def approve_request(args: dict[str, Any], app_state: Any, user: CurrentUser) -> Any:
     """Approve a pending request in the approval queue."""
     try:
-        from realize_core.governance.gates import approve_request as _approve
+        from realize_core.governance.gates import decide_approval
     except ImportError as exc:
         return {"error": f"Governance module unavailable: {exc}", "code": "MCP_INTERNAL"}
 
     approval_id = (args.get("approval_id") or "").strip()
     if not approval_id:
         return {"error": "approval_id is required", "code": "MCP_VALIDATION"}
-    result = _approve(approval_id, decision_note=args.get("decision_note") or None)
+    result = await decide_approval(approval_id, approve=True, decision_note=args.get("decision_note") or None)
     if result is None:
         return {"error": "Approval not found or not pending", "code": "MCP_NOT_FOUND"}
-    return result
+    return {**result["approval"], "execution": result["execution"], "skill_output": result["skill_output"]}
 
 
 async def reject_request(args: dict[str, Any], app_state: Any, user: CurrentUser) -> Any:
     """Reject a pending request in the approval queue."""
     try:
-        from realize_core.governance.gates import reject_request as _reject
+        from realize_core.governance.gates import decide_approval
     except ImportError as exc:
         return {"error": f"Governance module unavailable: {exc}", "code": "MCP_INTERNAL"}
 
     approval_id = (args.get("approval_id") or "").strip()
     if not approval_id:
         return {"error": "approval_id is required", "code": "MCP_VALIDATION"}
-    result = _reject(approval_id, decision_note=args.get("decision_note") or None)
+    result = await decide_approval(approval_id, approve=False, decision_note=args.get("decision_note") or None)
     if result is None:
         return {"error": "Approval not found or not pending", "code": "MCP_NOT_FOUND"}
-    return result
+    return {**result["approval"], "execution": result["execution"], "skill_output": result["skill_output"]}
 
 
 # ---------------------------------------------------------------------------

@@ -59,7 +59,7 @@ features:
   email_digest: false       # Email a daily Dream Inbox digest (see email_digest block)
   dreaming_curator: false   # Run the Curator on a schedule, per venture (see dreaming block)
   dreaming_reflex: false    # Run Reflex enrichment over recently-changed entities (see dreaming block)
-  enforce_gates: false      # Enforce the trust ladder at tool dispatch (see trust block). OFF = unchanged behavior.
+  enforce_gates: true       # Hold gated tool actions for approval; approving runs them (see trust block).
   enforce_guardrails: false # Reserved; guardrail post-response enforcement is deferred (no-op).
   agent_tools: true         # Agents use tools (Google, Sheets, MCP...) while answering. Writes need enforce_gates.
 
