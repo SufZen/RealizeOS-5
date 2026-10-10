@@ -168,9 +168,13 @@ async def web_fetch(url: str, max_chars: int = 8000, extract_mode: str = "auto")
     if url_error:
         return {"error": f"URL blocked: {url_error}", "url": url}
 
-    client = _get_http_client()
+    from realize_core.security.url_guard import UnsafeURLError, guarded_get
+
     try:
-        resp = await client.get(
+        # guarded_get resolves DNS and re-checks every redirect hop, which the
+        # string-level _validate_url above cannot (e.g. a public URL that
+        # redirects to 169.254.169.254, or a hostname resolving to 127.0.0.1).
+        resp = await guarded_get(
             url,
             headers={"Accept": "text/html,application/xhtml+xml,*/*;q=0.8", "Accept-Language": "en-US,en;q=0.9"},
         )
@@ -207,6 +211,8 @@ async def web_fetch(url: str, max_chars: int = 8000, extract_mode: str = "auto")
         if truncated:
             content = content[:max_chars] + "\n\n[...truncated]"
         return {"url": url, "title": title, "content": content, "content_length": len(content), "truncated": truncated}
+    except UnsafeURLError as e:
+        return {"error": f"URL blocked: {e}", "url": url}
     except httpx.HTTPStatusError as e:
         return {"url": url, "error": f"HTTP {e.response.status_code}"}
     except Exception as e:

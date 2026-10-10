@@ -20,8 +20,9 @@ async def search_memory(q: str, venture: str = ""):
 
         results = search_memories(q.strip(), system_key=venture or None, limit=20)
         return {"query": q, "results": results}
-    except Exception as e:
-        return {"query": q, "results": [], "error": str(e)}
+    except Exception:
+        logger.warning("Memory search failed", exc_info=True)
+        return {"query": q, "results": [], "error": "Memory search unavailable"}
 
 
 @router.get("/memory/stats")
@@ -32,5 +33,6 @@ async def get_memory_stats():
 
         stats = get_usage_stats()
         return {"stats": stats}
-    except Exception as e:
-        return {"stats": {}, "error": str(e)}
+    except Exception:
+        logger.warning("Memory stats failed", exc_info=True)
+        return {"stats": {}, "error": "Memory statistics unavailable"}

@@ -107,8 +107,9 @@ async def search_kb(venture_key: str, q: str, request: Request):
 
         results = semantic_search(q.strip(), system_key=venture_key, top_k=10)
         return {"query": q, "results": results}
-    except Exception as e:
-        return {"query": q, "results": [], "error": str(e)}
+    except Exception:
+        logger.warning("KB search failed", exc_info=True)
+        return {"query": q, "results": [], "error": "Knowledge base search unavailable"}
 
 
 @router.post("/ventures/{venture_key}/ingest")
@@ -126,12 +127,14 @@ async def ingest_content(venture_key: str, request: Request):
     title = body.get("title", "").strip()
     category = body.get("category", "brain")
 
+    from realize_core.config import get_ingestion_config
     from realize_core.ingestion.extractor import extract_from_text, extract_from_url, save_to_kb
 
     if url:
         if not url.startswith(("http://", "https://")):
             raise HTTPException(status_code=400, detail="URL must start with http:// or https://")
-        extracted = await extract_from_url(url)
+        ingestion_conf = get_ingestion_config(getattr(request.app.state, "config", {}) or {})
+        extracted = await extract_from_url(url, allow_private=bool(ingestion_conf["allow_private_urls"]))
     elif text:
         extracted = extract_from_text(text, title=title)
     else:

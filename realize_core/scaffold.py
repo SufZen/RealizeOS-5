@@ -284,6 +284,27 @@ def validate_venture_key(key: str) -> str:
     return key
 
 
+def find_venture_dir(kb_path: Path | str, venture_key: str) -> Path | None:
+    """Locate an existing venture directory without building a path from input.
+
+    ``venture_key`` often comes straight from a query string or request body.
+    Instead of joining it into a path (which allows ``..`` traversal), it is
+    MATCHED against the real directory names under ``systems/`` (v5.5.0+)
+    and then the legacy ``ventures/`` root, and the matching filesystem entry
+    is returned. Returns ``None`` when nothing matches.
+    """
+    if not venture_key:
+        return None
+    for root_name in ("systems", "ventures"):
+        root = Path(kb_path) / root_name
+        if not root.is_dir():
+            continue
+        for child in root.iterdir():
+            if child.is_dir() and child.name == venture_key:
+                return child
+    return None
+
+
 def _customize_venture_template(venture_dir: Path, name: str):
     """Lightly personalize copied starter files without changing their structure."""
     identity_file = venture_dir / "F-foundations" / "venture-identity.md"

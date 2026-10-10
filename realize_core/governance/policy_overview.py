@@ -18,6 +18,7 @@ side effects.
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 from realize_core.dreaming.policy import TrustPolicy
@@ -27,6 +28,8 @@ from realize_core.governance.trust_ladder import (
     get_trust_level,
     get_trust_rules,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def _knowledge_surface(kb_path: Path | None, venture: str | None) -> dict[str, str]:
@@ -87,19 +90,22 @@ def effective_policy(
         knowledge = _knowledge_surface(Path(kb_path) if kb_path is not None else None, venture)
     except Exception as e:
         knowledge = {}
-        errors["knowledge"] = f"{type(e).__name__}: {e}"
+        logger.warning("Policy overview: knowledge surface failed", exc_info=True)
+        errors["knowledge"] = type(e).__name__
 
     try:
         tools = _tool_surface(config)
     except Exception as e:
         tools = {}
-        errors["tools"] = f"{type(e).__name__}: {e}"
+        logger.warning("Policy overview: tool surface failed", exc_info=True)
+        errors["tools"] = type(e).__name__
 
     try:
         trust_level = get_trust_level(config)
     except Exception as e:
         trust_level = None
-        errors.setdefault("trust_level", f"{type(e).__name__}: {e}")
+        logger.warning("Policy overview: trust level failed", exc_info=True)
+        errors.setdefault("trust_level", type(e).__name__)
 
     scope = f"venture '{venture}'" if (kb_path is not None and venture) else "defaults"
     summary = [

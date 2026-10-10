@@ -363,6 +363,21 @@ def get_dreaming_config(config: dict) -> dict:
     return {**defaults, **section}
 
 
+def get_ingestion_config(config: dict) -> dict:
+    """
+    Extract the KB-ingestion configuration, merged over safe defaults.
+
+    ``allow_private_urls`` (default False) lets URL ingestion reach private
+    network hosts (RFC 1918 / ULA) — for self-hosters ingesting intranet
+    pages. Loopback and cloud-metadata addresses stay blocked regardless.
+    """
+    defaults = {"allow_private_urls": False}
+    section = config.get("ingestion", {})
+    if not isinstance(section, dict):
+        section = {}
+    return {**defaults, **section}
+
+
 def _discover_agents(agents_dir: Path) -> dict:
     """Auto-discover agent definitions from markdown files in the agents directory."""
     agents: dict[str, str] = {}

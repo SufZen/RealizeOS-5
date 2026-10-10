@@ -73,8 +73,9 @@ async def list_skills(system_key: str, request: Request):
                 for s in skills
             ],
         }
-    except Exception as e:
-        return {"system_key": system_key, "skills": [], "error": str(e)}
+    except Exception:
+        logger.warning("Skill listing failed", exc_info=True)
+        return {"system_key": system_key, "skills": [], "error": "Skills unavailable"}
 
 
 @router.get("/systems/{system_key}/sessions/{user_id}")

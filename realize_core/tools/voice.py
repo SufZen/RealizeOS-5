@@ -97,7 +97,10 @@ async def synthesize_speech(
     if not output_path:
         import tempfile
 
-        output_path = Path(tempfile.mktemp(suffix=".mp3"))
+        # mkstemp creates the file atomically (no mktemp name-race); we only need the path.
+        fd, tmp_name = tempfile.mkstemp(suffix=".mp3")
+        os.close(fd)
+        output_path = Path(tmp_name)
 
     try:
         import httpx

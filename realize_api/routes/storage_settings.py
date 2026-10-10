@@ -299,9 +299,10 @@ async def provider_info(request: Request):
             "type": type(provider).__name__,
             "repr": repr(provider),
         }
-    except Exception as exc:
+    except Exception:
+        logger.warning("Storage provider lookup failed", exc_info=True)
         return {
             "backend": "local",
             "type": "unknown",
-            "error": str(exc),
+            "error": "Storage provider unavailable",
         }
