@@ -50,5 +50,6 @@ async def get_llm_usage():
 
         stats = get_usage_stats()
         return {"usage": stats}
-    except Exception as e:
-        return {"usage": {}, "error": str(e)}
+    except Exception:
+        logger.warning("LLM usage stats failed", exc_info=True)
+        return {"usage": {}, "error": "Usage statistics unavailable"}

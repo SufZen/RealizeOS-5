@@ -18,30 +18,47 @@ logger = logging.getLogger(__name__)
 MAX_PDF_SIZE = 50 * 1024 * 1024
 
 
-async def extract_from_url(url: str, max_chars: int = 15000) -> dict:
+async def extract_from_url(url: str, max_chars: int = 15000, *, allow_private: bool = False) -> dict:
     """
     Fetch a URL and extract readable text content.
 
+    The fetch goes through :func:`realize_core.security.url_guard.guarded_get`,
+    so internal addresses are refused (SSRF protection).
+
+    Args:
+        url: http(s) URL to fetch.
+        max_chars: Truncate extracted text to this many characters.
+        allow_private: Permit private-network hosts (``ingestion.allow_private_urls``).
+
     Returns:
-        {title, content, url, char_count, extracted_at}
+        {title, content, url, char_count, extracted_at} or {error, url}
     """
     import httpx
 
-    try:
-        async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
-            resp = await client.get(url, headers={"User-Agent": "Mozilla/5.0 (RealizeOS Content Ingestion)"})
-            resp.raise_for_status()
-            html = resp.text
-    except Exception as e:
-        return {"error": f"Fetch failed: {e}", "url": url}
+    from realize_core.security.url_guard import UnsafeURLError, guarded_get
 
-    # Try trafilatura first (best quality)
+    try:
+        resp = await guarded_get(
+            url,
+            allow_private=allow_private,
+            headers={"User-Agent": "Mozilla/5.0 (RealizeOS Content Ingestion)"},
+        )
+        resp.raise_for_status()
+        html = resp.text
+    except UnsafeURLError as e:
+        return {"error": f"URL not allowed: {e}", "url": url}
+    except httpx.HTTPError as e:
+        logger.info("URL fetch failed for ingestion: %s", type(e).__name__)
+        return {"error": "Fetch failed", "url": url}
+
+    # Try trafilatura first (best quality). It parses the HTML fetched above;
+    # it must not download the URL itself, which would bypass the guard.
     content = None
     title = ""
     try:
         import trafilatura
 
-        downloaded = trafilatura.fetch_url(url)
+        downloaded = html
         if downloaded:
             content = trafilatura.extract(downloaded, include_links=False, include_tables=True)
             # Extract title
@@ -224,8 +241,9 @@ def extract_from_text(text: str, title: str = "") -> dict:
 
 def _html_to_text(html: str) -> str:
     """Simple HTML to text extraction."""
-    text = re.sub(r"<script[^>]*>.*?</script>", "", html, flags=re.DOTALL | re.IGNORECASE)
-    text = re.sub(r"<style[^>]*>.*?</style>", "", text, flags=re.DOTALL | re.IGNORECASE)
+    # Closing tags may carry whitespace/junk (``</script >``, ``</SCRIPT foo>``) — browsers accept them.
+    text = re.sub(r"<script\b[^>]*>.*?</script\b[^>]*>", "", html, flags=re.DOTALL | re.IGNORECASE)
+    text = re.sub(r"<style\b[^>]*>.*?</style\b[^>]*>", "", text, flags=re.DOTALL | re.IGNORECASE)
     text = re.sub(r"<nav[^>]*>.*?</nav>", "", text, flags=re.DOTALL | re.IGNORECASE)
     text = re.sub(r"<footer[^>]*>.*?</footer>", "", text, flags=re.DOTALL | re.IGNORECASE)
     text = re.sub(r"<[^>]+>", " ", text)

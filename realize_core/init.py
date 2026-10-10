@@ -5,6 +5,7 @@ Used by both `cli.py init --setup` and `cli.py setup` (the wizard).
 """
 
 import logging
+import os
 import shutil
 from pathlib import Path
 
@@ -155,6 +156,9 @@ def initialize_project(config: dict, target_dir: Path) -> dict:
         )
 
         env_dest.write_text("\n".join(env_lines) + "\n", encoding="utf-8")
+        # .env holds API keys by design; keep it owner-only where POSIX modes apply.
+        if os.name == "posix":
+            env_dest.chmod(0o600)
         result["env_created"] = True
 
     # 2. Copy template -> realize-os.yaml

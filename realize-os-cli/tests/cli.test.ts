@@ -128,6 +128,19 @@ describe("YAML Serializer", () => {
     const result = stringify({ url: "http://localhost:8080" });
     expect(result).toContain('"http://localhost:8080"');
   });
+
+  it("escapes backslashes before quotes so values can't break out", () => {
+    const value = 'C:\\path\\" injected: true';
+    const result = stringify({ name: value });
+    expect(result).toContain('"C:\\\\path\\\\\\" injected: true"');
+    expect(parse(result).name).toBe(value);
+  });
+
+  it("round-trips a trailing backslash and newlines", () => {
+    for (const value of ["ends with \\", "line1\nline2", 'say "hi"']) {
+      expect(parse(stringify({ v: value })).v).toBe(value);
+    }
+  });
 });
 
 // ---------------------------------------------------------------------------

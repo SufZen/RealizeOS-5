@@ -327,24 +327,14 @@ def _get_runtime_registry(request: Request):
 
 
 def _resolve_venture_dir(request: Request, venture: str) -> Path | None:
-    """Resolve a venture key to its directory on disk."""
+    """Resolve a venture key to its existing directory on disk.
+
+    The key comes from untrusted input, so it is matched against real
+    directories (see :func:`realize_core.scaffold.find_venture_dir`) and never
+    joined into a path. Unknown ventures resolve to ``None`` — ventures are
+    created through ``POST /api/ventures``, not implicitly here.
+    """
     from realize_core.config import KB_PATH
+    from realize_core.scaffold import find_venture_dir
 
-    if not venture:
-        return None
-
-    # Try systems/ directory first (v5.5.0 path)
-    systems_path = Path(KB_PATH) / "systems" / venture
-    if systems_path.exists():
-        return systems_path
-
-    # Fallback to ventures/ (legacy path)
-    ventures_path = Path(KB_PATH) / "ventures" / venture
-    if ventures_path.exists():
-        return ventures_path
-
-    # Create new venture directory in systems/
-    systems_path.mkdir(parents=True, exist_ok=True)
-    for layer_dir in ["F-foundations", "A-agents", "B-brain", "R-routines", "I-insights", "C-creations"]:
-        (systems_path / layer_dir).mkdir(exist_ok=True)
-    return systems_path
+    return find_venture_dir(KB_PATH, venture)

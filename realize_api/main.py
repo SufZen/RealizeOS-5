@@ -575,7 +575,7 @@ def create_app() -> FastAPI:
             if full_path and not full_path.startswith("api/"):
                 file_path = (static_dir / full_path).resolve()
                 # Ensure resolved path is still under static_dir (prevents traversal)
-                if file_path.is_file() and str(file_path).startswith(str(static_dir.resolve())):
+                if file_path.is_relative_to(static_dir.resolve()) and file_path.is_file():
                     return FileResponse(file_path)
             return FileResponse(static_dir / "index.html")
 

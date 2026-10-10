@@ -15,8 +15,11 @@ function parseScalar(rawValue: string): any {
     value = value.split(" #")[0].trim();
   }
 
-  if (value.startsWith('"') && value.endsWith('"')) {
-    return value.slice(1, -1);
+  if (value.startsWith('"') && value.endsWith('"') && value.length >= 2) {
+    // Reverse of quote(): YAML double-quoted escapes we emit.
+    return value.slice(1, -1).replace(/\\(["\\nr])/g, (_m: string, ch: string) =>
+      ch === "n" ? "\n" : ch === "r" ? "\r" : ch,
+    );
   }
   if (value.startsWith("'") && value.endsWith("'")) {
     return value.slice(1, -1);
@@ -193,10 +196,20 @@ export function parse(text: string): Record<string, any> {
   }
 }
 
+/** Double-quote a YAML scalar. Backslashes are escaped first so `\"` can't break out. */
+function quote(value: string): string {
+  const escaped = value
+    .replace(/\\/g, "\\\\")
+    .replace(/"/g, '\\"')
+    .replace(/\n/g, "\\n")
+    .replace(/\r/g, "\\r");
+  return `"${escaped}"`;
+}
+
 function formatScalar(value: any): string {
   if (typeof value === "string") {
-    if (/[:#{}[\],&*?|>!%@`]/.test(value) || value === "") {
-      return `"${value.replace(/"/g, '\\"')}"`;
+    if (/[:#{}[\],&*?|>!%@`\\"\n\r]/.test(value) || value === "") {
+      return quote(value);
     }
     return value;
   }
@@ -205,7 +218,7 @@ function formatScalar(value: any): string {
 
 function formatArrayItem(value: any): string {
   if (typeof value === "string") {
-    return `"${value.replace(/"/g, '\\"')}"`;
+    return quote(value);
   }
   return formatScalar(value);
 }
