@@ -267,3 +267,102 @@ async def test_legacy_two_arg_gate_still_holds(fresh_registry, fake_mcp):
     result = await fresh_registry.execute("mcp__files__read", {})
     assert result.metadata.get("request_id") == "r1"
     assert calls == []
+
+
+# ---------------------------------------------------------------------------
+# Security review fixes
+# ---------------------------------------------------------------------------
+
+
+class TestAgentDrivePathConfinement:
+    """Agent tool calls must not read/write arbitrary local files."""
+
+    @pytest.fixture
+    def agent_dir(self, tmp_path, monkeypatch):
+        root = tmp_path / "agent-files"
+        root.mkdir()
+        monkeypatch.setenv("REALIZE_AGENT_FILES_DIR", str(root))
+        return root
+
+    @pytest.mark.parametrize("path", ["../.env", "/etc/passwd", r"C:\Windows\win.ini", "sub/../../x"])
+    @pytest.mark.asyncio
+    async def test_upload_outside_folder_refused(self, agent_dir, monkeypatch, path):
+        import realize_core.tools.google_workspace as gw
+
+        uploaded = []
+
+        async def fake_upload(file_path, **_):
+            uploaded.append(file_path)
+            return {"id": "x"}
+
+        monkeypatch.setattr(gw, "drive_upload", fake_upload)
+        result = await gw.get_tool().execute("drive_upload", {"file_path": path})
+
+        assert not result.success
+        assert uploaded == []
+
+    @pytest.mark.asyncio
+    async def test_upload_inside_folder_allowed(self, agent_dir, monkeypatch):
+        import realize_core.tools.google_workspace as gw
+
+        (agent_dir / "report.pdf").write_bytes(b"%PDF")
+        seen = []
+
+        async def fake_upload(file_path, **_):
+            seen.append(file_path)
+            return {"id": "f1"}
+
+        monkeypatch.setattr(gw, "drive_upload", fake_upload)
+        result = await gw.get_tool().execute("drive_upload", {"file_path": "report.pdf"})
+
+        assert result.success
+        assert seen == [str((agent_dir / "report.pdf").resolve())]
+
+    @pytest.mark.asyncio
+    async def test_download_cannot_escape_folder(self, agent_dir, monkeypatch):
+        import realize_core.tools.google_workspace as gw
+
+        writes = []
+
+        async def fake_download(file_id, output_path):
+            writes.append(output_path)
+            return {"path": output_path}
+
+        monkeypatch.setattr(gw, "drive_download", fake_download)
+        tool = gw.get_tool()
+
+        bad = await tool.execute("drive_download", {"file_id": "1", "output_path": "../../realize-os.yaml"})
+        assert not bad.success
+        good = await tool.execute("drive_download", {"file_id": "1"})
+        assert good.success
+        assert writes == [str(agent_dir.resolve())]
+
+    def test_download_is_a_write(self):
+        from realize_core.governance.trust_ladder import TrustDecision, check_trust
+        from realize_core.tools.google_workspace import get_tool
+
+        assert "drive_download" in get_tool().get_write_actions()
+        assert check_trust("drive_download", {}) is TrustDecision.APPROVE
+
+
+@pytest.mark.parametrize("action", ["gmail_triage", "gmail_add_label"])
+def test_gmail_triage_and_labels_need_approval(action):
+    """Triage can archive and labels can trash mail — not auto at the default level."""
+    from realize_core.governance.trust_ladder import TrustDecision, check_trust
+
+    assert check_trust(action, {}) is TrustDecision.APPROVE
+
+
+def test_mcp_server_read_only_hint_not_trusted():
+    from realize_core.tools.mcp import MCPServerConnection
+
+    hinted = SimpleNamespace(
+        name="wipe_disk", description="", inputSchema={}, annotations=SimpleNamespace(readOnlyHint=True)
+    )
+    listed = SimpleNamespace(name="list_files", description="", inputSchema={}, annotations=None)
+
+    conn = MCPServerConnection("files", "cmd", [], read_only_tools=["list_files"])
+    conn._raw_tools = [hinted, listed]
+
+    flags = {schema["name"]: read_only for schema, read_only in conn.describe_tools()}
+    assert flags == {"mcp__files__wipe_disk": False, "mcp__files__list_files": True}

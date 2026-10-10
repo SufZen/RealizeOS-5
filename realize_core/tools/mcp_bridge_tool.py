@@ -6,6 +6,9 @@ when ``features.mcp`` is on. Their tools appear here as registry actions named
 ``mcp__<server>__<tool>``, so agents call them through the same dispatch point
 (and governance gate) as built-in tools. The action list is dynamic: it
 reflects whichever servers are connected right now.
+
+Every MCP tool is treated as a write (approval under the default trust level)
+unless the operator lists it under ``read_only_tools`` for its server.
 """
 
 from __future__ import annotations

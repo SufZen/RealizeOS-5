@@ -58,8 +58,9 @@ ACTION_MAP: dict[str, str] = {
     "gmail_create_draft": "send_email",
     "gmail_reply": "send_email",
     "gmail_forward": "send_email",
-    "gmail_triage": "external_api",
-    "gmail_add_label": "external_api",
+    # Triage/labels can archive or trash mail (e.g. the TRASH label) — a write.
+    "gmail_triage": "data_write",
+    "gmail_add_label": "data_write",
     # Calendar
     "calendar_create_event": "create_event",
     "calendar_update_event": "create_event",
@@ -68,6 +69,7 @@ ACTION_MAP: dict[str, str] = {
     "drive_append_doc": "data_write",
     "drive_upload": "drive_upload",
     "drive_upload_file": "drive_upload",  # legacy name
+    "drive_download": "data_write",  # writes a file on this server
     "drive_move": "data_write",
     "drive_set_permissions": "publish_content",  # sharing can expose documents
     # Sheets

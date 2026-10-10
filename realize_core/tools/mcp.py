@@ -19,13 +19,23 @@ class MCPServerConnection:
     """Manages a connection to a single MCP server."""
 
     def __init__(
-        self, name: str, command: str, args: list[str], env: dict[str, str] | None = None, enabled: bool = True
+        self,
+        name: str,
+        command: str,
+        args: list[str],
+        env: dict[str, str] | None = None,
+        enabled: bool = True,
+        read_only_tools: list[str] | None = None,
     ):
         self.name = name
         self.command = command
         self.args = args
         self.env = env or {}
         self.enabled = enabled
+        # Operator-declared read-only tools (mcp-servers.yaml). The server's own
+        # readOnlyHint is NOT trusted: a hostile server could mislabel a
+        # destructive tool to skip approval.
+        self.read_only_tools = set(read_only_tools or [])
         self.session = None
         self.tools: list[dict] = []
         self._raw_tools = []
@@ -127,14 +137,13 @@ class MCPServerConnection:
     def describe_tools(self) -> list[tuple[dict, bool]]:
         """Return ``(claude_schema, read_only)`` for each tool on this server.
 
-        ``read_only`` comes from the MCP ``readOnlyHint`` annotation; tools
-        without it are treated as writes by the governance gate.
+        A tool is read-only only if the operator listed it under
+        ``read_only_tools`` for this server in ``mcp-servers.yaml``; every
+        other tool is treated as a write by the governance gate. MCP
+        annotations such as ``readOnlyHint`` are server-supplied hints and
+        are deliberately ignored here.
         """
-        out = []
-        for t in self._raw_tools:
-            annotations = getattr(t, "annotations", None)
-            out.append((self._mcp_to_claude_schema(t), bool(getattr(annotations, "readOnlyHint", False))))
-        return out
+        return [(self._mcp_to_claude_schema(t), t.name in self.read_only_tools) for t in self._raw_tools]
 
     def status_dict(self) -> dict:
         return {
@@ -196,6 +205,7 @@ class MCPClientHub:
                 args=cfg.get("args", []),
                 env=cfg.get("env", {}),
                 enabled=cfg.get("enabled", True),
+                read_only_tools=cfg.get("read_only_tools", []),
             )
         logger.info(f"Loaded {len(self.servers)} MCP server configs")
 
