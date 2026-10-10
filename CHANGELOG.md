@@ -4,6 +4,12 @@ All notable changes to RealizeOS are documented in this file.
 This changelog is automatically generated from [Conventional Commits](https://conventionalcommits.org).
 
 
+## [5.6.1](https://github.com/SufZen/RealizeOS-5/compare/v5.6.0...v5.6.1) (2026-10-10)
+
+### Bug Fixes
+
+* **ci:** restore green CI — pin ruff, cap mcp<2, FastAPI/Typer compat ([4c516c9](https://github.com/SufZen/RealizeOS-5/commit/4c516c98f509c5a14b4005a3592f298cadf69d60))
+
 ## [5.6.0](https://github.com/SufZen/RealizeOS-5/compare/v5.5.3...v5.6.0) (2026-06-14)
 
 ### Features
