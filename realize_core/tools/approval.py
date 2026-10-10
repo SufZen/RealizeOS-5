@@ -78,7 +78,7 @@ class ApprovalRequest:
 
     @property
     def is_expired(self) -> bool:
-        return self.status == ApprovalStatus.PENDING and datetime.now(UTC) > self.expires_at
+        return self.status == ApprovalStatus.PENDING and datetime.now(UTC) >= self.expires_at
 
     def to_dict(self) -> dict[str, Any]:
         return {

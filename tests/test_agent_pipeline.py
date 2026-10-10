@@ -2,6 +2,8 @@
 Tests for the pipeline executor — sequential execution, Dev-QA retry, escalation.
 """
 
+import asyncio
+
 import pytest
 from realize_core.agents.base import HandoffType, PipelineStage
 from realize_core.agents.handoff import _audit_log
@@ -37,6 +39,16 @@ def _make_stage(
 async def _echo_executor(stage: PipelineStage, input_text: str, context: dict) -> str:
     """Simple executor that echoes input with stage name prefix."""
     return f"[{stage.name}] {input_text}"
+
+
+async def _slow_echo_executor(stage: PipelineStage, input_text: str, context: dict) -> str:
+    """Echo executor that takes measurable time.
+
+    ``time.time()`` ticks only every ~15.6 ms on some Windows setups, so an
+    instant executor can legitimately record a 0.0 ms duration.
+    """
+    await asyncio.sleep(0.05)
+    return await _echo_executor(stage, input_text, context)
 
 
 async def _qa_pass_executor(stage: PipelineStage, input_text: str, context: dict) -> str:
@@ -121,7 +133,7 @@ class TestBasicPipeline:
     @pytest.mark.asyncio
     async def test_timing_tracked(self):
         stages = [_make_stage("s", "a")]
-        state = await execute_pipeline("p-t", stages, "go", _echo_executor)
+        state = await execute_pipeline("p-t", stages, "go", _slow_echo_executor)
         assert state.total_duration_ms > 0
         assert state.results[0].duration_ms > 0
 

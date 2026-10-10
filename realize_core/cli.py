@@ -179,7 +179,7 @@ def cmd_status() -> int:
     print(f"  Environment file: {'✅' if env.exists() else '⚠️ not found'}")
 
     # Check key deps
-    for pkg, name in [("anthropic", "Claude"), ("google.generativeai", "Gemini"), ("openai", "OpenAI")]:
+    for pkg, name in [("anthropic", "Claude"), ("google.genai", "Gemini"), ("openai", "OpenAI")]:
         try:
             __import__(pkg)
             print(f"  {name} SDK: ✅")

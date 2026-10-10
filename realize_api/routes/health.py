@@ -6,6 +6,7 @@ import logging
 import os
 
 from fastapi import APIRouter, Request
+from realize_core import __version__
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -77,7 +78,7 @@ async def status(request: Request):
 
     return {
         "status": "ok",
-        "version": "0.1.0",
+        "version": __version__,
         "systems": {
             k: {"name": v.get("name", k), "agents": list(v.get("agents", {}).keys())} for k, v in systems.items()
         },

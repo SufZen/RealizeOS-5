@@ -331,6 +331,18 @@ class TestMigrationV2:
 # ===========================================================================
 
 
+def _route_paths(app) -> set[str]:
+    """Collect every routed path, independent of how FastAPI nests routers.
+
+    Newer FastAPI wraps ``include_router`` results in opaque objects, so
+    ``app.routes`` no longer lists every endpoint. The OpenAPI schema does;
+    direct routes and mounts (e.g. the MCP SSE mount) are added on top.
+    """
+    paths = set(app.openapi().get("paths", {}))
+    paths.update(r.path for r in app.routes if hasattr(r, "path"))
+    return paths
+
+
 class TestAppCreation:
     """Verify the full app wires up correctly."""
 
@@ -338,27 +350,27 @@ class TestAppCreation:
         from realize_api.main import create_app
 
         app = create_app()
-        assert len(app.routes) >= 120
+        assert len(_route_paths(app)) >= 120
 
     def test_app_has_security_routes(self):
         from realize_api.main import create_app
 
         app = create_app()
-        paths = [r.path for r in app.routes if hasattr(r, "path")]
+        paths = _route_paths(app)
         assert "/api/security/scan" in paths or any("/security/" in p for p in paths)
 
     def test_app_has_auth_routes(self):
         from realize_api.main import create_app
 
         app = create_app()
-        paths = [r.path for r in app.routes if hasattr(r, "path")]
+        paths = _route_paths(app)
         assert any("/auth/" in p for p in paths)
 
     def test_app_has_storage_sync_routes(self):
         from realize_api.main import create_app
 
         app = create_app()
-        paths = [r.path for r in app.routes if hasattr(r, "path")]
+        paths = _route_paths(app)
         assert any("sync" in p for p in paths)
 
     def test_production_requires_explicit_auth(self):
@@ -401,4 +413,4 @@ class TestAppCreation:
             clear=True,
         ):
             app = create_app()
-        assert len(app.routes) >= 120
+        assert len(_route_paths(app)) >= 120

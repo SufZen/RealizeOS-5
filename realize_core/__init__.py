@@ -13,4 +13,20 @@ Usage:
     from realize_core.skills.executor import execute_skill
 """
 
-__version__ = "0.1.0"
+from pathlib import Path as _Path
+
+
+def _read_version() -> str:
+    """Return the release version: repo ``VERSION`` file, else package metadata."""
+    version_file = _Path(__file__).resolve().parent.parent / "VERSION"
+    if version_file.is_file():
+        return version_file.read_text(encoding="utf-8").strip()
+    try:
+        from importlib.metadata import PackageNotFoundError, version
+
+        return version("realize-os")
+    except PackageNotFoundError:
+        return "unknown"
+
+
+__version__ = _read_version()

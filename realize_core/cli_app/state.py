@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from contextvars import ContextVar
 from dataclasses import dataclass
 
 import typer
@@ -13,6 +14,12 @@ class CLIState:
 
     profile: str | None = None
     output_format: str = "table"  # table | json | yaml
+
+
+#: State of the current invocation, set by the root callback. Typer >= 0.26
+#: vendors its own copy of click, so ``click.get_current_context()`` from the
+#: standalone package no longer sees Typer's context; this var does.
+_current_state: ContextVar[CLIState | None] = ContextVar("realize_cli_state", default=None)
 
 
 def ensure_state(
@@ -28,6 +35,7 @@ def ensure_state(
         ctx.obj.profile = profile
     if output_format is not None:
         ctx.obj.output_format = output_format.lower().strip()
+    _current_state.set(ctx.obj)
     return ctx.obj
 
 
@@ -37,6 +45,9 @@ def get_state() -> CLIState:
     Falls back to sensible defaults if called outside a proper Typer
     invocation (e.g. from tests or direct imports).
     """
+    state = _current_state.get()
+    if state is not None:
+        return state
     try:
         import click
 
