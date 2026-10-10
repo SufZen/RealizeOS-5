@@ -393,6 +393,26 @@ APPROVE_REQUEST_SCHEMA = {
 }
 
 
+def _decision_summary(result: dict) -> dict:
+    """What an MCP client learns about a decision: status, not contents.
+
+    Full parameters and tool output (email bodies, sheet rows, ...) stay in
+    the approval queue for the dashboard; they are not echoed to MCP callers.
+    """
+    approval = result["approval"]
+    execution = result.get("execution")
+    return {
+        "id": approval.get("id"),
+        "status": approval.get("status"),
+        "action": approval.get("action_name") or approval.get("action_type"),
+        "venture_key": approval.get("venture_key"),
+        "decided_at": approval.get("decided_at"),
+        "executed": bool(execution and execution.get("executed")),
+        "success": bool(execution and execution.get("success")),
+        "skill_resumed": result.get("skill_output") is not None,
+    }
+
+
 async def approve_request(args: dict[str, Any], app_state: Any, user: CurrentUser) -> Any:
     """Approve a pending request in the approval queue."""
     try:
@@ -406,7 +426,7 @@ async def approve_request(args: dict[str, Any], app_state: Any, user: CurrentUse
     result = await decide_approval(approval_id, approve=True, decision_note=args.get("decision_note") or None)
     if result is None:
         return {"error": "Approval not found or not pending", "code": "MCP_NOT_FOUND"}
-    return {**result["approval"], "execution": result["execution"], "skill_output": result["skill_output"]}
+    return _decision_summary(result)
 
 
 async def reject_request(args: dict[str, Any], app_state: Any, user: CurrentUser) -> Any:
@@ -422,7 +442,7 @@ async def reject_request(args: dict[str, Any], app_state: Any, user: CurrentUser
     result = await decide_approval(approval_id, approve=False, decision_note=args.get("decision_note") or None)
     if result is None:
         return {"error": "Approval not found or not pending", "code": "MCP_NOT_FOUND"}
-    return {**result["approval"], "execution": result["execution"], "skill_output": result["skill_output"]}
+    return _decision_summary(result)
 
 
 # ---------------------------------------------------------------------------

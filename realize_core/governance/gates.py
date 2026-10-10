@@ -363,11 +363,20 @@ async def execute_approved_action(approval_id: str, db_path=None) -> dict:
     except Exception:
         logger.debug("activity log failed for approval execution", exc_info=True)
 
+    # Only a fixed status line goes into the conversation. Tool output and
+    # errors can carry third-party text (email bodies, web pages, sheet cells);
+    # stored as an assistant turn, injected instructions would persist into
+    # later model calls. The full result stays on the approval row.
     if result_ok:
-        preview = output if len(output) <= 1500 else output[:1500] + " ..."
-        report_to_conversation(row.get("session_ref"), f"Approved and done: `{action}`.\n\n{preview}")
+        report_to_conversation(
+            row.get("session_ref"),
+            f"Approved and done: `{action}` (approval {approval_id}). Details are on the approval.",
+        )
     else:
-        report_to_conversation(row.get("session_ref"), f"`{action}` was approved but failed: {error}")
+        report_to_conversation(
+            row.get("session_ref"),
+            f"`{action}` was approved but failed (approval {approval_id}). See the approval for details.",
+        )
     logger.info("Approved action %s (%s) executed: success=%s", approval_id, action, result_ok)
     return {"executed": True, "success": result_ok, "output": output, "error": error}
 
