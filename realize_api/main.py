@@ -13,6 +13,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from realize_core import __version__
 
 from realize_api.error_handlers import register_error_handlers
 from realize_api.middleware import AuthMiddleware
@@ -427,7 +428,7 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="RealizeOS",
         description="AI Operations System — Multi-agent, multi-venture, self-evolving.",
-        version="5.5.0",
+        version=__version__,
         lifespan=lifespan,
     )
     app.state.rate_limiter = build_rate_limiter()

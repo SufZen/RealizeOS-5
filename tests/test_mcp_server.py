@@ -346,5 +346,10 @@ class TestFastAPIMount:
         with env(MCP_ENABLED="false"):
             app = app_factory()
             mounted_paths = {getattr(r, "path", None) for r in app.routes}
+            mounted_paths.update(app.openapi().get("paths", {}))
+            r = TestClient(app).get("/mcp/health")
         assert "/mcp/health" not in mounted_paths
         assert "/mcp/sse" not in mounted_paths
+        # Behavioural check: newer FastAPI hides included routers from
+        # ``app.routes``, so also prove the JSON endpoint doesn't answer.
+        assert "application/json" not in r.headers.get("content-type", "")

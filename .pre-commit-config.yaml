@@ -22,7 +22,7 @@ repos:
 
   # ── Python: ruff lint + format ────────────────────
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.7.0
+    rev: v0.17.0  # keep in sync with requirements-dev.txt + ci.yml
     hooks:
       - id: ruff
         args: [--fix]

@@ -1,5 +1,6 @@
 -r requirements.txt
 pytest
+ruff==0.17.0
 pytest-asyncio
 pytest-cov
 setuptools>=68.0

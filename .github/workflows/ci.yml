@@ -43,7 +43,7 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Install ruff
-        run: pip install ruff
+        run: pip install ruff==0.17.0  # keep in sync with requirements-dev.txt + .pre-commit-config.yaml
 
       - name: Run ruff check
         run: ruff check realize_core/ realize_api/ tests/ cli.py
