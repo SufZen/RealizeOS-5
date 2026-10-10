@@ -724,6 +724,27 @@ async def drive_upload(
     )
 
 
+def _safe_filename(name: str, default: str = "download") -> str:
+    r"""Reduce a Drive file name to one safe path component.
+
+    Drive names are chosen by whoever owns or shares the file, so they may
+    contain ``/``, ``\`` or ``..``; joined into a local path they would
+    escape the target folder.
+    """
+    cleaned = name.replace("\\", "/").split("/")[-1]
+    cleaned = "".join(ch for ch in cleaned if ch.isprintable() and ch not in '<>:"|?*').strip().strip(".")
+    return cleaned or default
+
+
+def _join_inside(folder: str, filename: str) -> str:
+    """Join *filename* under *folder*, refusing results that leave it."""
+    root = os.path.realpath(folder)
+    target = os.path.realpath(os.path.join(root, filename))
+    if os.path.commonpath([root, target]) != root:
+        raise ValueError(f"Refusing to write outside {folder!r}")
+    return target
+
+
 def _drive_download_sync(file_id: str, output_path: str) -> dict:
     """Download a file from Google Drive to a local path."""
     import os
@@ -738,7 +759,7 @@ def _drive_download_sync(file_id: str, output_path: str) -> dict:
         .execute()
     )
     mime_type = meta.get("mimeType", "")
-    name = meta.get("name", "download")
+    name = _safe_filename(meta.get("name", "download"))
 
     # Google Workspace files need export
     export_map = {
@@ -759,7 +780,7 @@ def _drive_download_sync(file_id: str, output_path: str) -> dict:
         )
         final_path = output_path
         if os.path.isdir(output_path):
-            final_path = os.path.join(output_path, f"{name}{ext}")
+            final_path = _join_inside(output_path, f"{name}{ext}")
         with open(final_path, "wb") as f:
             if isinstance(content, bytes):
                 f.write(content)
@@ -769,7 +790,7 @@ def _drive_download_sync(file_id: str, output_path: str) -> dict:
         content = service.files().get_media(fileId=file_id).execute()
         final_path = output_path
         if os.path.isdir(output_path):
-            final_path = os.path.join(output_path, name)
+            final_path = _join_inside(output_path, name)
         with open(final_path, "wb") as f:
             if isinstance(content, bytes):
                 f.write(content)

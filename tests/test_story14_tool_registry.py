@@ -366,3 +366,51 @@ def test_mcp_server_read_only_hint_not_trusted():
 
     flags = {schema["name"]: read_only for schema, read_only in conn.describe_tools()}
     assert flags == {"mcp__files__wipe_disk": False, "mcp__files__list_files": True}
+
+
+class TestDriveNameTraversal:
+    """The Drive file name is attacker-controlled (whoever shares the file)."""
+
+    @pytest.mark.parametrize(
+        ("name", "expected"),
+        [
+            ("report.pdf", "report.pdf"),
+            ("../../realize-os.yaml", "realize-os.yaml"),
+            (r"..\..\Windows\evil.dll", "evil.dll"),
+            ("..", "download"),
+            ("", "download"),
+            ('bad<>:"|?*name.txt', "badname.txt"),
+        ],
+    )
+    def test_safe_filename(self, name, expected):
+        from realize_core.tools.google_workspace import _safe_filename
+
+        assert _safe_filename(name) == expected
+
+    @pytest.mark.parametrize("drive_name", ["../../escape.txt", r"..\..\escape.txt"])
+    def test_download_into_folder_stays_inside(self, tmp_path, monkeypatch, drive_name):
+        import realize_core.tools.google_workspace as gw
+
+        class _Req:
+            def __init__(self, value):
+                self._value = value
+
+            def execute(self):
+                return self._value
+
+        class _Files:
+            def get(self, **_):
+                return _Req({"id": "1", "name": drive_name, "mimeType": "text/plain"})
+
+            def get_media(self, **_):
+                return _Req(b"payload")
+
+        monkeypatch.setattr(gw, "_drive_service", lambda: SimpleNamespace(files=lambda: _Files()))
+        folder = tmp_path / "agent-files"
+        folder.mkdir()
+
+        result = gw._drive_download_sync("1", str(folder))
+
+        assert (folder / "escape.txt").read_bytes() == b"payload"
+        assert not (tmp_path / "escape.txt").exists()
+        assert result["output_path"] == str((folder / "escape.txt").resolve())
