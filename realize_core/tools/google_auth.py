@@ -46,6 +46,24 @@ def _load_client_config() -> dict:
         return {}
 
 
+def has_stored_credentials() -> bool:
+    """Cheap check: Google client libraries importable and a token file present.
+
+    Unlike :func:`get_credentials` this never refreshes tokens over the
+    network, so it is safe for tool availability checks.
+    """
+    try:
+        import google.oauth2.credentials  # noqa: F401
+        import googleapiclient  # noqa: F401
+    except ImportError:
+        return False
+    candidates = [
+        Path(os.environ.get("GOOGLE_OAUTH_TOKENS_PATH", str(_TOKENS_PATH))),
+        Path(os.environ.get("DATA_DIR", "/app/data")) / "tokens.json",
+    ]
+    return any(p.exists() for p in candidates)
+
+
 def get_credentials():
     """
     Load and return valid Google OAuth credentials.

@@ -122,3 +122,70 @@ def get_pm_status() -> dict:
         "provider": "clickup",
         "description": "Task management, sprint planning",
     }
+
+
+CLICKUP_TOOL_SCHEMAS = [
+    {
+        "name": "clickup_list_tasks",
+        "description": "List tasks in a ClickUp list, optionally filtered by status.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "list_id": {"type": "string", "description": "ClickUp list ID."},
+                "status": {"type": "string", "description": "Only tasks with this status (optional)."},
+            },
+            "required": ["list_id"],
+        },
+    },
+    {
+        "name": "clickup_create_task",
+        "description": "Create a task in a ClickUp list. Write operation.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "list_id": {"type": "string", "description": "ClickUp list ID."},
+                "name": {"type": "string", "description": "Task title."},
+                "description": {"type": "string", "description": "Task description (optional)."},
+                "priority": {"type": "integer", "description": "1 urgent … 4 low (default 3).", "default": 3},
+            },
+            "required": ["list_id", "name"],
+        },
+    },
+    {
+        "name": "clickup_update_task_status",
+        "description": "Change the status of a ClickUp task. Write operation.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "task_id": {"type": "string", "description": "ClickUp task ID."},
+                "status": {"type": "string", "description": "New status name, as defined in the list."},
+            },
+            "required": ["task_id", "status"],
+        },
+    },
+]
+
+CLICKUP_WRITE_TOOLS = {"clickup_create_task", "clickup_update_task_status"}
+
+CLICKUP_TOOL_FUNCTIONS = {
+    "clickup_list_tasks": list_tasks,
+    "clickup_create_task": create_task,
+    "clickup_update_task_status": update_task_status,
+}
+
+
+def get_tool():
+    """Registry factory: expose ClickUp task management as a BaseTool."""
+    from realize_core.tools.base_tool import ToolCategory
+    from realize_core.tools.function_tool import FunctionMapTool
+
+    return FunctionMapTool(
+        name="clickup",
+        description="ClickUp task management: list, create and update tasks",
+        category=ToolCategory.PRODUCTIVITY,
+        schemas=CLICKUP_TOOL_SCHEMAS,
+        functions=CLICKUP_TOOL_FUNCTIONS,
+        write_actions=CLICKUP_WRITE_TOOLS,
+        availability=is_available,
+        requires_auth=True,
+    )

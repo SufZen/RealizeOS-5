@@ -7,9 +7,12 @@ All functions use asyncio.to_thread() to wrap the synchronous google-api-python-
 
 import asyncio
 import base64
+import copy
 import logging
+import os
 from datetime import UTC, datetime, timedelta
 from email.mime.text import MIMEText
+from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -721,6 +724,27 @@ async def drive_upload(
     )
 
 
+def _safe_filename(name: str, default: str = "download") -> str:
+    r"""Reduce a Drive file name to one safe path component.
+
+    Drive names are chosen by whoever owns or shares the file, so they may
+    contain ``/``, ``\`` or ``..``; joined into a local path they would
+    escape the target folder.
+    """
+    cleaned = name.replace("\\", "/").split("/")[-1]
+    cleaned = "".join(ch for ch in cleaned if ch.isprintable() and ch not in '<>:"|?*').strip().strip(".")
+    return cleaned or default
+
+
+def _join_inside(folder: str, filename: str) -> str:
+    """Join *filename* under *folder*, refusing results that leave it."""
+    root = os.path.realpath(folder)
+    target = os.path.realpath(os.path.join(root, filename))
+    if os.path.commonpath([root, target]) != root:
+        raise ValueError(f"Refusing to write outside {folder!r}")
+    return target
+
+
 def _drive_download_sync(file_id: str, output_path: str) -> dict:
     """Download a file from Google Drive to a local path."""
     import os
@@ -735,7 +759,7 @@ def _drive_download_sync(file_id: str, output_path: str) -> dict:
         .execute()
     )
     mime_type = meta.get("mimeType", "")
-    name = meta.get("name", "download")
+    name = _safe_filename(meta.get("name", "download"))
 
     # Google Workspace files need export
     export_map = {
@@ -756,7 +780,7 @@ def _drive_download_sync(file_id: str, output_path: str) -> dict:
         )
         final_path = output_path
         if os.path.isdir(output_path):
-            final_path = os.path.join(output_path, f"{name}{ext}")
+            final_path = _join_inside(output_path, f"{name}{ext}")
         with open(final_path, "wb") as f:
             if isinstance(content, bytes):
                 f.write(content)
@@ -766,7 +790,7 @@ def _drive_download_sync(file_id: str, output_path: str) -> dict:
         content = service.files().get_media(fileId=file_id).execute()
         final_path = output_path
         if os.path.isdir(output_path):
-            final_path = os.path.join(output_path, name)
+            final_path = _join_inside(output_path, name)
         with open(final_path, "wb") as f:
             if isinstance(content, bytes):
                 f.write(content)
@@ -1207,3 +1231,94 @@ TOOL_FUNCTIONS = {
     "drive_set_permissions": drive_set_permissions,
     "drive_move": drive_move,
 }
+
+
+# ---------------------------------------------------------------------------
+# Agent-facing registry tool
+# ---------------------------------------------------------------------------
+
+
+def agent_files_dir() -> Path:
+    """Directory that agent-driven Drive uploads/downloads are confined to.
+
+    ``REALIZE_AGENT_FILES_DIR`` overrides; default ``<KB_PATH>/data/agent-files``.
+    """
+    from realize_core.config import KB_PATH
+
+    configured = os.environ.get("REALIZE_AGENT_FILES_DIR")
+    return Path(configured) if configured else Path(KB_PATH) / "data" / "agent-files"
+
+
+def _confined_path(relative: str) -> Path | None:
+    """Resolve a model-supplied path inside :func:`agent_files_dir`, or None.
+
+    Absolute paths and ``..`` traversal that would leave the directory are
+    refused, so a tool call can't read ``.env``/tokens or overwrite config.
+    """
+    root = agent_files_dir().resolve()
+    candidate = (root / (relative or "")).resolve()
+    return candidate if candidate.is_relative_to(root) else None
+
+
+async def _agent_drive_upload(file_path: str, **kwargs) -> dict:
+    confined = _confined_path(file_path)
+    if confined is None or not confined.is_file():
+        return {"error": "file_path must name a file inside the agent files folder"}
+    return await drive_upload(str(confined), **kwargs)
+
+
+async def _agent_drive_download(file_id: str, output_path: str = "") -> dict:
+    confined = _confined_path(output_path)
+    if confined is None:
+        return {"error": "output_path must be inside the agent files folder"}
+    await asyncio.to_thread(agent_files_dir().mkdir, parents=True, exist_ok=True)
+    return await drive_download(file_id, str(confined))
+
+
+def _agent_schemas() -> list[dict]:
+    """Tool schemas as shown to agents: local paths are agent-folder-relative."""
+    overrides = {
+        "drive_upload": ("file_path", "Path of the file to upload, relative to the agent files folder."),
+        "drive_download": (
+            "output_path",
+            "File or folder to save into, relative to the agent files folder (default: the folder itself).",
+        ),
+    }
+    schemas = []
+    for schema in GOOGLE_TOOL_SCHEMAS:
+        if schema["name"] in overrides:
+            field, text = overrides[schema["name"]]
+            schema = copy.deepcopy(schema)
+            schema["input_schema"]["properties"][field]["description"] = text
+            if schema["name"] == "drive_download":
+                schema["input_schema"]["required"] = ["file_id"]
+                schema["description"] = "Download a Drive file into the agent files folder. Writes a local file."
+        schemas.append(schema)
+    return schemas
+
+
+def get_tool():
+    """Registry factory: expose Gmail, Calendar and Drive as one BaseTool.
+
+    Local-filesystem parameters are confined to :func:`agent_files_dir`, and
+    ``drive_download`` counts as a write (it creates files on this server).
+    """
+    from realize_core.tools.base_tool import ToolCategory
+    from realize_core.tools.function_tool import FunctionMapTool
+    from realize_core.tools.google_auth import has_stored_credentials
+
+    functions = {
+        **TOOL_FUNCTIONS,
+        "drive_upload": _agent_drive_upload,
+        "drive_download": _agent_drive_download,
+    }
+    return FunctionMapTool(
+        name="google_workspace",
+        description="Gmail, Google Calendar and Google Drive for the connected Google account",
+        category=ToolCategory.PRODUCTIVITY,
+        schemas=_agent_schemas(),
+        functions=functions,
+        write_actions=WRITE_TOOLS | {"drive_download"},
+        availability=has_stored_credentials,
+        requires_auth=True,
+    )

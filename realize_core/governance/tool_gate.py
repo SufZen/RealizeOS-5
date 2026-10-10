@@ -102,15 +102,24 @@ class ToolGate:
         """The approval store the gate records held actions into."""
         return self._store
 
-    def decide(self, action_name: str, params: dict[str, Any] | None = None) -> GateDecision:
+    def decide(
+        self,
+        action_name: str,
+        params: dict[str, Any] | None = None,
+        *,
+        is_destructive: bool | None = None,
+    ) -> GateDecision:
         """
         Decide whether ``action_name`` may execute under current governance.
+
+        ``is_destructive`` comes from the tool's schema; it decides how an
+        action without an explicit trust rule is treated (writes need approval).
 
         Never raises. On any internal error, fails open (ALLOW) and logs.
         """
         params = params or {}
         try:
-            decision = check_trust(action_name, self._config, channel=self._channel)
+            decision = check_trust(action_name, self._config, channel=self._channel, is_destructive=is_destructive)
 
             if decision is TrustDecision.AUTO:
                 return GateDecision(GateOutcome.ALLOW, action_name)
