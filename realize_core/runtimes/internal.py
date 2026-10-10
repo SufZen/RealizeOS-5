@@ -8,6 +8,7 @@ simply a contract-conforming facade over the current system.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import uuid
 from collections.abc import AsyncIterator
@@ -27,11 +28,14 @@ from realize_core.runtimes.contract import (
     ToolProtocol,
 )
 from realize_core.runtimes.events import (
+    ApprovalRequestEvent,
     ErrorEvent,
     FinalResultEvent,
     ProgressEvent,
     RuntimeEvent,
     TextEvent,
+    ToolCallEvent,
+    ToolResultEvent,
 )
 
 logger = logging.getLogger(__name__)
@@ -133,7 +137,7 @@ class InternalAdapter:
 
         try:
             from realize_core.base_handler import process_message
-            from realize_core.config import KB_PATH, build_systems_dict, load_config
+            from realize_core.config import KB_PATH, build_systems_dict, get_features, load_config
 
             config = load_config()
             systems = build_systems_dict(config)
@@ -141,18 +145,38 @@ class InternalAdapter:
             venture_id = context.venture_id or ""
             system_config = systems.get(venture_id, {})
 
-            # Execute through the existing pipeline
-            response = await process_message(
-                system_key=venture_id,
-                user_id="mission-engine",
-                message=mission_step.description,
-                kb_path=KB_PATH,
-                system_config=system_config,
-                shared_config=config.get("shared", {}),
-                channel="mission",
-                features=config.get("features", {}),
-                all_systems=systems,
+            # Execute through the existing pipeline; tool-loop progress arrives
+            # on the queue and is re-emitted live as runtime events.
+            loop_events: asyncio.Queue[dict] = asyncio.Queue()
+            task = asyncio.create_task(
+                process_message(
+                    system_key=venture_id,
+                    user_id="mission-engine",
+                    message=mission_step.description,
+                    kb_path=KB_PATH,
+                    system_config=system_config,
+                    shared_config=config.get("shared", {}),
+                    channel="mission",
+                    features=get_features(config),
+                    all_systems=systems,
+                    emit=loop_events.put_nowait,
+                )
             )
+            while True:
+                getter = asyncio.ensure_future(loop_events.get())
+                done, _ = await asyncio.wait({task, getter}, return_when=asyncio.FIRST_COMPLETED)
+                if getter in done:
+                    event = _to_runtime_event(run_id, getter.result())
+                    if event is not None:
+                        yield event
+                    continue
+                getter.cancel()
+                while not loop_events.empty():
+                    event = _to_runtime_event(run_id, loop_events.get_nowait())
+                    if event is not None:
+                        yield event
+                break
+            response = task.result()
 
             elapsed = (datetime.now() - started_at).total_seconds()
 
@@ -206,3 +230,30 @@ class InternalAdapter:
     async def import_skill(self, skill: Skill) -> bool:
         """Not yet supported for internal agents."""
         return False
+
+
+def _to_runtime_event(run_id: str, event: dict) -> RuntimeEvent | None:
+    """Translate an agent tool-loop event into the runtime event contract."""
+    kind = event.get("type")
+    if kind == "tool_call":
+        return ToolCallEvent(
+            run_id=run_id,
+            tool_name=event.get("name", ""),
+            args=event.get("input", {}),
+            tool_call_id=event.get("id", ""),
+        )
+    if kind == "tool_result":
+        return ToolResultEvent(
+            run_id=run_id,
+            tool_call_id=event.get("id", ""),
+            result={"success": event.get("success"), "held": event.get("held"), "output": event.get("output", "")},
+            error=event.get("error"),
+        )
+    if kind == "approval_requested":
+        return ApprovalRequestEvent(
+            run_id=run_id,
+            category="tool",
+            description=f"'{event.get('name', '')}' needs operator approval",
+            proposed_action={"tool": event.get("name", ""), "request_id": event.get("request_id")},
+        )
+    return None  # final text is reported via TextEvent / FinalResultEvent

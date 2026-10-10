@@ -61,6 +61,7 @@ features:
   dreaming_reflex: false    # Run Reflex enrichment over recently-changed entities (see dreaming block)
   enforce_gates: false      # Enforce the trust ladder at tool dispatch (see trust block). OFF = unchanged behavior.
   enforce_guardrails: false # Reserved; guardrail post-response enforcement is deferred (no-op).
+  agent_tools: true         # Agents use tools (Google, Sheets, MCP...) while answering. Writes need enforce_gates.
 
 # Email Dream Inbox digest — push-only outbound channel.
 # Disabled by default; set features.email_digest: true to enable.

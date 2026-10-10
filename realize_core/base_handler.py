@@ -7,6 +7,7 @@ shared functions to process messages through the standard flow.
 """
 
 import logging
+from pathlib import Path
 
 from realize_core.llm.router import classify_task, route_to_llm
 from realize_core.memory.conversation import add_message, get_history
@@ -104,11 +105,15 @@ async def standard_llm_handling(
     channel: str = "api",
     features: dict = None,
     all_systems: dict = None,
+    emit=None,
 ) -> str:
     """
     Standard single-agent LLM handling: build prompt, classify, route, respond.
 
     This is the main message processing function for non-skill, non-session messages.
+    With ``features.agent_tools`` on, the agent answers through the tool loop
+    (it may call registry tools, governed by the approval gate); ``emit``
+    receives the loop's progress events for a live "what I used" trail.
     """
     system_prompt = build_system_prompt(
         kb_path=kb_path,
@@ -127,11 +132,54 @@ async def standard_llm_handling(
     add_message(system_key, user_id, "user", message)
     messages = history + [{"role": "user", "content": message}]
 
-    task_class = classify_task(message, system_key=system_key)
-    response = await route_to_llm(system_prompt, messages, task_class)
+    response = None
+    if (features or {}).get("agent_tools"):
+        response = await _answer_with_tools(system_prompt, messages, agent_key, kb_path, system_config or {}, emit=emit)
+    if response is None:
+        task_class = classify_task(message, system_key=system_key)
+        response = await route_to_llm(system_prompt, messages, task_class)
 
     add_message(system_key, user_id, "assistant", response)
     return response
+
+
+def agent_tool_schemas(agent_key: str, kb_path, system_config: dict) -> list[dict]:
+    """Tool schemas an agent may use: available registry tools, persona-gated.
+
+    A ``<agent>.persona.yaml`` next to the agent (``tools_allowlist`` /
+    ``tools_denylist``, by tool name such as ``google_sheets``) narrows the set.
+    Write actions are offered only while the governance gate is installed
+    (``features.enforce_gates``); without it agents get read-only tools, so
+    nothing can change external systems without the approval path.
+    """
+    from types import SimpleNamespace
+
+    from realize_core.agents.persona import resolve_persona
+    from realize_core.tools.gating import get_gated_schemas
+    from realize_core.tools.tool_registry import get_tool_registry
+
+    persona = None
+    agents_dir = system_config.get("agents_dir")
+    if kb_path is not None and agents_dir:
+        persona = resolve_persona(SimpleNamespace(key=agent_key, persona=None), Path(kb_path) / agents_dir)
+    registry = get_tool_registry()
+    schemas = get_gated_schemas(registry.get_available_tools(), persona)
+    if not registry.has_gate:
+        schemas = [s for s in schemas if registry.is_destructive(s["name"]) is False]
+    return schemas
+
+
+async def _answer_with_tools(system_prompt, messages, agent_key, kb_path, system_config, emit=None) -> str | None:
+    """Answer via the agent tool loop; None means "use plain routing instead"."""
+    from realize_core.agents.tool_loop import run_tool_loop, tool_capable_provider
+
+    tools = agent_tool_schemas(agent_key, kb_path, system_config)
+    if not tools or tool_capable_provider() is None:
+        return None
+    result = await run_tool_loop(system_prompt, messages, tools, emit=emit)
+    if result.stop_reason == "error":
+        return None  # fall back to the provider chain in route_to_llm
+    return result.text
 
 
 async def handle_session_message(
@@ -246,6 +294,7 @@ async def process_message(
     channel: str = "api",
     features: dict = None,
     all_systems: dict = None,
+    emit=None,
 ) -> str:
     """
     Main entry point: process an incoming message through the full pipeline.
@@ -383,6 +432,7 @@ async def process_message(
             channel=channel,
             features=features,
             all_systems=all_systems,
+            emit=emit,
         )
 
         # --- Activity: log LLM call ---

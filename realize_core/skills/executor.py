@@ -13,7 +13,6 @@ detailed instructions for the LLM agent.
 Each step's result feeds into the next step's context.
 """
 
-import json
 import logging
 from datetime import date
 
@@ -62,6 +61,15 @@ class SkillContext:
         result = result.replace("{user_message}", self.user_message)
         result = result.replace("{today}", date.today().isoformat())
         return result
+
+
+async def _call_llm(system_prompt: str, messages: list[dict], system_key: str) -> str:
+    """LLM call for skill steps — through the router (rate/cost limits, provider fallback)."""
+    from realize_core.llm.router import classify_task, route_to_llm
+
+    last_user = next((m["content"] for m in reversed(messages) if m.get("role") == "user"), "")
+    task_type = classify_task(last_user if isinstance(last_user, str) else "", system_key=system_key)
+    return await route_to_llm(system_prompt, messages, task_type, system_key=system_key)
 
 
 async def execute_skill(
@@ -144,7 +152,6 @@ async def _execute_v1_pipeline(
     channel,
 ) -> str:
     """Execute a v1 skill (trigger -> agent pipeline)."""
-    from realize_core.llm.claude_client import call_claude
     from realize_core.prompt.builder import build_system_prompt
 
     pipeline = skill.get("pipeline", ["orchestrator"])
@@ -171,10 +178,7 @@ async def _execute_v1_pipeline(
 
         messages = [{"role": "user", "content": message_content}]
 
-        response = await call_claude(
-            system_prompt=system_prompt,
-            messages=messages,
-        )
+        response = await _call_llm(system_prompt, messages, system_key)
         results.append(response)
         logger.info(f"Pipeline step {i + 1}/{len(pipeline)}: {agent_key} completed")
 
@@ -258,7 +262,6 @@ async def _execute_v2_steps(
 
 async def _execute_agent_step(step, ctx, kb_path, system_config, shared_config, channel) -> str:
     """Execute an agent step: call an LLM agent with context injection."""
-    from realize_core.llm.claude_client import call_claude
     from realize_core.prompt.builder import build_system_prompt
 
     agent_key = step.get("agent", "orchestrator")
@@ -295,7 +298,7 @@ async def _execute_agent_step(step, ctx, kb_path, system_config, shared_config, 
     assembled = "\n\n".join(parts)
     messages = [{"role": "user", "content": assembled}]
 
-    return await call_claude(system_prompt=system_prompt, messages=messages)
+    return await _call_llm(system_prompt, messages, ctx.system_key)
 
 
 async def _execute_delegate_step(step, ctx, kb_path, system_config, shared_config, channel) -> str:
@@ -347,34 +350,27 @@ async def _execute_tool_step(step, ctx) -> str:
     for key, value in raw_params.items():
         params[key] = ctx.inject(str(value)) if isinstance(value, str) else value
 
-    # Try to find the tool function in registered tool modules
-    try:
-        from realize_core.tools.web import TOOL_FUNCTIONS as WEB_TOOLS
+    from realize_core.tools.tool_registry import get_tool_registry
 
-        all_funcs = dict(WEB_TOOLS)
-    except ImportError:
-        all_funcs = {}
-
-    try:
-        from realize_core.tools.google_workspace import TOOL_FUNCTIONS as GOOGLE_TOOLS
-
-        all_funcs.update(GOOGLE_TOOLS)
-    except ImportError:
-        pass
-
-    func = all_funcs.get(tool_name)
-    if not func:
+    # Through the registry: the governance gate applies, and every registered
+    # integration (Google, Sheets, ClickUp, MCP, web) is reachable.
+    registry = get_tool_registry()
+    if registry.get_tool_for_action(tool_name) is None:
         return f"Error: unknown tool '{tool_name}'"
 
-    try:
-        result = await func(**params)
-        result_str = json.dumps(result, indent=2, default=str, ensure_ascii=False)
-        if len(result_str) > 6000:
-            result_str = result_str[:6000] + "\n... (truncated)"
-        return result_str
-    except Exception as e:
-        logger.error(f"Tool step error ({tool_name}): {e}", exc_info=True)
-        return f"Error executing {tool_name}: {str(e)[:300]}"
+    result = await registry.execute(tool_name, params)
+    if result.metadata.get("requires_human"):
+        request_id = result.metadata.get("request_id")
+        if request_id:
+            return f"⏳ '{tool_name}' was not run — it is waiting for operator approval (request {request_id})."
+        return f"'{tool_name}' was blocked by governance policy."
+    if not result.success:
+        logger.warning("Tool step %s failed: %s", tool_name, result.error)
+        return f"Error executing {tool_name}: {(result.error or '')[:300]}"
+    output = result.output or ""
+    if len(output) > 6000:
+        output = output[:6000] + "\n... (truncated)"
+    return output
 
 
 async def _execute_condition_step(step, ctx) -> str:
@@ -430,7 +426,6 @@ async def _execute_skill_md(
     appended to the agent's system prompt.  The ``agent`` field from
     the frontmatter determines which agent persona to use.
     """
-    from realize_core.llm.claude_client import call_claude
     from realize_core.prompt.builder import build_system_prompt
 
     agent_key = skill.get("agent", "orchestrator")
@@ -459,10 +454,7 @@ async def _execute_skill_md(
 
     messages = [{"role": "user", "content": user_message}]
 
-    response = await call_claude(
-        system_prompt=system_prompt,
-        messages=messages,
-    )
+    response = await _call_llm(system_prompt, messages, system_key)
 
     logger.info(f"SKILL.md execution complete: {skill_name}")
     return response
