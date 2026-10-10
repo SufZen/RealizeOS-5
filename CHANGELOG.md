@@ -4,6 +4,16 @@ All notable changes to RealizeOS are documented in this file.
 This changelog is automatically generated from [Conventional Commits](https://conventionalcommits.org).
 
 
+## [5.8.0](https://github.com/SufZen/RealizeOS-5/compare/v5.7.0...v5.8.0) (2026-10-10)
+
+### Features
+
+* **agents:** agents use tools while they answer (governed tool loop) ([b0fc8c3](https://github.com/SufZen/RealizeOS-5/commit/b0fc8c3532d3d5d78bed6b23690e268382d391fd))
+
+### Bug Fixes
+
+* **security:** only execute tools that were offered to the model ([eb3f0c8](https://github.com/SufZen/RealizeOS-5/commit/eb3f0c83047a5aaefee4f8f14ea95afb9d4b5239))
+
 ## [5.7.0](https://github.com/SufZen/RealizeOS-5/compare/v5.6.3...v5.7.0) (2026-10-10)
 
 ### Features
