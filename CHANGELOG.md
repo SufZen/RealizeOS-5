@@ -4,6 +4,13 @@ All notable changes to RealizeOS are documented in this file.
 This changelog is automatically generated from [Conventional Commits](https://conventionalcommits.org).
 
 
+## [5.6.2](https://github.com/SufZen/RealizeOS-5/compare/v5.6.1...v5.6.2) (2026-10-10)
+
+### Bug Fixes
+
+* **security:** close CodeQL path-traversal, SSRF and info-exposure findings ([9414b90](https://github.com/SufZen/RealizeOS-5/commit/9414b90b308f1220c6f1439f85db3d228cccad50))
+* **security:** pin guarded requests to the vetted IP (DNS rebinding) ([32a38a7](https://github.com/SufZen/RealizeOS-5/commit/32a38a77b8a8f0dfd1100ce7d801d6823747fec1))
+
 ## [5.6.1](https://github.com/SufZen/RealizeOS-5/compare/v5.6.0...v5.6.1) (2026-10-10)
 
 ### Bug Fixes
