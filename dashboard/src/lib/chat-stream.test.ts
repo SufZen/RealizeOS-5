@@ -83,13 +83,11 @@ describe('streamChat', () => {
   it('reports a stream that ends without a final event', async () => {
     vi.stubGlobal(
       'fetch',
-      vi
-        .fn()
-        .mockResolvedValue({
-          ok: true,
-          status: 200,
-          body: bodyFrom(['data: {"type":"text","text":"x"}\n\n']),
-        }),
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        body: bodyFrom(['data: {"type":"text","text":"x"}\n\n']),
+      }),
     )
     await expect(
       streamChat({ message: 'hi', system_key: 'acme', user_id: 'u1' }, () => {}),
