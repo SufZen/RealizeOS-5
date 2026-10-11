@@ -219,7 +219,7 @@ function SecurityPostureWidget() {
         <span>
           <span className="text-red-400 font-medium">{scan.critical}</span> critical
         </span>
-        <span className="ml-auto">of {scan.total} checks</span>
+        <span className="ms-auto">of {scan.total} checks</span>
       </div>
     </div>
   )

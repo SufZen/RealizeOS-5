@@ -30,6 +30,8 @@ import { Skeleton, SkeletonCard } from '@/components/ui/skeleton'
 import { AuthProvider, useAuth } from '@/hooks/use-auth'
 import { VentureProvider } from '@/hooks/use-venture'
 import { VentureSwitcher } from '@/components/venture-switcher'
+import { LocaleProvider } from '@/components/locale-provider'
+import { LocaleToggle } from '@/components/locale-toggle'
 import AuthGuard from '@/components/auth-guard'
 
 const OverviewPage = lazy(() => import('@/pages/overview'))
@@ -168,11 +170,12 @@ function Logo() {
 
 function DesktopSidebar() {
   return (
-    <aside className="hidden md:flex w-64 flex-col border-r border-border bg-surface-950 fx-glass p-4">
+    <aside className="hidden md:flex w-64 flex-col overflow-y-auto border-e border-border bg-surface-950 fx-glass p-4">
       <Logo />
       <VentureSwitcher />
       <NavContent />
       <div className="mt-auto pt-4 border-t border-border" data-tour="theme-toggle">
+        <LocaleToggle />
         <ThemeToggle />
       </div>
     </aside>
@@ -217,7 +220,7 @@ function MobileSheet({ open, onClose }: { open: boolean; onClose: () => void }) 
         onClick={onClose}
       />
       <div
-        className="fixed inset-y-0 left-0 z-50 w-72 bg-surface-950 fx-glass border-r border-border p-4 shadow-xl rz-animate-slide-in-right"
+        className="fixed inset-y-0 start-0 z-50 w-72 bg-surface-950 fx-glass border-e border-border p-4 shadow-xl rz-animate-slide-in-right"
         role="dialog"
         aria-modal="true"
         aria-label="Navigation menu"
@@ -338,48 +341,50 @@ function AuthenticatedShell() {
 
   return (
     <VentureProvider>
-      <a
-        href="#main-content"
-        className="sr-only focus:not-sr-only focus:absolute focus:z-[60] focus:top-4 focus:left-4 focus:px-4 focus:py-2 focus:rounded-lg focus:bg-brand-400 focus:text-black focus:text-sm focus:font-medium"
-      >
-        Skip to content
-      </a>
-      <div className="flex h-screen bg-background">
-        <DesktopSidebar />
-        <div className="flex flex-1 flex-col overflow-hidden">
-          <MobileHeader onToggle={() => setMobileOpen(true)} />
-          <MobileSheet open={mobileOpen} onClose={() => setMobileOpen(false)} />
-          <main id="main-content" className="flex-1 overflow-y-auto p-6">
-            <ErrorBoundaryWithLocation>
-              <Suspense fallback={<PageSkeleton />}>
-                <Routes>
-                  <Route path="/" element={<OverviewPage />} />
-                  <Route path="/chat" element={<ChatPage />} />
-                  <Route path="/ventures" element={<VenturesListPage />} />
-                  <Route path="/ventures/:key" element={<VentureDetailPage />} />
-                  <Route path="/ventures/:key/agents/:id" element={<AgentDetailPage />} />
-                  <Route path="/activity" element={<ActivityPage />} />
-                  <Route path="/evolution" element={<EvolutionPage />} />
-                  <Route path="/approvals" element={<ApprovalsPage />} />
-                  <Route path="/skills" element={<SkillsPage />} />
-                  <Route path="/tools" element={<ToolsPage />} />
-                  <Route path="/pipelines" element={<PipelineBuilderPage />} />
-                  <Route path="/workflows" element={<WorkflowEditorPage />} />
-                  <Route path="/routing" element={<RoutingPage />} />
-                  <Route path="/integrations" element={<IntegrationsPage />} />
-                  <Route path="/setup" element={<SetupPage />} />
-                  <Route path="/settings" element={<SettingsPage />} />
-                  <Route path="/docs" element={<DocsPage />} />
-                  <Route path="/missions" element={<MissionsPage />} />
-                  <Route path="/knowledge" element={<KnowledgeMapPage />} />
-                  <Route path="/dreams" element={<DreamInboxPage />} />
-                  <Route path="*" element={<NotFoundPage />} />
-                </Routes>
-              </Suspense>
-            </ErrorBoundaryWithLocation>
-          </main>
+      <LocaleProvider>
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:absolute focus:z-[60] focus:top-4 focus:start-4 focus:px-4 focus:py-2 focus:rounded-lg focus:bg-brand-400 focus:text-black focus:text-sm focus:font-medium"
+        >
+          Skip to content
+        </a>
+        <div className="flex h-screen bg-background">
+          <DesktopSidebar />
+          <div className="flex flex-1 flex-col overflow-hidden">
+            <MobileHeader onToggle={() => setMobileOpen(true)} />
+            <MobileSheet open={mobileOpen} onClose={() => setMobileOpen(false)} />
+            <main id="main-content" className="flex-1 overflow-y-auto p-6">
+              <ErrorBoundaryWithLocation>
+                <Suspense fallback={<PageSkeleton />}>
+                  <Routes>
+                    <Route path="/" element={<OverviewPage />} />
+                    <Route path="/chat" element={<ChatPage />} />
+                    <Route path="/ventures" element={<VenturesListPage />} />
+                    <Route path="/ventures/:key" element={<VentureDetailPage />} />
+                    <Route path="/ventures/:key/agents/:id" element={<AgentDetailPage />} />
+                    <Route path="/activity" element={<ActivityPage />} />
+                    <Route path="/evolution" element={<EvolutionPage />} />
+                    <Route path="/approvals" element={<ApprovalsPage />} />
+                    <Route path="/skills" element={<SkillsPage />} />
+                    <Route path="/tools" element={<ToolsPage />} />
+                    <Route path="/pipelines" element={<PipelineBuilderPage />} />
+                    <Route path="/workflows" element={<WorkflowEditorPage />} />
+                    <Route path="/routing" element={<RoutingPage />} />
+                    <Route path="/integrations" element={<IntegrationsPage />} />
+                    <Route path="/setup" element={<SetupPage />} />
+                    <Route path="/settings" element={<SettingsPage />} />
+                    <Route path="/docs" element={<DocsPage />} />
+                    <Route path="/missions" element={<MissionsPage />} />
+                    <Route path="/knowledge" element={<KnowledgeMapPage />} />
+                    <Route path="/dreams" element={<DreamInboxPage />} />
+                    <Route path="*" element={<NotFoundPage />} />
+                  </Routes>
+                </Suspense>
+              </ErrorBoundaryWithLocation>
+            </main>
+          </div>
         </div>
-      </div>
+      </LocaleProvider>
     </VentureProvider>
   )
 }

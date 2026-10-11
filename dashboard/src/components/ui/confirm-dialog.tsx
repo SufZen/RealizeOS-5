@@ -46,7 +46,7 @@ export function ConfirmDialog({
         onClick={onCancel}
       />
       <div className="relative z-50 grid w-full max-w-lg gap-4 rounded-xl border border-border bg-card p-6 shadow-lg shadow-black/5 animate-in fade-in zoom-in-95 duration-200">
-        <div className="flex flex-col space-y-2 text-center sm:text-left">
+        <div className="flex flex-col space-y-2 text-center sm:text-start">
           <h2 className="text-lg font-semibold leading-none tracking-tight flex items-center gap-2">
             {isDestructive && <AlertCircle className="h-5 w-5 text-red-500" />}
             {title}
@@ -69,7 +69,7 @@ export function ConfirmDialog({
                 : 'bg-primary text-primary-foreground hover:bg-primary/90'
             }`}
           >
-            {isDestructive && <Trash2 className="mr-2 h-4 w-4" />}
+            {isDestructive && <Trash2 className="me-2 h-4 w-4" />}
             {confirmText}
           </button>
         </div>

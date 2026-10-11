@@ -199,7 +199,7 @@ function MissionCard({ mission }: { mission: Mission }) {
 
       {/* Outcome summary */}
       {mission.outcome_summary && (
-        <p className="mt-2 text-xs text-muted-foreground italic border-l-2 border-brand-400/30 pl-2">
+        <p className="mt-2 text-xs text-muted-foreground italic border-s-2 border-brand-400/30 ps-2">
           {mission.outcome_summary}
         </p>
       )}

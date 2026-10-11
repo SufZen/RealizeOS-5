@@ -236,12 +236,12 @@ export default function IntegrationsPage() {
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <Search className="absolute start-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
           <input
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search integrations..."
-            className="pl-8 pr-3 py-1.5 rounded-lg border border-border bg-surface-800 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-brand-400 w-60"
+            className="ps-8 pe-3 py-1.5 rounded-lg border border-border bg-surface-800 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-brand-400 w-60"
           />
         </div>
         <div className="flex gap-1.5">
@@ -417,7 +417,7 @@ function IntegrationCard({
         <button
           onClick={onRemove}
           disabled={isLoading}
-          className="flex items-center gap-1 px-2.5 py-1 text-[10px] rounded-lg border border-border text-muted-foreground hover:text-red-400 ml-auto disabled:opacity-40 transition-colors"
+          className="flex items-center gap-1 px-2.5 py-1 text-[10px] rounded-lg border border-border text-muted-foreground hover:text-red-400 ms-auto disabled:opacity-40 transition-colors"
         >
           <Trash2 className="h-3 w-3" /> Remove
         </button>
@@ -512,12 +512,12 @@ function AddIntegrationModal({ available, onClose, onAdded }: AddIntegrationModa
           {/* Search */}
           <div className="p-4 border-b border-border">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <input
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search available integrations..."
-                className="w-full pl-10 pr-3 py-2 rounded-lg border border-border bg-surface-800 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-brand-400"
+                className="w-full ps-10 pe-3 py-2 rounded-lg border border-border bg-surface-800 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-brand-400"
                 autoFocus
               />
             </div>

@@ -21,7 +21,8 @@ export function TrailPanel({ trail, anchorPrefix }: { trail: Trail; anchorPrefix
   if (!trail.sources.length && !rows.length) return null
 
   return (
-    <div className="mt-3 border-t border-border pt-2 text-xs text-muted-foreground" dir="auto">
+    // Follows the page direction; mixed-direction pieces are isolated with <bdi>.
+    <div className="mt-3 border-t border-border pt-2 text-xs text-muted-foreground">
       <div className="mb-1 font-medium uppercase tracking-wider text-[10px]">What I used</div>
 
       {trail.sources.length > 0 && (
@@ -34,10 +35,10 @@ export function TrailPanel({ trail, anchorPrefix }: { trail: Trail; anchorPrefix
             >
               <span className="font-mono text-brand-400">[{s.id}]</span>
               <FileText className="h-3 w-3 shrink-0 self-center" />
-              <span className="text-foreground">{s.title}</span>
-              <span className="truncate opacity-60" title={s.path}>
+              <bdi className="text-foreground">{s.title}</bdi>
+              <bdi className="truncate opacity-60" title={s.path}>
                 {s.path}
-              </span>
+              </bdi>
             </li>
           ))}
         </ol>
@@ -51,7 +52,7 @@ export function TrailPanel({ trail, anchorPrefix }: { trail: Trail; anchorPrefix
             return (
               <li key={row.id} className="flex items-center gap-1.5">
                 <Wrench className="h-3 w-3 shrink-0" />
-                <span className="font-mono text-foreground">{row.name}</span>
+                <bdi className="font-mono text-foreground">{row.name}</bdi>
                 <Icon className={cn('h-3 w-3 shrink-0', status.className)} aria-hidden />
                 {row.status === 'held' ? (
                   <button
@@ -65,12 +66,12 @@ export function TrailPanel({ trail, anchorPrefix }: { trail: Trail; anchorPrefix
                   <span>{status.label}</span>
                 )}
                 {row.durationMs !== undefined && row.status === 'done' && (
-                  <span className="opacity-60">{Math.round(row.durationMs)} ms</span>
+                  <bdi className="opacity-60">{Math.round(row.durationMs)} ms</bdi>
                 )}
                 {row.status === 'failed' && row.error && (
-                  <span className="truncate text-red-400/80" title={row.error}>
+                  <bdi className="truncate text-red-400/80" title={row.error}>
                     {row.error}
-                  </span>
+                  </bdi>
                 )}
               </li>
             )

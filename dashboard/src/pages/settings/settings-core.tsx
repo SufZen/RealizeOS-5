@@ -112,7 +112,7 @@ export function LLMProvidersSection({ providers }: { providers: Provider[] }) {
               <div>
                 <span className="text-sm text-foreground font-medium capitalize">{p.name}</span>
                 {p.available && p.models.length > 0 && (
-                  <span className="text-xs text-muted-foreground ml-2">
+                  <span className="text-xs text-muted-foreground ms-2">
                     ({p.models.length} model{p.models.length !== 1 ? 's' : ''})
                   </span>
                 )}

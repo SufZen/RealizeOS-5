@@ -22,6 +22,8 @@ import { useAuth } from '@/hooks/use-auth'
 export interface VentureSummary {
   key: string
   name: string
+  /** Content language of the venture, e.g. "he" (sets RTL). */
+  locale?: string
   agent_count?: number
 }
 

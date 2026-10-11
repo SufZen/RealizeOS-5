@@ -159,7 +159,7 @@ export function StorageSection() {
         </div>
 
         {provider === 's3' && (
-          <div className="space-y-3 pl-2 border-l-2 border-brand-400/20">
+          <div className="space-y-3 ps-2 border-s-2 border-brand-400/20">
             <div>
               <label className="text-xs text-muted-foreground mb-1 block">Provider Template</label>
               <select

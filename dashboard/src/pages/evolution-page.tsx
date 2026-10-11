@@ -151,7 +151,7 @@ function SuggestionCard({
           <h3 className="text-sm font-medium text-foreground">{s.title}</h3>
           <p className="text-xs text-muted-foreground mt-0.5">{s.description}</p>
         </div>
-        <div className="flex items-center gap-2 shrink-0 ml-4">
+        <div className="flex items-center gap-2 shrink-0 ms-4">
           <span
             className={cn(
               'text-xs px-2 py-0.5 rounded-full font-medium',

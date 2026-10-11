@@ -55,6 +55,7 @@ async def list_ventures(request: Request):
                 "key": key,
                 "name": sys_conf.get("name", key),
                 "description": sys_conf.get("description", ""),
+                "locale": sys_conf.get("locale", ""),
                 "agent_count": len(sys_conf.get("agents", {})),
                 "skill_count": count_skills(kb_path, sys_conf),
                 "fabric_completeness": fabric["completeness"],

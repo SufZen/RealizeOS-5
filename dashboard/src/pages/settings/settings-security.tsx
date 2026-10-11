@@ -125,13 +125,13 @@ export function SecuritySection({ saving, setSaving, setStatus }: SecuritySectio
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border bg-surface-800">
-                  <th className="text-left px-3 py-2 text-xs text-muted-foreground font-medium">
+                  <th className="text-start px-3 py-2 text-xs text-muted-foreground font-medium">
                     Check
                   </th>
-                  <th className="text-left px-3 py-2 text-xs text-muted-foreground font-medium w-16">
+                  <th className="text-start px-3 py-2 text-xs text-muted-foreground font-medium w-16">
                     Status
                   </th>
-                  <th className="text-left px-3 py-2 text-xs text-muted-foreground font-medium">
+                  <th className="text-start px-3 py-2 text-xs text-muted-foreground font-medium">
                     Detail
                   </th>
                 </tr>
@@ -167,16 +167,16 @@ export function SecuritySection({ saving, setSaving, setStatus }: SecuritySectio
           <table className="w-full text-xs">
             <thead>
               <tr className="border-b border-border bg-surface-800 sticky top-0">
-                <th className="text-left px-3 py-1.5 text-muted-foreground font-medium w-32">
+                <th className="text-start px-3 py-1.5 text-muted-foreground font-medium w-32">
                   Time
                 </th>
-                <th className="text-left px-3 py-1.5 text-muted-foreground font-medium w-24">
+                <th className="text-start px-3 py-1.5 text-muted-foreground font-medium w-24">
                   Type
                 </th>
-                <th className="text-left px-3 py-1.5 text-muted-foreground font-medium w-20">
+                <th className="text-start px-3 py-1.5 text-muted-foreground font-medium w-20">
                   User
                 </th>
-                <th className="text-left px-3 py-1.5 text-muted-foreground font-medium">Detail</th>
+                <th className="text-start px-3 py-1.5 text-muted-foreground font-medium">Detail</th>
               </tr>
             </thead>
             <tbody>

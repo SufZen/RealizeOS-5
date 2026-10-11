@@ -194,7 +194,7 @@ export default function ChatPage() {
               <select
                 value={selectedAgent}
                 onChange={(e) => setSelectedAgent(e.target.value)}
-                className="appearance-none bg-surface-800 border border-border rounded-lg px-3 py-1.5 pr-8 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-brand-400"
+                className="appearance-none bg-surface-800 border border-border rounded-lg px-3 py-1.5 pe-8 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-brand-400"
               >
                 <option value="">Auto-route</option>
                 {agents.map((a) => (
@@ -203,7 +203,7 @@ export default function ChatPage() {
                   </option>
                 ))}
               </select>
-              <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+              <ChevronDown className="absolute end-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
             </div>
           )}
 
@@ -295,7 +295,7 @@ export default function ChatPage() {
           </button>
         </div>
         {input.length > 3500 && (
-          <div className="text-xs text-muted-foreground mt-1 text-right">{input.length}/4096</div>
+          <div className="text-xs text-muted-foreground mt-1 text-end">{input.length}/4096</div>
         )}
       </div>
     </div>

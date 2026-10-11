@@ -363,7 +363,7 @@ function TourOverlay({ step, stepIndex, totalSteps, onNext, onPrev, onSkip }: To
         {/* Close */}
         <button
           onClick={onSkip}
-          className="absolute top-3 right-3 p-1 rounded-lg text-muted-foreground hover:text-foreground transition-colors"
+          className="absolute top-3 end-3 p-1 rounded-lg text-muted-foreground hover:text-foreground transition-colors"
         >
           <X className="h-4 w-4" />
         </button>

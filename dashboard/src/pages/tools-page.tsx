@@ -193,7 +193,7 @@ export default function ToolsPage() {
                   <WifiOff className="h-4 w-4 text-muted-foreground" />
                 )}
                 <span className="text-sm text-foreground font-medium">{s.name}</span>
-                <span className="text-xs text-muted-foreground ml-auto">{s.tools_count} tools</span>
+                <span className="text-xs text-muted-foreground ms-auto">{s.tools_count} tools</span>
                 <StatusDot active={s.connected} />
               </div>
             ))}
@@ -244,7 +244,7 @@ export default function ToolsPage() {
               <Radio className="h-4 w-4 text-muted-foreground" />
               <span className="text-sm text-foreground font-medium">{ch.name}</span>
               <span className="text-xs text-muted-foreground font-mono">{ch.type}</span>
-              <div className="ml-auto">
+              <div className="ms-auto">
                 <StatusDot active={ch.enabled} />
               </div>
             </div>
@@ -291,7 +291,7 @@ function WebhookEventsSection() {
               <Webhook className="h-4 w-4 text-muted-foreground shrink-0" />
               <span className="text-sm text-foreground font-medium">{evt.source}</span>
               <span className="text-xs text-muted-foreground">{evt.event_type}</span>
-              <span className="text-xs text-muted-foreground ml-auto">
+              <span className="text-xs text-muted-foreground ms-auto">
                 {new Date(evt.received_at).toLocaleString()}
               </span>
             </div>

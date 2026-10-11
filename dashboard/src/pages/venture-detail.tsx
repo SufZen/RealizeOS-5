@@ -188,7 +188,7 @@ export default function VentureDetailPage() {
               <p className="text-sm text-muted-foreground">{data.description}</p>
             )}
           </div>
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ms-auto flex items-center gap-2">
             <button
               onClick={() => window.open(`/api/ventures/${data.key}/export`, '_blank')}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-border text-muted-foreground hover:text-foreground transition-colors"
@@ -256,7 +256,7 @@ export default function VentureDetailPage() {
                 <FileText className="h-4 w-4 text-muted-foreground" />
                 <div>
                   <span className="text-sm font-medium text-foreground">{skill.name}</span>
-                  <span className="text-xs text-muted-foreground ml-2">{skill.version}</span>
+                  <span className="text-xs text-muted-foreground ms-2">{skill.version}</span>
                 </div>
               </div>
               <div className="flex items-center gap-2">

@@ -85,7 +85,7 @@ function FabricDir({
       <div className="flex items-center gap-1">
         <button
           onClick={() => setOpen(!open)}
-          className="flex items-center gap-2 py-1 flex-1 text-left hover:text-foreground text-muted-foreground transition-colors"
+          className="flex items-center gap-2 py-1 flex-1 text-start hover:text-foreground text-muted-foreground transition-colors"
         >
           {open ? (
             <ChevronDown className="h-3.5 w-3.5" />
@@ -111,13 +111,13 @@ function FabricDir({
         )}
       </div>
       {open && (
-        <div className="ml-6 border-l border-border pl-3 space-y-0.5">
+        <div className="ms-6 border-s border-border ps-3 space-y-0.5">
           {data.files.map((f) => (
             <button
               key={f.relative_path}
               onClick={() => onFileClick(f.relative_path)}
               className={cn(
-                'flex items-center gap-2 py-1 w-full text-left transition-colors',
+                'flex items-center gap-2 py-1 w-full text-start transition-colors',
                 selectedPath === f.relative_path
                   ? 'text-brand-400'
                   : 'text-muted-foreground hover:text-brand-400',
@@ -125,7 +125,7 @@ function FabricDir({
             >
               <FileText className="h-3.5 w-3.5" />
               <span className="text-sm truncate">{f.name}</span>
-              <span className="text-xs text-muted-foreground/60 ml-auto shrink-0">
+              <span className="text-xs text-muted-foreground/60 ms-auto shrink-0">
                 {formatSize(f.size)}
               </span>
             </button>
@@ -233,13 +233,13 @@ export function KBBrowser({ ventureKey }: { ventureKey: string }) {
       {/* Search bar */}
       <div className="flex gap-2 p-4 border-b border-border">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <input
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
             placeholder="Search knowledge base..."
-            className="w-full rounded-lg border border-border bg-surface-800 pl-9 pr-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-brand-400"
+            className="w-full rounded-lg border border-border bg-surface-800 ps-9 pe-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-brand-400"
           />
         </div>
         <button
@@ -369,7 +369,7 @@ export function KBBrowser({ ventureKey }: { ventureKey: string }) {
                   <button
                     key={i}
                     onClick={() => openFile(r.path)}
-                    className="w-full text-left rounded-lg border border-border p-3 hover:border-brand-400/30 transition-colors"
+                    className="w-full text-start rounded-lg border border-border p-3 hover:border-brand-400/30 transition-colors"
                   >
                     <div className="text-sm font-medium text-foreground">{r.title}</div>
                     <div className="text-xs text-muted-foreground font-mono">{r.path}</div>

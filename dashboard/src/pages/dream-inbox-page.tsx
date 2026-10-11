@@ -127,7 +127,7 @@ function ProposalCard({
       className={cn(
         'rounded-xl border border-border bg-card p-4 transition-all duration-200',
         'hover:border-brand-400/30 hover:shadow-lg hover:shadow-brand-400/5',
-        isPending && 'border-l-2 border-l-amber-400',
+        isPending && 'border-s-2 border-s-amber-400',
         expanded && 'ring-1 ring-brand-400/20',
       )}
     >

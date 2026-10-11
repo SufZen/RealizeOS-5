@@ -94,13 +94,13 @@ export default function DocsPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border">
-                    <th className="text-left py-2 px-3 text-muted-foreground font-medium">
+                    <th className="text-start py-2 px-3 text-muted-foreground font-medium">
                       Requirement
                     </th>
-                    <th className="text-left py-2 px-3 text-muted-foreground font-medium">
+                    <th className="text-start py-2 px-3 text-muted-foreground font-medium">
                       Version
                     </th>
-                    <th className="text-left py-2 px-3 text-muted-foreground font-medium">Notes</th>
+                    <th className="text-start py-2 px-3 text-muted-foreground font-medium">Notes</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -157,7 +157,7 @@ python cli.py serve`}
                   <code className="text-brand-400 text-sm font-mono whitespace-nowrap">{dir}</code>
                   <div>
                     <span className="text-foreground text-sm">{purpose}</span>
-                    <span className="text-muted-foreground text-xs ml-2">({files})</span>
+                    <span className="text-muted-foreground text-xs ms-2">({files})</span>
                   </div>
                 </div>
               ))}
@@ -265,13 +265,13 @@ python cli.py serve`}
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border">
-                    <th className="text-left py-2 px-3 text-muted-foreground font-medium">
+                    <th className="text-start py-2 px-3 text-muted-foreground font-medium">
                       Task Class
                     </th>
-                    <th className="text-left py-2 px-3 text-muted-foreground font-medium">
+                    <th className="text-start py-2 px-3 text-muted-foreground font-medium">
                       Default Model
                     </th>
-                    <th className="text-left py-2 px-3 text-muted-foreground font-medium">
+                    <th className="text-start py-2 px-3 text-muted-foreground font-medium">
                       Use Case
                     </th>
                   </tr>
@@ -306,9 +306,9 @@ python cli.py serve`}
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border">
-                  <th className="text-left py-2 px-3 text-muted-foreground font-medium">Service</th>
-                  <th className="text-left py-2 px-3 text-muted-foreground font-medium">Tools</th>
-                  <th className="text-left py-2 px-3 text-muted-foreground font-medium">
+                  <th className="text-start py-2 px-3 text-muted-foreground font-medium">Service</th>
+                  <th className="text-start py-2 px-3 text-muted-foreground font-medium">Tools</th>
+                  <th className="text-start py-2 px-3 text-muted-foreground font-medium">
                     Capabilities
                   </th>
                 </tr>
@@ -499,13 +499,13 @@ python cli.py setup-google                   # Run Google OAuth flow`}
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border">
-                    <th className="text-left py-2 px-3 text-muted-foreground font-medium">
+                    <th className="text-start py-2 px-3 text-muted-foreground font-medium">
                       Method
                     </th>
-                    <th className="text-left py-2 px-3 text-muted-foreground font-medium">
+                    <th className="text-start py-2 px-3 text-muted-foreground font-medium">
                       Endpoint
                     </th>
-                    <th className="text-left py-2 px-3 text-muted-foreground font-medium">
+                    <th className="text-start py-2 px-3 text-muted-foreground font-medium">
                       Description
                     </th>
                   </tr>
@@ -551,19 +551,19 @@ python cli.py setup-google                   # Run Google OAuth flow`}
   return (
     <div className="flex h-full">
       {/* Sidebar */}
-      <div className="w-56 shrink-0 border-r border-border p-4 space-y-1 overflow-y-auto">
+      <div className="w-56 shrink-0 border-e border-border p-4 space-y-1 overflow-y-auto">
         <div className="flex items-center gap-2 mb-4">
           <BookOpen className="w-5 h-5 text-brand-400" />
           <h3 className="text-foreground font-semibold text-sm">Documentation</h3>
         </div>
         <div className="relative mb-3">
-          <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <Search className="w-3.5 h-3.5 absolute start-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <input
             type="text"
             placeholder="Search docs..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-surface-800 border border-border rounded-lg py-1.5 pl-8 pr-3 text-xs text-foreground placeholder:text-muted-foreground outline-none focus:border-brand-400 focus:ring-1 focus:ring-brand-400"
+            className="w-full bg-surface-800 border border-border rounded-lg py-1.5 ps-8 pe-3 text-xs text-foreground placeholder:text-muted-foreground outline-none focus:border-brand-400 focus:ring-1 focus:ring-brand-400"
           />
         </div>
         {filteredSections.map((section) => (
@@ -582,7 +582,7 @@ python cli.py setup-google                   # Run Google OAuth flow`}
           >
             {section.icon}
             <span>{section.title}</span>
-            {activeSection === section.id && <ChevronRight className="w-3 h-3 ml-auto" />}
+            {activeSection === section.id && <ChevronRight className="w-3 h-3 ms-auto" />}
           </button>
         ))}
         <div className="pt-4 mt-4 border-t border-border">

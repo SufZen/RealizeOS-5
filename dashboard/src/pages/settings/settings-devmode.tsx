@@ -307,7 +307,7 @@ export function DevModeSection() {
                   >
                     <div className="h-2 w-2 rounded-full bg-green-400" />
                     <span className="text-xs text-foreground">{tool.name}</span>
-                    <span className="text-[10px] text-muted-foreground ml-auto">
+                    <span className="text-[10px] text-muted-foreground ms-auto">
                       {tool.context_file}
                     </span>
                   </div>
@@ -327,7 +327,7 @@ export function DevModeSection() {
                 <span className="text-xs text-foreground">
                   Last snapshot: {status.last_snapshot.tag}
                 </span>
-                <span className="text-[10px] text-muted-foreground ml-auto">
+                <span className="text-[10px] text-muted-foreground ms-auto">
                   {status.last_snapshot.timestamp}
                 </span>
               </div>

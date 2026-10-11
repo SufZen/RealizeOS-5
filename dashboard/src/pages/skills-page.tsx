@@ -101,7 +101,7 @@ export default function SkillsPage() {
           ))}
         </div>
 
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ms-auto flex items-center gap-2">
           <span className="text-xs text-muted-foreground">Install to:</span>
           <span className="text-sm text-foreground" dir="auto">
             {ventures.find((v) => v.key === selectedVenture)?.name ?? 'No venture yet'}
