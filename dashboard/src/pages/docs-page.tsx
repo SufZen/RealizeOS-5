@@ -100,7 +100,9 @@ export default function DocsPage() {
                     <th className="text-start py-2 px-3 text-muted-foreground font-medium">
                       Version
                     </th>
-                    <th className="text-start py-2 px-3 text-muted-foreground font-medium">Notes</th>
+                    <th className="text-start py-2 px-3 text-muted-foreground font-medium">
+                      Notes
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -306,7 +308,9 @@ python cli.py serve`}
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border">
-                  <th className="text-start py-2 px-3 text-muted-foreground font-medium">Service</th>
+                  <th className="text-start py-2 px-3 text-muted-foreground font-medium">
+                    Service
+                  </th>
                   <th className="text-start py-2 px-3 text-muted-foreground font-medium">Tools</th>
                   <th className="text-start py-2 px-3 text-muted-foreground font-medium">
                     Capabilities

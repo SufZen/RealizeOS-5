@@ -190,9 +190,7 @@ export default function RoutingPage() {
                   <th className="text-start py-2 text-xs text-muted-foreground font-medium">
                     Agent
                   </th>
-                  <th className="text-end py-2 text-xs text-muted-foreground font-medium">
-                    Calls
-                  </th>
+                  <th className="text-end py-2 text-xs text-muted-foreground font-medium">Calls</th>
                   <th className="text-end py-2 text-xs text-muted-foreground font-medium">
                     Avg Confidence
                   </th>
