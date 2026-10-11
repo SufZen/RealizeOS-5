@@ -14,6 +14,8 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
+from realize_api.dependencies import visible_systems
+
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
@@ -258,7 +260,7 @@ async def lint_entities(request: Request, venture: str = ""):
 @router.post("/fabric/reindex")
 async def reindex_fabric(request: Request, venture: str = ""):
     """Rebuild the Synapse index from FABRIC files."""
-    systems: dict = getattr(request.app.state, "systems", {})
+    systems: dict = visible_systems(request)
     kb_path = Path(getattr(request.app.state, "kb_path", None) or ".")
     synapse = _get_synapse(request)
 

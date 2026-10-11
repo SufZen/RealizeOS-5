@@ -21,17 +21,21 @@ import { api } from '@/lib/api'
 export interface AuthUser {
   user_id: string
   role: string
+  /** Ventures this user is limited to; null/undefined = every venture. */
+  ventures?: string[] | null
 }
 
 interface SessionResponse {
   authenticated: boolean
   user_id?: string
   role?: string
+  ventures?: string[] | null
 }
 
 interface LoginResponse {
   user_id: string
   role: string
+  ventures?: string[] | null
 }
 
 interface AuthContextValue {
@@ -52,7 +56,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const res = await api.get<SessionResponse>('/auth/session')
       if (res.authenticated && res.user_id && res.role) {
-        setUser({ user_id: res.user_id, role: res.role })
+        setUser({ user_id: res.user_id, role: res.role, ventures: res.ventures ?? null })
       } else {
         setUser(null)
       }
@@ -69,7 +73,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       password,
       remember_me: rememberMe,
     })
-    setUser({ user_id: res.user_id, role: res.role })
+    setUser({ user_id: res.user_id, role: res.role, ventures: res.ventures ?? null })
   }, [])
 
   const logout = useCallback(async () => {

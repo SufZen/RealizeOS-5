@@ -50,10 +50,17 @@ async def activity_stream(request: Request):
     """SSE endpoint streaming real-time activity events."""
     from realize_core.activity.bus import get_recent_events, subscribe, unsubscribe
 
+    from realize_api.dependencies import visible_to
+
+    def visible(event: dict) -> bool:
+        return visible_to(request, event.get("venture_key"))
+
     async def event_generator():
         queue: asyncio.Queue = asyncio.Queue()
 
         def on_event(event: dict):
+            if not visible(event):
+                return
             try:
                 queue.put_nowait(event)
             except asyncio.QueueFull:
@@ -62,7 +69,7 @@ async def activity_stream(request: Request):
         subscribe(on_event)
         try:
             # Send recent events as initial batch
-            for event in get_recent_events(limit=10):
+            for event in [e for e in get_recent_events(limit=10) if visible(e)]:
                 data = json.dumps(event, default=str)
                 yield f"data: {data}\n\n"
 

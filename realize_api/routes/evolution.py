@@ -9,8 +9,10 @@ Endpoints:
 
 import logging
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
+
+from realize_api.dependencies import get_allowed_ventures
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -34,12 +36,15 @@ class DismissBody(BaseModel):
 
 
 @router.get("/evolution/suggestions")
-async def list_suggestions(status: str = None):
-    """List evolution proposals, optionally filtered by status."""
+async def list_suggestions(request: Request, status: str = None):
+    """List evolution proposals, optionally filtered by status.
+
+    Proposals are system-wide, so callers limited to some ventures see none.
+    """
     engine = _get_engine()
     proposals = []
 
-    for p in engine._proposals.values():
+    for p in engine._proposals.values() if get_allowed_ventures(request) is None else []:
         if status and p.status.value != status:
             continue
         proposals.append(

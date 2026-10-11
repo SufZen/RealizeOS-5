@@ -8,6 +8,8 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
+from realize_api.dependencies import visible_systems
+
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
@@ -42,7 +44,7 @@ async def install_skill(body: InstallSkillRequest, request: Request):
     skill_id = body.skill_id
     venture_key = body.venture_key
 
-    systems = getattr(request.app.state, "systems", {})
+    systems = visible_systems(request)
     kb_path = getattr(request.app.state, "kb_path", Path("."))
 
     if venture_key not in systems:

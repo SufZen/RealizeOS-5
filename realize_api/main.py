@@ -9,12 +9,13 @@ import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from realize_core import __version__
 
+from realize_api.dependencies import enforce_access
 from realize_api.error_handlers import register_error_handlers
 from realize_api.middleware import AuthMiddleware
 from realize_api.routes import (
@@ -447,6 +448,8 @@ def create_app() -> FastAPI:
         description="AI Operations System — Multi-agent, multi-venture, self-evolving.",
         version=__version__,
         lifespan=lifespan,
+        # Venture scope + write permissions for every route (STORY-18).
+        dependencies=[Depends(enforce_access)],
     )
     app.state.rate_limiter = build_rate_limiter()
 

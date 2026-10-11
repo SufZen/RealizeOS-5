@@ -15,6 +15,8 @@ import logging
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
+from realize_api.dependencies import visible_to
+
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
@@ -77,6 +79,8 @@ async def list_workflows(
     except Exception as exc:
         logger.warning("Failed to load skills: %s", exc)
         all_skills = []
+
+    all_skills = [s for s in all_skills if not s.get("system_key") or visible_to(request, s.get("system_key"))]
 
     # Filter by system_key if provided
     if system_key:

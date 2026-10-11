@@ -11,6 +11,8 @@ from realize_core.dreaming.inbox import DreamInbox
 from realize_core.dreaming.policy import TrustPolicy
 from realize_core.governance.policy_overview import effective_policy
 
+from realize_api.dependencies import visible_to
+
 router = APIRouter()
 
 
@@ -46,7 +48,7 @@ async def list_dreams(
 ):
     """List Dream Inbox proposals."""
     inbox = _get_dream_inbox(request)
-    proposals = [proposal.to_dict() for proposal in inbox.history(limit=limit)]
+    proposals = [p.to_dict() for p in inbox.history(limit=limit) if visible_to(request, p.venture)]
     if status:
         proposals = [proposal for proposal in proposals if proposal["status"] == status]
     if cycle_type:

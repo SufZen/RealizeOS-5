@@ -10,6 +10,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, Request
 
+from realize_api.dependencies import get_allowed_ventures, visible_systems
 from realize_api.routes.route_helpers import count_skills
 
 router = APIRouter()
@@ -26,7 +27,8 @@ async def get_dashboard_overview(request: Request):
         recent_activity: last 20 activity events across all ventures
         system_health: provider status, venture count
     """
-    systems: dict = getattr(request.app.state, "systems", {})
+    systems: dict = visible_systems(request)
+    allowed = get_allowed_ventures(request)  # None = every venture
     kb_path: Path = getattr(request.app.state, "kb_path", Path("."))
 
     ventures = []
@@ -47,7 +49,7 @@ async def get_dashboard_overview(request: Request):
     try:
         from realize_core.activity.store import query_events
 
-        recent_activity = query_events(limit=20)
+        recent_activity = query_events(limit=20, venture_keys=allowed)
     except Exception as e:
         logger.debug(f"Activity query failed: {e}")
 
@@ -58,7 +60,14 @@ async def get_dashboard_overview(request: Request):
 
         conn = get_connection()
         try:
-            rows = conn.execute("SELECT status, COUNT(*) as c FROM agent_states GROUP BY status").fetchall()
+            where, params = "", []
+            if allowed is not None:
+                keys = sorted(allowed) or [""]
+                where = f"WHERE venture_key IN ({','.join('?' for _ in keys)})"
+                params = keys
+            rows = conn.execute(
+                f"SELECT status, COUNT(*) as c FROM agent_states {where} GROUP BY status", params
+            ).fetchall()
             for row in rows:
                 if row["status"] in agent_summary:
                     agent_summary[row["status"]] = row["c"]

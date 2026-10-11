@@ -17,6 +17,7 @@ import {
   Loader2,
 } from 'lucide-react'
 import { useApi } from '@/hooks/use-api'
+import { useVenture } from '@/hooks/use-venture'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
 
@@ -51,10 +52,6 @@ interface PipelinesData {
   pipelines: Pipeline[]
 }
 
-interface VenturesData {
-  ventures: Array<{ key: string; name: string }>
-}
-
 /* ------------------------------------------------------------------ */
 /* Constants                                                           */
 /* ------------------------------------------------------------------ */
@@ -75,17 +72,8 @@ const AVAILABLE_TOOLS = ['web_search', 'gmail_send', 'google_calendar', 'google_
 
 export default function PipelineBuilderPage() {
   const { data, loading, error } = useApi<PipelinesData>('/pipelines')
-  const { data: venturesData } = useApi<VenturesData>('/ventures')
-  const [selectedVenture, setSelectedVenture] = useState('')
+  const { selected: selectedVenture } = useVenture()
   const [activeTab, setActiveTab] = useState<'builder' | 'library'>('builder')
-
-  // Auto-select when only one venture exists
-  useEffect(() => {
-    if (!selectedVenture && venturesData?.ventures.length === 1) {
-      const first = venturesData.ventures[0]
-      if (first) setSelectedVenture(first.key)
-    }
-  }, [venturesData, selectedVenture])
 
   // Local pipeline state
   const [pipeline, setPipeline] = useState<Pipeline>({
@@ -213,20 +201,6 @@ export default function PipelineBuilderPage() {
         <div className="flex items-center gap-2">
           <GitBranch className="h-6 w-6 text-brand-400" />
           <h1 className="text-2xl font-bold text-foreground">Pipeline Builder</h1>
-        </div>
-        <div className="flex items-center gap-2">
-          <select
-            value={selectedVenture}
-            onChange={(e) => setSelectedVenture(e.target.value)}
-            className="appearance-none bg-surface-800 border border-border rounded-lg px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-brand-400"
-          >
-            <option value="">Select venture...</option>
-            {venturesData?.ventures.map((v) => (
-              <option key={v.key} value={v.key}>
-                {v.name || v.key}
-              </option>
-            ))}
-          </select>
         </div>
       </div>
 

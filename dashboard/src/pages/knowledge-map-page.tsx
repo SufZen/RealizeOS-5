@@ -17,6 +17,8 @@ import {
   ShieldAlert,
 } from 'lucide-react'
 import { useApi } from '@/hooks/use-api'
+import { useAuth } from '@/hooks/use-auth'
+import { useVenture } from '@/hooks/use-venture'
 import { useDebounce } from '@/hooks/use-debounce'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
@@ -214,7 +216,12 @@ function EntityCard({ entity }: { entity: EntityTocEntry | SearchResult }) {
 export default function KnowledgeMapPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [typeFilter, setTypeFilter] = useState('')
-  const [ventureFilter, setVentureFilter] = useState('')
+  const [typedVenture, setVentureFilter] = useState('')
+  // Users limited to some ventures always browse the selected one.
+  const { user } = useAuth()
+  const { selected } = useVenture()
+  const scoped = Array.isArray(user?.ventures)
+  const ventureFilter = scoped ? selected : typedVenture
 
   const debouncedSearch = useDebounce(searchQuery, 400)
 
@@ -229,7 +236,7 @@ export default function KnowledgeMapPage() {
   const { data: searchData, loading: searchLoading } = useApi<SearchResponse>(
     debouncedSearch
       ? `/fabric/search?q=${encodeURIComponent(debouncedSearch)}&n=20${ventureFilter ? `&venture=${ventureFilter}` : ''}`
-      : '/fabric/stats',
+      : `/fabric/stats${ventureFilter ? `?venture=${ventureFilter}` : ''}`,
     30000,
   )
 
@@ -239,7 +246,9 @@ export default function KnowledgeMapPage() {
   )
 
   const handleRefresh = async () => {
-    await api.post(`/fabric/reindex${ventureFilter ? `?venture=${ventureFilter}` : ''}`)
+    // Reindexing is an admin action; venture-limited users just reload.
+    if (!scoped)
+      await api.post(`/fabric/reindex${ventureFilter ? `?venture=${ventureFilter}` : ''}`)
     refetchToc()
     refetchStats()
   }
@@ -398,16 +407,18 @@ export default function KnowledgeMapPage() {
             </option>
           ))}
         </select>
-        <input
-          type="text"
-          placeholder="Venture"
-          value={ventureFilter}
-          onChange={(e) => setVentureFilter(e.target.value)}
-          className={cn(
-            'rounded-lg border border-border bg-surface-800 px-3 py-2 text-xs text-foreground',
-            'placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-brand-400',
-          )}
-        />
+        {!scoped && (
+          <input
+            type="text"
+            placeholder="Venture"
+            value={typedVenture}
+            onChange={(e) => setVentureFilter(e.target.value)}
+            className={cn(
+              'rounded-lg border border-border bg-surface-800 px-3 py-2 text-xs text-foreground',
+              'placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-brand-400',
+            )}
+          />
+        )}
       </div>
 
       {/* Results */}

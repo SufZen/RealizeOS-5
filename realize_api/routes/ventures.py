@@ -21,6 +21,7 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
+from realize_api.dependencies import visible_systems
 from realize_api.routes.route_helpers import (
     analyze_fabric,
     count_skills,
@@ -43,7 +44,7 @@ class CreateVentureBody(BaseModel):
 @router.get("/ventures")
 async def list_ventures(request: Request):
     """List all ventures with health summary."""
-    systems: dict = getattr(request.app.state, "systems", {})
+    systems: dict = visible_systems(request)
     kb_path: Path = getattr(request.app.state, "kb_path", Path("."))
 
     ventures = []
@@ -66,7 +67,7 @@ async def list_ventures(request: Request):
 @router.get("/ventures/{venture_key}")
 async def get_venture_detail(venture_key: str, request: Request):
     """Get detailed venture information including FABRIC analysis."""
-    systems: dict = getattr(request.app.state, "systems", {})
+    systems: dict = visible_systems(request)
     kb_path: Path = getattr(request.app.state, "kb_path", Path("."))
 
     if venture_key not in systems:
@@ -92,7 +93,7 @@ async def get_venture_detail(venture_key: str, request: Request):
 @router.get("/ventures/{venture_key}/org-tree")
 async def get_org_tree(venture_key: str, request: Request):
     """Get the agent hierarchy / org tree for a venture."""
-    systems: dict = getattr(request.app.state, "systems", {})
+    systems: dict = visible_systems(request)
     kb_path: Path = getattr(request.app.state, "kb_path", Path("."))
 
     if venture_key not in systems:
@@ -107,7 +108,7 @@ async def get_org_tree(venture_key: str, request: Request):
 @router.get("/ventures/{venture_key}/skills")
 async def list_venture_skills(venture_key: str, request: Request):
     """List skills for a venture with execution stats."""
-    systems: dict = getattr(request.app.state, "systems", {})
+    systems: dict = visible_systems(request)
     kb_path: Path = getattr(request.app.state, "kb_path", Path("."))
 
     if venture_key not in systems:
@@ -174,7 +175,7 @@ async def create_venture(body: CreateVentureBody, request: Request):
 @router.delete("/ventures/{venture_key}")
 async def delete_venture(venture_key: str, request: Request):
     """Delete a venture and its FABRIC directories."""
-    systems: dict = getattr(request.app.state, "systems", {})
+    systems: dict = visible_systems(request)
     if venture_key not in systems:
         raise HTTPException(status_code=404, detail=f"Venture '{venture_key}' not found")
 
@@ -204,7 +205,7 @@ async def export_venture(venture_key: str, request: Request):
 
     GET supports browser download buttons; POST is kept for existing API clients.
     """
-    systems: dict = getattr(request.app.state, "systems", {})
+    systems: dict = visible_systems(request)
     kb_path: Path = getattr(request.app.state, "kb_path", Path("."))
 
     if venture_key not in systems:

@@ -6,6 +6,8 @@ import logging
 
 from fastapi import APIRouter, HTTPException, Request
 
+from realize_api.dependencies import visible_systems
+
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
@@ -13,7 +15,7 @@ logger = logging.getLogger(__name__)
 @router.get("/systems")
 async def list_systems(request: Request):
     """List all configured systems."""
-    systems = request.app.state.systems
+    systems = visible_systems(request)
     result = []
     for key, config in systems.items():
         result.append(
@@ -30,7 +32,7 @@ async def list_systems(request: Request):
 @router.get("/systems/{system_key}")
 async def get_system(system_key: str, request: Request):
     """Get detailed information about a specific system."""
-    systems = request.app.state.systems
+    systems = visible_systems(request)
     if system_key not in systems:
         raise HTTPException(status_code=404, detail=f"System '{system_key}' not found")
 
@@ -48,7 +50,7 @@ async def get_system(system_key: str, request: Request):
 @router.get("/systems/{system_key}/agents")
 async def list_agents(system_key: str, request: Request):
     """List agents for a system."""
-    systems = request.app.state.systems
+    systems = visible_systems(request)
     if system_key not in systems:
         raise HTTPException(status_code=404, detail=f"System '{system_key}' not found")
 

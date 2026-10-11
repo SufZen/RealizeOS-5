@@ -10,6 +10,8 @@ from realize_core.missions.engine import MissionEngine
 from realize_core.missions.state import Mission
 from realize_core.runtimes.registry import RuntimeRegistry
 
+from realize_api.dependencies import visible_to
+
 router = APIRouter()
 
 
@@ -56,13 +58,19 @@ def _mission_to_dict(mission: Mission) -> dict:
 async def list_missions(request: Request, venture: str = "", state: str = ""):
     """List missions with optional venture/state filters."""
     engine = _get_mission_engine(request)
-    missions = [_mission_to_dict(mission) for mission in engine.list_missions(venture=venture, state=state)]
+    missions = [
+        _mission_to_dict(mission)
+        for mission in engine.list_missions(venture=venture, state=state)
+        if visible_to(request, mission.venture)
+    ]
     return {"missions": missions, "count": len(missions)}
 
 
 @router.post("/missions", status_code=201)
 async def create_mission(body: CreateMissionBody, request: Request):
     """Create a mission, optionally with an initial plan."""
+    if not visible_to(request, body.venture):
+        raise HTTPException(status_code=403, detail=f"You don't have access to venture '{body.venture}'")
     engine = _get_mission_engine(request)
     mission = engine.create_mission(
         title=body.title,
@@ -82,6 +90,6 @@ async def create_mission(body: CreateMissionBody, request: Request):
 async def get_mission(mission_id: str, request: Request):
     """Get a single mission."""
     mission = _get_mission_engine(request).get_mission(mission_id)
-    if mission is None:
+    if mission is None or not visible_to(request, mission.venture):
         raise HTTPException(status_code=404, detail=f"Mission '{mission_id}' not found")
     return {"mission": _mission_to_dict(mission)}

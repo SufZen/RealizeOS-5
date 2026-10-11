@@ -14,6 +14,8 @@ import logging
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
+from realize_api.dependencies import visible_systems
+
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
@@ -57,7 +59,7 @@ async def get_routing_config(request: Request, system_key: str | None = None):
     Query params:
     - system_key: return routing for a specific system (optional)
     """
-    systems = getattr(request.app.state, "systems", {})
+    systems = visible_systems(request)
 
     if system_key:
         if system_key not in systems:
@@ -91,7 +93,7 @@ async def get_routing_config(request: Request, system_key: str | None = None):
 @router.put("/routing")
 async def update_routing(body: UpdateRoutingBody, request: Request):
     """Update routing configuration for a system."""
-    systems = getattr(request.app.state, "systems", {})
+    systems = visible_systems(request)
 
     if body.system_key not in systems:
         raise HTTPException(
@@ -124,7 +126,7 @@ async def test_routing(body: TestRoutingBody, request: Request):
     """
     from realize_core.base_handler import select_agent
 
-    systems = getattr(request.app.state, "systems", {})
+    systems = visible_systems(request)
 
     if body.system_key not in systems:
         raise HTTPException(

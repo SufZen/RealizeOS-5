@@ -44,6 +44,19 @@ export REALIZE_ADMIN_PASSWORD_HASH="$(python scripts/hash_password.py 'your-pass
 
 (`users.yaml` overrides env if both are present.)
 
+### Roles and venture scope
+
+Every write is checked against the user's role (see `users.yaml.example`):
+`viewer` is read-only, `user` can chat and edit venture files, `operator` can
+also approve held actions, `admin` and `owner` can change settings.
+
+Add `ventures: [key, ...]` to a user to limit them to those ventures. They see
+only those ventures in the dashboard (the venture switcher is locked when there
+is one), the API and MCP. Another venture's data returns 403 or "not found", and
+changes that affect every venture (settings, integrations, agent definitions)
+are refused. API-key callers and users without `ventures` see everything. A JWT
+can be narrowed further with `venture:<key>` scopes.
+
 ## Verifying the deployment
 
 1. `docker compose up -d` (or `python cli.py serve`).

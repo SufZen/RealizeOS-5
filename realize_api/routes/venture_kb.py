@@ -16,6 +16,8 @@ from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request
 
+from realize_api.dependencies import visible_systems
+
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
@@ -23,7 +25,7 @@ logger = logging.getLogger(__name__)
 @router.get("/ventures/{venture_key}/kb/files")
 async def list_kb_files(venture_key: str, request: Request):
     """List FABRIC directory structure with files."""
-    systems: dict = getattr(request.app.state, "systems", {})
+    systems: dict = visible_systems(request)
     kb_path: Path = getattr(request.app.state, "kb_path", Path("."))
 
     if venture_key not in systems:
@@ -67,7 +69,7 @@ async def list_kb_files(venture_key: str, request: Request):
 @router.get("/ventures/{venture_key}/kb/file")
 async def read_kb_file(venture_key: str, path: str, request: Request):
     """Read a specific KB file content."""
-    systems: dict = getattr(request.app.state, "systems", {})
+    systems: dict = visible_systems(request)
     kb_path_root: Path = getattr(request.app.state, "kb_path", Path("."))
 
     if venture_key not in systems:
@@ -115,7 +117,7 @@ async def search_kb(venture_key: str, q: str, request: Request):
 @router.post("/ventures/{venture_key}/ingest")
 async def ingest_content(venture_key: str, request: Request):
     """Ingest content from a URL or text into the venture's KB."""
-    systems: dict = getattr(request.app.state, "systems", {})
+    systems: dict = visible_systems(request)
     kb_path: Path = getattr(request.app.state, "kb_path", Path("."))
 
     if venture_key not in systems:
@@ -181,7 +183,7 @@ async def ingest_content(venture_key: str, request: Request):
 @router.put("/ventures/{venture_key}/kb/file")
 async def save_kb_file(venture_key: str, request: Request):
     """Save/update a KB file."""
-    systems: dict = getattr(request.app.state, "systems", {})
+    systems: dict = visible_systems(request)
     kb_path_root: Path = getattr(request.app.state, "kb_path", Path("."))
 
     if venture_key not in systems:
@@ -224,7 +226,7 @@ async def save_kb_file(venture_key: str, request: Request):
 @router.post("/ventures/{venture_key}/kb/file")
 async def create_kb_file(venture_key: str, request: Request):
     """Create a new KB file."""
-    systems: dict = getattr(request.app.state, "systems", {})
+    systems: dict = visible_systems(request)
     kb_path_root: Path = getattr(request.app.state, "kb_path", Path("."))
 
     if venture_key not in systems:
@@ -267,7 +269,7 @@ async def create_kb_file(venture_key: str, request: Request):
 @router.delete("/ventures/{venture_key}/kb/file")
 async def delete_kb_file(venture_key: str, path: str, request: Request):
     """Delete a KB file."""
-    systems: dict = getattr(request.app.state, "systems", {})
+    systems: dict = visible_systems(request)
     kb_path_root: Path = getattr(request.app.state, "kb_path", Path("."))
 
     if venture_key not in systems:
