@@ -22,6 +22,35 @@ MAX_MESSAGE_LENGTH = 4096
 CHAT_TIMEOUT_SECONDS = 120
 #: Seconds between SSE keepalive comments while the answer is being prepared.
 STREAM_KEEPALIVE_SECONDS = 15
+#: Roles that may chat for, and read, other users' conversations
+#: (operators, and API-key integrations acting for their end users).
+ACT_FOR_OTHERS_ROLES = frozenset({"owner", "admin"})
+
+
+def _principal(request: Request) -> tuple[str | None, str]:
+    """The authenticated caller as ``(user_id, role)``; user_id is None when auth is off.
+
+    MCP calls arrive through a proxy request without ``state``; the MCP layer
+    authenticates those itself.
+    """
+    state = getattr(request, "state", None)
+    return getattr(state, "user_id", None), getattr(state, "role", None) or ""
+
+
+def _chat_user(request: Request, requested: str) -> str:
+    """The user a chat request acts for: the signed-in user unless owner/admin."""
+    principal, role = _principal(request)
+    if principal is None or role in ACT_FOR_OTHERS_ROLES:
+        return requested
+    return principal
+
+
+def _require_own_conversation(request: Request, user_id: str) -> None:
+    """403 unless the caller may read or clear ``user_id``'s conversation."""
+    principal, role = _principal(request)
+    if principal is None or role in ACT_FOR_OTHERS_ROLES or principal == user_id:
+        return
+    raise HTTPException(status_code=403, detail="You can only access your own conversations")
 
 
 class ChatRequest(BaseModel):
@@ -147,6 +176,7 @@ async def chat(body: ChatRequest, request: Request):
     """Send a message and get an AI response with its "what I used" trail."""
     from realize_core.agents.trail import TrailRecorder
 
+    body.user_id = _chat_user(request, body.user_id)
     systems, system_config = _resolve_system(body, request)
     recorder = TrailRecorder()
     try:
@@ -178,6 +208,7 @@ async def chat_stream(body: ChatRequest, request: Request):
     """
     from realize_core.agents.trail import TrailRecorder
 
+    body.user_id = _chat_user(request, body.user_id)
     systems, system_config = _resolve_system(body, request)  # plain HTTP errors before streaming starts
     queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
     recorder = TrailRecorder(forward=queue.put_nowait)
@@ -234,8 +265,9 @@ async def chat_stream(body: ChatRequest, request: Request):
 
 
 @router.get("/conversations/{system_key}/{user_id}")
-async def get_conversations(system_key: str, user_id: str, limit: int = 50):
+async def get_conversations(system_key: str, user_id: str, request: Request, limit: int = 50):
     """Get conversation history for a user in a system, with each answer's trail."""
+    _require_own_conversation(request, user_id)
     try:
         from realize_core.memory.conversation import get_history, get_trails
 
@@ -249,8 +281,9 @@ async def get_conversations(system_key: str, user_id: str, limit: int = 50):
 
 
 @router.delete("/conversations/{system_key}/{user_id}")
-async def clear_conversations(system_key: str, user_id: str):
+async def clear_conversations(system_key: str, user_id: str, request: Request):
     """Clear conversation history for a user."""
+    _require_own_conversation(request, user_id)
     try:
         from realize_core.memory.conversation import clear_history
 

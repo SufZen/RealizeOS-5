@@ -63,7 +63,7 @@ Send a message and receive an AI response.
 |-------|------|----------|-------------|
 | message | string | yes | The user's message |
 | system_key | string | yes | Target system key |
-| user_id | string | no | User identifier (default: "api-user") |
+| user_id | string | no | User identifier (default: "api-user"). With auth on, only `owner`/`admin` callers (including API-key integrations) may name another user; anyone else always chats as themselves |
 | agent_key | string | no | Force a specific agent |
 | channel | string | no | Channel for formatting (default: "api") |
 
@@ -113,7 +113,8 @@ stream starts.
 ### GET /api/conversations/{system_key}/{user_id}
 
 Get conversation history. Each message has its stored `id`; assistant messages that used sources or
-tools also carry their `trail`.
+tools also carry their `trail`. With auth on, callers other than `owner`/`admin` get 403 for any
+`user_id` but their own (this also applies to `DELETE`).
 
 **Query params:** `limit` (int, default 50)
 

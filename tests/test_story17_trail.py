@@ -502,3 +502,78 @@ async def test_mcp_chat_returns_trail_summary_only(memory_db, monkeypatch):
     assert out["response"] == "900k left [S1]"
     assert out["trail"]["sources"][0]["id"] == "S1"
     assert "IGNORE PREVIOUS" not in json.dumps(out)
+
+
+# ---------------------------------------------------------------------------
+# Security review: chat acts only for the signed-in user (unless owner/admin)
+# ---------------------------------------------------------------------------
+
+
+def _client_as(memory_db, user_id: str, role: str) -> TestClient:
+    """An app whose requests carry the principal the auth middleware would set."""
+    from realize_api.main import create_app
+
+    app = create_app()
+    app.state.systems = {"acme": {"name": "Acme"}}
+    app.state.config = {"features": {}}
+
+    @app.middleware("http")
+    async def as_principal(request, call_next):
+        request.state.user_id = user_id
+        request.state.role = role
+        return await call_next(request)
+
+    return TestClient(app)
+
+
+def _recording_process(seen: list[str]):
+    inner = _scripted_process(TRAIL_EVENTS)
+
+    async def process(**kwargs):
+        seen.append(kwargs["user_id"])
+        return await inner(**kwargs)
+
+    return process
+
+
+@pytest.mark.parametrize("path", ["/api/chat", "/api/chat/stream"])
+def test_member_cannot_chat_as_someone_else(memory_db, monkeypatch, path):
+    import realize_core.base_handler as bh
+
+    seen: list[str] = []
+    monkeypatch.setattr(bh, "process_message", _recording_process(seen))
+    client = _client_as(memory_db, "dana@acme.io", "operator")
+
+    resp = client.post(path, json={"message": "hi", "system_key": "acme", "user_id": "boss@acme.io"})
+
+    assert resp.status_code == 200
+    assert seen == ["dana@acme.io"]
+    assert "boss@acme.io" not in resp.text
+
+
+def test_member_cannot_read_or_clear_another_users_history(memory_db):
+    from realize_core.memory.conversation import add_message, get_history, save_trail
+
+    msg_id = add_message("acme", "boss@acme.io", "assistant", "Payroll is 80k [S1]")
+    save_trail(msg_id, {"sources": [], "steps": [{"type": "tool_result", "output": "salary sheet rows"}]})
+    client = _client_as(memory_db, "dana@acme.io", "viewer")
+
+    assert client.get("/api/conversations/acme/boss@acme.io").status_code == 403
+    assert client.delete("/api/conversations/acme/boss@acme.io").status_code == 403
+    assert get_history("acme", "boss@acme.io")  # untouched
+    assert client.get("/api/conversations/acme/dana@acme.io").status_code == 200
+
+
+def test_owner_may_act_for_other_users(memory_db, monkeypatch):
+    """Operators and API-key integrations (role owner) name the end user they act for."""
+    import realize_core.base_handler as bh
+
+    seen: list[str] = []
+    monkeypatch.setattr(bh, "process_message", _recording_process(seen))
+    client = _client_as(memory_db, "api-key", "owner")
+
+    body = client.post("/api/chat", json={"message": "hi", "system_key": "acme", "user_id": "customer-7"}).json()
+
+    assert seen == ["customer-7"]
+    assert body["user_id"] == "customer-7"
+    assert client.get("/api/conversations/acme/customer-7").status_code == 200
