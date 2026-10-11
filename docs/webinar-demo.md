@@ -14,17 +14,42 @@ python cli.py index                          # index the demo documents
 The venture gets `locale: he` (the dashboard turns right-to-left) and the template's Hebrew-aware
 routing. Its documents are in `systems/tower-b-demo/B-brain/project/` and are labelled demo data.
 
-## 2. Connect the sheets
+## 2. Connect Google
 
-Create one Google Sheet with these tabs and put its id (and the tender document's Drive id) in the
-`variables:` block of each skill in `systems/tower-b-demo/R-routines/skills/`:
+Use a separate Google account for the demo, with demo data only.
 
-| Tab | Used by | Content |
-|---|---|---|
-| `Requirements` | `tender_requirements_register` | empty; the register is appended here |
-| `Milestones` | `payment_milestone_check` | the milestone table from `milestones.md` |
-| `Payment requests` | `payment_milestone_check` | empty; checked requests are appended here |
-| `Summary` | `investor_report` | the budget table from `budget.md` |
+1. **Google sign-in.** In Google Cloud, create an OAuth client of type "Desktop app" with the
+   Drive and Sheets APIs enabled, and add the demo account as a test user. Save the client JSON
+   as `.credentials/client_secrets.json`, then run:
+
+   ```bash
+   python scripts/google_signin.py      # opens the browser; saves .credentials/tokens.json
+   ```
+
+   Google warns that the app isn't verified: it is your own client, so continue. The consent
+   covers all the Google tools RealizeOS has (Gmail, Calendar, Drive, Sheets); the demo only
+   reads Drive and reads and appends to the sheet.
+
+2. **The project sheet.** Create one Google Sheet. Import each file from
+   `templates/demos/tower-b-he-google/` as its own tab (File → Import → Upload → "Insert new
+   sheet(s)") and name the tabs exactly:
+
+   | Tab | File | Used by | Content |
+   |---|---|---|---|
+   | `Requirements` | `Requirements.csv` | `tender_requirements_register` | header only; the register is appended here |
+   | `Milestones` | `Milestones.csv` | `payment_milestone_check` | the 8 milestones of the main contract |
+   | `Payments` | `Payments.csv` | `payment_milestone_check` | header only; checked requests are appended here |
+   | `Summary` | `Summary.csv` | `investor_report` | the budget at the end of Q3 |
+
+3. **The tender document.** Upload `templates/demos/tower-b-he-google/tender-document.txt` to
+   Drive and open it as a Google Doc. It contains one deliberate contradiction (performance
+   guarantee 10% in conditions 6.5 vs 5% in contract 18) for the register to flag.
+
+4. **Set the ids** (the long ids in the sheet's and the document's URLs):
+
+   ```bash
+   python scripts/rehearse_webinar_demo.py set-ids --sheet <sheet id> --tender-doc <doc id>
+   ```
 
 ## 3. Turn on the features
 
@@ -50,6 +75,16 @@ locked, single-venture view.
 | Live question | `כמה נשאר לנו נטו בתקציב?` | The answer with [S1] footnotes and the "What I used" trail |
 
 ## Rehearsal checklist
+
+Before every rehearsal and on the day, run the read-only check. It never writes to Google:
+
+```bash
+python scripts/rehearse_webinar_demo.py check
+```
+
+It checks the feature flags, an LLM key, the Google sign-in, every tab and the tender document,
+that each storyline message triggers the right skill, and a presenter account limited to the demo
+venture. Each failing line says how to fix it. Then:
 
 - Run each case once before the session; keep screenshots as a fallback.
 - The demo data is fictional; say so on screen.

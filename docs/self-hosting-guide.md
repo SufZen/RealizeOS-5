@@ -175,9 +175,9 @@ To enable Gmail, Calendar, Drive, and Sheets tools:
 1. Create a Google Cloud project and enable the relevant APIs
 2. Create OAuth 2.0 credentials (Desktop application)
 3. Download `client_secrets.json` to `.credentials/`
-4. Run the OAuth flow:
+4. Run the OAuth flow (from the project root):
    ```bash
-   realize-os setup-google
+   python scripts/google_signin.py
    ```
 5. The tokens will be saved to `.credentials/tokens.json`
 6. Mount `.credentials/` in Docker Compose (already configured)

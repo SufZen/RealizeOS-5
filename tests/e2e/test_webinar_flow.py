@@ -238,7 +238,7 @@ async def test_payment_request_is_checked_and_runs_once_when_approved(project, g
     assert await decide_approval(held["id"], approve=True) is None  # a second approval runs nothing
     assert len(google.appended) == 1
     sheet, tab, rows = google.appended[0]
-    assert (sheet, tab) == ("sheet-p", "Payment requests")
+    assert (sheet, tab) == ("sheet-p", "Payments")
     assert rows[0][5] == "PARTIAL"
 
 

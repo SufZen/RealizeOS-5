@@ -117,7 +117,7 @@ before anything is written.
   tool: sheets_append
   params:
     spreadsheet_id: "{payments_sheet_id}"
-    range: "Payment requests"
+    range: "Payments"
     values: "{rows}"
   json_params: [values]
 ```

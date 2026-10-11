@@ -15,7 +15,7 @@ variables:
   milestones_sheet_id: "REPLACE_WITH_SHEET_ID"
   milestones_range: "Milestones"
   payments_sheet_id: "REPLACE_WITH_SHEET_ID"
-  payments_range: "Payment requests"
+  payments_range: "Payments"
 steps:
   - id: milestones
     type: tool
