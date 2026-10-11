@@ -260,3 +260,27 @@ class TestGoogleSignIn:
         monkeypatch.setattr(google_signin, "_load_client_config", lambda: {})
         with pytest.raises(SignInError, match="client_secrets"):
             google_signin.sign_in(tokens_path=tmp_path / "t.json", open_browser=False, timeout=0.1)
+
+
+@pytest.mark.skipif(__import__("os").name != "posix", reason="POSIX permission bits")
+def test_token_file_is_owner_only(tmp_path):
+    import os
+    import stat
+
+    from realize_core.tools.google_signin import write_private
+
+    path = tmp_path / "creds" / "tokens.json"
+    path.parent.mkdir()
+    path.write_text("old", encoding="utf-8")
+    os.chmod(path, 0o644)
+    write_private(path, "{}")
+    assert stat.S_IMODE(path.stat().st_mode) == 0o600
+    assert path.read_text(encoding="utf-8") == "{}"
+
+
+def test_write_private_creates_the_folder(tmp_path):
+    from realize_core.tools.google_signin import write_private
+
+    path = tmp_path / "new" / "tokens.json"
+    write_private(path, '{"a": 1}')
+    assert path.read_text(encoding="utf-8") == '{"a": 1}'

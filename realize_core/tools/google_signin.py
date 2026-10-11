@@ -21,6 +21,7 @@ import hashlib
 import http.server
 import json
 import logging
+import os
 import secrets
 import time
 import urllib.error
@@ -98,6 +99,15 @@ def token_file_data(response: dict, now: float | None = None) -> dict:
         "token_type": response.get("token_type", "Bearer"),
         "expiry_date": int((now + int(response.get("expires_in", 0))) * 1000),
     }
+
+
+def write_private(path: Path, text: str) -> None:
+    """Write a secret file readable only by its owner (0600, folder 0700 on POSIX)."""
+    path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
+        f.write(text)
+    os.chmod(path, 0o600)  # also tightens a file that existed with looser permissions
 
 
 def _exchange(client: dict, code: str, verifier: str, redirect_uri: str) -> dict:
@@ -180,7 +190,6 @@ def sign_in(tokens_path: Path | None = None, open_browser: bool = True, timeout:
         server.server_close()
 
     data = token_file_data(_exchange(client, code, verifier, redirect_uri))
-    tokens_path.parent.mkdir(parents=True, exist_ok=True)
-    tokens_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    write_private(tokens_path, json.dumps(data, indent=2))
     logger.info("Saved Google token to %s", tokens_path)
     return tokens_path
