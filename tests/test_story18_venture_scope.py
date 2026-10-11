@@ -501,3 +501,45 @@ async def test_mcp_chat_context_limited_to_callers_ventures(monkeypatch):
     await realize_chat({"message": "hi", "system_key": "acme"}, app_state=app_state, user=user)
 
     assert set(seen["all_systems"]) == {"acme"}
+
+
+def test_migration_008_lets_every_role_sign_in(tmp_path):
+    """An operator's session used to violate user_sessions' role CHECK (500 on login)."""
+    import importlib
+    import sqlite3
+
+    m006 = importlib.import_module("realize_core.migration.versions.006_user_sessions")
+    m008 = importlib.import_module("realize_core.migration.versions.008_session_roles")
+
+    conn = sqlite3.connect(tmp_path / "sessions.db")
+    m006.up(conn)
+    insert = "INSERT INTO user_sessions (session_id, csrf_token, user_id, role, expires_at) VALUES (?, 'c', ?, ?, 'x')"
+    conn.execute(insert, ("s-owner", "owner@x", "owner"))
+    with pytest.raises(sqlite3.IntegrityError):
+        conn.execute(insert, ("s-op", "dana@x", "operator"))
+
+    m008.up(conn)
+    m008.up(conn)  # idempotent
+    conn.execute(insert, ("s-op", "dana@x", "operator"))
+    conn.execute(insert, ("s-user", "uri@x", "user"))
+    assert {r[0] for r in conn.execute("SELECT session_id FROM user_sessions")} == {"s-owner", "s-op", "s-user"}
+
+    m008.down(conn)
+    assert {r[0] for r in conn.execute("SELECT session_id FROM user_sessions")} == {"s-owner"}
+    conn.close()
+
+
+def test_operator_session_can_be_created(tmp_path, monkeypatch):
+    """End to end through the migration engine: create_session accepts the new roles."""
+    from realize_core.db.schema import set_db_path
+    from realize_core.migration.engine import MigrationEngine
+    from realize_core.security import session_store
+
+    db = tmp_path / "realize_data.db"
+    set_db_path(db)
+    try:
+        MigrationEngine(db_path=db).migrate_up()
+        record = session_store.create_session(user_id="dana@acme.io", role="operator")
+        assert session_store.get_session(record.session_id).role == "operator"
+    finally:
+        set_db_path(None)
