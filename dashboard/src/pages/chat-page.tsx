@@ -1,8 +1,10 @@
 import { useState, useRef, useEffect } from 'react'
 import { Send, Trash2, AlertCircle, ChevronDown } from 'lucide-react'
 import { useApi } from '@/hooks/use-api'
+import { useAuth } from '@/hooks/use-auth'
 import { api } from '@/lib/api'
-import { ChatMessage, TypingIndicator, type ChatMsg } from '@/components/chat-message'
+import { emptyTrail, streamChat, withEvent, type Trail } from '@/lib/chat-stream'
+import { ChatMessage, type ChatMsg } from '@/components/chat-message'
 import { cn } from '@/lib/utils'
 import { safeRandomUUID } from '@/lib/uuid'
 
@@ -20,15 +22,14 @@ interface AgentsResponse {
   agents: Array<{ key: string }>
 }
 
-interface ChatResponse {
-  response: string
-  system_key: string
-  agent_key: string
-  user_id: string
-}
-
 interface ConversationResponse {
-  messages: Array<{ role: string; content: string; timestamp?: string }>
+  messages: Array<{
+    id?: number | null
+    role: string
+    content: string
+    created_at?: string
+    trail?: Trail
+  }>
 }
 
 function getSessionUserId(): string {
@@ -43,9 +44,17 @@ function getSessionUserId(): string {
   return id
 }
 
-const USER_ID = getSessionUserId()
+/** Used only when auth is off; signed-in users chat as themselves. */
+const FALLBACK_USER_ID = getSessionUserId()
+
+/** Stored timestamps are "YYYY-MM-DD HH:MM:SS"; make them parseable everywhere. */
+function toIso(created?: string): string | undefined {
+  return created ? created.replace(' ', 'T') : undefined
+}
 
 export default function ChatPage() {
+  const { user } = useAuth()
+  const userId = user?.user_id ?? FALLBACK_USER_ID
   const { data: venturesData } = useApi<VenturesResponse>('/ventures')
   const [selectedVenture, setSelectedVenture] = useState('')
   const [selectedAgent, setSelectedAgent] = useState('')
@@ -56,6 +65,10 @@ export default function ChatPage() {
   const [error, setError] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  const abortRef = useRef<AbortController | null>(null)
+
+  // Stop a running stream when leaving the page
+  useEffect(() => () => abortRef.current?.abort(), [])
 
   // Auto-select first venture
   useEffect(() => {
@@ -78,17 +91,19 @@ export default function ChatPage() {
   useEffect(() => {
     if (!selectedVenture) return
     api
-      .get<ConversationResponse>(`/conversations/${selectedVenture}/${USER_ID}`)
+      .get<ConversationResponse>(`/conversations/${selectedVenture}/${userId}`)
       .then((data) => {
         const msgs: ChatMsg[] = (data.messages || []).map((m) => ({
           role: m.role === 'user' ? ('user' as const) : ('assistant' as const),
           content: m.content,
-          timestamp: m.timestamp,
+          timestamp: toIso(m.created_at),
+          id: m.id,
+          trail: m.trail,
         }))
         setMessages(msgs)
       })
       .catch(() => setMessages([]))
-  }, [selectedVenture])
+  }, [selectedVenture, userId])
 
   // Scroll to bottom on new messages
   useEffect(() => {
@@ -104,30 +119,59 @@ export default function ChatPage() {
       timestamp: new Date().toISOString(),
     }
 
-    setMessages((prev) => [...prev, userMsg])
+    // The answer appears at once as a pending bubble; its trail fills in live.
+    const localKey = `pending-${Date.now()}`
+    const pendingMsg: ChatMsg = {
+      role: 'assistant',
+      content: '',
+      pending: true,
+      localKey,
+      trail: emptyTrail(),
+    }
+    const updatePending = (patch: (m: ChatMsg) => ChatMsg) =>
+      setMessages((prev) => prev.map((m) => (m.localKey === localKey ? patch(m) : m)))
+    const dropPending = () => setMessages((prev) => prev.filter((m) => m.localKey !== localKey))
+
+    setMessages((prev) => [...prev, userMsg, pendingMsg])
     setInput('')
     setSending(true)
     setError('')
+    const controller = new AbortController()
+    abortRef.current = controller
 
     try {
-      const res = await api.post<ChatResponse>('/chat', {
-        message: userMsg.content,
-        system_key: selectedVenture,
-        user_id: USER_ID,
-        agent_key: selectedAgent || undefined,
-        channel: 'dashboard',
-      })
-
-      const aiMsg: ChatMsg = {
-        role: 'assistant',
-        content: res.response,
-        agent_key: res.agent_key,
-        timestamp: new Date().toISOString(),
-      }
-      setMessages((prev) => [...prev, aiMsg])
+      await streamChat(
+        {
+          message: userMsg.content,
+          system_key: selectedVenture,
+          user_id: userId,
+          agent_key: selectedAgent || undefined,
+          channel: 'dashboard',
+        },
+        (event) => {
+          if (event.type === 'final') {
+            updatePending((m) => ({
+              ...m,
+              content: event.response,
+              agent_key: event.agent_key,
+              id: event.message_id,
+              trail: event.trail,
+              pending: false,
+              timestamp: new Date().toISOString(),
+            }))
+          } else if (event.type === 'error') {
+            setError(event.detail)
+            dropPending()
+          } else {
+            updatePending((m) => ({ ...m, trail: withEvent(m.trail ?? emptyTrail(), event) }))
+          }
+        },
+        controller.signal,
+      )
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Failed to send message'
-      setError(msg)
+      if (controller.signal.aborted) return
+      setError(err instanceof Error ? err.message : 'Failed to send message')
+      dropPending()
     } finally {
       setSending(false)
       inputRef.current?.focus()
@@ -137,7 +181,7 @@ export default function ChatPage() {
   async function handleClear() {
     if (!selectedVenture) return
     try {
-      await api.delete(`/conversations/${selectedVenture}/${USER_ID}`)
+      await api.delete(`/conversations/${selectedVenture}/${userId}`)
       setMessages([])
     } catch {
       // ignore
@@ -226,11 +270,11 @@ export default function ChatPage() {
           </div>
         )}
 
-        {messages.map((msg, i) => (
-          <ChatMessage key={`${msg.timestamp}-${msg.role}-${i}`} msg={msg} />
-        ))}
-
-        {sending && <TypingIndicator />}
+        {messages.map((msg, i) => {
+          const key =
+            msg.localKey ?? (msg.id != null ? `m-${msg.id}` : `${msg.timestamp}-${msg.role}-${i}`)
+          return <ChatMessage key={key} msg={msg} anchorPrefix={`trail-${key}`} />
+        })}
 
         {error && (
           <div className="flex items-center gap-2 text-sm text-red-400 bg-red-400/10 border border-red-400/20 rounded-lg px-4 py-2 max-w-3xl">

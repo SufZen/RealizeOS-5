@@ -82,7 +82,7 @@ class LoopResult:
         return [c.request_id for c in self.tool_calls if c.request_id]
 
 
-async def _emit(emit: Emit | None, event: dict[str, Any]) -> None:
+async def emit_event(emit: Emit | None, event: dict[str, Any]) -> None:
     """Send an event to the caller; a broken listener never breaks the loop."""
     if emit is None:
         return
@@ -108,12 +108,12 @@ async def _run_one(registry, block, emit: Emit | None, allowed: frozenset[str]) 
     """
     params = dict(block.input or {})
     record = ToolCallRecord(id=block.id, name=block.name, input=params)
-    await _emit(emit, {"type": "tool_call", "id": block.id, "name": block.name, "input": params})
+    await emit_event(emit, {"type": "tool_call", "id": block.id, "name": block.name, "input": params})
 
     if block.name not in allowed:
         logger.warning("Tool loop: model called '%s', which was not offered; refused", block.name)
         record.error = f"Tool '{block.name}' is not available to this agent."
-        await _emit(
+        await emit_event(
             emit,
             {
                 "type": "tool_result",
@@ -138,11 +138,11 @@ async def _run_one(registry, block, emit: Emit | None, allowed: frozenset[str]) 
     record.error = result.error
 
     if record.held:
-        await _emit(
+        await emit_event(
             emit,
             {"type": "approval_requested", "id": block.id, "name": block.name, "request_id": record.request_id},
         )
-    await _emit(
+    await emit_event(
         emit,
         {
             "type": "tool_result",
@@ -269,5 +269,5 @@ async def run_tool_loop(
         convo.append({"role": "assistant", "content": message.content})
         convo.append({"role": "user", "content": [_tool_result_block(r) for r in records]})
 
-    await _emit(emit, {"type": "text", "text": result.text})
+    await emit_event(emit, {"type": "text", "text": result.text})
     return result

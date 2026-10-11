@@ -65,7 +65,15 @@ async def realize_chat(args: dict[str, Any], app_state: Any, user: CurrentUser) 
 
     request = _ProxyRequest(app_state)
     response = await chat_handler(body, request)
-    return response.model_dump() if hasattr(response, "model_dump") else response
+    if not hasattr(response, "model_dump"):
+        return response
+    from realize_core.agents.trail import trail_summary
+
+    out = response.model_dump()
+    # Sources and which tools ran, but no tool inputs/outputs: those can carry
+    # third-party text and are not echoed to MCP callers.
+    out["trail"] = trail_summary(out.get("trail") or {})
+    return out
 
 
 # ---------------------------------------------------------------------------

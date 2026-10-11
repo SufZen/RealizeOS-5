@@ -62,6 +62,7 @@ features:
   enforce_gates: true       # Hold gated tool actions for approval; approving runs them (see trust block).
   enforce_guardrails: false # Reserved; guardrail post-response enforcement is deferred (no-op).
   agent_tools: true         # Agents use tools (Google, Sheets, MCP...) while answering. Writes need enforce_gates.
+  cite_sources: true        # Answers cite knowledge-base sources inline as [S1] footnotes (dashboard, API, MCP).
 
 # Email Dream Inbox digest — push-only outbound channel.
 # Disabled by default; set features.email_digest: true to enable.

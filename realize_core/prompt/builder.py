@@ -396,6 +396,17 @@ def _build_memory_layer(kb_path: Path, system_config: dict) -> str:
     return "\n\n".join(parts)
 
 
+#: Channels that render [Sn] markers as footnotes (the trail lists the sources).
+CITATION_CHANNELS = frozenset({"api", "dashboard", "mcp"})
+
+#: Tells the model how to cite the numbered KB sources (STORY-17 trail).
+CITATION_INSTRUCTION = (
+    "Each source below has a marker such as [S1]. When you use a source, cite its marker inline, "
+    "right after the fact or figure it supports. Every figure taken from a source must carry its "
+    "marker. Do not cite a source you did not use."
+)
+
+
 def _build_dynamic_kb_context(
     kb_path: Path,
     system_key: str,
@@ -403,11 +414,18 @@ def _build_dynamic_kb_context(
     extra_context_files: list[str] | None = None,
     max_results: int = 3,
     max_chars_per_result: int = 600,
+    sources_out: list[dict] | None = None,
+    cite: bool = False,
 ) -> str:
     """
     Query the KB index for content relevant to the user's message.
     Skips files already loaded as static extra_context_files.
     Only triggers for messages longer than 20 characters.
+
+    Hits are labelled ``[S1]…[Sn]``; with ``cite`` the model is also told to
+    cite them inline. When ``sources_out`` is given, the same numbered list
+    (``id``, ``title``, ``path``) is appended to it so callers can show what
+    the answer read.
     """
     if not user_message or len(user_message) < 20:
         return ""
@@ -421,6 +439,7 @@ def _build_dynamic_kb_context(
 
         loaded_paths = set(extra_context_files or [])
         parts = []
+        sources = []
         for r in results:
             if len(parts) >= max_results:
                 break
@@ -428,10 +447,18 @@ def _build_dynamic_kb_context(
                 continue
             content = _read_kb_file(kb_path, r["path"], max_chars=max_chars_per_result)
             if content:
-                parts.append(f"**{r['title']}** ({r['path']})\n{content}")
+                marker = f"S{len(parts) + 1}"
+                title = r.get("title") or r["path"]
+                parts.append(f"[{marker}] **{title}** ({r['path']})\n{content}")
+                sources.append({"id": marker, "title": str(title), "path": r["path"]})
 
         if parts:
-            return "## Relevant Knowledge Base Context\n" + "\n\n---\n".join(parts)
+            if sources_out is not None:
+                sources_out.extend(sources)
+            header = "## Relevant Knowledge Base Context\n"
+            if cite:
+                header += f"{CITATION_INSTRUCTION}\n\n"
+            return header + "\n\n---\n".join(parts)
     except Exception as e:
         logger.debug(f"Dynamic KB context skipped: {e}")
 
@@ -648,6 +675,7 @@ def build_system_prompt(
     all_systems: dict = None,
     token_budget: int | None = None,
     persona_override: AgentPersona | None = None,
+    sources_out: list[dict] | None = None,
 ) -> str:
     """
     Assemble the full system prompt from KB layers.
@@ -665,6 +693,8 @@ def build_system_prompt(
         features: Feature flags dict (from get_features())
         all_systems: All system configs (for cross-system context)
         token_budget: Maximum token budget for the prompt (None = unlimited)
+        sources_out: If given, receives the numbered KB sources ([S1]…) that
+            made it into the final prompt.
 
     Returns:
         Assembled system prompt string.
@@ -716,7 +746,15 @@ def build_system_prompt(
                 layers.append(f"## Loaded Context: {ctx_file}\n{content}")
 
     # Layer 6: Dynamic KB context (RAG)
-    dynamic_kb = _build_dynamic_kb_context(kb_path, system_key, user_message, extra_context_files)
+    kb_sources: list[dict] = []
+    dynamic_kb = _build_dynamic_kb_context(
+        kb_path,
+        system_key,
+        user_message,
+        extra_context_files,
+        sources_out=kb_sources,
+        cite=bool(features.get("cite_sources")) and channel in CITATION_CHANNELS,
+    )
     if dynamic_kb:
         layers.append(dynamic_kb)
 
@@ -763,5 +801,9 @@ def build_system_prompt(
     # 2. Truncate to budget if specified
     if token_budget and token_budget > 0:
         layers = truncate_to_budget(layers, token_budget)
+
+    # Only report sources whose text actually reached the model.
+    if sources_out is not None and dynamic_kb and dynamic_kb in layers:
+        sources_out.extend(kb_sources)
 
     return "\n\n---\n\n".join(layers)

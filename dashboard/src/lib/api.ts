@@ -37,6 +37,35 @@ function readCookie(name: string): string {
   return ''
 }
 
+/** The double-submit CSRF header for a mutating request (empty if no cookie). */
+export function csrfHeader(): Record<string, string> {
+  const csrf = readCookie(CSRF_COOKIE)
+  return csrf ? { [CSRF_HEADER]: csrf } : {}
+}
+
+/** Turn a failed response into an ApiError carrying the server's detail. */
+export async function toApiError(res: Response): Promise<ApiError> {
+  let message: unknown = res.statusText
+  try {
+    const text = await res.text()
+    const json = JSON.parse(text)
+    message = json.detail || json.message || json.error || text
+    if (Array.isArray(message)) {
+      message = message.map((e: { msg?: string }) => e.msg || String(e)).join('; ')
+    }
+  } catch {
+    // Not JSON — use raw text or statusText.
+  }
+  return new ApiError(res.status, String(message))
+}
+
+/** Tell the AuthProvider the session ended; it knows where to send the user. */
+export function notifySessionExpired(path: string): void {
+  if (!path.startsWith('/auth/login')) {
+    window.dispatchEvent(new CustomEvent('realize:session-expired'))
+  }
+}
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const url = `${BASE_URL}${path}`
   const method = (options.method || 'GET').toUpperCase()
@@ -44,10 +73,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...(options.headers as Record<string, string> | undefined),
-  }
-  if (MUTATING_METHODS.has(method)) {
-    const csrf = readCookie(CSRF_COOKIE)
-    if (csrf) headers[CSRF_HEADER] = csrf
+    ...(MUTATING_METHODS.has(method) ? csrfHeader() : {}),
   }
 
   const res = await fetch(url, {
@@ -56,25 +82,9 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     headers,
   })
 
-  if (res.status === 401 && !path.startsWith('/auth/login')) {
-    // Tell the AuthProvider; it knows where to send the user.
-    window.dispatchEvent(new CustomEvent('realize:session-expired'))
-  }
+  if (res.status === 401) notifySessionExpired(path)
 
-  if (!res.ok) {
-    let message = res.statusText
-    try {
-      const text = await res.text()
-      const json = JSON.parse(text)
-      message = json.detail || json.message || json.error || text
-      if (Array.isArray(message)) {
-        message = message.map((e: { msg?: string }) => e.msg || String(e)).join('; ')
-      }
-    } catch {
-      // Not JSON — use raw text or statusText.
-    }
-    throw new ApiError(res.status, String(message))
-  }
+  if (!res.ok) throw await toApiError(res)
 
   const text = await res.text()
   if (!text) return undefined as T
