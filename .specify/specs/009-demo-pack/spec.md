@@ -28,7 +28,10 @@ reviewer and orchestrator, with domain knowledge, company rules and three workin
 ### Edge cases
 
 - An agent step returns JSON in code fences or with prose around it: the rows are still read.
-- No JSON at all: the tool step stops with an error instead of writing garbage.
+- No JSON at all, or JSON of the wrong shape (a flat list where rows are expected): the tool
+  step fails before writing.
+- Any tool step fails (unknown tool, policy block, tool error): the workflow stops at that step,
+  says which step and why, and runs nothing after it.
 - Skill YAML with Hebrew triggers loads on Windows (UTF-8).
 
 ## Requirements
@@ -40,6 +43,10 @@ reviewer and orchestrator, with domain knowledge, company rules and three workin
 - **FR-004** `realize_core.demo_seed.seed_webinar_demo` + `scripts/seed_webinar_demo.py`: the
   Hebrew demo venture with labelled demo documents, `locale: he` and the template routing.
 - **FR-005** `tests/e2e/test_webinar_flow.py` scripts the storyline with a mocked LLM and Google tools.
+- **FR-006** Skill tool steps emit trail events (`tool_call`, `approval_requested`,
+  `tool_result`) and the skill answer is stored with its trail, so `/api/chat` and the
+  conversation history show what the skill read and which write is waiting for approval.
+  Covered through the real API, as a venture-scoped operator, in the storyline test.
 
 ## Assumptions
 

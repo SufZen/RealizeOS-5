@@ -131,6 +131,7 @@ async def execute_skill(
     system_config: dict = None,
     shared_config: dict = None,
     channel: str = "api",
+    emit=None,
 ) -> str:
     """
     Execute a skill (v1 pipeline or v2 multi-step workflow).
@@ -144,6 +145,7 @@ async def execute_skill(
         system_config: System configuration dict
         shared_config: Shared config (identity, preferences paths)
         channel: Channel for format instructions
+        emit: Optional trail listener; v2 tool steps report what they used
 
     Returns:
         Skill execution result text
@@ -188,6 +190,7 @@ async def execute_skill(
             system_config,
             shared_config,
             channel,
+            emit=emit,
         )
 
 
@@ -244,6 +247,7 @@ async def _execute_v2_steps(
     system_config,
     shared_config,
     channel,
+    emit=None,
 ) -> str:
     """Execute a v2 skill (multi-step workflow)."""
     steps = skill.get("steps", [])
@@ -253,11 +257,19 @@ async def _execute_v2_steps(
     ctx = SkillContext(user_message, system_key, user_id)
     # Skill-level variables (e.g. a venture's spreadsheet ids) for {placeholders}.
     ctx.variables.update({str(k): str(v) for k, v in (skill.get("variables") or {}).items()})
-    return await _run_v2_steps(steps, ctx, skill.get("name", ""), kb_path, system_config, shared_config, channel)
+    return await _run_v2_steps(
+        steps, ctx, skill.get("name", ""), kb_path, system_config, shared_config, channel, emit=emit
+    )
 
 
-async def _run_v2_steps(steps: list, ctx, skill_name: str, kb_path, system_config, shared_config, channel) -> str:
-    """Run v2 steps in order; pauses (and stores a resume point) at a human step."""
+async def _run_v2_steps(
+    steps: list, ctx, skill_name: str, kb_path, system_config, shared_config, channel, emit=None
+) -> str:
+    """Run v2 steps in order; pauses (and stores a resume point) at a human step.
+
+    A step that fails (:class:`StepFailedError`) stops the workflow: nothing after
+    it runs, and the result says where it stopped and why.
+    """
     outputs = []
 
     for i, step in enumerate(steps):
@@ -284,7 +296,11 @@ async def _run_v2_steps(steps: list, ctx, skill_name: str, kb_path, system_confi
                 channel,
             )
         elif step_type == "tool":
-            result = await _execute_tool_step(step, ctx)
+            try:
+                result = await _execute_tool_step(step, ctx, emit=emit)
+            except StepFailedError as failure:
+                logger.warning("Skill %s stopped at step %s: %s", skill_name, step_id, failure)
+                return f"⚠️ The workflow stopped at step '{step_id}': {failure}. Nothing after this step ran."
         elif step_type == "condition":
             result = await _execute_condition_step(step, ctx)
             if result == "__SKIP__":
@@ -422,16 +438,70 @@ def _parse_json_text(text: str):
     raise ValueError("no JSON array or object found")
 
 
-async def _execute_tool_step(step, ctx) -> str:
-    """Execute a tool step: call a registered tool function.
+class StepFailedError(Exception):
+    """A skill step that can't produce a usable result; the workflow stops here."""
+
+
+def _param_schema(registry, tool_name: str, key: str) -> dict:
+    """The JSON schema of one input parameter of ``tool_name`` (empty when unknown)."""
+    tool = registry.get_tool_for_action(tool_name)
+    for schema in tool.get_schemas() if tool else []:
+        if schema.name == tool_name:
+            return (schema.input_schema or {}).get("properties", {}).get(key, {}) or {}
+    return {}
+
+
+def _check_shape(value, schema: dict) -> bool:
+    """True when ``value`` has the container shape the schema asks for (array/object, rows)."""
+    kind = schema.get("type")
+    if kind == "array":
+        if not isinstance(value, list) or not value:
+            return False
+        item_kind = (schema.get("items") or {}).get("type")
+        if item_kind == "array":
+            return all(isinstance(item, list) for item in value)
+        if item_kind == "object":
+            return all(isinstance(item, dict) for item in value)
+        return True
+    if kind == "object":
+        return isinstance(value, dict)
+    return True
+
+
+async def _execute_tool_step(step, ctx, emit=None) -> str:
+    """Execute a tool step through the registry (so the approval gate applies).
 
     String params are filled from ``{placeholders}``. Params listed in the
-    step's ``json_params`` are then parsed as JSON, so an agent step can hand
-    structured data (e.g. sheet rows) to a tool.
+    step's ``json_params`` are parsed as JSON and must have the shape the
+    tool's schema asks for (e.g. rows for ``sheets_append``), so an agent step
+    can hand structured data to a tool.
+
+    ``emit`` receives the same trail events as the chat tool loop
+    (``tool_call``, ``approval_requested``, ``tool_result``).
+
+    Returns the tool output, or a "waiting for approval" note when the gate
+    held the action.
+
+    Raises:
+        StepFailedError: no or unknown tool, unusable JSON, blocked by policy, or
+            the tool failed. The workflow stops instead of continuing on an
+            error string.
     """
+    import time
+
+    from realize_core.agents.tool_loop import EVENT_PREVIEW_CHARS, emit_event
+    from realize_core.tools.tool_registry import get_tool_registry
+
+    step_id = step.get("id", "tool")
     tool_name = step.get("action", step.get("tool"))
     if not tool_name:
-        return "Error: no tool specified in step"
+        raise StepFailedError("no tool specified in step")
+
+    # Through the registry: the governance gate applies, and every registered
+    # integration (Google, Sheets, ClickUp, MCP, web) is reachable.
+    registry = get_tool_registry()
+    if registry.get_tool_for_action(tool_name) is None:
+        raise StepFailedError(f"unknown tool '{tool_name}'")
 
     raw_params = step.get("params", {})
     json_params = set(step.get("json_params") or [])
@@ -442,28 +512,45 @@ async def _execute_tool_step(step, ctx) -> str:
             try:
                 params[key] = _parse_json_text(params[key])
             except ValueError:
-                return f"Error: '{key}' for {tool_name} is not valid JSON"
+                raise StepFailedError(f"'{key}' for {tool_name} is not valid JSON") from None
+            if not _check_shape(params[key], _param_schema(registry, tool_name, key)):
+                raise StepFailedError(f"'{key}' for {tool_name} doesn't have the expected shape")
 
-    from realize_core.tools.tool_registry import get_tool_registry
-
-    # Through the registry: the governance gate applies, and every registered
-    # integration (Google, Sheets, ClickUp, MCP, web) is reachable.
-    registry = get_tool_registry()
-    if registry.get_tool_for_action(tool_name) is None:
-        return f"Error: unknown tool '{tool_name}'"
+    await emit_event(emit, {"type": "tool_call", "id": step_id, "name": tool_name, "input": params})
 
     from realize_core.governance.context import tool_call_context
 
+    started = time.perf_counter()
     with tool_call_context(system_key=ctx.system_key, agent_key="skill", user_id=ctx.user_id, channel="skill"):
         result = await registry.execute(tool_name, params)
-    if result.metadata.get("requires_human"):
-        request_id = result.metadata.get("request_id")
-        if request_id:
-            return f"⏳ '{tool_name}' was not run — it is waiting for operator approval (request {request_id})."
-        return f"'{tool_name}' was blocked by governance policy."
-    if not result.success:
-        logger.warning("Tool step %s failed: %s", tool_name, result.error)
-        return f"Error executing {tool_name}: {(result.error or '')[:300]}"
+    duration_ms = round((time.perf_counter() - started) * 1000, 1)
+
+    request_id = result.metadata.get("request_id") if result.metadata.get("requires_human") else None
+    held = request_id is not None
+    if held:
+        await emit_event(
+            emit, {"type": "approval_requested", "id": step_id, "name": tool_name, "request_id": request_id}
+        )
+    await emit_event(
+        emit,
+        {
+            "type": "tool_result",
+            "id": step_id,
+            "name": tool_name,
+            "success": result.success and not held,
+            "held": held,
+            "output": "" if held else (result.output or "")[:EVENT_PREVIEW_CHARS],
+            "error": result.error,
+            "duration_ms": duration_ms,
+        },
+    )
+
+    if held:
+        return f"⏳ '{tool_name}' was not run — it is waiting for operator approval (request {request_id})."
+    if result.metadata.get("requires_human") or not result.success:
+        reason = "blocked by governance policy" if result.metadata.get("requires_human") else (result.error or "")
+        logger.warning("Tool step %s failed: %s", tool_name, reason)
+        raise StepFailedError(f"{tool_name}: {reason[:300]}")
     output = result.output or ""
     if len(output) > 6000:
         output = output[:6000] + "\n... (truncated)"

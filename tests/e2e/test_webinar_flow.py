@@ -13,6 +13,7 @@ import sqlite3
 
 import pytest
 import yaml
+from realize_core.memory.conversation import add_message as _real_add_message
 from realize_core.tools.base_tool import BaseTool, ToolCategory, ToolResult, ToolSchema
 
 DEMO = "tower-b-demo"
@@ -282,3 +283,87 @@ def test_cli_creates_a_venture_from_the_template(tmp_path):
     )
     agents = {p.stem for p in (tmp_path / "systems" / "acme-dev" / "A-agents").glob("*.md")}
     assert {"tenders", "site-payments", "finance-investors"} <= agents
+
+
+# ---------------------------------------------------------------------------
+# The payment case through the real API (review F11): permission, held write,
+# approval outcome and the stored trail, as a scoped operator
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def memory_db(tmp_path, monkeypatch):
+    from realize_core.memory.conversation import clear_all
+    from realize_core.memory.store import init_db
+
+    monkeypatch.setattr("realize_core.memory.store.DB_PATH", tmp_path / "memory.db")
+    init_db()
+    clear_all()
+    yield
+    clear_all()
+
+
+def _api(project, user_id, scopes):
+    from fastapi.testclient import TestClient
+    from realize_api.main import create_app
+    from realize_core.skills.detector import reload_skills
+
+    reload_skills(kb_path=project)
+    app = create_app()
+    app.state.systems = _systems(project)
+    app.state.kb_path = project
+    app.state.config = {"features": {}}
+
+    @app.middleware("http")
+    async def as_principal(request, call_next):
+        request.state.user_id = user_id
+        request.state.role = "operator"
+        request.state.scopes = list(scopes)
+        return await call_next(request)
+
+    return TestClient(app)
+
+
+def test_payment_case_through_the_api(project, google, llm, ops_db, memory_db, monkeypatch):
+    import realize_core.memory.conversation as conv
+
+    # The autouse fixture stubs add_message; this test stores real history.
+    monkeypatch.setattr(conv, "add_message", _real_add_message)
+
+    for path in (project / "systems" / DEMO / "R-routines" / "skills").glob("payment*.yaml"):
+        text = path.read_text(encoding="utf-8")
+        text = text.replace('milestones_sheet_id: "REPLACE_WITH_SHEET_ID"', 'milestones_sheet_id: "sheet-m"')
+        text = text.replace('payments_sheet_id: "REPLACE_WITH_SHEET_ID"', 'payments_sheet_id: "sheet-p"')
+        path.write_text(text, encoding="utf-8")
+
+    dana = _api(project, "dana@demo", [f"venture:{DEMO}"])
+    body = dana.post(
+        "/api/chat", json={"message": "קיבלנו דרישת תשלום 4: 360,000 € על סיום השלד", "system_key": DEMO}
+    ).json()
+
+    # The skill's tool steps are in the answer's trail: the sheet it read and the held write.
+    steps = body["trail"]["steps"]
+    read = next(s for s in steps if s["type"] == "tool_call" and s["name"] == "sheets_read")
+    assert read["input"] == {"spreadsheet_id": "sheet-m", "range": "Milestones"}
+    held = next(s for s in steps if s["type"] == "approval_requested")
+    assert google.appended == []
+
+    # The trail is stored with the answer.
+    history = dana.get(f"/api/conversations/{DEMO}/dana@demo").json()["messages"]
+    assert history[-1]["trail"]["steps"]
+
+    # Someone limited to another venture can't see or decide it.
+    other = _api(project, "eve@other", ["venture:other"])
+    assert other.post(f"/api/approvals/{held['request_id']}/approve", json={}).status_code in (403, 404)
+    assert google.appended == []
+
+    # The operator approves: the write runs once, and the decider is on the row.
+    assert dana.post(f"/api/approvals/{held['request_id']}/approve", json={}).status_code == 200
+    assert len(google.appended) == 1
+    assert dana.post(f"/api/approvals/{held['request_id']}/approve", json={}).status_code == 404
+    conn = sqlite3.connect(ops_db)
+    decided_by, status = conn.execute(
+        "SELECT decided_by, execution_status FROM approval_queue WHERE id = ?", (held["request_id"],)
+    ).fetchone()
+    conn.close()
+    assert (decided_by, status) == ("dana@demo", "succeeded")

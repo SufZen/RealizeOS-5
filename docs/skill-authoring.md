@@ -103,7 +103,9 @@ write (`sheets_append`, `gmail_send`, ...) is held as an approval and runs once 
 **Structured params (`json_params`).** A tool that needs a list or object (for example the rows
 for `sheets_append`) can take it from an agent step that writes JSON. List the param under
 `json_params`; its text is parsed as JSON after `{placeholders}` are filled. Code fences and
-prose around the JSON are tolerated; if no JSON is found the step stops with an error.
+prose around the JSON are tolerated. The parsed value must have the shape the tool's schema
+asks for (for `sheets_append`, a non-empty list of rows), so a flat list or an object is refused
+before anything is written.
 
 ```yaml
 - id: rows
@@ -119,6 +121,14 @@ prose around the JSON are tolerated; if no JSON is found the step stops with an 
     values: "{rows}"
   json_params: [values]
 ```
+
+**A failed tool step stops the workflow.** An unknown tool, unusable JSON, a wrong shape, a
+policy block or a tool error ends the skill at that step. The answer says which step stopped and
+why, and no later step runs, so a report is never written on top of a failed read. A write held
+for approval is not a failure: the skill continues and the write runs once it is approved.
+
+**Trail.** Tool steps show up in the answer's "What I used" trail like the chat tool loop: the
+call with its input, the approval request when the write is held, and the result.
 
 ### `condition` — Branch logic
 ```yaml

@@ -348,10 +348,11 @@ class TestSkillToolStep:
 
     @pytest.mark.asyncio
     async def test_unknown_tool(self, registry):
-        from realize_core.skills.executor import SkillContext, _execute_tool_step
+        from realize_core.skills.executor import SkillContext, StepFailedError, _execute_tool_step
 
         ctx = SkillContext(user_message="q", system_key="acme", user_id="u1")
-        assert "unknown tool" in await _execute_tool_step({"action": "nope"}, ctx)
+        with pytest.raises(StepFailedError, match="unknown tool"):
+            await _execute_tool_step({"action": "nope"}, ctx)
 
 
 @pytest.mark.asyncio
