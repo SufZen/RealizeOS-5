@@ -102,10 +102,22 @@ const navGroups = [
   },
 ]
 
+/** Pages that work on what every venture shares; hidden from venture-limited users (STORY-18). */
+const SYSTEM_WIDE_PAGES = new Set(['/evolution', '/tools', '/integrations', '/setup', '/settings'])
+
 function NavContent({ onNavigate }: { onNavigate?: () => void }) {
+  const { user } = useAuth()
+  const scoped = Array.isArray(user?.ventures)
+  const groups = navGroups
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) => !(scoped && SYSTEM_WIDE_PAGES.has(item.to))),
+    }))
+    .filter((group) => group.items.length > 0)
+
   return (
     <nav className="flex flex-col gap-1 flex-1" data-tour="sidebar">
-      {navGroups.map((group) => (
+      {groups.map((group) => (
         <div key={group.label} className="mb-3">
           <span className="px-3 mb-1 block text-[10px] uppercase tracking-widest text-muted-foreground/60 font-semibold">
             {group.label}

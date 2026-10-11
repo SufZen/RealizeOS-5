@@ -241,22 +241,47 @@ def _deny(request: Request, detail: str, permission: str = "") -> HTTPException:
     return HTTPException(status_code=403, detail=detail)
 
 
-async def _body_ventures(request: Request, method: str) -> list[str]:
-    """Venture keys named at the top level of a JSON write body.
+#: Stands in for a venture value that isn't plain text (never an allowed key).
+_INVALID_VENTURE = "<invalid venture value>"
 
-    FastAPI caches the body, so the route reads it again without cost.
+
+def _venture_values(obj: Any, depth: int = 0) -> list[str]:
+    """Every venture key named anywhere in a JSON value (nested objects and lists too)."""
+    if depth > 16:
+        return [_INVALID_VENTURE]  # too deep to check: refuse rather than guess
+    found: list[str] = []
+    if isinstance(obj, dict):
+        for key, value in obj.items():
+            if key in VENTURE_PARAMS and value not in (None, ""):
+                found.append(value if isinstance(value, str) else _INVALID_VENTURE)
+            found += _venture_values(value, depth + 1)
+    elif isinstance(obj, list):
+        for item in obj:
+            found += _venture_values(item, depth + 1)
+    return found
+
+
+async def _body_ventures(request: Request, method: str) -> list[str]:
+    """Venture keys named in a write body, parsed whatever its content type.
+
+    FastAPI parses a body as JSON with no content type or any ``application/*json``
+    type (case-insensitively), so the check parses any body that is JSON rather
+    than trusting the header. The body is cached, so the route reads it again.
     """
+    import json
+
     from realize_core.security.venture_scope import MUTATING_METHODS
 
-    if method not in MUTATING_METHODS or "json" not in request.headers.get("content-type", ""):
+    if method not in MUTATING_METHODS:
+        return []
+    raw = await request.body()
+    if not raw.strip():
         return []
     try:
-        data = await request.json()
-    except ValueError:
-        return []  # malformed: the route's own validation answers
-    if not isinstance(data, dict):
-        return []
-    return [str(data[k]) for k in VENTURE_PARAMS if isinstance(data.get(k), str) and data.get(k)]
+        data = json.loads(raw)
+    except (ValueError, UnicodeDecodeError):
+        return []  # not JSON: FastAPI won't read venture fields from it either
+    return _venture_values(data)
 
 
 async def enforce_access(request: Request) -> None:
@@ -272,6 +297,7 @@ async def enforce_access(request: Request) -> None:
         has_permission,
         is_global_write,
         is_id_only_write,
+        is_system_area,
         needs_named_venture,
         required_permission,
     )
@@ -279,11 +305,14 @@ async def enforce_access(request: Request) -> None:
     allowed = get_allowed_ventures(request)
     method, path = request.method.upper(), request.url.path
     if allowed is not None:
-        named = [v for n in VENTURE_PARAMS for v in (request.path_params.get(n), request.query_params.get(n))]
+        named = [request.path_params.get(n) for n in VENTURE_PARAMS]
+        named += [v for n in VENTURE_PARAMS for v in request.query_params.getlist(n)]
         named += await _body_ventures(request, method)
         for value in filter(None, named):
             if value not in allowed:
                 raise _deny(request, f"You don't have access to venture '{value}'")
+        if is_system_area(path):
+            raise _deny(request, "This area is shared by every venture; ask an owner or admin")
         if needs_named_venture(path) and not any(named):
             raise _deny(request, "Name one of your ventures for this request")
         if is_id_only_write(method, path):

@@ -14,7 +14,7 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
-from realize_api.dependencies import visible_systems
+from realize_api.dependencies import visible_systems, visible_to
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -66,8 +66,11 @@ async def get_entity(entity_id: str, request: Request, depth: int = 0):
     """Get a single entity by ID, optionally with neighbors."""
     synapse = _get_synapse(request)
     entity = synapse.get(entity_id, depth=depth)
-    if entity is None:
+    # The venture named in the request isn't the entity's: check the entity itself.
+    if entity is None or not visible_to(request, entity.get("venture")):
         raise HTTPException(status_code=404, detail=f"Entity '{entity_id}' not found")
+    if "neighbors" in entity:
+        entity["neighbors"] = [n for n in entity["neighbors"] if visible_to(request, n.get("venture"))]
     return {"entity": entity}
 
 
@@ -76,6 +79,10 @@ async def create_entity(body: CreateEntityRequest, request: Request):
     """Create a new FABRIC entity."""
     from realize_core.fabric.crud import create_entity as _create
 
+    # The entity lives where body.venture says; frontmatter can't relabel it.
+    for key in ("venture", "id"):
+        if key in body.frontmatter and body.frontmatter[key] != (body.venture if key == "venture" else None):
+            raise HTTPException(status_code=400, detail=f"frontmatter '{key}' is set by the server")
     venture_dir = _resolve_venture_dir(request, body.venture)
     if not venture_dir:
         raise HTTPException(status_code=400, detail="No venture directory found")

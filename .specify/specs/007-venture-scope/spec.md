@@ -55,6 +55,13 @@ higher. Settings, integrations, agent definitions and other writes shared by eve
 - **FR-005** The dashboard keeps one selected venture (`VentureProvider`) for chat, pipelines,
   skills and the knowledge map, with a switcher in the sidebar.
 - **FR-006** MCP applies the same scope in its dispatcher (`mcp_server/venture_guard.py`).
+- **FR-007** Venture keys are found the way FastAPI reads them: any JSON body (whatever the
+  content type), nested objects and lists, every repeated query value; a non-text venture value is
+  refused. Items fetched by id are checked against their own venture (FABRIC entities and their
+  neighbours, workflows, approvals, missions, MCP skills by name).
+- **FR-008** System-wide areas (settings, security, setup, integrations, storage, devmode,
+  extensions, shared files, trust, tools, evolution, pipeline execution) are closed to
+  venture-limited callers, reads included.
 
 ## Success Criteria
 

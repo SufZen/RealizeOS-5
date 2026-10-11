@@ -51,6 +51,23 @@ _GLOBAL_PREFIXES = (
     "/api/evolution",
 )
 _VENTURES_PATH = "/api/ventures"
+#: System-wide areas a venture-limited caller may not use at all (reads included):
+#: configuration and data shared by every venture, and actions that can't be
+#: tied to one venture.
+_SYSTEM_AREA_PREFIXES = (
+    "/api/settings",
+    "/api/security",
+    "/api/setup",
+    "/api/integrations",
+    "/api/storage",
+    "/api/devmode",
+    "/api/extensions",
+    "/api/shared",
+    "/api/trust",
+    "/api/tools",
+    "/api/evolution",
+    "/api/pipelines/execute",
+)
 #: Areas that span every venture unless one is named; a venture-limited caller must name one.
 _NEEDS_VENTURE_PREFIXES = ("/api/fabric",)
 #: Edits addressed by an item id alone (the item's venture can't be checked here).
@@ -107,6 +124,11 @@ def required_permission(method: str, path: str) -> str | None:
     if is_global_write(method, path):
         return "system:manage"
     return "system:write"
+
+
+def is_system_area(path: str) -> bool:
+    """True for system-wide areas closed to venture-limited callers."""
+    return any(path == p or path.startswith(p + "/") for p in _SYSTEM_AREA_PREFIXES)
 
 
 def needs_named_venture(path: str) -> bool:

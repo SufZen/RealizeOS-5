@@ -52,9 +52,12 @@ also approve held actions, `admin` and `owner` can change settings.
 
 Add `ventures: [key, ...]` to a user to limit them to those ventures. They see
 only those ventures in the dashboard (the venture switcher is locked when there
-is one), the API and MCP. Another venture's data returns 403 or "not found", and
-changes that affect every venture (settings, integrations, agent definitions)
-are refused. API-key callers and users without `ventures` see everything. A JWT
+is one), the API and MCP. Another venture's data returns 403 or "not found",
+wherever the venture is named (path, query or anywhere in a JSON body). The
+system-wide areas (settings, security, setup, integrations, storage, tools,
+shared files, evolution) are closed to them, reads included, and their pages
+are hidden; changes that affect every venture (agent definitions, routing,
+reloads) are refused. API-key callers and users without `ventures` see everything. A JWT
 can be narrowed further with `venture:<key>` scopes.
 
 ## Verifying the deployment

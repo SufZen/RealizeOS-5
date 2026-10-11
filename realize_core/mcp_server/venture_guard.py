@@ -40,6 +40,8 @@ NEEDS_VENTURE = frozenset(
         "trigger_skill",
     }
 )
+#: Tools that run a skill by name: the skill's own venture is checked too.
+SKILL_TOOLS = frozenset({"run_workflow", "trigger_skill"})
 #: Tools checked against the approval's own venture.
 APPROVAL_TOOLS = frozenset({"approve_request", "reject_request"})
 #: Tools whose output is filtered to the caller's ventures.
@@ -66,18 +68,34 @@ def _approval_venture(approval_id: str) -> str | None:
     return row["venture_key"] if row else None
 
 
+def _skill_venture(skill_name: str) -> str | None:
+    """The venture a skill belongs to ('' for global skills, None if unknown)."""
+    from realize_core.skills.detector import get_skill_by_name
+
+    skill = get_skill_by_name(skill_name)
+    return None if not skill else (skill.get("system_key") or "")
+
+
 def check_call(name: str, arguments: dict[str, Any], allowed: frozenset[str] | None) -> str | None:
     """Return why a call is refused, or None when it may run."""
     if allowed is None:
         return None
-    named = [arguments.get(k) for k in VENTURE_ARGS if arguments.get(k)]
+    named = [arguments.get(k) for k in VENTURE_ARGS if arguments.get(k) not in (None, "")]
     for venture in named:
-        if venture not in allowed:
+        # Exact, plain-text match only: anything else is refused, never coerced.
+        if not isinstance(venture, str) or venture not in allowed:
             return f"You don't have access to venture '{venture}'"
     if name in ALWAYS_ALLOWED or name in FILTERED_LISTS:
         return None
     if name in NEEDS_VENTURE:
-        return None if named else f"Tool '{name}' needs one of your ventures as an argument"
+        if not named:
+            return f"Tool '{name}' needs one of your ventures as an argument"
+        if name in SKILL_TOOLS:
+            # The skill runs by name: it must be global or belong to an allowed venture.
+            skill_venture = _skill_venture(str(arguments.get("name", "")).strip())
+            if skill_venture is None or (skill_venture and skill_venture not in allowed):
+                return "Workflow not found"
+        return None
     if name in APPROVAL_TOOLS:
         venture = _approval_venture(str(arguments.get("approval_id", "")))
         return None if venture in allowed else "Approval not found"

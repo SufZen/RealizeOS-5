@@ -347,3 +347,133 @@ def test_guard_covers_rest_api_only(users_file):
         method="POST",
     )
     asyncio.run(enforce_access(request))  # no 403 for a viewer's MCP message
+
+
+# ---------------------------------------------------------------------------
+# Security review follow-ups
+# ---------------------------------------------------------------------------
+
+
+def _app_as(user_id: str, role: str):
+    from realize_api.main import create_app
+
+    app = create_app()
+    app.state.systems = dict(SYSTEMS)
+    app.state.config = {"features": {}}
+
+    @app.middleware("http")
+    async def as_principal(request, call_next):
+        request.state.user_id = user_id
+        request.state.role = role
+        request.state.scopes = []
+        return await call_next(request)
+
+    return app
+
+
+class TestReviewFollowUps:
+    @pytest.mark.parametrize(
+        "headers",
+        [{}, {"Content-Type": "APPLICATION/JSON"}, {"Content-Type": "application/vnd.api+json"}],
+        ids=["no-content-type", "uppercase", "json-suffix"],
+    )
+    def test_body_parsed_like_fastapi(self, users_file, headers):
+        client = _client("dana@acme.io", "operator")
+        body = json.dumps({"message": "hi", "system_key": "globex"})
+        assert client.post("/api/chat", content=body, headers=headers).status_code == 403
+
+    def test_nested_and_non_text_venture_values_refused(self, users_file):
+        client = _client("dana@acme.io", "operator")
+        nested = {"entity_type": "note", "title": "t", "venture": "acme", "frontmatter": {"venture": "globex"}}
+        assert client.post("/api/fabric/entities", json=nested).status_code == 403
+        listed = {"message": "hi", "system_key": ["globex"]}
+        assert client.post("/api/chat", json=listed).status_code == 403
+
+    def test_repeated_query_values_all_checked(self, users_file):
+        client = _client("dana@acme.io", "operator")
+        assert client.get("/api/approvals?venture_key=acme&venture_key=globex").status_code == 403
+
+    @pytest.mark.parametrize(
+        ("method", "path"),
+        [
+            ("GET", "/api/settings/features"),
+            ("GET", "/api/shared/file?path=identity.md"),
+            ("GET", "/api/tools"),
+            ("POST", "/api/pipelines/execute"),
+        ],
+    )
+    def test_system_wide_areas_closed_to_scoped_users(self, users_file, method, path):
+        client = _client("dana@acme.io", "operator")
+        resp = client.request(method, path, json={} if method == "POST" else None)
+        assert resp.status_code == 403
+        assert "every venture" in resp.json()["detail"]
+
+    def test_entity_by_id_checks_the_entitys_own_venture(self, users_file):
+        class FakeSynapse:
+            def get(self, entity_id, depth=0):
+                entities = {
+                    "ent-a": {"id": "ent-a", "venture": "acme"},
+                    "ent-g": {"id": "ent-g", "venture": "globex"},
+                }
+                entity = dict(entities[entity_id])
+                if depth:
+                    entity["neighbors"] = [{"id": "ent-g", "venture": "globex"}, {"id": "ent-a2", "venture": "acme"}]
+                return entity
+
+        app = _app_as("dana@acme.io", "operator")
+        app.state.synapse = FakeSynapse()
+        client = TestClient(app)
+        assert client.get("/api/fabric/entities/ent-g?venture=acme").status_code == 404
+        entity = client.get("/api/fabric/entities/ent-a?venture=acme&depth=1").json()["entity"]
+        assert [n["id"] for n in entity["neighbors"]] == ["ent-a2"]
+
+    def test_frontmatter_cannot_relabel_an_entity(self, users_file):
+        client = _client("api-key", "owner")
+        body = {"entity_type": "note", "title": "t", "venture": "acme", "frontmatter": {"venture": "globex"}}
+        resp = client.post("/api/fabric/entities", json=body)
+        assert resp.status_code == 400
+        assert "set by the server" in resp.json()["detail"]
+
+    def test_workflow_detail_and_create_respect_scope(self, users_file, monkeypatch):
+        from realize_core.skills import detector
+
+        skills = {"globex-report": {"name": "globex-report", "system_key": "globex"}}
+        monkeypatch.setattr(detector, "get_skill_by_name", lambda name: skills.get(name))
+        client = _client("dana@acme.io", "operator")
+        assert client.get("/api/workflows/globex-report").status_code == 404
+        # A venture-limited user can't create a global skill.
+        assert client.post("/api/workflows", json={"name": "x", "system_key": ""}).status_code == 403
+
+    def test_mcp_skill_tools_check_the_skills_venture(self, monkeypatch):
+        from realize_core.mcp_server.venture_guard import check_call
+        from realize_core.skills import detector
+
+        skills = {"globex-report": {"system_key": "globex"}, "summarize": {"system_key": ""}}
+        monkeypatch.setattr(detector, "get_skill_by_name", lambda name: skills.get(name))
+        allowed = frozenset({"acme"})
+        args = {"system_key": "acme", "input_text": "go"}
+        assert check_call("run_workflow", {**args, "name": "globex-report"}, allowed) == "Workflow not found"
+        assert check_call("trigger_skill", {**args, "name": "nope"}, allowed) == "Workflow not found"
+        assert check_call("run_workflow", {**args, "name": "summarize"}, allowed) is None
+        assert check_call("get_system", {"system_key": ["acme"]}, allowed) is not None
+
+    @pytest.mark.asyncio
+    async def test_mcp_skill_runs_as_the_caller(self, monkeypatch):
+        from realize_api.dependencies import CurrentUser
+        from realize_core.mcp_server.tools.ops_tools import run_workflow
+        from realize_core.skills import detector, executor
+
+        seen: dict = {}
+
+        async def fake_execute(**kwargs):
+            seen.update(kwargs)
+            return "done"
+
+        monkeypatch.setattr(detector, "get_skill_by_name", lambda name: {"name": name, "system_key": "acme"})
+        monkeypatch.setattr(executor, "execute_skill", fake_execute)
+        await run_workflow(
+            {"name": "s", "input_text": "go", "system_key": "acme", "user_id": "boss@acme.io"},
+            app_state=None,
+            user=CurrentUser(user_id="dana@acme.io", role="editor"),
+        )
+        assert seen["user_id"] == "dana@acme.io"

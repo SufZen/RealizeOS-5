@@ -15,7 +15,7 @@ import logging
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
-from realize_api.dependencies import visible_to
+from realize_api.dependencies import get_allowed_ventures, visible_to
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -119,7 +119,8 @@ async def get_workflow(skill_name: str, request: Request):
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
 
-    if not skill:
+    # Same rule as the list: global skills, or skills of a venture the caller may see.
+    if not skill or (skill.get("system_key") and not visible_to(request, skill.get("system_key"))):
         raise HTTPException(status_code=404, detail=f"Workflow '{skill_name}' not found")
 
     return {
@@ -137,6 +138,9 @@ async def get_workflow(skill_name: str, request: Request):
 @router.post("/workflows", status_code=201)
 async def create_workflow(body: CreateWorkflowBody, request: Request):
     """Create a new workflow/skill definition."""
+    # A venture-limited caller creates skills in their ventures, never global ones.
+    if get_allowed_ventures(request) is not None and not visible_to(request, body.system_key):
+        raise HTTPException(status_code=403, detail="Create the workflow in one of your ventures")
     try:
         from realize_core.skills.detector import get_skill_by_name, register_skill
     except ImportError:
