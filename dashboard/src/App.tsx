@@ -334,8 +334,9 @@ function AuthenticatedShell() {
   const [showOnboarding, setShowOnboarding] = useState(!isOnboardingComplete())
 
   // Don't show onboarding until the user is signed in — onboarding writes setup state
-  // for the active deployment, not the anonymous visitor.
-  if (showOnboarding && user) {
+  // for the active deployment, not the anonymous visitor. Users limited to some
+  // ventures can't change deployment setup, so they never get it.
+  if (showOnboarding && user && !Array.isArray(user.ventures)) {
     return <OnboardingWizard onComplete={() => setShowOnboarding(false)} />
   }
 
