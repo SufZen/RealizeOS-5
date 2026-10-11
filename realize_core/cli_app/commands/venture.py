@@ -30,6 +30,9 @@ def venture_create(
     name: Annotated[str | None, typer.Option("--name", "-n", help="Display name.")] = None,
     description: Annotated[str | None, typer.Option("--description", help="Venture description.")] = None,
     directory: Annotated[str, typer.Option("--directory", "-d", help="Project root directory.")] = ".",
+    template: Annotated[
+        str | None, typer.Option("--template", "-t", help="Venture template, e.g. real-estate-developer.")
+    ] = None,
 ) -> None:
     """Create a new venture."""
     import argparse
@@ -37,7 +40,13 @@ def venture_create(
     from cli import cmd_venture
 
     ns = argparse.Namespace(
-        venture_action="create", key=key, name=name, description=description, directory=directory, confirm=None
+        venture_action="create",
+        key=key,
+        name=name,
+        description=description,
+        directory=directory,
+        confirm=None,
+        template=template,
     )
     cmd_venture(ns)
 

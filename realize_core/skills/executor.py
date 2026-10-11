@@ -13,6 +13,7 @@ detailed instructions for the LLM agent.
 Each step's result feeds into the next step's context.
 """
 
+import json
 import logging
 from datetime import date
 
@@ -250,6 +251,8 @@ async def _execute_v2_steps(
         return "Skill has no steps defined."
 
     ctx = SkillContext(user_message, system_key, user_id)
+    # Skill-level variables (e.g. a venture's spreadsheet ids) for {placeholders}.
+    ctx.variables.update({str(k): str(v) for k, v in (skill.get("variables") or {}).items()})
     return await _run_v2_steps(steps, ctx, skill.get("name", ""), kb_path, system_config, shared_config, channel)
 
 
@@ -395,16 +398,51 @@ async def _execute_delegate_step(step, ctx, kb_path, system_config, shared_confi
     )
 
 
+def _parse_json_text(text: str):
+    """Parse JSON that an agent step wrote, tolerating ```json fences and prose around it.
+
+    Raises:
+        ValueError: No JSON array or object could be read.
+    """
+    cleaned = text.strip()
+    if cleaned.startswith("```"):
+        cleaned = cleaned.split("\n", 1)[1] if "\n" in cleaned else ""
+        cleaned = cleaned.rsplit("```", 1)[0]
+    try:
+        return json.loads(cleaned)
+    except ValueError:
+        pass
+    for opener, closer in (("[", "]"), ("{", "}")):
+        start, end = cleaned.find(opener), cleaned.rfind(closer)
+        if start != -1 and end > start:
+            try:
+                return json.loads(cleaned[start : end + 1])
+            except ValueError:
+                continue
+    raise ValueError("no JSON array or object found")
+
+
 async def _execute_tool_step(step, ctx) -> str:
-    """Execute a tool step: call a registered tool function."""
+    """Execute a tool step: call a registered tool function.
+
+    String params are filled from ``{placeholders}``. Params listed in the
+    step's ``json_params`` are then parsed as JSON, so an agent step can hand
+    structured data (e.g. sheet rows) to a tool.
+    """
     tool_name = step.get("action", step.get("tool"))
     if not tool_name:
         return "Error: no tool specified in step"
 
     raw_params = step.get("params", {})
+    json_params = set(step.get("json_params") or [])
     params = {}
     for key, value in raw_params.items():
         params[key] = ctx.inject(str(value)) if isinstance(value, str) else value
+        if key in json_params and isinstance(params[key], str):
+            try:
+                params[key] = _parse_json_text(params[key])
+            except ValueError:
+                return f"Error: '{key}' for {tool_name} is not valid JSON"
 
     from realize_core.tools.tool_registry import get_tool_registry
 

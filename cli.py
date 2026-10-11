@@ -372,6 +372,7 @@ def cmd_venture(args):
                 key=args.key,
                 name=args.name or "",
                 description=args.description or "",
+                template=getattr(args, "template", None) or "",
             )
             print(f"Created venture '{args.key}' at systems/{args.key}/")
             print(f"  {stats['dirs_created']} directories, {stats['files_created']} files")

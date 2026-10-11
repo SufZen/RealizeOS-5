@@ -1,0 +1,53 @@
+# Quarterly investor report: figures from the budget sheet, drafted, checked, finalised.
+# Nothing is sent to investors: the result is a draft for the developer.
+name: investor_report
+description: Draft the quarterly investor report from the budget sheet, with a source for every figure
+agent: finance_investors
+triggers:
+  - investor report
+  - quarterly report
+  - report for investors
+  - דוח למשקיעים
+  - דוח רבעוני
+variables:
+  budget_sheet_id: "REPLACE_WITH_SHEET_ID"
+  budget_range: "Summary"
+steps:
+  - id: figures
+    type: tool
+    tool: sheets_read
+    params:
+      spreadsheet_id: "{budget_sheet_id}"
+      range: "{budget_range}"
+
+  - id: draft
+    type: agent
+    agent: finance_investors
+    inject_context: [figures]
+    prompt: |
+      Request: {user_message}
+
+      Draft the quarterly investor report, in the language of the request. Sections:
+      1. Summary (three sentences)
+      2. Progress vs plan
+      3. Budget: budget, committed, paid, remaining, net remaining after contingency
+      4. Risks and what we are doing about them
+      5. Next quarter
+      Every figure states its source in brackets: (Sheet: {budget_range}) or the knowledge-base
+      marker. Separate facts from forecasts.
+
+  - id: review
+    type: agent
+    agent: reviewer
+    inject_context: [figures, draft]
+    prompt: |
+      Check every figure in the draft against the sheet data. List any figure without a source,
+      any total that doesn't add up, and any promise the developer hasn't made.
+
+  - id: final
+    type: agent
+    agent: finance_investors
+    inject_context: [draft, review]
+    prompt: |
+      Produce the final report, fixing every point the reviewer raised. Keep the sources.
+      End with: "Draft for the developer — not sent to investors."
