@@ -12,8 +12,9 @@ dashboard is effectively read-locked.
 
 Passwords are stored as bcrypt hashes only. Plaintext is never persisted.
 
-A user may be limited to some ventures with ``ventures: [key, ...]``; a
-missing or empty list means every venture (see ``security/venture_scope.py``)::
+A user may be limited to some ventures with ``ventures: [key, ...]``. Leave
+the key out for every venture; an empty or malformed list skips the user
+(see ``security/venture_scope.py``)::
 
     users:
       - email: dana@acme.io
@@ -95,12 +96,20 @@ def _load_yaml_users(path: Path) -> list[User]:
             )
             continue
 
-        raw_ventures = entry.get("ventures") or []
-        if not isinstance(raw_ventures, list) or not all(isinstance(v, str) and v.strip() for v in raw_ventures):
-            # Fail closed: a malformed scope must not turn into "every venture".
-            logger.warning("%s[%d]: 'ventures' must be a list of venture keys, skipped", path, idx)
-            continue
-        ventures = tuple(v.strip() for v in raw_ventures)
+        ventures: tuple[str, ...] = ()
+        if "ventures" in entry:
+            raw_ventures = entry["ventures"]
+            valid = (
+                isinstance(raw_ventures, list)
+                and raw_ventures
+                and all(isinstance(v, str) and v.strip() for v in raw_ventures)
+            )
+            if not valid:
+                # Fail closed: a present-but-empty or malformed scope must
+                # never turn into "every venture".
+                logger.warning("%s[%d]: 'ventures' must be a non-empty list of venture keys, skipped", path, idx)
+                continue
+            ventures = tuple(v.strip() for v in raw_ventures)
 
         users.append(User(email=email, role=role, password_hash=password_hash, ventures=ventures))
 

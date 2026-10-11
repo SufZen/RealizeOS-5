@@ -543,3 +543,254 @@ def test_operator_session_can_be_created(tmp_path, monkeypatch):
         assert session_store.get_session(record.session_id).role == "operator"
     finally:
         set_db_path(None)
+
+
+# ---------------------------------------------------------------------------
+# Independent review (Codex) F1-F5: adversarial checks through the real app
+# ---------------------------------------------------------------------------
+
+
+def _kb_app(tmp_path, user_id="agent-7", role="operator", scopes=("venture:acme",)):
+    """An app over a real temp KB with two ventures, as a scoped principal."""
+    from realize_api.main import create_app
+
+    kb = tmp_path / "kb"
+    for venture in ("acme", "globex"):
+        brain = kb / "systems" / venture / "B-brain"
+        brain.mkdir(parents=True)
+        (brain / "private.md").write_text(f"{venture} confidential", encoding="utf-8")
+    app = create_app()
+    app.state.systems = {
+        "acme": {"name": "Acme", "agents": {}, "system_dir": "systems/acme"},
+        "globex": {"name": "Globex", "agents": {}, "system_dir": "systems/globex"},
+    }
+    app.state.kb_path = kb
+    app.state.config = {"features": {}}
+
+    @app.middleware("http")
+    async def as_principal(request, call_next):
+        request.state.user_id = user_id
+        request.state.role = role
+        request.state.scopes = list(scopes)
+        return await call_next(request)
+
+    return TestClient(app), kb
+
+
+class TestKbFilesBelongToTheVenture:
+    """F1: a permitted venture URL must not reach another venture's files."""
+
+    def test_sibling_venture_file_is_refused_for_every_operation(self, tmp_path):
+        client, kb = _kb_app(tmp_path)
+        other = "systems/globex/B-brain/private.md"
+        url = "/api/ventures/acme/kb/file"
+
+        assert client.get(url, params={"path": other}).status_code == 403
+        assert client.put(url, json={"path": other, "content": "x"}).status_code == 403
+        assert client.post(url, json={"path": "systems/globex/B-brain/new.md", "content": "x"}).status_code == 403
+        assert client.delete(url, params={"path": other}).status_code == 403
+        assert (kb / other).read_text(encoding="utf-8") == "globex confidential"
+        assert not (kb / "systems/globex/B-brain/new.md").exists()
+
+    def test_own_files_still_work(self, tmp_path):
+        client, _ = _kb_app(tmp_path)
+        resp = client.get("/api/ventures/acme/kb/file", params={"path": "systems/acme/B-brain/private.md"})
+        assert resp.status_code == 200
+        assert resp.json()["content"] == "acme confidential"
+
+    @pytest.mark.parametrize(
+        "path",
+        [
+            "systems/acme/../globex/B-brain/private.md",
+            "systems\\globex\\B-brain\\private.md",
+            "shared/identity.md",
+        ],
+        ids=["dot-dot", "backslashes", "outside-ventures"],
+    )
+    def test_traversal_and_other_roots_refused(self, tmp_path, path):
+        client, _ = _kb_app(tmp_path)
+        assert client.get("/api/ventures/acme/kb/file", params={"path": path}).status_code in (400, 403)
+
+    def test_absolute_path_refused(self, tmp_path):
+        client, kb = _kb_app(tmp_path)
+        absolute = str((kb / "systems/globex/B-brain/private.md").resolve())
+        assert client.get("/api/ventures/acme/kb/file", params={"path": absolute}).status_code in (400, 403)
+
+    def test_symlink_escape_refused(self, tmp_path):
+        import os
+
+        client, kb = _kb_app(tmp_path)
+        link = kb / "systems/acme/B-brain/link.md"
+        try:
+            os.symlink(kb / "systems/globex/B-brain/private.md", link)
+        except (OSError, NotImplementedError):
+            pytest.skip("symlinks not available here")
+        resp = client.get("/api/ventures/acme/kb/file", params={"path": "systems/acme/B-brain/link.md"})
+        assert resp.status_code == 403
+
+
+class TestFabricUsesTheRealScopeParameter:
+    """F2: an alias the handler ignores must not satisfy the guard."""
+
+    class FakeSynapse:
+        def __init__(self):
+            self.calls = []
+
+        def toc(self, venture=None):
+            self.calls.append(venture)
+            return [{"id": "e1", "venture": venture or "globex"}]
+
+    @pytest.mark.parametrize("alias", ["system_key", "venture_key"])
+    def test_alias_is_refused(self, tmp_path, alias):
+        client, _ = _kb_app(tmp_path)
+        synapse = self.FakeSynapse()
+        client.app.state.synapse = synapse
+        assert client.get(f"/api/fabric/toc?{alias}=acme").status_code == 403
+        assert synapse.calls == []
+
+    def test_venture_parameter_scopes_the_query(self, tmp_path):
+        client, _ = _kb_app(tmp_path)
+        synapse = self.FakeSynapse()
+        client.app.state.synapse = synapse
+        assert client.get("/api/fabric/toc?venture=acme").status_code == 200
+        assert synapse.calls == ["acme"]
+
+
+class TestSessionsFollowTheUsersFile:
+    """F3: a removed or malformed user never widens an existing session."""
+
+    @pytest.fixture
+    def authed(self, users_file, monkeypatch):
+        from realize_core.security import session_store
+
+        monkeypatch.setenv("REALIZE_API_KEY", "test-key-not-secret")
+        revoked: list[str] = []
+        monkeypatch.setattr(session_store, "revoke_session", lambda sid: revoked.append(sid) or True)
+        monkeypatch.setattr(session_store, "touch_session", lambda sid: None)
+
+        def client_for(user_id, stored_role):
+            from realize_api.main import create_app
+
+            record = session_store.SessionRecord(
+                session_id="s1",
+                user_id=user_id,
+                role=stored_role,
+                csrf_token="c",
+                created_at="",
+                last_seen_at="",
+                expires_at="",
+                ip_address="",
+                user_agent="",
+                remember_me=False,
+            )
+            monkeypatch.setattr(session_store, "get_session", lambda _sid: record)
+            app = create_app()
+            app.state.systems = dict(SYSTEMS)
+            app.state.config = {"features": {}}
+            client = TestClient(app)
+            client.cookies.set(session_store.SESSION_COOKIE_NAME, "s1")
+            return client
+
+        return client_for, revoked
+
+    def test_removed_user_loses_the_session(self, authed):
+        client_for, revoked = authed
+        client = client_for("ghost@acme.io", "owner")
+        assert client.get("/api/ventures").status_code == 401
+        assert revoked == ["s1"]
+
+    def test_current_role_applies_not_the_stored_one(self, authed):
+        client_for, _ = authed
+        client = client_for("vic@acme.io", "owner")  # stored as owner, now a viewer
+        resp = client.post("/api/chat", json={"message": "hi", "system_key": "acme"}, headers={"X-Realize-CSRF": "c"})
+        assert resp.status_code == 403
+
+    def test_scoped_user_still_scoped(self, authed):
+        client_for, _ = authed
+        client = client_for("dana@acme.io", "operator")
+        assert [v["key"] for v in client.get("/api/ventures").json()["ventures"]] == ["acme"]
+
+
+@pytest.mark.parametrize("ventures", ["[]", '""', "0", "null"])
+def test_present_but_empty_ventures_skips_the_user(tmp_path, monkeypatch, ventures):
+    from realize_core.security.users import get_user
+
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "users.yaml").write_text(
+        f'users:\n  - email: eve@acme.io\n    role: operator\n    ventures: {ventures}\n    password_hash: "$2b$12$x"\n',
+        encoding="utf-8",
+    )
+    assert get_user("eve@acme.io") is None
+
+
+def test_unreadable_users_file_means_no_sessions(users_file, monkeypatch):
+    """A broken users.yaml loads no users, so every dashboard session fails closed."""
+    from realize_core.security.users import get_user
+
+    users_file.write_text("users: [this is: not valid", encoding="utf-8")
+    assert get_user("dana@acme.io") is None
+
+
+class TestPipelinesClosedToScopedUsers:
+    """F4: pipeline definitions and runs aren't venture-scoped yet."""
+
+    @pytest.mark.parametrize(
+        ("method", "path"),
+        [("GET", "/api/pipelines"), ("POST", "/api/pipelines"), ("POST", "/api/pipelines/test")],
+    )
+    def test_refused(self, tmp_path, method, path):
+        client, _ = _kb_app(tmp_path)
+        resp = client.request(method, path, json={"name": "x", "venture_key": "acme", "steps": []})
+        assert resp.status_code == 403
+
+    def test_unscoped_owner_keeps_access(self, tmp_path):
+        client, _ = _kb_app(tmp_path, user_id="api-key", role="owner", scopes=())
+        assert client.get("/api/pipelines").status_code == 200
+
+
+class TestMcpUsesRestPermissions:
+    """F5: one permission model for REST and MCP."""
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("role", "tool", "allowed"),
+        [
+            ("operator", "list_systems", True),
+            ("user", "list_systems", True),
+            ("viewer", "list_systems", True),
+            ("viewer", "realize_chat", False),
+            ("user", "approve_request", False),
+            ("viewer", "clear_history", False),
+        ],
+    )
+    async def test_role_matrix(self, role, tool, allowed):
+        from realize_api.dependencies import CurrentUser
+        from realize_core.mcp_server import registry as registry_mod
+        from realize_core.mcp_server.auth import bind_user, reset_user
+        from realize_core.mcp_server.config import McpConfig
+        from realize_core.mcp_server.server import _dispatch
+
+        cfg = McpConfig(
+            enabled=True,
+            expose_kb=True,
+            expose_ops=True,
+            allow_admin=False,
+            audit_full_payload=False,
+            bearer_token_override="",
+        )
+        args = {
+            "list_systems": {},
+            "realize_chat": {"message": "hi", "system_key": "acme"},
+            "approve_request": {"approval_id": "apv-1"},
+            "clear_history": {"system_key": "acme", "user_id": "u1"},
+        }[tool]
+        registry_mod.reset_for_tests()
+        token = bind_user(CurrentUser(user_id="u1", role=role, scopes=[]))
+        try:
+            app_state = type("S", (), {"systems": dict(SYSTEMS), "config": {"features": {}}, "kb_path": None})()
+            out = await _dispatch(registry_mod.get_registry(), cfg, app_state, tool, args)
+        finally:
+            reset_user(token)
+        text = out[0].text
+        refused = "MCP_INSUFFICIENT_SCOPE" in text
+        assert refused is (not allowed), text[:200]

@@ -284,6 +284,26 @@ async def _body_ventures(request: Request, method: str) -> list[str]:
     return _venture_values(data)
 
 
+async def _scope_param(request: Request, method: str) -> str | None:
+    """The `venture` value the FABRIC handlers actually filter by (query, or top-level JSON body)."""
+    import json
+
+    from realize_core.security.venture_scope import MUTATING_METHODS
+
+    value = request.query_params.get("venture")
+    if value:
+        return value
+    if method in MUTATING_METHODS:
+        raw = await request.body()
+        try:
+            data = json.loads(raw) if raw.strip() else None
+        except (ValueError, UnicodeDecodeError):
+            data = None
+        if isinstance(data, dict) and isinstance(data.get("venture"), str):
+            return data["venture"] or None
+    return None
+
+
 async def enforce_access(request: Request) -> None:
     """App-wide guard: venture scope on every request, RBAC on every write.
 
@@ -313,8 +333,10 @@ async def enforce_access(request: Request) -> None:
                 raise _deny(request, f"You don't have access to venture '{value}'")
         if is_system_area(path):
             raise _deny(request, "This area is shared by every venture; ask an owner or admin")
-        if needs_named_venture(path) and not any(named):
-            raise _deny(request, "Name one of your ventures for this request")
+        if needs_named_venture(path) and not await _scope_param(request, method):
+            # FABRIC handlers filter by `venture` only; an alias (system_key,
+            # venture_key) would pass a generic check and query every venture.
+            raise _deny(request, "Name one of your ventures with the `venture` parameter")
         if is_id_only_write(method, path):
             raise _deny(request, "This change can't be limited to your ventures; ask an owner or admin")
 

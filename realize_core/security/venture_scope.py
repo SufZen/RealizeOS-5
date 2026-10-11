@@ -66,7 +66,8 @@ _SYSTEM_AREA_PREFIXES = (
     "/api/trust",
     "/api/tools",
     "/api/evolution",
-    "/api/pipelines/execute",
+    # Pipeline definitions and runs aren't tied to one venture yet (STORY-18 review F4).
+    "/api/pipelines",
 )
 #: Areas that span every venture unless one is named; a venture-limited caller must name one.
 _NEEDS_VENTURE_PREFIXES = ("/api/fabric",)
@@ -76,6 +77,12 @@ _ID_ONLY_WRITE_PREFIXES = ("/api/fabric/entities/", "/api/workflows/")
 
 def allowed_ventures(user_id: str | None, scopes: list[str] | None = None) -> frozenset[str] | None:
     """Ventures the caller may see, or None for all of them.
+
+    Dashboard users (cookie sessions) are re-checked against ``users.yaml``
+    by the auth middleware, so a deleted user never reaches this point. A
+    principal that isn't a configured user is a service identity — the API
+    key, or a JWT minted with the API key — and is unrestricted unless its
+    token carries ``venture:<key>`` scopes.
 
     Args:
         user_id: Authenticated caller (email for dashboard users), or None

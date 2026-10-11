@@ -59,8 +59,12 @@ higher. Settings, integrations, agent definitions and other writes shared by eve
   content type), nested objects and lists, every repeated query value; a non-text venture value is
   refused. Items fetched by id are checked against their own venture (FABRIC entities and their
   neighbours, workflows, approvals, missions, MCP skills by name).
+- **FR-009** Resources are checked where they are resolved: KB files must live in the venture's
+  own directory; FABRIC reads must name `venture` (the parameter the handlers filter by); dashboard
+  sessions are re-checked against `users.yaml` on every request (removed user → 401, current role
+  applies); MCP tools use the same RBAC permissions as the REST routes. (Independent review F1–F5.)
 - **FR-008** System-wide areas (settings, security, setup, integrations, storage, devmode,
-  extensions, shared files, trust, tools, evolution, pipeline execution) are closed to
+  extensions, shared files, trust, tools, evolution, pipelines) are closed to
   venture-limited callers, reads included.
 
 ## Success Criteria

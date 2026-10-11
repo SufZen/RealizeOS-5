@@ -22,6 +22,24 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
+def _owned_path(kb_path_root: Path, sys_conf: dict, venture_key: str, path: str) -> Path:
+    """Resolve a KB-relative ``path`` and require it to belong to this venture.
+
+    Paths stay KB-relative for clients (``systems/<venture>/B-brain/x.md``), but
+    the resolved file must live inside the venture's own directory: being
+    inside the KB root is not enough (another venture's files are too).
+    Resolving first also closes symlink escapes.
+    """
+    normalized = (path or "").replace("\\", "/")
+    if not normalized or chr(0) in normalized or Path(normalized).is_absolute() or ".." in normalized.split("/"):
+        raise HTTPException(status_code=400, detail="Invalid path")
+    venture_root = (kb_path_root / sys_conf.get("system_dir", f"systems/{venture_key}")).resolve()
+    file_path = (kb_path_root / normalized).resolve()
+    if not file_path.is_relative_to(venture_root):
+        raise HTTPException(status_code=403, detail=f"This file isn't part of venture '{venture_key}'")
+    return file_path
+
+
 @router.get("/ventures/{venture_key}/kb/files")
 async def list_kb_files(venture_key: str, request: Request):
     """List FABRIC directory structure with files."""
@@ -79,15 +97,11 @@ async def read_kb_file(venture_key: str, path: str, request: Request):
     if ".." in path:
         raise HTTPException(status_code=400, detail="Invalid path")
 
-    file_path = kb_path_root / path
+    file_path = _owned_path(kb_path_root, systems[venture_key], venture_key, path)
     if not file_path.exists() or not file_path.is_file():
         raise HTTPException(status_code=404, detail="File not found")
 
     # Ensure file is within kb_path
-    try:
-        file_path.resolve().relative_to(kb_path_root.resolve())
-    except ValueError:
-        raise HTTPException(status_code=403, detail="Access denied")
 
     try:
         content = file_path.read_text(encoding="utf-8")
@@ -199,11 +213,7 @@ async def save_kb_file(venture_key: str, request: Request):
     if not path or ".." in path or "\x00" in path:
         raise HTTPException(status_code=400, detail="Invalid path")
 
-    file_path = kb_path_root / path
-    try:
-        file_path.resolve().relative_to(kb_path_root.resolve())
-    except ValueError:
-        raise HTTPException(status_code=403, detail="Access denied")
+    file_path = _owned_path(kb_path_root, systems[venture_key], venture_key, path)
 
     try:
         file_path.parent.mkdir(parents=True, exist_ok=True)
@@ -239,11 +249,7 @@ async def create_kb_file(venture_key: str, request: Request):
     if not path or ".." in path:
         raise HTTPException(status_code=400, detail="Invalid path")
 
-    file_path = kb_path_root / path
-    try:
-        file_path.resolve().relative_to(kb_path_root.resolve())
-    except ValueError:
-        raise HTTPException(status_code=403, detail="Access denied")
+    file_path = _owned_path(kb_path_root, systems[venture_key], venture_key, path)
 
     if file_path.exists():
         raise HTTPException(status_code=409, detail="File already exists")
@@ -278,11 +284,7 @@ async def delete_kb_file(venture_key: str, path: str, request: Request):
     if not path or ".." in path:
         raise HTTPException(status_code=400, detail="Invalid path")
 
-    file_path = kb_path_root / path
-    try:
-        file_path.resolve().relative_to(kb_path_root.resolve())
-    except ValueError:
-        raise HTTPException(status_code=403, detail="Access denied")
+    file_path = _owned_path(kb_path_root, systems[venture_key], venture_key, path)
 
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="File not found")

@@ -50,6 +50,63 @@ FILTERED_LISTS = {"list_systems": "systems", "list_ventures": "ventures"}
 ALWAYS_ALLOWED = frozenset({"realize_health"})
 
 
+#: The RBAC permission each MCP tool needs — the same rules as the REST API
+#: (chat runs agents and tools; decisions need approval rights).
+TOOL_PERMISSIONS = {
+    **dict.fromkeys(
+        (
+            "realize_health",
+            "realize_status",
+            "list_systems",
+            "get_system",
+            "list_agents",
+            "list_skills",
+            "get_history",
+            "get_session",
+            "kb_search",
+            "venture_kb_search",
+            "kb_get_document",
+            "list_ventures",
+            "list_workflows",
+            "list_suggestions",
+            "list_approvals",
+        ),
+        "system:read",
+    ),
+    **dict.fromkeys(("realize_chat", "clear_history", "run_workflow", "trigger_skill"), "agents:execute"),
+    **dict.fromkeys(
+        ("approve_request", "reject_request", "approve_suggestion", "dismiss_suggestion"), "pipeline:approve"
+    ),
+    **dict.fromkeys(
+        ("run_evolution", "create_venture", "delete_venture", "update_setting", "reload_agents"), "system:manage"
+    ),
+}
+
+
+def is_rbac_role(role: str | None) -> bool:
+    """True for roles RBAC defines (owner, admin, operator, user, viewer, guest)."""
+    from realize_core.security.rbac import get_rbac_manager
+
+    return bool(role) and get_rbac_manager().get_role(role.lower()) is not None
+
+
+def permission_refusal(name: str, role: str | None) -> str | None:
+    """Why ``role`` may not call tool ``name`` under RBAC, or None when it may.
+
+    Returns None for roles RBAC doesn't know (the MCP-only ``editor`` role),
+    which keep the tool-family scope check. Unknown tools need ``system:manage``.
+    """
+    from realize_core.security.rbac import get_rbac_manager
+
+    if not is_rbac_role(role):
+        return None
+    rbac = get_rbac_manager()
+    permission = TOOL_PERMISSIONS.get(name, "system:manage")
+    if rbac.check_access(role.lower(), permission).allowed:
+        return None
+    return f"Tool '{name}' needs '{permission}'; role '{role}' doesn't have it"
+
+
 def caller_ventures(user: Any) -> frozenset[str] | None:
     """Ventures an MCP caller may use, or None for all."""
     from realize_core.security.venture_scope import allowed_ventures

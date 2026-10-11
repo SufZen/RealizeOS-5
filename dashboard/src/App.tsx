@@ -103,7 +103,14 @@ const navGroups = [
 ]
 
 /** Pages that work on what every venture shares; hidden from venture-limited users (STORY-18). */
-const SYSTEM_WIDE_PAGES = new Set(['/evolution', '/tools', '/integrations', '/setup', '/settings'])
+const SYSTEM_WIDE_PAGES = new Set([
+  '/pipelines',
+  '/evolution',
+  '/tools',
+  '/integrations',
+  '/setup',
+  '/settings',
+])
 
 function NavContent({ onNavigate }: { onNavigate?: () => void }) {
   const { user } = useAuth()

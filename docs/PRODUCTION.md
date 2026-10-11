@@ -55,9 +55,16 @@ only those ventures in the dashboard (the venture switcher is locked when there
 is one), the API and MCP. Another venture's data returns 403 or "not found",
 wherever the venture is named (path, query or anywhere in a JSON body). The
 system-wide areas (settings, security, setup, integrations, storage, tools,
-shared files, evolution) are closed to them, reads included, and their pages
-are hidden; changes that affect every venture (agent definitions, routing,
-reloads) are refused. API-key callers and users without `ventures` see everything. A JWT
+shared files, evolution, pipelines) are closed to them, reads included, and
+their pages are hidden; changes that affect every venture (agent definitions,
+routing, reloads) are refused. Knowledge-base files are checked against the
+venture's own directory, not just the knowledge base.
+
+Leave `ventures` out for access to every venture; a `ventures` entry that is
+empty or malformed skips that user. Every dashboard request re-checks the user
+in `users.yaml`: removing a user ends their sessions, and role changes apply
+immediately. API-key callers and JWTs minted with the API key are service
+identities, unrestricted unless the token carries `venture:<key>` scopes. API-key callers and users without `ventures` see everything. A JWT
 can be narrowed further with `venture:<key>` scopes.
 
 ## Verifying the deployment

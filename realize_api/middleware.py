@@ -145,13 +145,23 @@ class AuthMiddleware(BaseHTTPMiddleware):
         session_id = request.cookies.get(session_store.SESSION_COOKIE_NAME, "")
         if session_id:
             record = session_store.get_session(session_id)
+            current_user = None
             if record is not None:
+                # Re-check the user on every request: a deleted (or now
+                # malformed) user loses the session, and role changes apply now.
+                from realize_core.security.users import get_user
+
+                current_user = get_user(record.user_id)
+                if current_user is None:
+                    logger.warning("Session for %s revoked: user no longer configured", record.user_id)
+                    session_store.revoke_session(session_id)
+            if record is not None and current_user is not None:
                 csrf_failure = self._enforce_csrf(request, record)
                 if csrf_failure is not None:
                     return csrf_failure
 
                 request.state.user_id = record.user_id
-                request.state.role = record.role
+                request.state.role = current_user.role
                 request.state.scopes = []
                 request.state.auth_source = "session"
                 # Best-effort: keep last_seen_at fresh on activity.
