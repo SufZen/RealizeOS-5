@@ -55,6 +55,7 @@ async def list_workflows(args: dict[str, Any], app_state: Any, user: CurrentUser
         logger.warning("list_workflows failed: %s", exc)
         return {"workflows": [], "total": 0, "error": str(exc)[:200], "code": "MCP_INTERNAL"}
 
+    # system_key is each skill's owner (the venture it was loaded under).
     system_key = args.get("system_key") or None
     if system_key:
         skills = [s for s in skills if (s.get("system_key", "") or "") in (system_key, "")]

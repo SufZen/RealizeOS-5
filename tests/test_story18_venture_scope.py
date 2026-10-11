@@ -437,10 +437,11 @@ class TestReviewFollowUps:
     def test_workflow_detail_and_create_respect_scope(self, users_file, monkeypatch):
         from realize_core.skills import detector
 
-        skills = {"globex-report": {"name": "globex-report", "system_key": "globex"}}
-        monkeypatch.setattr(detector, "get_skill_by_name", lambda name: skills.get(name))
+        # A skill loaded from globex's YAML: its dict has no system_key.
+        monkeypatch.setattr(detector, "_loaded_skills", {"globex": [{"name": "globex-report"}]})
         client = _client("dana@acme.io", "operator")
         assert client.get("/api/workflows/globex-report").status_code == 404
+        assert client.get("/api/workflows").json()["workflows"] == []
         # A venture-limited user can't create a global skill.
         assert client.post("/api/workflows", json={"name": "x", "system_key": ""}).status_code == 403
 
@@ -448,8 +449,9 @@ class TestReviewFollowUps:
         from realize_core.mcp_server.venture_guard import check_call
         from realize_core.skills import detector
 
-        skills = {"globex-report": {"system_key": "globex"}, "summarize": {"system_key": ""}}
-        monkeypatch.setattr(detector, "get_skill_by_name", lambda name: skills.get(name))
+        # YAML skills don't carry their venture: the owner is where they were loaded.
+        owners = {"globex-report": ("globex", {"name": "globex-report"}), "summarize": ("_default", {})}
+        monkeypatch.setattr(detector, "find_skill", lambda name: owners.get(name))
         allowed = frozenset({"acme"})
         args = {"system_key": "acme", "input_text": "go"}
         assert check_call("run_workflow", {**args, "name": "globex-report"}, allowed) == "Workflow not found"
@@ -477,3 +479,25 @@ class TestReviewFollowUps:
             user=CurrentUser(user_id="dana@acme.io", role="editor"),
         )
         assert seen["user_id"] == "dana@acme.io"
+
+
+@pytest.mark.asyncio
+async def test_mcp_chat_context_limited_to_callers_ventures(monkeypatch):
+    """Cross-system context must not pull in ventures the MCP caller can't see."""
+    from realize_api.dependencies import CurrentUser
+    from realize_core import base_handler
+    from realize_core.mcp_server.tools.chat_tools import realize_chat
+
+    seen: dict = {}
+
+    async def fake_process(**kwargs):
+        seen.update(kwargs)
+        return "ok"
+
+    monkeypatch.setattr(base_handler, "process_message", fake_process)
+    app_state = type("S", (), {"systems": dict(SYSTEMS), "config": {"features": {}}, "kb_path": None})()
+    user = CurrentUser(user_id="agent-7", role="editor", scopes=["venture:acme"])
+
+    await realize_chat({"message": "hi", "system_key": "acme"}, app_state=app_state, user=user)
+
+    assert set(seen["all_systems"]) == {"acme"}

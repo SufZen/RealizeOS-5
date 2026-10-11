@@ -70,17 +70,19 @@ async def list_workflows(
     Query params:
     - system_key: filter by system (optional)
     """
+    all_skills: list[dict] = []
+    global_owners: frozenset[str] = frozenset()
     try:
-        from realize_core.skills.detector import get_all_skills
+        from realize_core.skills.detector import GLOBAL_SKILL_OWNERS, get_all_skills
 
-        all_skills = get_all_skills()
+        all_skills, global_owners = get_all_skills(), GLOBAL_SKILL_OWNERS
     except ImportError:
-        all_skills = []
+        pass
     except Exception as exc:
         logger.warning("Failed to load skills: %s", exc)
-        all_skills = []
 
-    all_skills = [s for s in all_skills if not s.get("system_key") or visible_to(request, s.get("system_key"))]
+    # system_key is each skill's owner (the venture it was loaded under).
+    all_skills = [s for s in all_skills if s["system_key"] in global_owners or visible_to(request, s["system_key"])]
 
     # Filter by system_key if provided
     if system_key:
@@ -111,16 +113,17 @@ async def list_workflows(
 async def get_workflow(skill_name: str, request: Request):
     """Get detailed info about a specific workflow/skill."""
     try:
-        from realize_core.skills.detector import get_skill_by_name
+        from realize_core.skills.detector import GLOBAL_SKILL_OWNERS, find_skill
 
-        skill = get_skill_by_name(skill_name)
+        found = find_skill(skill_name)
     except ImportError:
         raise HTTPException(status_code=501, detail="Skills module not available")
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
 
-    # Same rule as the list: global skills, or skills of a venture the caller may see.
-    if not skill or (skill.get("system_key") and not visible_to(request, skill.get("system_key"))):
+    # Same rule as the list: global skills, or skills owned by a venture the caller may see.
+    owner, skill = found if found else ("", None)
+    if not skill or not (owner in GLOBAL_SKILL_OWNERS or visible_to(request, owner)):
         raise HTTPException(status_code=404, detail=f"Workflow '{skill_name}' not found")
 
     return {
@@ -128,7 +131,7 @@ async def get_workflow(skill_name: str, request: Request):
         "description": skill.get("description", ""),
         "triggers": skill.get("triggers", []),
         "version": skill.get("_version", 1),
-        "system_key": skill.get("system_key", ""),
+        "system_key": skill.get("system_key", owner),
         "enabled": skill.get("enabled", True),
         "steps": skill.get("steps", []),
         "output_template": skill.get("output_template", ""),

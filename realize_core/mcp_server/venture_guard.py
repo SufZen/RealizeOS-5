@@ -69,11 +69,18 @@ def _approval_venture(approval_id: str) -> str | None:
 
 
 def _skill_venture(skill_name: str) -> str | None:
-    """The venture a skill belongs to ('' for global skills, None if unknown)."""
-    from realize_core.skills.detector import get_skill_by_name
+    """The venture that owns a skill ('' for global skills, None if unknown).
 
-    skill = get_skill_by_name(skill_name)
-    return None if not skill else (skill.get("system_key") or "")
+    Uses the owner the skill was loaded under: skills from a venture's YAML
+    don't carry ``system_key`` in their dict.
+    """
+    from realize_core.skills.detector import GLOBAL_SKILL_OWNERS, find_skill
+
+    found = find_skill(skill_name)
+    if found is None:
+        return None
+    owner = found[0]
+    return "" if owner in GLOBAL_SKILL_OWNERS else owner
 
 
 def check_call(name: str, arguments: dict[str, Any], allowed: frozenset[str] | None) -> str | None:

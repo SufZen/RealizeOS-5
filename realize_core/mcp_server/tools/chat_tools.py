@@ -66,7 +66,7 @@ async def realize_chat(args: dict[str, Any], app_state: Any, user: CurrentUser) 
         channel=args.get("channel", "mcp"),
     )
 
-    request = _ProxyRequest(app_state)
+    request = _ProxyRequest(app_state, user)
     response = await chat_handler(body, request)
     if not hasattr(response, "model_dump"):
         return response
@@ -442,12 +442,23 @@ class _ProxyRequest:
     that reaches for something we haven't provided will fail loudly, which
     is the right outcome — that handler shouldn't be exposed as a tool
     yet.
+
+    ``state`` carries the MCP caller (``user_id``, ``role``, ``scopes``) the way
+    the auth middleware would, so REST helpers (venture scope, chat identity)
+    apply to MCP calls too.
     """
 
-    __slots__ = ("app",)
+    __slots__ = ("app", "state")
 
-    def __init__(self, app_state: Any) -> None:
+    def __init__(self, app_state: Any, user: CurrentUser | None = None) -> None:
+        from types import SimpleNamespace
+
         self.app = _ProxyApp(app_state)
+        self.state = SimpleNamespace(
+            user_id=getattr(user, "user_id", None),
+            role=getattr(user, "role", None),
+            scopes=list(getattr(user, "scopes", None) or []),
+        )
 
 
 class _ProxyApp:
