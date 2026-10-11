@@ -577,3 +577,55 @@ def test_owner_may_act_for_other_users(memory_db, monkeypatch):
     assert seen == ["customer-7"]
     assert body["user_id"] == "customer-7"
     assert client.get("/api/conversations/acme/customer-7").status_code == 200
+
+
+# MCP sibling paths enforce the same rule as REST.
+
+
+@pytest.mark.asyncio
+async def test_mcp_history_tools_bound_to_caller(memory_db):
+    from realize_api.dependencies import CurrentUser
+    from realize_core.mcp_server.tools.chat_tools import clear_history, get_history, get_session
+    from realize_core.memory.conversation import add_message
+    from realize_core.memory.conversation import get_history as stored
+
+    add_message("acme", "boss@acme.io", "assistant", "Payroll is 80k")
+    editor = CurrentUser(user_id="dana@acme.io", role="editor")
+
+    out = await get_history({"system_key": "acme", "user_id": "boss@acme.io"}, app_state=None, user=editor)
+    assert out["code"] == "MCP_FORBIDDEN"
+    assert "Payroll" not in json.dumps(out)
+
+    out = await clear_history({"system_key": "acme", "user_id": "boss@acme.io"}, app_state=None, user=editor)
+    assert out["code"] == "MCP_FORBIDDEN"
+    assert stored("acme", "boss@acme.io")
+
+    out = await get_session({"system_key": "acme", "user_id": "boss@acme.io"}, app_state=None, user=editor)
+    assert out["code"] == "MCP_FORBIDDEN"
+
+    own = await get_history({"system_key": "acme", "user_id": "dana@acme.io"}, app_state=None, user=editor)
+    assert own["messages"] == []
+
+    owner = CurrentUser(user_id="anonymous", role="owner")  # MCP dev mode resolves to this
+    out = await get_history({"system_key": "acme", "user_id": "boss@acme.io"}, app_state=None, user=owner)
+    assert out["messages"][0]["content"] == "Payroll is 80k"
+
+
+@pytest.mark.asyncio
+async def test_mcp_chat_cannot_act_as_someone_else(memory_db, monkeypatch):
+    import realize_core.base_handler as bh
+    from realize_api.dependencies import CurrentUser
+    from realize_core.mcp_server.tools.chat_tools import realize_chat
+
+    seen: list[str] = []
+    monkeypatch.setattr(bh, "process_message", _recording_process(seen))
+    app_state = SimpleNamespace(systems={"acme": {"name": "Acme"}}, config={"features": {}}, kb_path=None)
+
+    out = await realize_chat(
+        {"message": "hi", "system_key": "acme", "user_id": "boss@acme.io"},
+        app_state=app_state,
+        user=CurrentUser(user_id="dana@acme.io", role="editor"),
+    )
+
+    assert seen == ["dana@acme.io"]
+    assert out["user_id"] == "dana@acme.io"

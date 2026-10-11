@@ -22,16 +22,13 @@ MAX_MESSAGE_LENGTH = 4096
 CHAT_TIMEOUT_SECONDS = 120
 #: Seconds between SSE keepalive comments while the answer is being prepared.
 STREAM_KEEPALIVE_SECONDS = 15
-#: Roles that may chat for, and read, other users' conversations
-#: (operators, and API-key integrations acting for their end users).
-ACT_FOR_OTHERS_ROLES = frozenset({"owner", "admin"})
 
 
 def _principal(request: Request) -> tuple[str | None, str]:
     """The authenticated caller as ``(user_id, role)``; user_id is None when auth is off.
 
-    MCP calls arrive through a proxy request without ``state``; the MCP layer
-    authenticates those itself.
+    MCP calls arrive through a proxy request without ``state``; the MCP chat
+    tool applies the same rule with its own authenticated user before calling.
     """
     state = getattr(request, "state", None)
     return getattr(state, "user_id", None), getattr(state, "role", None) or ""
@@ -39,18 +36,17 @@ def _principal(request: Request) -> tuple[str | None, str]:
 
 def _chat_user(request: Request, requested: str) -> str:
     """The user a chat request acts for: the signed-in user unless owner/admin."""
-    principal, role = _principal(request)
-    if principal is None or role in ACT_FOR_OTHERS_ROLES:
-        return requested
-    return principal
+    from realize_core.security.chat_access import chat_user_for
+
+    return chat_user_for(*_principal(request), requested)
 
 
 def _require_own_conversation(request: Request, user_id: str) -> None:
     """403 unless the caller may read or clear ``user_id``'s conversation."""
-    principal, role = _principal(request)
-    if principal is None or role in ACT_FOR_OTHERS_ROLES or principal == user_id:
-        return
-    raise HTTPException(status_code=403, detail="You can only access your own conversations")
+    from realize_core.security.chat_access import may_access_conversation
+
+    if not may_access_conversation(*_principal(request), user_id):
+        raise HTTPException(status_code=403, detail="You can only access your own conversations")
 
 
 class ChatRequest(BaseModel):
