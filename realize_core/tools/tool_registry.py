@@ -131,13 +131,15 @@ class ToolRegistry:
         if self._gate is not None:
             try:
                 decision = self._decide(action_name, params)
-            except Exception as gate_exc:  # a raising gate must fail OPEN, never block tools
-                logger.error(
-                    "Tool gate raised for '%s' — failing open (allow): %s",
-                    action_name,
-                    gate_exc,
-                    exc_info=True,
-                )
+            except Exception as gate_exc:
+                # Fail closed for anything that may write; reads keep working.
+                if self.is_destructive(action_name) is not False:
+                    logger.error("Tool gate raised for '%s' — blocking: %s", action_name, gate_exc, exc_info=True)
+                    return ToolResult.fail(
+                        f"Action '{action_name}' is blocked: governance check failed",
+                        requires_human=True,
+                    )
+                logger.error("Tool gate raised for read '%s' — allowing: %s", action_name, gate_exc, exc_info=True)
                 decision = None
             if decision is not None and not decision.allowed:
                 outcome = getattr(decision, "outcome", None)

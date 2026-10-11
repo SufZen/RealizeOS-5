@@ -167,94 +167,99 @@ def get_pending_approvals(venture_key: str = None, db_path=None) -> list[dict]:
         conn.close()
 
 
-def approve_request(approval_id: str, decision_note: str = None, db_path=None) -> dict | None:
-    """Approve a pending request. Returns the approval record or None if not found."""
+def _now() -> str:
+    return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+
+
+def _decide(
+    approval_id: str,
+    status: str,
+    decision_note: str | None,
+    decided_by: str | None,
+    channel: str | None,
+    db_path=None,
+) -> dict | None:
+    """Move a pending, unexpired item to ``status`` in one compare-and-set step.
+
+    The UPDATE itself requires ``status = 'pending'`` and an unexpired
+    ``expires_at``, so of two concurrent decisions exactly one wins; the other
+    gets None. Expired items can't be decided.
+    """
     from realize_core.db.schema import get_connection
 
-    now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+    now = _now()
     conn = get_connection(db_path)
     try:
-        row = conn.execute(
-            "SELECT * FROM approval_queue WHERE id = ? AND status = 'pending'",
-            (approval_id,),
-        ).fetchone()
-        if not row:
-            return None
-
-        conn.execute(
-            "UPDATE approval_queue SET status = 'approved', decision_note = ?, decided_at = ?, updated_at = ? "
-            "WHERE id = ?",
-            (decision_note, now, now, approval_id),
+        cur = conn.execute(
+            """UPDATE approval_queue
+               SET status = ?, decision_note = ?, decided_at = ?, updated_at = ?,
+                   decided_by = ?, decision_channel = ?
+               WHERE id = ? AND status = 'pending' AND (expires_at IS NULL OR expires_at > ?)""",
+            (status, decision_note, now, now, decided_by, channel, approval_id, now),
         )
         conn.commit()
-
-        result = dict(row)
-        result["status"] = "approved"
-        result["decision_note"] = decision_note
-        result["decided_at"] = now
+        if cur.rowcount != 1:
+            return None
+        row = conn.execute("SELECT * FROM approval_queue WHERE id = ?", (approval_id,)).fetchone()
+        result = dict(row) if row else None
     finally:
         conn.close()
 
-    try:
-        from realize_core.activity.logger import log_event
+    if result is not None:
+        try:
+            from realize_core.activity.logger import log_event
 
-        log_event(
-            venture_key=result["venture_key"],
-            actor_type="user",
-            actor_id="dashboard",
-            action="approval_approved",
-            entity_type="approval",
-            entity_id=approval_id,
-        )
-    except Exception:
-        pass
-
+            log_event(
+                venture_key=result["venture_key"],
+                actor_type="user",
+                actor_id=decided_by or channel or "unknown",
+                action=f"approval_{status}",
+                entity_type="approval",
+                entity_id=approval_id,
+                details=json.dumps({"channel": channel}),
+            )
+        except Exception:
+            logger.debug("activity log failed for approval decision", exc_info=True)
     return result
 
 
-def reject_request(approval_id: str, decision_note: str = None, db_path=None) -> dict | None:
-    """Reject a pending request. Returns the approval record or None if not found."""
-    from realize_core.db.schema import get_connection
+def approve_request(
+    approval_id: str,
+    decision_note: str = None,
+    db_path=None,
+    *,
+    decided_by: str | None = None,
+    channel: str | None = None,
+) -> dict | None:
+    """Approve a pending, unexpired request. Returns the row, or None if it isn't pending or has expired."""
+    return _decide(approval_id, "approved", decision_note, decided_by, channel, db_path)
 
-    now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
-    conn = get_connection(db_path)
-    try:
-        row = conn.execute(
-            "SELECT * FROM approval_queue WHERE id = ? AND status = 'pending'",
-            (approval_id,),
-        ).fetchone()
-        if not row:
-            return None
 
-        conn.execute(
-            "UPDATE approval_queue SET status = 'rejected', decision_note = ?, decided_at = ?, updated_at = ? "
-            "WHERE id = ?",
-            (decision_note, now, now, approval_id),
-        )
-        conn.commit()
+def reject_request(
+    approval_id: str,
+    decision_note: str = None,
+    db_path=None,
+    *,
+    decided_by: str | None = None,
+    channel: str | None = None,
+) -> dict | None:
+    """Reject a pending, unexpired request. Returns the row, or None if it isn't pending or has expired."""
+    return _decide(approval_id, "rejected", decision_note, decided_by, channel, db_path)
 
-        result = dict(row)
-        result["status"] = "rejected"
-        result["decision_note"] = decision_note
-        result["decided_at"] = now
-    finally:
-        conn.close()
 
-    try:
-        from realize_core.activity.logger import log_event
+def answer_request(
+    approval_id: str,
+    answer: str,
+    db_path=None,
+    *,
+    answered_by: str | None = None,
+    channel: str | None = None,
+) -> dict | None:
+    """Record the answer to a skill's question (``skill_input``).
 
-        log_event(
-            venture_key=result["venture_key"],
-            actor_type="user",
-            actor_id="dashboard",
-            action="approval_rejected",
-            entity_type="approval",
-            entity_id=approval_id,
-        )
-    except Exception:
-        pass
-
-    return result
+    An answer is input, not an approval: the row becomes ``answered``.
+    """
+    return _decide(approval_id, "answered", answer, answered_by, channel, db_path)
 
 
 # ---------------------------------------------------------------------------
@@ -263,20 +268,23 @@ def reject_request(approval_id: str, decision_note: str = None, db_path=None) ->
 
 
 def _claim_for_execution(approval_id: str, db_path=None) -> dict | None:
-    """Atomically mark an approved, not-yet-executed tool action as executing.
+    """Atomically claim an approved, unexpired, not-yet-dispatched tool action.
 
     Returns the row when this caller won the claim, else None, so a double
-    click or a retry can never run the same action twice.
+    click or a retry never dispatches the same action twice. The claim is
+    committed before the tool runs: if the process dies mid-call the row stays
+    ``execution_status = 'claimed'`` (unknown outcome) and is not retried.
     """
     from realize_core.db.schema import get_connection
 
-    now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+    now = _now()
     conn = get_connection(db_path)
     try:
         cur = conn.execute(
-            """UPDATE approval_queue SET executed_at = ?, updated_at = ?
-               WHERE id = ? AND status = 'approved' AND executed_at IS NULL AND action_name IS NOT NULL""",
-            (now, now, approval_id),
+            """UPDATE approval_queue SET executed_at = ?, updated_at = ?, execution_status = 'claimed'
+               WHERE id = ? AND status = 'approved' AND executed_at IS NULL AND action_name IS NOT NULL
+                 AND (expires_at IS NULL OR expires_at > ?)""",
+            (now, now, approval_id, now),
         )
         conn.commit()
         if cur.rowcount != 1:
@@ -290,12 +298,12 @@ def _claim_for_execution(approval_id: str, db_path=None) -> dict | None:
 def _store_execution_result(approval_id: str, output: str, error: str | None, db_path=None) -> None:
     from realize_core.db.schema import get_connection
 
-    now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+    now = _now()
     conn = get_connection(db_path)
     try:
         conn.execute(
-            "UPDATE approval_queue SET result_json = ?, error = ?, updated_at = ? WHERE id = ?",
-            (json.dumps({"output": output}, default=str), error, now, approval_id),
+            "UPDATE approval_queue SET result_json = ?, error = ?, updated_at = ?, execution_status = ? WHERE id = ?",
+            (json.dumps({"output": output}, default=str), error, now, "failed" if error else "succeeded", approval_id),
         )
         conn.commit()
     finally:
@@ -318,17 +326,21 @@ def report_to_conversation(session_ref: str | None, text: str) -> None:
 
 
 async def execute_approved_action(approval_id: str, db_path=None) -> dict:
-    """Run an approved tool action exactly once and record the outcome.
+    """Dispatch an approved tool action at most once and record the outcome.
 
     The action runs through the tool registry without consulting the gate
-    again (an operator approved this exact action and parameters). The result
-    is stored on the approval row, logged as ``approval_executed``, and posted
-    into the originating conversation.
+    again (an operator approved this exact action and parameters). The
+    guarantee is one dispatch attempt per approval, not exactly-once effects:
+    if the process stops between the claim and storing the result, the row
+    stays ``execution_status = 'claimed'`` and a person must check whether the
+    action happened. It is never retried automatically. The result is stored
+    on the approval row, logged as ``approval_executed``, and a fixed status
+    line is posted into the originating conversation.
 
     Returns:
         ``{"executed": bool, "success": bool, "output": str, "error": str | None}``.
         ``executed`` is False when there was nothing to run (not a tool action,
-        not approved, or already executed).
+        not approved, already dispatched, or expired).
     """
     row = _claim_for_execution(approval_id, db_path)
     if row is None:
@@ -410,34 +422,74 @@ async def _resume_skill_from_approval(record: dict, answer: str) -> str | None:
     return output
 
 
-async def decide_approval(
-    approval_id: str, approve: bool, decision_note: str | None = None, db_path=None
-) -> dict | None:
-    """Approve or reject an approval item and carry out what the decision implies.
+def _action_type(approval_id: str, db_path=None) -> str | None:
+    from realize_core.db.schema import get_connection
 
-    - Approved tool action: executed once (:func:`execute_approved_action`).
-    - Skill question (``skill_input``): the paused skill resumes with the
-      decision note, or "yes"/"no".
+    conn = get_connection(db_path)
+    try:
+        row = conn.execute("SELECT action_type FROM approval_queue WHERE id = ?", (approval_id,)).fetchone()
+        return row["action_type"] if row else None
+    finally:
+        conn.close()
+
+
+def _stop_paused_skill(record: dict) -> None:
+    """Drop the paused skill this question belongs to: a rejected question stops the skill."""
+    from realize_core.governance.context import parse_session_ref
+    from realize_core.skills.executor import peek_skill_resume_context, pop_skill_resume_context
+
+    parsed = parse_session_ref(record.get("session_ref"))
+    if not parsed:
+        return
+    pending = peek_skill_resume_context(parsed[1])
+    if pending and pending.get("approval_id") == record.get("id"):
+        pop_skill_resume_context(parsed[1])
+        report_to_conversation(record.get("session_ref"), "The skill was stopped: its question was rejected.")
+
+
+async def decide_approval(
+    approval_id: str,
+    approve: bool,
+    decision_note: str | None = None,
+    db_path=None,
+    *,
+    decided_by: str | None = None,
+    channel: str | None = None,
+) -> dict | None:
+    """Decide an approval item and carry out what the decision implies.
+
+    - Tool action, approved: dispatched once (:func:`execute_approved_action`).
+    - Tool action, rejected: never runs; the conversation is told.
+    - Skill question (``skill_input``): approving with an answer records it as
+      ``answered`` (input, not an approval) and resumes the skill; rejecting
+      stops the skill.
+
+    Only one decision can win: the transition requires the item to be pending
+    and unexpired. ``decided_by`` / ``channel`` are stored on the row.
 
     Returns ``{"approval": row, "execution": ..., "skill_output": ...}`` or
-    None when the item doesn't exist or isn't pending.
+    None when the item doesn't exist, isn't pending or has expired.
     """
-    record = (
-        approve_request(approval_id, decision_note=decision_note, db_path=db_path)
-        if approve
-        else reject_request(approval_id, decision_note=decision_note, db_path=db_path)
-    )
+    is_question = _action_type(approval_id, db_path) == "skill_input"
+    if is_question and approve:
+        record = answer_request(approval_id, decision_note or "yes", db_path, answered_by=decided_by, channel=channel)
+    elif approve:
+        record = approve_request(approval_id, decision_note, db_path, decided_by=decided_by, channel=channel)
+    else:
+        record = reject_request(approval_id, decision_note, db_path, decided_by=decided_by, channel=channel)
     if record is None:
         return None
 
     out: dict = {"approval": record, "execution": None, "skill_output": None}
-    if approve and record.get("action_name"):
+    if is_question:
+        if approve:
+            out["skill_output"] = await _resume_skill_from_approval(record, decision_note or "yes")
+        else:
+            _stop_paused_skill(record)
+    elif approve and record.get("action_name"):
         out["execution"] = await execute_approved_action(approval_id, db_path=db_path)
     elif not approve and record.get("action_name"):
         report_to_conversation(
             record.get("session_ref"), f"`{record['action_name']}` was not approved, so it was not done."
         )
-    if record.get("action_type") == "skill_input":
-        answer = decision_note or ("yes" if approve else "no")
-        out["skill_output"] = await _resume_skill_from_approval(record, answer)
     return out

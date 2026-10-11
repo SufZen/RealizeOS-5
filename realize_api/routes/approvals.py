@@ -9,7 +9,7 @@ Endpoints:
 
 import logging
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
 router = APIRouter()
@@ -50,13 +50,23 @@ async def list_approvals(
         conn.close()
 
 
+def _decider(request: Request) -> tuple[str | None, str]:
+    """Who is deciding, and through which channel (stored on the approval)."""
+    state = request.state
+    channel = "dashboard" if getattr(state, "auth_source", None) == "session" else "api"
+    return getattr(state, "user_id", None), channel
+
+
 @router.post("/approvals/{approval_id}/approve")
-async def approve(approval_id: str, body: DecisionBody = None):
-    """Approve a pending request — a held tool action is executed now."""
+async def approve(approval_id: str, request: Request, body: DecisionBody = None):
+    """Approve a pending request — a held tool action is dispatched now (once)."""
     from realize_core.governance.gates import decide_approval
 
     note = body.decision_note if body else None
-    result = await decide_approval(approval_id, approve=True, decision_note=note)
+    decided_by, channel = _decider(request)
+    result = await decide_approval(
+        approval_id, approve=True, decision_note=note, decided_by=decided_by, channel=channel
+    )
 
     if result is None:
         raise HTTPException(status_code=404, detail="Approval not found or not pending")
@@ -65,12 +75,15 @@ async def approve(approval_id: str, body: DecisionBody = None):
 
 
 @router.post("/approvals/{approval_id}/reject")
-async def reject(approval_id: str, body: DecisionBody = None):
+async def reject(approval_id: str, request: Request, body: DecisionBody = None):
     """Reject a pending request."""
     from realize_core.governance.gates import decide_approval
 
     note = body.decision_note if body else None
-    result = await decide_approval(approval_id, approve=False, decision_note=note)
+    decided_by, channel = _decider(request)
+    result = await decide_approval(
+        approval_id, approve=False, decision_note=note, decided_by=decided_by, channel=channel
+    )
 
     if result is None:
         raise HTTPException(status_code=404, detail="Approval not found or not pending")

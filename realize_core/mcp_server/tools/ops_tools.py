@@ -407,6 +407,7 @@ def _decision_summary(result: dict) -> dict:
         "action": approval.get("action_name") or approval.get("action_type"),
         "venture_key": approval.get("venture_key"),
         "decided_at": approval.get("decided_at"),
+        "decided_by": approval.get("decided_by"),
         "executed": bool(execution and execution.get("executed")),
         "success": bool(execution and execution.get("success")),
         "skill_resumed": result.get("skill_output") is not None,
@@ -423,7 +424,13 @@ async def approve_request(args: dict[str, Any], app_state: Any, user: CurrentUse
     approval_id = (args.get("approval_id") or "").strip()
     if not approval_id:
         return {"error": "approval_id is required", "code": "MCP_VALIDATION"}
-    result = await decide_approval(approval_id, approve=True, decision_note=args.get("decision_note") or None)
+    result = await decide_approval(
+        approval_id,
+        approve=True,
+        decision_note=args.get("decision_note") or None,
+        decided_by=getattr(user, "user_id", None),
+        channel="mcp",
+    )
     if result is None:
         return {"error": "Approval not found or not pending", "code": "MCP_NOT_FOUND"}
     return _decision_summary(result)
@@ -439,7 +446,13 @@ async def reject_request(args: dict[str, Any], app_state: Any, user: CurrentUser
     approval_id = (args.get("approval_id") or "").strip()
     if not approval_id:
         return {"error": "approval_id is required", "code": "MCP_VALIDATION"}
-    result = await decide_approval(approval_id, approve=False, decision_note=args.get("decision_note") or None)
+    result = await decide_approval(
+        approval_id,
+        approve=False,
+        decision_note=args.get("decision_note") or None,
+        decided_by=getattr(user, "user_id", None),
+        channel="mcp",
+    )
     if result is None:
         return {"error": "Approval not found or not pending", "code": "MCP_NOT_FOUND"}
     return _decision_summary(result)

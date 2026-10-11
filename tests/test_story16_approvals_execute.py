@@ -293,7 +293,9 @@ class TestSkillHumanStep:
 
         assert "yes, pay it" in reply
         assert skill_env.peek_skill_resume_context("dana") is None
-        assert _row(db, approval_id)["status"] == "approved"
+        row = _row(db, approval_id)
+        assert row["status"] == "answered"  # input, not an approval
+        assert (row["decided_by"], row["decision_channel"]) == ("dana", "chat")
 
     @pytest.mark.asyncio
     async def test_dashboard_decision_resumes_skill(self, skill_env, db, conversation, monkeypatch):
@@ -308,11 +310,28 @@ class TestSkillHumanStep:
         await skill_env._execute_v2_steps(SKILL, "check payment", "tower-b", "dana", None, {}, {}, "api")
         approval_id = skill_env.peek_skill_resume_context("dana")["approval_id"]
 
-        out = await decide_approval(approval_id, approve=False, decision_note="hold until inspection")
+        out = await decide_approval(
+            approval_id, approve=True, decision_note="hold until inspection", decided_by="owner@x", channel="dashboard"
+        )
 
         assert "hold until inspection" in out["skill_output"]
         assert conversation[-1][:3] == ("tower-b", "dana", "assistant")
         assert skill_env.peek_skill_resume_context("dana") is None
+        assert _row(db, approval_id)["status"] == "answered"
+
+    @pytest.mark.asyncio
+    async def test_rejecting_the_question_stops_the_skill(self, skill_env, db, conversation):
+        from realize_core.governance.gates import decide_approval
+
+        await skill_env._execute_v2_steps(SKILL, "check payment", "tower-b", "dana", None, {}, {}, "api")
+        approval_id = skill_env.peek_skill_resume_context("dana")["approval_id"]
+
+        out = await decide_approval(approval_id, approve=False, decided_by="owner@x", channel="dashboard")
+
+        assert out["skill_output"] is None  # nothing after the question ran
+        assert skill_env.peek_skill_resume_context("dana") is None
+        assert _row(db, approval_id)["status"] == "rejected"
+        assert "stopped" in conversation[-1][3]
 
 
 # ---------------------------------------------------------------------------
@@ -387,3 +406,209 @@ async def test_mcp_decision_returns_summary_only(gated, db, conversation):
     text = json.dumps(out, ensure_ascii=False)
     assert "Payment #7" not in text  # neither params nor output are echoed
     assert "params_json" not in out
+
+
+# ---------------------------------------------------------------------------
+# Review follow-up: atomic decisions, expiry, decider, outcome, fail closed
+# ---------------------------------------------------------------------------
+
+
+def _set(db, approval_id, **cols):
+    conn = sqlite3.connect(db)
+    try:
+        sets = ", ".join(f"{k} = ?" for k in cols)
+        conn.execute(f"UPDATE approval_queue SET {sets} WHERE id = ?", (*cols.values(), approval_id))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+class TestDecisions:
+    @pytest.mark.asyncio
+    async def test_only_one_conflicting_decision_wins(self, gated, db):
+        from realize_core.governance.gates import approve_request, reject_request
+
+        registry, _ = gated
+        approval_id = await _hold(registry)
+
+        assert reject_request(approval_id, "no", decided_by="a@x") is not None
+        assert approve_request(approval_id, "yes", decided_by="b@x") is None  # the loser gets nothing
+        row = _row(db, approval_id)
+        assert (row["status"], row["decided_by"]) == ("rejected", "a@x")
+
+    @pytest.mark.asyncio
+    async def test_concurrent_decisions_have_one_winner(self, gated, db):
+        import threading
+
+        from realize_core.governance.gates import approve_request, reject_request
+
+        registry, _ = gated
+        approval_id = await _hold(registry)
+        barrier = threading.Barrier(2)
+        results: dict[str, object] = {}
+
+        def run(name, fn):
+            barrier.wait()
+            results[name] = fn(approval_id, name, decided_by=name)
+
+        threads = [
+            threading.Thread(target=run, args=(n, f))
+            for n, f in (("approve", approve_request), ("reject", reject_request))
+        ]
+        for th in threads:
+            th.start()
+        for th in threads:
+            th.join()
+
+        winners = [n for n, r in results.items() if r is not None]
+        assert len(winners) == 1
+        assert _row(db, approval_id)["status"] == ("approved" if winners == ["approve"] else "rejected")
+
+    @pytest.mark.asyncio
+    async def test_expired_items_cannot_be_decided_or_run(self, gated, db):
+        from realize_core.governance.gates import decide_approval
+
+        registry, tool = gated
+        approval_id = await _hold(registry)
+        _set(db, approval_id, expires_at="2000-01-01T00:00:00.000000Z")
+
+        assert await decide_approval(approval_id, approve=True) is None
+        assert tool.calls == []
+
+    @pytest.mark.asyncio
+    async def test_expiry_between_approval_and_dispatch_blocks_the_run(self, gated, db):
+        from realize_core.governance.gates import approve_request, execute_approved_action
+
+        registry, tool = gated
+        approval_id = await _hold(registry)
+        approve_request(approval_id, decided_by="owner@x")
+        _set(db, approval_id, expires_at="2000-01-01T00:00:00.000000Z")
+
+        out = await execute_approved_action(approval_id)
+        assert out["executed"] is False
+        assert tool.calls == []
+
+    @pytest.mark.asyncio
+    async def test_decider_and_channel_are_recorded(self, gated, db, monkeypatch):
+        from realize_core.activity import logger as activity
+        from realize_core.governance.gates import decide_approval
+
+        logged: list[dict] = []
+        monkeypatch.setattr(activity, "log_event", lambda **kw: logged.append(kw))
+        registry, _ = gated
+        approval_id = await _hold(registry)
+
+        await decide_approval(approval_id, approve=True, decided_by="owner@x", channel="mcp")
+
+        row = _row(db, approval_id)
+        assert (row["decided_by"], row["decision_channel"]) == ("owner@x", "mcp")
+        assert row["requested_by"] == "dana"  # requester and decider stay distinct
+        decision = next(e for e in logged if e["action"] == "approval_approved")
+        assert decision["actor_id"] == "owner@x"
+
+
+class TestExecutionOutcome:
+    @pytest.mark.asyncio
+    async def test_status_moves_from_claimed_to_a_result(self, gated, db):
+        from realize_core.governance.gates import decide_approval
+
+        registry, _ = gated
+        approval_id = await _hold(registry)
+        await decide_approval(approval_id, approve=True)
+        assert _row(db, approval_id)["execution_status"] == "succeeded"
+
+    @pytest.mark.asyncio
+    async def test_failed_run_is_marked_failed(self, db, monkeypatch):
+        import realize_core.tools.tool_registry as tr
+        from realize_core.governance.gates import decide_approval
+        from realize_core.governance.tool_gate import ToolGate
+
+        monkeypatch.setattr(tr, "_registry", None)
+        registry = tr.get_tool_registry()
+        registry.register(LedgerTool(fail=True))
+        registry.set_gate(ToolGate(config={}))
+        approval_id = await _hold(registry)
+        await decide_approval(approval_id, approve=True)
+        assert _row(db, approval_id)["execution_status"] == "failed"
+
+    @pytest.mark.asyncio
+    async def test_claimed_without_result_is_visible_and_never_retried(self, gated, db):
+        """A crash after the claim leaves an unknown outcome: visible, not re-dispatched."""
+        from realize_core.governance.gates import _claim_for_execution, approve_request, execute_approved_action
+
+        registry, tool = gated
+        approval_id = await _hold(registry)
+        approve_request(approval_id)
+        assert _claim_for_execution(approval_id) is not None  # ... and the process "dies" here
+
+        assert _row(db, approval_id)["execution_status"] == "claimed"
+        assert (await execute_approved_action(approval_id))["executed"] is False
+        assert tool.calls == []
+
+
+class TestFailClosed:
+    @pytest.mark.asyncio
+    async def test_broken_trust_level_still_holds_writes(self, db, monkeypatch):
+        import realize_core.tools.tool_registry as tr
+        from realize_core.governance.tool_gate import ToolGate
+
+        monkeypatch.setattr(tr, "_registry", None)
+        registry = tr.get_tool_registry()
+        tool = LedgerTool()
+        registry.register(tool)
+        registry.set_gate(ToolGate(config={"trust": {"level": "bad"}}))
+
+        result = await registry.execute("ledger_append", {"row": "x"})
+        assert tool.calls == []
+        assert result.metadata.get("requires_human") is True
+
+    @pytest.mark.asyncio
+    async def test_raising_gate_blocks_writes(self, monkeypatch):
+        import realize_core.tools.tool_registry as tr
+
+        class Boom:
+            def decide(self, *a, **k):
+                raise RuntimeError("policy error")
+
+        monkeypatch.setattr(tr, "_registry", None)
+        registry = tr.get_tool_registry()
+        tool = LedgerTool()
+        registry.register(tool)
+        registry.set_gate(Boom())
+
+        result = await registry.execute("ledger_append", {"row": "x"})
+        assert result.success is False
+        assert tool.calls == []
+
+    @pytest.mark.asyncio
+    async def test_no_durable_approval_means_blocked_not_pending(self, gated, monkeypatch):
+        from realize_core.governance import gates
+
+        def fail(**_kw):
+            raise sqlite3.OperationalError("disk I/O error")
+
+        monkeypatch.setattr(gates, "create_approval_request", fail)
+        registry, tool = gated
+        result = await registry.execute("ledger_append", {"row": "x"})
+
+        assert tool.calls == []
+        assert result.success is False
+        assert not result.metadata.get("request_id")
+
+
+def test_migration_007_rebuild_allows_answered_and_keeps_rows(tmp_path):
+    import importlib
+
+    base = importlib.import_module("realize_core.migration.versions.001_baseline")
+    m007 = importlib.import_module("realize_core.migration.versions.007_approval_execution")
+
+    conn = sqlite3.connect(tmp_path / "old.db")
+    base.up(conn)
+    conn.execute("INSERT INTO approval_queue (id, venture_key, agent_key, action_type) VALUES ('a1', 'v', 'g', 'x')")
+    m007.up(conn)
+    conn.execute("UPDATE approval_queue SET status = 'answered' WHERE id = 'a1'")
+    assert conn.execute("SELECT status FROM approval_queue WHERE id = 'a1'").fetchone()[0] == "answered"
+
+    m007.down(conn)  # 'answered' maps back to 'approved' under the old constraint
+    assert conn.execute("SELECT status FROM approval_queue WHERE id = 'a1'").fetchone()[0] == "approved"
+    conn.close()

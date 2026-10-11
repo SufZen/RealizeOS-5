@@ -124,7 +124,7 @@ def test_toolgate_decide_returns_decision_and_never_raises() -> None:
     assert decision.outcome in (GateOutcome.ALLOW, GateOutcome.NEEDS_APPROVAL, GateOutcome.BLOCK)
 
 
-def test_toolgate_fails_open_on_internal_error(monkeypatch) -> None:
+def test_toolgate_fails_closed_for_writes_on_internal_error(monkeypatch) -> None:
     from realize_core.governance import tool_gate as tg
 
     def _boom(*_a, **_k):
@@ -132,5 +132,6 @@ def test_toolgate_fails_open_on_internal_error(monkeypatch) -> None:
 
     monkeypatch.setattr(tg, "check_trust", _boom)
     gate = tg.ToolGate(config={})
-    decision = gate.decide("anything", {})
-    assert decision.outcome is GateOutcome.ALLOW  # fail-open
+    assert gate.decide("anything", {}).outcome is GateOutcome.BLOCK  # unknown: may write
+    assert gate.decide("anything", {}, is_destructive=True).outcome is GateOutcome.BLOCK
+    assert gate.decide("anything", {}, is_destructive=False).outcome is GateOutcome.ALLOW  # reads keep working

@@ -118,10 +118,23 @@ uploads/downloads are confined to `REALIZE_AGENT_FILES_DIR` (default `<KB_PATH>/
 
 > **Since 5.7.0, approving executes.** A held action is stored in `approval_queue` with its full
 > parameters and the conversation it came from. Approving it (dashboard, `POST /api/approvals/{id}/approve`,
-> or the MCP `approve_request` tool) runs it exactly once through the tool registry, stores the result or
-> error on the approval, and posts the outcome back into that conversation. Rejecting never runs it.
-> Skill `human` steps also create approval items; answering in chat or approving/rejecting in the
-> dashboard resumes the skill. New installs from `realize_lite` ship with `enforce_gates: true`;
+> or the MCP `approve_request` tool) dispatches it **at most once** through the tool registry, stores
+> the result or error on the approval, and posts a status line back into that conversation. Rejecting
+> never runs it. Only one decision can win (the item must still be pending and unexpired), and the
+> approval records who decided (`decided_by`) and from where (`decision_channel`).
+>
+> **Outcome.** `execution_status` moves `claimed` → `succeeded` or `failed`. A row left at `claimed`
+> means the process stopped while the action was running: the outcome is unknown, it is not retried
+> automatically, and a person should check the external system (for example the sheet) and note the
+> result. Expired approvals can't be approved or run.
+>
+> **Fails closed.** If the governance check itself fails (for example a malformed `trust.level`,
+> which also falls back to level 1) or the approval can't be saved, write actions are blocked; reads
+> keep working.
+>
+> Skill `human` steps create a question item (`skill_input`). Answering it — in chat or by approving
+> with a note in the dashboard — records it as `answered` (input, not an approval) and resumes the
+> skill; rejecting it stops the skill. New installs from `realize_lite` ship with `enforce_gates: true`;
 > the engine default stays `false` for existing configs.
 
 

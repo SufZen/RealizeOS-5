@@ -493,14 +493,15 @@ async def _resume_paused_skill(system_key, user_id, message, kb_path, system_con
     if not pending or getattr(pending.get("context"), "system_key", None) != system_key:
         return None
     approval_id = pending.get("approval_id")
-    result = await resume_pending_skill(user_id, message, kb_path, system_config, shared_config, channel)
     if approval_id:
+        # An answer is input, not an approval: the item becomes 'answered'.
         try:
-            from realize_core.governance.gates import approve_request
+            from realize_core.governance.gates import answer_request
 
-            approve_request(approval_id, decision_note=f"Answered in chat: {message[:200]}")
+            answer_request(approval_id, message[:200], answered_by=user_id, channel="chat")
         except Exception:
-            logger.debug("Could not close approval item %s", approval_id, exc_info=True)
+            logger.debug("Could not record the answer on item %s", approval_id, exc_info=True)
+    result = await resume_pending_skill(user_id, message, kb_path, system_config, shared_config, channel)
     add_message(system_key, user_id, "user", message)
     add_message(system_key, user_id, "assistant", result)
     return result
