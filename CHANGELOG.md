@@ -4,6 +4,19 @@ All notable changes to RealizeOS are documented in this file.
 This changelog is automatically generated from [Conventional Commits](https://conventionalcommits.org).
 
 
+## [5.15.0](https://github.com/SufZen/RealizeOS-5/compare/v5.14.0...v5.15.0) (2026-10-12)
+
+### Features
+
+* **llm:** default to the newest Claude models (Sonnet 5.5, Opus 5.5) ([2d9b023](https://github.com/SufZen/RealizeOS-5/commit/2d9b023679c2044ebdae731d305e423e2828e497))
+
+### Bug Fixes
+
+* **llm:** recover from a dead Claude model on the native tool path ([0de7215](https://github.com/SufZen/RealizeOS-5/commit/0de72158716f1418f8beffa7d4b30f173cd1064f))
+* **llm:** treat a model refusal as final, never retry it on another provider ([a0a9796](https://github.com/SufZen/RealizeOS-5/commit/a0a9796f7bc2416d72c1623575240c1b9293d9c7))
+* **llm:** use live Claude model IDs and fall through to the next provider ([2e2eb26](https://github.com/SufZen/RealizeOS-5/commit/2e2eb263a385a3aefa02c87ffc830d929facf7ec))
+* **ventures:** make venture delete and create all-or-nothing ([4efe3bc](https://github.com/SufZen/RealizeOS-5/commit/4efe3bced4ffbad26290c2ec39fdb9d5879c27fd))
+
 ## [5.14.0](https://github.com/SufZen/RealizeOS-5/compare/v5.13.0...v5.14.0) (2026-10-12)
 
 ### Features
