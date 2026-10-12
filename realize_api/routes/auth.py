@@ -176,13 +176,24 @@ async def get_session_info(request: Request):
     if record is None:
         return {"authenticated": False}
 
+    # Same rule as the auth middleware (Codex audit F20): the session is only as
+    # good as the configured user behind it. A removed user is signed out here
+    # too, and a role change shows immediately instead of the role at sign-in.
+    from realize_core.security.users import get_user
+
+    current_user = get_user(record.user_id)
+    if current_user is None:
+        logger.warning("Session for %s revoked: user no longer configured", record.user_id)
+        session_store.revoke_session(session_id)
+        return {"authenticated": False}
+
     from realize_core.security.venture_scope import allowed_ventures
 
     allowed = allowed_ventures(record.user_id)
     return {
         "authenticated": True,
         "user_id": record.user_id,
-        "role": record.role,
+        "role": current_user.role,
         "expires_at": record.expires_at,
         # Ventures this user is limited to; null = every venture (STORY-18).
         "ventures": sorted(allowed) if allowed is not None else None,

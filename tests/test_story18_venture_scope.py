@@ -147,6 +147,39 @@ class TestUsersAndScope:
         client.cookies.set(session_store.SESSION_COOKIE_NAME, "s1")
         assert client.get("/api/auth/session").json()["ventures"] == ["acme"]
 
+    def _session_for(self, monkeypatch, user_id: str, role: str):
+        from realize_core.security import session_store
+
+        record = session_store.SessionRecord(
+            session_id="s1",
+            user_id=user_id,
+            role=role,
+            csrf_token="c",
+            created_at="",
+            last_seen_at="",
+            expires_at="",
+            ip_address="",
+            user_agent="",
+            remember_me=False,
+        )
+        revoked: list[str] = []
+        monkeypatch.setattr(session_store, "get_session", lambda _sid: record)
+        monkeypatch.setattr(session_store, "revoke_session", lambda sid: revoked.append(sid))
+        client = _client()
+        client.cookies.set(session_store.SESSION_COOKIE_NAME, "s1")
+        return client, revoked
+
+    def test_session_of_a_removed_user_is_signed_out(self, users_file, monkeypatch):
+        """Codex audit F20: introspection re-checks users.yaml like protected requests do."""
+        client, revoked = self._session_for(monkeypatch, "gone@acme.io", "operator")
+        assert client.get("/api/auth/session").json() == {"authenticated": False}
+        assert revoked == ["s1"]
+
+    def test_session_reports_the_current_role(self, users_file, monkeypatch):
+        # Signed in as an operator; users.yaml now says viewer.
+        client, _ = self._session_for(monkeypatch, "vic@acme.io", "operator")
+        assert client.get("/api/auth/session").json()["role"] == "viewer"
+
 
 # ---------------------------------------------------------------------------
 # Reads: scoped users see their ventures only
