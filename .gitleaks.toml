@@ -18,4 +18,5 @@ paths = [
     '''docs/user-guide\.html''',
     '''tests/security/test_phase1_adversarial\.py''',
     '''tests/test_auth_middleware\.py''',
+    '''tests/test_mcp_oauth\.py''',
 ]

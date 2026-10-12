@@ -72,9 +72,24 @@ def _is_public(path: str) -> bool:
     # Anything that isn't under /api/, /mcp/, or a static dotfile is dashboard SPA HTML.
     # The SPA itself is harmless to serve unauthenticated — the auth-guard inside React
     # handles redirecting to /login.
-    if not path.startswith("/api/") and not path.startswith("/mcp/"):
+    if not path.startswith("/api/") and not _is_mcp_path(path):
         return True
     return False
+
+
+def _is_mcp_path(path: str) -> bool:
+    """True for the MCP endpoints: ``/mcp`` (Streamable HTTP) and ``/mcp/*``."""
+    return path == "/mcp" or path.startswith("/mcp/")
+
+
+def _mcp_challenge(scope) -> dict[str, str]:
+    """``WWW-Authenticate`` for a 401 on MCP: points OAuth clients at discovery (RFC 9728)."""
+    app = scope.get("app")
+    config = getattr(getattr(app, "state", None), "mcp_config", None)
+    if getattr(getattr(app, "state", None), "mcp_oauth", None) is None or config is None:
+        return {}
+    metadata = f"{config.public_url}/.well-known/oauth-protected-resource/mcp"
+    return {"WWW-Authenticate": f'Bearer resource_metadata="{metadata}"'}
 
 
 def _is_signed_webhook_delivery(request: Request) -> bool:
@@ -117,23 +132,42 @@ class AuthMiddleware(BaseHTTPMiddleware):
     async def __call__(self, scope, receive, send):
         # __mcp_sse_bypass__: MCP SSE transport is incompatible with
         # BaseHTTPMiddleware response buffering. Enforce auth at the ASGI layer
-        # for /mcp/* and then stream through unbuffered.
-        if scope.get("type") == "http" and scope.get("path", "").startswith("/mcp/"):
+        # for /mcp and /mcp/* and then stream through unbuffered.
+        if scope.get("type") == "http" and _is_mcp_path(scope.get("path", "")):
             request = Request(scope, receive)
-            provided_key = self._extract_api_key(request)
-            authorized = bool(self.api_key and provided_key and provided_key == self.api_key)
-            if not authorized and self.jwt_enabled:
-                authorized = (await self._try_jwt(request)) is True
-            if not authorized:
+            if not await self._authorize_mcp(request):
                 response = JSONResponse(
                     status_code=401,
                     content={"error": "auth_required", "message": "Authentication required."},
+                    headers=_mcp_challenge(scope),
                 )
                 await response(scope, receive, send)
                 return
             await self.app(scope, receive, send)
             return
         await super().__call__(scope, receive, send)
+
+    async def _authorize_mcp(self, request: Request) -> bool:
+        """Check an MCP request's credentials and attach the caller to ``request.state``.
+
+        Accepts the API key, a JWT, or an MCP OAuth access token (issue #21).
+        """
+        provided_key = self._extract_api_key(request)
+        if self.api_key and provided_key and provided_key == self.api_key:
+            return True
+        if self.jwt_enabled and (await self._try_jwt(request)) is True:
+            return True
+        if provided_key and getattr(request.app.state, "mcp_oauth", None) is not None:
+            from realize_core.mcp_server.oauth import resolve_access_token
+
+            user = resolve_access_token(provided_key)
+            if user is not None:
+                request.state.user_id = user.user_id
+                request.state.role = user.role
+                request.state.scopes = user.scopes
+                request.state.auth_source = "mcp_oauth"
+                return True
+        return False
 
     async def dispatch(self, request: Request, call_next):
         path = request.url.path

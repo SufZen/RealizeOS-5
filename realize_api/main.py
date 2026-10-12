@@ -6,7 +6,7 @@ Provides REST endpoints for chat, system management, and health checks.
 
 import logging
 import os
-from contextlib import asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager
 from pathlib import Path
 
 from fastapi import Depends, FastAPI
@@ -401,7 +401,13 @@ async def lifespan(app: FastAPI):
         logger.warning(f"Dream scheduler skipped: {e}")
 
     logger.info(f"RealizeOS API ready — {num_systems} system(s) loaded")
-    yield
+
+    # MCP Streamable HTTP transport (/mcp) runs for the app's lifetime.
+    async with AsyncExitStack() as mcp_stack:
+        mcp_streamable = getattr(app.state, "mcp_streamable", None)
+        if mcp_streamable is not None:
+            await mcp_stack.enter_async_context(mcp_streamable.running())
+        yield
 
     # Shutdown
     logger.info("RealizeOS API shutting down...")

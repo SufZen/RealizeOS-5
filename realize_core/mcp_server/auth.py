@@ -1,9 +1,11 @@
 """Auth bridge between the MCP request and the existing user model.
 
-The SSE endpoint runs through the existing :mod:`realize_api.middleware`
-stack, which sets ``request.state.user_id`` / ``request.state.role``. When
-the MCP session opens, we capture that :class:`CurrentUser` in a
-contextvar; tool handlers retrieve it via :func:`current_mcp_user`.
+Both transports run through the existing :mod:`realize_api.middleware`
+stack, which sets ``request.state.user_id`` / ``request.state.role``. For
+SSE, the user who opened the stream is captured in a contextvar when the
+session opens. For Streamable HTTP (stateless) the caller is read from the
+HTTP request behind each JSON-RPC message. Tool handlers get either via
+:func:`current_mcp_user`.
 
 Production gate: when ``REALIZE_ENV=production`` AND ``mcp.allow_admin``
 is true, the server refuses to start unless JWT is enabled with a strong
@@ -42,10 +44,32 @@ def current_mcp_user() -> CurrentUser:
     and keeps unit tests simple. Real auth enforcement happens at the
     middleware layer before the request ever reaches a tool handler.
     """
-    user = _current_user.get()
+    user = _current_user.get() or _user_from_request()
     if user is None:
         return CurrentUser(user_id="anonymous", role="owner", scopes=[])
     return user
+
+
+def _user_from_request() -> CurrentUser | None:
+    """The caller of the HTTP request behind the current MCP message, if any.
+
+    Same resolution as :func:`realize_api.dependencies.get_current_user`.
+    """
+    from mcp.server.lowlevel.server import request_ctx
+
+    try:
+        request = request_ctx.get().request
+    except LookupError:
+        return None
+    state = getattr(request, "state", None)
+    if state is None:
+        return None
+    headers = getattr(request, "headers", None) or {}
+    return CurrentUser(
+        user_id=getattr(state, "user_id", None) or headers.get("X-User-ID", "anonymous"),
+        role=getattr(state, "role", None) or "owner",
+        scopes=getattr(state, "scopes", None) or [],
+    )
 
 
 class MCPProductionAuthError(RuntimeError):
