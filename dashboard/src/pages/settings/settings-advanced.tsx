@@ -11,7 +11,12 @@ interface RoutingRule {
 
 interface RoutingData {
   routing_rules: Record<string, RoutingRule>
-  providers: Array<{ name: string; available: boolean; models: string[] }>
+  providers: Array<{
+    name: string
+    available: boolean
+    models: string[]
+    model_errors?: Record<string, string>
+  }>
 }
 
 export function LLMRoutingSection() {
@@ -19,6 +24,10 @@ export function LLMRoutingSection() {
   const { data: usageData } = useApi<{ usage: Record<string, unknown> }>('/llm/usage')
 
   if (!data) return null
+
+  const deadModels = (data.providers || []).flatMap((p) =>
+    Object.keys(p.model_errors || {}).map((model) => ({ provider: p.name, model })),
+  )
 
   return (
     <div className="rounded-xl border border-border bg-card p-6">
@@ -45,6 +54,23 @@ export function LLMRoutingSection() {
           </div>
         ))}
       </div>
+
+      {deadModels.length > 0 && (
+        <div role="alert" className="mt-4 rounded-lg border border-red-500/40 bg-red-500/10 p-3">
+          <p className="text-sm font-medium text-red-400">
+            Some configured models are not answering
+          </p>
+          <ul className="mt-1 space-y-0.5 text-xs text-muted-foreground">
+            {deadModels.map(({ provider, model }) => (
+              <li key={`${provider}:${model}`}>
+                <span className="font-mono">{model}</span> ({provider}) returned &quot;not
+                found&quot;. It is probably retired. Update the model ID in the server settings and
+                restart.
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {usageData?.usage && Object.keys(usageData.usage).length > 0 && (
         <div className="mt-4 pt-4 border-t border-border">

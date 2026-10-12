@@ -34,6 +34,7 @@ async def get_llm_routing():
                     "name": name,
                     "available": avail,
                     "models": provider.list_models() if avail else [],
+                    "model_errors": provider.model_errors(),
                 }
             )
     except Exception as exc:

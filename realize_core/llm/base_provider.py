@@ -26,7 +26,7 @@ class ModelInfo:
     """Metadata about a specific model offered by a provider.
 
     Attributes:
-        model_id: The provider's model identifier string (e.g., "claude-sonnet-4-6-20260217")
+        model_id: The provider's model identifier string (e.g., "claude-sonnet-5-5")
         display_name: Human-readable name (e.g., "Claude Sonnet")
         tier: Cost tier (1=cheap, 2=mid, 3=premium)
         capabilities: Set of supported capabilities
@@ -44,6 +44,10 @@ class ModelInfo:
     output_cost_per_m: float = 0.0
     max_tokens: int = 4096
     context_window: int = 128000
+
+
+# LLMResponse.error value for a safety refusal (see LLMResponse.refused).
+REFUSAL_ERROR = "refusal"
 
 
 @dataclass
@@ -74,6 +78,15 @@ class LLMResponse:
     def ok(self) -> bool:
         """True if the response completed without errors."""
         return self.error is None
+
+    @property
+    def refused(self) -> bool:
+        """True if the model declined the request on safety grounds.
+
+        A refusal is a final answer: callers must not retry it on another
+        provider, which would route around the model's safety decision.
+        """
+        return self.error == REFUSAL_ERROR
 
 
 class BaseLLMProvider(ABC):
@@ -165,6 +178,22 @@ class BaseLLMProvider(ABC):
         Default returns True. Override to add runtime checks.
         """
         return True
+
+    def is_model_usable(self, model_id: str) -> bool:
+        """Check whether a specific model can be called on this provider.
+
+        Default returns True. Providers that learn a model is gone (for example
+        a retired model ID answering 404) override this so routing skips it.
+        """
+        return True
+
+    def model_errors(self) -> dict[str, str]:
+        """Return configured models known to be unusable, mapped to the reason.
+
+        Default is empty. Shown in Settings so a dead model ID is visible
+        instead of the provider looking healthy because its key is set.
+        """
+        return {}
 
     def supports(self, capability: Capability) -> bool:
         """Check if any of this provider's models support a capability."""

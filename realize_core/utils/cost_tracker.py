@@ -23,7 +23,7 @@ def log_usage(
     Log an LLM API call for cost tracking.
 
     Args:
-        model: Model identifier (e.g., "claude-sonnet-4-6-20260217")
+        model: Model identifier (e.g., "claude-sonnet-5-5")
         input_tokens: Number of input tokens
         output_tokens: Number of output tokens
         cost_usd: Estimated cost in USD

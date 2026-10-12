@@ -17,10 +17,15 @@ ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 GOOGLE_AI_API_KEY = os.getenv("GOOGLE_AI_API_KEY", "")
 
 # --- Model Definitions (override via environment variables) ---
+# Defaults are always the newest model in each line. Users who want an older
+# model set CLAUDE_SONNET_MODEL / CLAUDE_OPUS_MODEL. IDs have no date suffix.
+DEFAULT_CLAUDE_SONNET_MODEL = "claude-sonnet-5-5"
+DEFAULT_CLAUDE_OPUS_MODEL = "claude-opus-5-5"
+
 MODELS = {
     "gemini_flash": os.getenv("GEMINI_FLASH_MODEL", "gemini-2.5-flash"),
-    "claude_sonnet": os.getenv("CLAUDE_SONNET_MODEL", "claude-sonnet-4-6-20260217"),
-    "claude_opus": os.getenv("CLAUDE_OPUS_MODEL", "claude-opus-4-6-20260205"),
+    "claude_sonnet": os.getenv("CLAUDE_SONNET_MODEL") or DEFAULT_CLAUDE_SONNET_MODEL,
+    "claude_opus": os.getenv("CLAUDE_OPUS_MODEL") or DEFAULT_CLAUDE_OPUS_MODEL,
 }
 
 # --- Rate Limits ---

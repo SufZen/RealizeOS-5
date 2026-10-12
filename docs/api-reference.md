@@ -199,9 +199,11 @@ Reload system configurations from YAML (hot reload).
 
 List all ventures with their configuration and status.
 
+The response also carries `config_writable` (bool). It is `false` when `realize-os.yaml` can't be edited (for example a read-only Docker mount); the dashboard then hides create and delete, because both edit that file.
+
 ### POST /api/ventures
 
-Create a new venture.
+Create a new venture. The key must be a lowercase slug (letters, numbers, hyphens). Errors: `400` invalid key, `409` the venture already exists, `503` the config can't be written (nothing is left behind).
 
 **Request:**
 ```json
@@ -223,7 +225,13 @@ Update venture configuration.
 
 ### DELETE /api/ventures/{key}
 
-Delete a venture (requires confirmation).
+Delete a venture: its entry in `realize-os.yaml`, its sessions and conversations, and its folder (the `directory` from its config entry, which must sit directly under `systems/` or `ventures/`).
+
+The delete is all-or-nothing. The folder is moved aside, then the config is rewritten; if that write fails the folder is moved back and nothing has changed. A venture whose folder is already gone is removed from the config only, with a warning.
+
+**Response:** `{"status": "deleted", "key": "...", "warnings": [...]}`
+
+Errors: `400` unsafe or shared folder, `404` unknown venture, `503` the config can't be written (nothing was changed; the detail says why).
 
 ---
 

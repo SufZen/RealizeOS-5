@@ -6,8 +6,10 @@ giving users a guided development framework from day one.
 """
 
 import logging
+import os
 import re
 import shutil
+import time
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -231,6 +233,7 @@ def scaffold_venture(
 
     if venture_dir.exists():
         raise FileExistsError(f"Venture directory already exists: {venture_dir}")
+    _require_writable_config(root)
 
     # Find the template source — prefer template-specific FABRIC, then default
     template_src = _find_venture_template(template)
@@ -254,13 +257,14 @@ def scaffold_venture(
             raise FileNotFoundError(f"Venture template is empty: {template_src}")
 
         _customize_venture_template(venture_dir, name)
+
+        # Register in realize-os.yaml inside the rollback block, so a failed
+        # config write doesn't leave an orphan directory behind.
+        _add_venture_to_config(root, key, name, description)
     except Exception:
         if venture_dir.exists():
             shutil.rmtree(venture_dir)
         raise
-
-    # Update realize-os.yaml to include the new venture
-    _add_venture_to_config(root, key, name, description)
 
     stats["created"] = True
     logger.info(f"Venture '{key}' scaffolded: {stats['dirs_created']} dirs, {stats['files_created']} files")
@@ -316,66 +320,153 @@ def _customize_venture_template(venture_dir: Path, name: str):
     identity_file.write_text(content, encoding="utf-8")
 
 
-def delete_venture(project_root: str | Path, key: str, confirm_name: str = "") -> bool:
+class VentureConfigReadOnlyError(OSError):
+    """realize-os.yaml cannot be written (for example a read-only Docker mount)."""
+
+
+def config_writable(project_root: str | Path) -> bool:
+    """Return True when realize-os.yaml (or its folder, if it doesn't exist yet) is writable.
+
+    Venture create and delete edit this file, so the API and dashboard use this
+    to refuse or hide those actions instead of failing half-way.
     """
-    Delete a venture directory, clean up DB references, and remove from config.
+    root = Path(project_root)
+    config_path = root / "realize-os.yaml"
+    target = config_path if config_path.exists() else root
+    return os.access(target, os.W_OK)
+
+
+def _require_writable_config(root: Path) -> None:
+    """Raise VentureConfigReadOnlyError when realize-os.yaml can't be edited."""
+    if not config_writable(root):
+        raise VentureConfigReadOnlyError(
+            f"{root / 'realize-os.yaml'} is read-only, so ventures can't be created or deleted here. "
+            "Mount it read-write or edit it on the host."
+        )
+
+
+def _resolve_venture_dir(root: Path, key: str, sys_conf: dict | None) -> Path | None:
+    """Return the venture's directory, read from its config entry, or None if it has none on disk.
+
+    Uses the configured ``directory`` (which can differ from the key, e.g.
+    ``systems/realization.co.il``) and refuses anything that isn't directly
+    inside ``systems/`` or ``ventures/``, so a bad entry can never delete the project.
+    """
+    if sys_conf and sys_conf.get("directory"):
+        candidate = (root / str(sys_conf["directory"])).resolve()
+    else:
+        found = find_venture_dir(root, key)
+        if found is None:
+            return None
+        candidate = found.resolve()
+
+    allowed_roots = [(root / name).resolve() for name in ("systems", "ventures")]
+    if not any(candidate.parent == allowed for allowed in allowed_roots):
+        raise ValueError(f"Refusing to delete '{candidate}': it is not a folder directly under systems/ or ventures/.")
+    if not candidate.is_dir():
+        return None
+    return candidate
+
+
+def delete_venture(project_root: str | Path, key: str, confirm_name: str = "") -> dict:
+    """
+    Delete a venture: its config entry, its DB references and its directory.
+
+    The irreversible steps come last. The directory is first renamed aside, then
+    the config is rewritten; if the config write fails the directory is renamed
+    back and nothing has changed. A venture that is only in the config (its
+    directory is already gone) is removed from the config with a warning.
 
     Args:
-        project_root: Root directory of the project.
+        project_root: Root directory of the project (where realize-os.yaml lives).
         key: Venture key to delete.
         confirm_name: Must match key to confirm deletion (safety check).
 
     Returns:
-        True if deleted successfully.
+        Dict with ``deleted`` (True), ``directory`` (str or None) and ``warnings`` (list).
+
+    Raises:
+        ValueError: confirmation mismatch or an unsafe or shared configured directory.
+        FileNotFoundError: the venture is neither configured nor on disk.
+        VentureConfigReadOnlyError: realize-os.yaml can't be written.
+        OSError: the directory couldn't be moved or the config couldn't be written.
     """
     if confirm_name != key:
         raise ValueError(f"Confirmation name '{confirm_name}' does not match key '{key}'")
 
     root = Path(project_root)
-    venture_dir = root / "systems" / key
+    config = _load_config_file(root)
+    systems = _config_systems(config)
+    sys_conf = next((s for s in systems if s.get("key") == key), None)
+    venture_dir = _resolve_venture_dir(root, key, sys_conf)
 
-    if not venture_dir.exists():
-        raise FileNotFoundError(f"Venture directory not found: {venture_dir}")
+    if sys_conf is None and venture_dir is None:
+        raise FileNotFoundError(f"Venture '{key}' is not configured and has no directory")
 
-    # Clean up DB references (sessions, activity) before removing files
+    if venture_dir is not None:
+        shared = [
+            s.get("key")
+            for s in systems
+            if s.get("key") != key and s.get("directory") and (root / str(s["directory"])).resolve() == venture_dir
+        ]
+        if shared:
+            raise ValueError(f"Directory {venture_dir} is also used by venture(s) {shared}; not deleting it.")
+
+    if sys_conf is not None:
+        _require_writable_config(root)
+
+    warnings: list[str] = []
+
+    # 1. Move the directory aside (reversible).
+    staged: Path | None = None
+    if venture_dir is not None:
+        staged = venture_dir.with_name(f".deleting-{venture_dir.name}-{int(time.time())}")
+        venture_dir.rename(staged)
+    else:
+        warnings.append(f"Venture '{key}' had no directory on disk; removed it from the config only.")
+        logger.warning("Venture '%s' has no directory; removing config entry only", key)
+
+    # 2. Commit the config change; undo the move if it fails.
+    if sys_conf is not None:
+        try:
+            _remove_venture_from_config(root, key)
+        except OSError:
+            if staged is not None and venture_dir is not None:
+                staged.rename(venture_dir)
+            raise
+
+    # 3. Irreversible clean-up. A failure here leaves stale data, not a broken venture.
     _cleanup_venture_db_references(key)
+    if staged is not None:
+        try:
+            shutil.rmtree(staged)
+            logger.info("Deleted venture directory: %s", venture_dir)
+        except OSError as e:
+            warnings.append(f"Removed the venture, but could not delete {staged}: {e}")
+            logger.warning("Venture '%s' removed but staged directory %s remains: %s", key, staged, e)
 
-    # Remove directory
-    shutil.rmtree(venture_dir)
-    logger.info(f"Deleted venture directory: {venture_dir}")
-
-    # Remove from realize-os.yaml
-    _remove_venture_from_config(root, key)
-
-    return True
+    return {"deleted": True, "directory": str(venture_dir) if venture_dir else None, "warnings": warnings}
 
 
 def _cleanup_venture_db_references(venture_key: str):
     """Remove DB records associated with a deleted venture."""
+    import sqlite3
+
     try:
         from realize_core.memory.store import db_connection
 
         with db_connection() as conn:
-            # Clean up sessions for this venture
-            conn.execute("DELETE FROM sessions WHERE system_key = ?", (venture_key,))
-            # Clean up conversation history
-            try:
-                conn.execute(
-                    "DELETE FROM conversations WHERE system_key = ?",
-                    (venture_key,),
-                )
-            except Exception:
-                pass  # Table may not exist
-            # Clean up activity log
-            try:
-                conn.execute(
-                    "DELETE FROM activity_log WHERE venture_key = ?",
-                    (venture_key,),
-                )
-            except Exception:
-                pass  # Table may not exist
+            for statement in (
+                "DELETE FROM sessions WHERE system_key = ?",
+                # Conversation rows carry the venture key in bot_name.
+                "DELETE FROM conversations WHERE bot_name = ?",
+            ):
+                try:
+                    conn.execute(statement, (venture_key,))
+                except sqlite3.OperationalError as e:
+                    logger.debug("Venture cleanup skipped (%s): %s", statement, e)
         logger.info(f"Cleaned up DB references for venture '{venture_key}'")
-    except Exception as e:
+    except (sqlite3.Error, OSError, ImportError) as e:
         logger.warning(f"DB cleanup for venture '{venture_key}' failed: {e}")
 
 
@@ -496,8 +587,7 @@ def _add_venture_to_config(root: Path, key: str, name: str, description: str):
 
     systems.append(new_system)
 
-    with open(config_path, "w", encoding="utf-8") as f:
-        yaml.dump(config, f, default_flow_style=False, sort_keys=False, allow_unicode=True)
+    _write_config_text(config_path, yaml.dump(config, default_flow_style=False, sort_keys=False, allow_unicode=True))
 
     logger.info(f"Added venture '{key}' to {config_path}")
 
@@ -510,16 +600,53 @@ def _remove_venture_from_config(root: Path, key: str):
     if not config_path.exists():
         return
 
-    with open(config_path, encoding="utf-8") as f:
-        config = yaml.safe_load(f) or {}
-
-    systems = config.get("systems", [])
+    config = _load_config_file(root)
+    systems = config.get("systems", []) or []
     config["systems"] = [s for s in systems if s.get("key") != key]
 
-    with open(config_path, "w", encoding="utf-8") as f:
-        yaml.dump(config, f, default_flow_style=False, sort_keys=False, allow_unicode=True)
-
+    _write_config_text(config_path, yaml.dump(config, default_flow_style=False, sort_keys=False, allow_unicode=True))
     logger.info(f"Removed venture '{key}' from {config_path}")
+
+
+def _config_systems(config: dict) -> list[dict]:
+    """Return the ``systems:`` list entries that are well-formed dicts (others are ignored)."""
+    systems = config.get("systems") or []
+    if not isinstance(systems, list):
+        return []
+    return [s for s in systems if isinstance(s, dict)]
+
+
+def _load_config_file(root: Path) -> dict:
+    """Read realize-os.yaml as a dict (empty when missing)."""
+    import yaml
+
+    config_path = root / "realize-os.yaml"
+    if not config_path.exists():
+        return {}
+    with open(config_path, encoding="utf-8") as f:
+        return yaml.safe_load(f) or {}
+
+
+def _write_config_text(config_path: Path, text: str) -> None:
+    """Replace realize-os.yaml with ``text`` without leaving a half-written file.
+
+    Writes a temp file next to it and renames it over the original. A single
+    file bind-mounted into a container can't be renamed over (EBUSY/EXDEV) and
+    its folder may be read-only; then it falls back to rewriting the file in
+    place, which still only happens once the new text is fully built.
+    """
+    tmp_path = config_path.with_name(f".{config_path.name}.tmp")
+    try:
+        tmp_path.write_text(text, encoding="utf-8")
+        os.replace(tmp_path, config_path)
+        return
+    except OSError as e:
+        logger.debug("Atomic replace of %s failed (%s); writing in place", config_path, e)
+        try:
+            tmp_path.unlink(missing_ok=True)
+        except OSError:
+            logger.debug("Could not remove temp file %s", tmp_path)
+    config_path.write_text(text, encoding="utf-8")
 
 
 def _find_templates_dir() -> Path | None:

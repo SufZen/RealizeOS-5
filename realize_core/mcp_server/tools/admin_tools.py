@@ -161,24 +161,23 @@ async def delete_venture(args: dict[str, Any], app_state: Any, user: CurrentUser
         return {"error": f"Scaffold module unavailable: {exc}", "code": "MCP_INTERNAL"}
 
     try:
-        ok = _delete(str(kb_path), venture_key, confirm_name=venture_key)
-    except Exception as exc:
-        logger.exception("delete_venture(%r) failed", venture_key)
-        return {"error": f"Delete failed: {exc}", "code": "MCP_INTERNAL"}
-
-    if not ok:
-        return {"error": "Failed to delete venture", "code": "MCP_INTERNAL"}
+        result = _delete(str(kb_path), venture_key, confirm_name=venture_key)
+    except (ValueError, FileNotFoundError) as exc:
+        return {"error": str(exc), "code": "MCP_VALIDATION"}
+    except OSError as exc:
+        logger.warning("delete_venture(%r) failed: %s", venture_key, exc)
+        return {"error": f"Delete failed, nothing was changed: {exc}", "code": "MCP_INTERNAL"}
 
     try:
         from realize_core.config import build_systems_dict, load_config
 
         config = load_config()
         app_state.config = config
-        app_state.systems = build_systems_dict(config)
+        app_state.systems = build_systems_dict(config, kb_path)
     except Exception as exc:
         logger.warning("Config refresh after delete_venture failed: %s", exc)
 
-    return {"status": "deleted", "key": venture_key}
+    return {"status": "deleted", "key": venture_key, "warnings": result.get("warnings", [])}
 
 
 # ---------------------------------------------------------------------------

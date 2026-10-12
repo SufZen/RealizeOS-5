@@ -6,7 +6,7 @@ import { VentureHealthCard } from '@/components/venture-health-card'
 import { CreateVentureModal } from '@/components/create-venture-modal'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { Skeleton, SkeletonCard } from '@/components/ui/skeleton'
-import { api } from '@/lib/api'
+import { api, ApiError } from '@/lib/api'
 
 interface VenturesResponse {
   ventures: Array<{
@@ -17,6 +17,8 @@ interface VenturesResponse {
     skill_count: number
     fabric_completeness: number
   }>
+  /** False when realize-os.yaml is read-only; create and delete would fail. */
+  config_writable?: boolean
 }
 
 export default function VenturesListPage() {
@@ -28,6 +30,7 @@ export default function VenturesListPage() {
   // Custom dialog state
   const [confirmDeleteKey, setConfirmDeleteKey] = useState<string | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const canEdit = data?.config_writable !== false
 
   function handleDeleteClick(key: string, e: React.MouseEvent) {
     e.stopPropagation()
@@ -41,9 +44,12 @@ export default function VenturesListPage() {
     setDeleting(key)
     try {
       await api.delete(`/ventures/${key}`)
+      setErrorMessage(null)
       refetch()
-    } catch {
-      setErrorMessage('Failed to delete venture')
+    } catch (err) {
+      const detail = err instanceof ApiError || err instanceof Error ? err.message : ''
+      setErrorMessage(detail ? `Failed to delete venture: ${detail}` : 'Failed to delete venture')
+      refetch()
     } finally {
       setDeleting(null)
     }
@@ -95,14 +101,23 @@ export default function VenturesListPage() {
           <Briefcase className="h-6 w-6 text-brand-400" />
           <h1 className="text-2xl font-bold text-foreground">Ventures</h1>
         </div>
-        <button
-          onClick={() => setShowCreate(true)}
-          className="rz-btn rz-btn--primary fx-glow-hover"
-        >
-          <Plus className="h-4 w-4" />
-          Create Venture
-        </button>
+        {canEdit && (
+          <button
+            onClick={() => setShowCreate(true)}
+            className="rz-btn rz-btn--primary fx-glow-hover"
+          >
+            <Plus className="h-4 w-4" />
+            Create Venture
+          </button>
+        )}
       </div>
+
+      {!canEdit && (
+        <p className="text-xs text-muted-foreground">
+          The server configuration is read-only here, so ventures can&apos;t be created or deleted
+          from the dashboard. Change them in realize-os.yaml on the server.
+        </p>
+      )}
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {data?.ventures.map((v) => (
@@ -124,15 +139,17 @@ export default function VenturesListPage() {
               >
                 <Download className="h-3.5 w-3.5" />
               </button>
-              <button
-                onClick={(e) => handleDeleteClick(v.key, e)}
-                disabled={deleting === v.key}
-                className="p-1.5 rounded-lg bg-surface-800/80 border border-border text-muted-foreground hover:text-red-400 transition-colors"
-                title="Delete"
-                aria-label={`Delete ${v.key}`}
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </button>
+              {canEdit && (
+                <button
+                  onClick={(e) => handleDeleteClick(v.key, e)}
+                  disabled={deleting === v.key}
+                  className="p-1.5 rounded-lg bg-surface-800/80 border border-border text-muted-foreground hover:text-red-400 transition-colors"
+                  title="Delete"
+                  aria-label={`Delete ${v.key}`}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              )}
             </div>
           </div>
         ))}
@@ -143,13 +160,15 @@ export default function VenturesListPage() {
           <div className="fx-dot-grid absolute inset-0 pointer-events-none rounded-xl" />
           <Briefcase className="h-12 w-12 text-muted-foreground/30 mb-4 rz-animate-float relative z-10" />
           <p className="text-muted-foreground text-sm mb-4">No ventures configured yet.</p>
-          <button
-            onClick={() => setShowCreate(true)}
-            className="flex items-center gap-2 px-4 py-2 text-sm rounded-lg bg-brand-400 text-black hover:bg-brand-400/90 font-medium transition-colors"
-          >
-            <Plus className="h-4 w-4" />
-            Create your first venture
-          </button>
+          {canEdit && (
+            <button
+              onClick={() => setShowCreate(true)}
+              className="flex items-center gap-2 px-4 py-2 text-sm rounded-lg bg-brand-400 text-black hover:bg-brand-400/90 font-medium transition-colors"
+            >
+              <Plus className="h-4 w-4" />
+              Create your first venture
+            </button>
+          )}
         </div>
       )}
 

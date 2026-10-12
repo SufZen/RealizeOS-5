@@ -278,7 +278,7 @@ class TestScoring:
         """Only specified models are scored when available_models is set."""
         cache.load()
         # Only score Claude models
-        available = {"claude-sonnet-4-6-20260217", "claude-opus-4-6-20260205"}
+        available = {"claude-sonnet-5-5", "claude-opus-5-5"}
         scores = cache.score_models("reasoning", available_models=available)
         for s in scores:
             assert s.model_id in available

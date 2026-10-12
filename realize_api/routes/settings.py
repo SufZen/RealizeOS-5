@@ -23,6 +23,13 @@ class GateUpdateRequest(BaseModel):
     gates: dict[str, Any] = Field(..., description="Dictionary of governance gates to update")
 
 
+def _config_writable(request: Request) -> bool:
+    """Whether realize-os.yaml can be edited (venture create/delete need it)."""
+    from realize_core.scaffold import config_writable
+
+    return config_writable(getattr(request.app.state, "kb_path", Path(".")))
+
+
 @router.get("/settings")
 async def get_settings(request: Request):
     """Get current settings: features, gates, providers, system info."""
@@ -43,6 +50,7 @@ async def get_settings(request: Request):
                     "name": name,
                     "available": provider.is_available(),
                     "models": provider.list_models() if provider.is_available() else [],
+                    "model_errors": provider.model_errors(),
                 }
             )
     except Exception as exc:
@@ -75,6 +83,7 @@ async def get_settings(request: Request):
             "db_size_bytes": db_size,
             "kb_file_count": kb_file_count,
             "config_path": str(Path(os.getenv("REALIZE_CONFIG", "realize-os.yaml")).resolve()),
+            "config_writable": _config_writable(request),
         },
     }
 

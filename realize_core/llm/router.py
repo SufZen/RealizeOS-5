@@ -440,15 +440,16 @@ async def route_to_llm(
         provider = registry.get_provider(model_key)
 
         # Attempt 1: Primary provider
-        if provider and provider.is_available():
-            model_id = registry.resolve_model_id(model_key)
+        model_id = registry.resolve_model_id(model_key)
+        if provider and provider.is_available() and provider.is_model_usable(model_id or ""):
             try:
                 response = await provider.complete(
                     system_prompt=system_prompt,
                     messages=messages,
                     model=model_id,
                 )
-                if response.ok:
+                if response.ok or response.refused:
+                    # A refusal is final: retrying it elsewhere would bypass the model's safety decision.
                     _record_cost(response.cost_usd)
                     return response.text
                 logger.warning(f"Provider {provider.name} error: {response.error}")
@@ -461,8 +462,10 @@ async def route_to_llm(
         attempts = 0
 
         for fallback_name in registry._fallback_chain:
-            if fallback_name in tried or attempts >= max_retries:
+            if attempts >= max_retries:
                 break
+            if fallback_name in tried:
+                continue
             fb_provider = registry.get_provider_by_name(fallback_name)
             if not fb_provider or not fb_provider.is_available():
                 continue
@@ -476,9 +479,9 @@ async def route_to_llm(
                     system_prompt=system_prompt,
                     messages=messages,
                 )
-                if fb_response.ok:
+                if fb_response.ok or fb_response.refused:
                     _record_cost(fb_response.cost_usd)
-                    logger.info(f"Fallback succeeded with {fallback_name}")
+                    logger.info(f"Fallback answered with {fallback_name}")
                     return fb_response.text
                 logger.warning(f"Fallback {fallback_name} error: {fb_response.error}")
             except Exception as e:
