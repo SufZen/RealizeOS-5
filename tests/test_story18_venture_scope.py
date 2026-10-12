@@ -443,7 +443,8 @@ class TestReviewFollowUps:
         assert client.get("/api/workflows/globex-report").status_code == 404
         assert client.get("/api/workflows").json()["workflows"] == []
         # A venture-limited user can't create a global skill.
-        assert client.post("/api/workflows", json={"name": "x", "system_key": ""}).status_code == 403
+        body = {"name": "x", "system_key": "", "steps": [{"id": "s1", "type": "agent"}]}
+        assert client.post("/api/workflows", json=body).status_code == 403
 
     def test_mcp_skill_tools_check_the_skills_venture(self, monkeypatch):
         from realize_core.mcp_server.venture_guard import check_call
