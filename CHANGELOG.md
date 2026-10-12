@@ -4,6 +4,17 @@ All notable changes to RealizeOS are documented in this file.
 This changelog is automatically generated from [Conventional Commits](https://conventionalcommits.org).
 
 
+## [5.14.0](https://github.com/SufZen/RealizeOS-5/compare/v5.13.0...v5.14.0) (2026-10-12)
+
+### Features
+
+* **mcp:** Streamable HTTP on /mcp + OAuth 2.1 for Claude.ai connectors ([b08ad29](https://github.com/SufZen/RealizeOS-5/commit/b08ad29ae8610845baa1f5bf42b34dd76ae2d030)), closes [#21](https://github.com/SufZen/RealizeOS-5/issues/21)
+
+### Bug Fixes
+
+* **security:** MCP OAuth redirect allowlist and per-account sign-in limit ([44aaed8](https://github.com/SufZen/RealizeOS-5/commit/44aaed872739fce5fec02d5bb5060370fd058d30))
+* **security:** one IP can't lock an MCP OAuth account ([adc1299](https://github.com/SufZen/RealizeOS-5/commit/adc1299955df5686b15ab32cfd60e73f9f24f7ef))
+
 ## [5.13.0](https://github.com/SufZen/RealizeOS-5/compare/v5.12.0...v5.13.0) (2026-10-12)
 
 ### Features
