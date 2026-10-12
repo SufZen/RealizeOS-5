@@ -115,11 +115,9 @@ async def update_features(body_req: FeatureUpdateRequest, request: Request):
         config_path.write_text(new_text, encoding="utf-8")
 
         # Reload in-memory config
-        from realize_core.config import build_systems_dict, load_config
+        from realize_core.config_runtime import reload_app_config
 
-        new_config = load_config()
-        request.app.state.config = new_config
-        request.app.state.systems = build_systems_dict(new_config)
+        reload_app_config(request.app.state)
 
         return {"status": "updated", "features": config["features"]}
     except HTTPException:
@@ -156,11 +154,9 @@ async def update_gates(body_req: GateUpdateRequest, request: Request):
             yaml.dump(config, f, default_flow_style=False, sort_keys=False)
 
         # Reload
-        from realize_core.config import build_systems_dict, load_config
+        from realize_core.config_runtime import reload_app_config
 
-        new_config = load_config()
-        request.app.state.config = new_config
-        request.app.state.systems = build_systems_dict(new_config)
+        reload_app_config(request.app.state)
 
         return {"status": "updated", "gates": config["governance"]["gates"]}
     except Exception as e:

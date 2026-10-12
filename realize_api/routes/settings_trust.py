@@ -41,10 +41,8 @@ async def update_trust_level(body: TrustLevelUpdate, request: Request):
         raise HTTPException(status_code=500, detail="Failed to update trust level")
 
     # Reload config
-    from realize_core.config import build_systems_dict, load_config
+    from realize_core.config_runtime import reload_app_config
 
-    new_config = load_config()
-    request.app.state.config = new_config
-    request.app.state.systems = build_systems_dict(new_config)
+    reload_app_config(request.app.state)
 
     return {"status": "updated", "level": level}

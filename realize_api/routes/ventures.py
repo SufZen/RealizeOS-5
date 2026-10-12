@@ -202,11 +202,9 @@ async def delete_venture(venture_key: str, request: Request):
 
 def _reload_systems(request: Request, kb_path: Path) -> None:
     """Reload realize-os.yaml into app state after a venture was added or removed."""
-    from realize_core.config import build_systems_dict, load_config
+    from realize_core.config_runtime import reload_app_config
 
-    config = load_config()
-    request.app.state.config = config
-    request.app.state.systems = build_systems_dict(config, kb_path)
+    reload_app_config(request.app.state, kb_path)
 
 
 @router.get("/ventures/{venture_key}/export")

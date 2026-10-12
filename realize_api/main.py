@@ -256,20 +256,10 @@ async def lifespan(app: FastAPI):
     # inject it into the tool-execution registry. When off, the registry's gate
     # stays None and tool dispatch is byte-for-byte unchanged.
     try:
-        from realize_core.config import get_features
+        from realize_core.config_runtime import sync_tool_gate
 
-        if get_features(config).get("enforce_gates"):
-            from realize_core.governance.tool_gate import ToolGate
-            from realize_core.tools.approval import ApprovalStore
-            from realize_core.tools.tool_registry import get_tool_registry
-
-            approval_store = getattr(app.state, "approval_store", None) or ApprovalStore()
-            app.state.approval_store = approval_store
-            gate = ToolGate(config=config, approval_store=approval_store)
-            get_tool_registry().set_gate(gate)
-            app.state.tool_gate = gate
-            logger.warning("Governance ENFORCEMENT ON: tool gate installed (features.enforce_gates=true)")
-        else:
+        sync_tool_gate(app.state, config)
+        if getattr(app.state, "tool_gate", None) is None:
             logger.info("Governance enforcement off (features.enforce_gates not set)")
     except Exception as e:
         logger.error("Tool gate wiring skipped: %s", e, exc_info=True)

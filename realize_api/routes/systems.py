@@ -106,12 +106,10 @@ async def get_session(system_key: str, user_id: str):
 @router.post("/systems/reload")
 async def reload_systems(request: Request):
     """Reload system configurations from YAML."""
-    from realize_core.config import build_systems_dict, load_config
+    from realize_core.config_runtime import reload_app_config
     from realize_core.prompt.builder import clear_cache
 
-    config = load_config()
-    request.app.state.config = config
-    request.app.state.systems = build_systems_dict(config)
+    reload_app_config(request.app.state)
 
     clear_cache()
 
