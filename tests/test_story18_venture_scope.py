@@ -794,3 +794,55 @@ class TestMcpUsesRestPermissions:
         text = out[0].text
         refused = "MCP_INSUFFICIENT_SCOPE" in text
         assert refused is (not allowed), text[:200]
+
+
+# ---------------------------------------------------------------------------
+# Codex audit F02/F03: global collections and public status
+# ---------------------------------------------------------------------------
+
+
+class TestGlobalCollectionsRespectScope:
+    def test_routing_analytics_hide_other_ventures(self, users_file):
+        from realize_api.routes import routing
+
+        routing._routing_analytics.clear()
+        routing._routing_analytics.extend(
+            [
+                {
+                    "system_key": "globex",
+                    "message_preview": "GLOBEX PRIVATE BID 900000",
+                    "selected_agent": "writer",
+                    "scores": {},
+                },
+                {"system_key": "acme", "message_preview": "acme note", "selected_agent": "writer", "scores": {}},
+            ]
+        )
+        try:
+            dana = _client("dana@acme.io", "operator")
+            body = dana.get("/api/routing/analytics").json()
+            assert [e["system_key"] for e in body["entries"]] == ["acme"]
+            assert "GLOBEX" not in json.dumps(body)
+            assert dana.get("/api/routing/agents/writer/stats").json()["total_routes"] == 1
+
+            owner = _client("owner@realization.co.il", "owner")
+            assert owner.get("/api/routing/analytics").json()["total"] == 2
+        finally:
+            routing._routing_analytics.clear()
+
+    @pytest.mark.parametrize("path", ["/api/webhooks/events", "/api/llm/usage", "/api/llm/routing"])
+    def test_unowned_global_diagnostics_closed_to_scoped_users(self, users_file, path):
+        assert _client("dana@acme.io", "operator").get(path).status_code == 403
+        assert _client("owner@realization.co.il", "owner").get(path).status_code == 200
+
+
+def test_anonymous_status_is_refused(tmp_path, monkeypatch):
+    """With auth on, /api/status must not list ventures or agents to anyone anonymous."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("REALIZE_API_KEY", "test-api-key-1234567890abcdef")
+    from realize_api.main import create_app
+
+    app = create_app()
+    app.state.systems = dict(SYSTEMS)
+    resp = TestClient(app).get("/api/status")
+    assert resp.status_code == 401
+    assert "Globex" not in resp.text

@@ -519,6 +519,8 @@ Basic health check. Returns `{"status": "ok"}`.
 
 **Alias:** Also available at `GET /health` (root path) for load balancers and older deployments.
 
-### GET /status
+### GET /api/status
 
-Detailed status: systems, LLM providers, tool availability, memory stats.
+Detailed status: ventures and their agents, LLM providers, tool availability, usage.
+
+Requires authentication, like the rest of the API: it names every venture and agent the caller can see, so it is not a public probe. Use `GET /api/health` for liveness checks.

@@ -35,7 +35,6 @@ _PUBLIC_PATHS = frozenset(
         "/openapi.json",
         "/redoc",
         "/api/health",
-        "/api/status",
         "/favicon.svg",
         "/icons.svg",
     }

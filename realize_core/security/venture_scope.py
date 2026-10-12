@@ -68,6 +68,9 @@ _SYSTEM_AREA_PREFIXES = (
     "/api/evolution",
     # Pipeline definitions and runs aren't tied to one venture yet (STORY-18 review F4).
     "/api/pipelines",
+    # Inbound webhook payloads have no trusted owner; LLM usage isn't split by venture.
+    "/api/webhooks/events",
+    "/api/llm",
 )
 #: Areas that span every venture unless one is named; a venture-limited caller must name one.
 _NEEDS_VENTURE_PREFIXES = ("/api/fabric",)
