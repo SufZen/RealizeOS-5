@@ -253,9 +253,18 @@ Writes such as enabling a pack or verifying one are `ops` tools and go through `
 
 ---
 
-## 9. Open questions
+## 9. Decisions on the open questions (2026-10-13)
 
-1. Should Party·Role extend `contact.json` or get its own `party.json`? This draft extends, to avoid two person types.
-2. Where should the firm's pack overrides live: a `packs/` folder inside the venture, or `F-foundations/`? This draft uses `F-foundations/overrides/`.
-3. Pack versioning: semver with explicit upgrades, or follow the core version? This draft uses semver plus `requires.core`.
-4. Who may raise a pack to level 3? Partners only, or any reviewed professional with an agreement?
+1. **Party·Role extends `contact.json`.** One record per person or company, with `roles[]` per project (`{project, role, from, to}`). A second person type would split the address book and duplicate contacts across projects. The same company can then be a contractor on one project and a supplier on another.
+2. **Firm overrides live in the venture's FABRIC, at `F-foundations/overrides/`,** with `packs.yaml` at the venture root. The firm layer stays file-based and inside the folder the client owns and exports (portability, filter 7). Overrides mirror the pack layout (`glossary/`, `rules/`, `documents/`, `trust.yaml`), and a firm can `disable: [rule ids]`.
+3. **Each pack has its own semver, plus `requires.core`.** Ventures pin an exact pack version. Upgrades are explicit: the change list is shown and confirmed through an approval, and nothing updates silently.
+   - **Major:** removes or retypes fields, or removes rule cards.
+   - **Minor:** adds terms, rules, skills or templates.
+   - **Patch:** fixes wording or sources.
+
+   Every rule-card change is recorded in the pack's `CHANGELOG.md`.
+4. **Who raises verification levels:**
+   - **Level 2:** any named professional licensed or practising in that market, through the `pack_verify` approval. Their name and date are stored on each card.
+   - **Level 3:** only an organisation with a signed maintenance agreement (a partner), granted by the owner. It is that organisation that stays accountable for review dates.
+   - **Level 4:** set automatically from a paid engagement's value report.
+   - **Lowering:** levels drop automatically when `review_by` expires.

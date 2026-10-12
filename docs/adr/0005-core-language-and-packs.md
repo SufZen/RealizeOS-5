@@ -30,7 +30,7 @@ The current code has the parts but not the structure. Templates (`realize_core/t
    - **4 · Field-proven:** used in a paid engagement.
 
    Every answer that relies on market facts shows the level. Hebrew and RTL remain first-class; they are the first locale, not the only one.
-6. **Focus is a set of beachhead cells.** A target market is one profession in one market. The owner keeps a coverage matrix (reach) and, separately, names the two or three cells where paid engagements and case studies happen first. Both are reviewed each quarter. The first market pack is Israel and the first profession pack is the developer, because the first engagements are there.
+6. **Build broadly, prove where engagements happen.** A cell is one profession in one market. The coverage matrix sets the **build scope**: packs are drafted for every marked cell, at verification level 1 or higher. A cell becomes **proven** separately, when a paid engagement and a value-report number exist there. Building is cheap, because packs are content and AI-drafted; proving is limited by people and clients. Both are reviewed each quarter. The first market pack is Israel and the first profession pack is the developer, because the first engagements are there.
 7. **First value is self-serve, compounding value is practice-led.** One free workflow runs in the user's own agent in any market (verification level 0 or higher). The brain, governance, verified market packs and adoption stay with the practice and its local partners.
 8. **The obvious-choice check.** Alongside the seven story filters, every customer-facing story answers six questions:
    - Does it save measurable time in the first week?
@@ -53,17 +53,24 @@ The current code has the parts but not the structure. Templates (`realize_core/t
 ## Consequences
 
 - **What stays:** SQLite only, SSE only, file-based FABRIC, MCP as the primary agent surface, human-centered governance, the seven filters, the freeze list, and the practice model.
-- **New work** (stories STORY-41 to STORY-46):
+- **New work** (stories STORY-41 to STORY-47):
   - Core language v0 schemas.
   - Pack manifest and run-time cascade.
   - Splitting the developer template into a developer pack and an Israel market pack.
   - Decision log v0.
   - An agent-drafted second market pack.
   - The self-serve wedge pilot.
+  - Level-1 market packs for the rest of the build scope (STORY-47).
 - **Templates:** generic templates stay frozen (ADR 0004). The real-estate developer and architecture templates become the seeds of profession packs.
 - **Risks:**
   - Over-designing the core. Mitigation: the core holds only what every profession in every market needs, and it grows from packs that came out of real engagements.
-  - Pack sprawl. Mitigation: a pack is labelled field-proven only after a paid engagement, and the beachhead cells decide which packs get built.
+  - Pack sprawl. Mitigation: a pack is labelled field-proven only after a paid engagement, and the build scope in the coverage matrix decides which packs get drafted.
   - Trusting AI-drafted market knowledge too early. Mitigation: the verification ladder is visible on every answer.
 - **Validation:** the bet holds if an agent can draft a second market pack for the developer profession where a local professional corrects fewer than one in five drafted facts and no core code changes (STORY-45).
-- **Open:** the owner's coverage matrix currently marks 26 cells as beachhead, which describes reach rather than a starting point. The two or three first cells still need to be named; the proposal is Developer·Israel, Consultant·Israel and Developer·Portugal.
+- **Scope at adoption (2026-10-13):**
+  - **Build scope (26 cells):**
+    - Developer and Investor packs in Israel, Portugal, Greece & Cyprus, Spain, the UK, the US and "any market".
+    - Architect, Consultant and Broker packs in Israel, Portugal and "any market".
+  - **Later:** the remaining Architect, Consultant and Broker markets.
+  - **Maybe:** the Contractor pack, with no story yet.
+  - **Proven:** none yet.
