@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://realizeos.ai/schemas/v0.1/source.json",
+  "title": "Document or source",
+  "description": "Any file, message or voice note, and the exact place a fact came from. Core language family (spec 010).",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^src-\\d{4}-\\d{2}-[a-z0-9-]+(-\\d+)?$"
+    },
+    "type": {
+      "type": "string",
+      "const": "source"
+    },
+    "kind": {
+      "type": "string",
+      "description": "Specialisation within the family. Open string; packs may add kinds.",
+      "examples": [
+        "contract",
+        "drawing",
+        "message",
+        "voice_note",
+        "quote",
+        "minutes"
+      ]
+    },
+    "project": {
+      "type": "string",
+      "description": "Project id this object belongs to."
+    },
+    "venture": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    },
+    "uri": {
+      "type": "string"
+    },
+    "media_type": {
+      "type": "string"
+    },
+    "language": {
+      "type": "string"
+    },
+    "locator": {
+      "type": "string",
+      "description": "Default locator inside the source (page, sheet!cell, mm:ss, message id)."
+    },
+    "captured_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "captured_by": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "type",
+    "uri"
+  ],
+  "additionalProperties": true,
+  "x-core-family": true,
+  "x-indexing": {
+    "l1": [
+      "id",
+      "title",
+      "media_type",
+      "captured_at"
+    ],
+    "l2": "Title + extracted text",
+    "graph_relations": [],
+    "dreaming_relevance": "None in v0.1"
+  }
+}

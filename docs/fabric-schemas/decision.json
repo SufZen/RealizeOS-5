@@ -10,49 +10,127 @@
       "pattern": "^dec-\\d{4}-\\d{2}-[a-z0-9-]+(-\\d+)?$",
       "description": "Stable ID, format: dec-YYYY-MM-slug-NN"
     },
-    "type": { "const": "decision" },
-    "title": { "type": "string", "minLength": 3 },
+    "type": {
+      "const": "decision"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 3
+    },
     "status": {
       "type": "string",
-      "enum": ["proposed", "committed", "deferred", "reversed"]
+      "enum": [
+        "proposed",
+        "committed",
+        "deferred",
+        "reversed"
+      ]
     },
-    "date": { "type": "string", "format": "date" },
+    "date": {
+      "type": "string",
+      "format": "date"
+    },
     "reviewers": {
       "type": "array",
-      "items": { "type": "string" }
+      "items": {
+        "type": "string"
+      }
     },
     "ventures": {
       "type": "array",
-      "items": { "type": "string" }
+      "items": {
+        "type": "string"
+      }
     },
-    "supersedes": { "type": "string", "pattern": "^dec-" },
-    "superseded_by": { "type": "string", "pattern": "^dec-" },
-    "rationale": { "type": "string" },
+    "supersedes": {
+      "type": "string",
+      "pattern": "^dec-"
+    },
+    "superseded_by": {
+      "type": "string",
+      "pattern": "^dec-"
+    },
+    "rationale": {
+      "type": "string"
+    },
     "impacts": {
       "type": "array",
       "items": {
         "type": "object",
         "properties": {
-          "scope": { "type": "string" },
-          "description": { "type": "string" }
+          "scope": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          }
         }
       }
     },
     "followups": {
       "type": "array",
-      "items": { "type": "string" }
+      "items": {
+        "type": "string"
+      }
     },
     "related_risks": {
       "type": "array",
-      "items": { "type": "string" }
+      "items": {
+        "type": "string"
+      }
+    },
+    "approval_id": {
+      "type": "string",
+      "description": "Row id in approval_queue when the decision came from an approval (spec 010)."
+    },
+    "basis": {
+      "type": "array",
+      "description": "Sources the decision relied on (spec 010).",
+      "items": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "type": "string"
+          },
+          "locator": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "affects": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Ids of core objects the decision affects (spec 010)."
+    },
+    "project": {
+      "type": "string"
     }
   },
-  "required": ["type", "title", "status", "date"],
+  "required": [
+    "type",
+    "title",
+    "status",
+    "date"
+  ],
   "additionalProperties": true,
   "x-indexing": {
-    "l1": ["id", "title", "status", "date", "ventures"],
+    "l1": [
+      "id",
+      "title",
+      "status",
+      "date",
+      "ventures"
+    ],
     "l2": "Title + rationale + impacts as searchable chunks",
-    "graph_relations": ["reviewers (→ contact)", "supersedes (→ decision)", "followups (→ action)", "related_risks (→ risk)"],
+    "graph_relations": [
+      "reviewers (→ contact)",
+      "supersedes (→ decision)",
+      "followups (→ action)",
+      "related_risks (→ risk)"
+    ],
     "dreaming_relevance": "Committed decisions are hard-deny-listed; reversed/deferred decisions feed Genesis drift analysis"
   }
 }

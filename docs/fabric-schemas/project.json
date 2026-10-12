@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://realizeos.ai/schemas/v0.1/project.json",
+  "title": "Project",
+  "description": "The thing being designed, built, sold or bought, and its site. Core language family (spec 010).",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^prj-\\d{4}-\\d{2}-[a-z0-9-]+(-\\d+)?$"
+    },
+    "type": {
+      "type": "string",
+      "const": "project"
+    },
+    "kind": {
+      "type": "string",
+      "description": "Specialisation within the family. Open string; packs may add kinds.",
+      "examples": [
+        "development",
+        "renovation",
+        "acquisition",
+        "design_commission"
+      ]
+    },
+    "project": {
+      "type": "string",
+      "description": "Project id this object belongs to."
+    },
+    "venture": {
+      "type": "string"
+    },
+    "name": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "prospect",
+        "active",
+        "on_hold",
+        "completed",
+        "cancelled"
+      ]
+    },
+    "site": {
+      "type": "object",
+      "properties": {
+        "address": {
+          "type": "string"
+        },
+        "country": {
+          "type": "string",
+          "description": "ISO 3166-1 alpha-2"
+        },
+        "parcel": {
+          "type": "string"
+        }
+      }
+    },
+    "market": {
+      "type": "string",
+      "description": "Market pack id that applies, e.g. il, pt."
+    },
+    "members": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Contact ids."
+    },
+    "budget": {
+      "type": "number"
+    },
+    "currency": {
+      "type": "string",
+      "description": "ISO 4217"
+    }
+  },
+  "required": [
+    "type",
+    "name"
+  ],
+  "additionalProperties": true,
+  "x-core-family": true,
+  "x-indexing": {
+    "l1": [
+      "id",
+      "name",
+      "status",
+      "market"
+    ],
+    "l2": "Name + site",
+    "graph_relations": [
+      "members (-> contact)"
+    ],
+    "dreaming_relevance": "None in v0.1"
+  }
+}

@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://realizeos.ai/schemas/v0.1/requirement.json",
+  "title": "Requirement",
+  "description": "Something that must be met: a tender item, a code rule, a covenant, a brief line. Core language family (spec 010).",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^req-\\d{4}-\\d{2}-[a-z0-9-]+(-\\d+)?$"
+    },
+    "type": {
+      "type": "string",
+      "const": "requirement"
+    },
+    "kind": {
+      "type": "string",
+      "description": "Specialisation within the family. Open string; packs may add kinds.",
+      "examples": [
+        "tender_item",
+        "code_rule",
+        "covenant",
+        "brief_line"
+      ]
+    },
+    "project": {
+      "type": "string",
+      "description": "Project id this object belongs to."
+    },
+    "venture": {
+      "type": "string"
+    },
+    "statement": {
+      "type": "string"
+    },
+    "mandatory": {
+      "type": "boolean"
+    },
+    "owner": {
+      "type": "string"
+    },
+    "due": {
+      "type": "string",
+      "format": "date"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "open",
+        "met",
+        "waived",
+        "failed"
+      ]
+    },
+    "sources": {
+      "type": "array",
+      "description": "Where the facts came from: source ids with a locator (page, cell, timestamp, message id).",
+      "items": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "type": "string"
+          },
+          "locator": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "required": [
+    "type",
+    "statement"
+  ],
+  "additionalProperties": true,
+  "x-core-family": true,
+  "x-indexing": {
+    "l1": [
+      "id",
+      "statement",
+      "mandatory",
+      "status",
+      "due"
+    ],
+    "l2": "Statement",
+    "graph_relations": [
+      "owner (-> contact)",
+      "sources (-> source)"
+    ],
+    "dreaming_relevance": "None in v0.1"
+  }
+}

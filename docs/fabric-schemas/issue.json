@@ -1,0 +1,103 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://realizeos.ai/schemas/v0.1/issue.json",
+  "title": "Issue or risk",
+  "description": "Something wrong, or likely to go wrong. Core language family (spec 010).",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^iss-\\d{4}-\\d{2}-[a-z0-9-]+(-\\d+)?$"
+    },
+    "type": {
+      "type": "string",
+      "const": "issue"
+    },
+    "kind": {
+      "type": "string",
+      "description": "Specialisation within the family. Open string; packs may add kinds.",
+      "examples": [
+        "defect",
+        "delay",
+        "discrepancy",
+        "compliance"
+      ]
+    },
+    "project": {
+      "type": "string",
+      "description": "Project id this object belongs to."
+    },
+    "venture": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    },
+    "severity": {
+      "type": "string",
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "critical"
+      ]
+    },
+    "likelihood": {
+      "type": "string",
+      "enum": [
+        "low",
+        "medium",
+        "high"
+      ]
+    },
+    "owner": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "open",
+        "mitigating",
+        "closed"
+      ]
+    },
+    "raised_from": {
+      "type": "string"
+    },
+    "sources": {
+      "type": "array",
+      "description": "Where the facts came from: source ids with a locator (page, cell, timestamp, message id).",
+      "items": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "type": "string"
+          },
+          "locator": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "required": [
+    "type",
+    "title"
+  ],
+  "additionalProperties": true,
+  "x-core-family": true,
+  "x-indexing": {
+    "l1": [
+      "id",
+      "title",
+      "severity",
+      "status"
+    ],
+    "l2": "Title + description",
+    "graph_relations": [
+      "owner (-> contact)",
+      "raised_from (-> any)"
+    ],
+    "dreaming_relevance": "None in v0.1"
+  }
+}

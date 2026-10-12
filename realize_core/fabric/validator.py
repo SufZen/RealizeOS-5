@@ -85,8 +85,82 @@ class SchemaRegistry:
         logger.info(f"Loaded {len(self._schemas)} FABRIC schemas")
 
     def get_schema(self, entity_type: str) -> dict | None:
-        """Get the JSON Schema for a given entity type."""
-        return self._schemas.get(entity_type)
+        """Get the JSON Schema for a given entity type, with ``allOf`` references resolved.
+
+        Pack schemas (spec 010) extend a core family with ``allOf: [{"$ref": ...}]``.
+        The returned schema merges the referenced schemas' ``properties`` and
+        ``required`` with the extension's own; the extension wins per property.
+        """
+        schema = self._schemas.get(entity_type)
+        if schema is None:
+            return None
+        return self._resolve(schema, seen=set())
+
+    def register(self, name: str, schema: dict) -> list[str]:
+        """Register an extra schema (e.g. from a pack) and return extension problems.
+
+        Args:
+            name: Entity type the schema validates (e.g. ``payment-claim``).
+            schema: JSON Schema dict, usually ``allOf`` a core family.
+
+        Returns:
+            Human-readable problems, such as an extension retyping a core property.
+            Registration happens regardless; validation stays soft.
+        """
+        self._schemas[name] = schema
+        return self.check_extension(schema)
+
+    def check_extension(self, schema: dict) -> list[str]:
+        """List places where ``schema`` retypes a property defined by a schema it extends."""
+        problems: list[str] = []
+        own = schema.get("properties", {})
+        for base in self._referenced(schema):
+            base_props = self._resolve(base, seen=set()).get("properties", {})
+            for prop_name, prop in own.items():
+                if prop_name in base_props:
+                    base_type = base_props[prop_name].get("type")
+                    new_type = prop.get("type")
+                    if base_type and new_type and base_type != new_type:
+                        problems.append(f"Property '{prop_name}' retypes core type '{base_type}' as '{new_type}'")
+        return problems
+
+    def _lookup_ref(self, ref: str) -> dict | None:
+        """Find a schema by ``$id``, file name (``money-event.json``) or type name."""
+        for schema in self._schemas.values():
+            if schema.get("$id") == ref:
+                return schema
+        stem = ref.rsplit("/", 1)[-1].removesuffix(".json")
+        return self._schemas.get(stem)
+
+    def _referenced(self, schema: dict) -> list[dict]:
+        """Schemas referenced from ``allOf`` entries."""
+        found = []
+        for part in schema.get("allOf", []):
+            if isinstance(part, dict) and "$ref" in part:
+                target = self._lookup_ref(part["$ref"])
+                if target is None:
+                    logger.warning("Schema reference not found: %s", part["$ref"])
+                else:
+                    found.append(target)
+        return found
+
+    def _resolve(self, schema: dict, seen: set[int]) -> dict:
+        """Flatten ``allOf`` references into one schema (properties and required)."""
+        if id(schema) in seen or "allOf" not in schema:
+            return schema
+        seen = seen | {id(schema)}
+        properties: dict = {}
+        required: list = []
+        for base in self._referenced(schema):
+            resolved = self._resolve(base, seen)
+            properties.update(resolved.get("properties", {}))
+            required.extend(r for r in resolved.get("required", []) if r not in required)
+        properties.update(schema.get("properties", {}))
+        required.extend(r for r in schema.get("required", []) if r not in required)
+        merged = {k: v for k, v in schema.items() if k != "allOf"}
+        merged["properties"] = properties
+        merged["required"] = required
+        return merged
 
     @property
     def known_types(self) -> list[str]:
@@ -196,8 +270,14 @@ def validate_entity(
     return result
 
 
-def _type_matches(value, expected_type: str) -> bool:
-    """Check if a value matches a JSON Schema type string."""
+def _type_matches(value, expected_type: str | list[str]) -> bool:
+    """Check if a value matches a JSON Schema type string or list of type strings."""
+    if isinstance(expected_type, list):
+        return any(_type_matches(value, t) for t in expected_type)
+    if expected_type == "null":
+        return value is None
+    if isinstance(value, bool) and expected_type in ("number", "integer"):
+        return False
     type_map = {
         "string": str,
         "number": (int, float),
