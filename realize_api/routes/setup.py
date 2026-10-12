@@ -160,16 +160,20 @@ _ALLOWED_ENV_KEYS = {c["env_key"] for c in CONNECTION_DEFINITIONS} - BLOCKED_KEY
 
 
 def _mask_value(value: str, conn_type: str = "secret") -> str:
-    """Mask a secret value for display — show first 4 + last 3 chars."""
+    """Mask a secret for display: at most its last 4 characters, never its start.
+
+    QA 5.14 D-2: the first 4 and last 3 characters were returned, which for
+    many key formats is most of what identifies the key.
+    """
     if not value:
         return ""
     if conn_type == "toggle":
         return value
     if conn_type in ("url", "number"):
         return value
-    if len(value) <= 8:
-        return value[:2] + "..." + value[-1:]
-    return value[:4] + "..." + value[-3:]
+    if len(value) < 16:
+        return "••••"
+    return "••••" + value[-4:]
 
 
 def _get_env_path() -> Path:
