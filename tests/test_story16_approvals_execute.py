@@ -681,6 +681,9 @@ class TestHeldToolStepPausesSkill:
 
         assert "stopped at step 'pay'" in out["skill_output"]
         assert "LLM saw" not in out["skill_output"]
+        # The tool's own error text (third-party content) is not relayed to the chat.
+        assert "read-only" not in out["skill_output"]
+        assert not any("read-only" in m[3] for m in conversation)
 
     @pytest.mark.asyncio
     async def test_rejection_stops_the_skill(self, gated, skill_env, db, conversation):

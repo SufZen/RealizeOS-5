@@ -151,10 +151,12 @@ async def resume_after_held_tool(
         return None
     step_id = pending.get("step_id") or "tool"
     if not execution.get("success"):
-        reason = execution.get("error") or "the approved action did not complete"
-        return f"⚠️ The workflow stopped at step '{step_id}': {reason}. Nothing after this step ran."
+        # A fixed line only: the tool's error can carry third-party text, and this
+        # message goes into the conversation (the error itself is on the approval row).
+        logger.warning("Approved step %s failed; skill %s stopped", step_id, pending.get("skill_name"))
+        return f"⚠️ The workflow stopped at step '{step_id}': the approved action failed. Nothing after this step ran."
     ctx = pending["context"]
-    ctx.step_results[step_id] = execution.get("output", "")
+    ctx.step_results[step_id] = _bounded_tool_output(execution.get("output", ""))
     logger.info("Resuming skill %s after approved step %s", pending.get("skill_name"), step_id)
     return await _run_v2_steps(
         pending.get("remaining_steps", []),
@@ -676,9 +678,13 @@ async def _execute_tool_step(step, ctx, emit=None) -> str:
         reason = "blocked by governance policy" if result.metadata.get("requires_human") else (result.error or "")
         logger.warning("Tool step %s failed: %s", tool_name, reason)
         raise StepFailedError(f"{tool_name}: {reason[:300]}")
-    output = result.output or ""
+    return _bounded_tool_output(result.output or "")
+
+
+def _bounded_tool_output(output: str) -> str:
+    """Tool output as a step result: capped, the same for direct and approved runs."""
     if len(output) > 6000:
-        output = output[:6000] + "\n... (truncated)"
+        return output[:6000] + "\n... (truncated)"
     return output
 
 
