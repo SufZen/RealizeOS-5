@@ -1,6 +1,7 @@
 import { useCallback } from 'react'
-import { ApiError } from '@/lib/api'
+import { ApiError, notifySessionExpired } from '@/lib/api'
 import { useQuery } from '@tanstack/react-query'
+import { useAuthPrincipal } from '@/hooks/use-auth'
 
 export interface ApiState<T> {
   data: T | null
@@ -35,15 +36,27 @@ function friendlyMessage(status: number, raw: string): string {
   }
 }
 
-async function fetchWithTimeout<T>(path: string, timeout: number): Promise<T> {
+/** Cache key for a GET: partitioned by principal, so users never share entries. */
+export function apiQueryKey(principal: string, path: string): readonly unknown[] {
+  return ['api', principal, path] as const
+}
+
+async function fetchWithTimeout<T>(
+  path: string,
+  timeout: number,
+  signal?: AbortSignal,
+): Promise<T> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeout)
+  // Cancelling the query (e.g. on sign-out) aborts the request itself.
+  signal?.addEventListener('abort', () => controller.abort(), { once: true })
   try {
     const res = await fetch(`/api${path}`, {
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       signal: controller.signal,
     })
+    if (res.status === 401) notifySessionExpired(path)
     if (!res.ok) {
       const text = await res.text().catch(() => res.statusText)
       throw new ApiError(res.status, text)
@@ -59,14 +72,15 @@ export function useApi<T>(
   timeout = DEFAULT_TIMEOUT,
   refetchInterval?: number,
 ): UseApiResult<T> {
+  const principal = useAuthPrincipal()
   const {
     data,
     isPending,
     error,
     refetch: queryRefetch,
   } = useQuery<T, Error>({
-    queryKey: ['api', path],
-    queryFn: () => fetchWithTimeout<T>(path, timeout),
+    queryKey: apiQueryKey(principal, path),
+    queryFn: ({ signal }) => fetchWithTimeout<T>(path, timeout, signal),
     refetchInterval,
     retry: (failureCount, err) => {
       if (err instanceof ApiError && err.status >= 400 && err.status < 500 && err.status !== 429) {
