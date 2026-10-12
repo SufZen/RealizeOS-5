@@ -114,8 +114,8 @@ export default function VenturesListPage() {
 
       {!canEdit && (
         <p className="text-xs text-muted-foreground">
-          The server configuration is read-only here, so ventures can&apos;t be created or deleted from
-          the dashboard. Change them in realize-os.yaml on the server.
+          The server configuration is read-only here, so ventures can&apos;t be created or deleted
+          from the dashboard. Change them in realize-os.yaml on the server.
         </p>
       )}
 
@@ -140,15 +140,15 @@ export default function VenturesListPage() {
                 <Download className="h-3.5 w-3.5" />
               </button>
               {canEdit && (
-              <button
-                onClick={(e) => handleDeleteClick(v.key, e)}
-                disabled={deleting === v.key}
-                className="p-1.5 rounded-lg bg-surface-800/80 border border-border text-muted-foreground hover:text-red-400 transition-colors"
-                title="Delete"
-                aria-label={`Delete ${v.key}`}
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </button>
+                <button
+                  onClick={(e) => handleDeleteClick(v.key, e)}
+                  disabled={deleting === v.key}
+                  className="p-1.5 rounded-lg bg-surface-800/80 border border-border text-muted-foreground hover:text-red-400 transition-colors"
+                  title="Delete"
+                  aria-label={`Delete ${v.key}`}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
               )}
             </div>
           </div>
@@ -161,13 +161,13 @@ export default function VenturesListPage() {
           <Briefcase className="h-12 w-12 text-muted-foreground/30 mb-4 rz-animate-float relative z-10" />
           <p className="text-muted-foreground text-sm mb-4">No ventures configured yet.</p>
           {canEdit && (
-          <button
-            onClick={() => setShowCreate(true)}
-            className="flex items-center gap-2 px-4 py-2 text-sm rounded-lg bg-brand-400 text-black hover:bg-brand-400/90 font-medium transition-colors"
-          >
-            <Plus className="h-4 w-4" />
-            Create your first venture
-          </button>
+            <button
+              onClick={() => setShowCreate(true)}
+              className="flex items-center gap-2 px-4 py-2 text-sm rounded-lg bg-brand-400 text-black hover:bg-brand-400/90 font-medium transition-colors"
+            >
+              <Plus className="h-4 w-4" />
+              Create your first venture
+            </button>
           )}
         </div>
       )}

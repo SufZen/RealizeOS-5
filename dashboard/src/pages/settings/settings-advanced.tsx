@@ -57,12 +57,15 @@ export function LLMRoutingSection() {
 
       {deadModels.length > 0 && (
         <div role="alert" className="mt-4 rounded-lg border border-red-500/40 bg-red-500/10 p-3">
-          <p className="text-sm font-medium text-red-400">Some configured models are not answering</p>
+          <p className="text-sm font-medium text-red-400">
+            Some configured models are not answering
+          </p>
           <ul className="mt-1 space-y-0.5 text-xs text-muted-foreground">
             {deadModels.map(({ provider, model }) => (
               <li key={`${provider}:${model}`}>
-                <span className="font-mono">{model}</span> ({provider}) returned &quot;not found&quot;. It is
-                probably retired. Update the model ID in the server settings and restart.
+                <span className="font-mono">{model}</span> ({provider}) returned &quot;not
+                found&quot;. It is probably retired. Update the model ID in the server settings and
+                restart.
               </li>
             ))}
           </ul>
