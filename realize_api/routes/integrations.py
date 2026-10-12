@@ -1,5 +1,11 @@
 """
-Integrations API routes — manage external service integrations.
+Integrations API routes — a list of the services a venture plans to use.
+
+This page does not connect to or check any service (Codex audit F08): it
+used to report "connected" for any key and "Connection is working" without
+contacting anyone, while discarding the key. Real credentials go in Setup →
+Connections, where the tools that use them read them. Until this page is
+wired to real connectors, it says so instead of claiming success.
 
 Endpoints:
 - GET    /api/integrations              — list configured integrations
@@ -23,11 +29,17 @@ logger = logging.getLogger(__name__)
 _integrations: list[dict] = []
 
 
+_NOT_WIRED = (
+    "RealizeOS can't connect {name} from this page yet. Add its key in Setup → Connections, "
+    "where the tools that use it read it."
+)
+
+
 class AddIntegrationBody(BaseModel):
     """Body for adding a new integration."""
 
     provider: str
-    api_key: str | None = None
+    api_key: str | None = None  # accepted for old clients; never stored (keys go in Setup)
 
 
 # Available integrations that users can add
@@ -44,28 +56,28 @@ AVAILABLE_INTEGRATIONS = [
         "name": "Stripe",
         "description": "Invoicing, payment links, subscriptions",
         "category": "payments",
-        "requires_api_key": True,
+        "requires_api_key": False,
     },
     {
         "provider": "telegram",
         "name": "Telegram Bot",
         "description": "Chat with your AI agents via Telegram",
         "category": "communication",
-        "requires_api_key": True,
+        "requires_api_key": False,
     },
     {
         "provider": "slack",
         "name": "Slack",
         "description": "Slack workspace integration",
         "category": "communication",
-        "requires_api_key": True,
+        "requires_api_key": False,
     },
     {
         "provider": "notion",
         "name": "Notion",
         "description": "Notion workspace sync",
         "category": "productivity",
-        "requires_api_key": True,
+        "requires_api_key": False,
     },
 ]
 
@@ -102,7 +114,7 @@ async def add_integration(body: AddIntegrationBody):
         "name": provider_info["name"],
         "provider": body.provider,
         "category": provider_info["category"],
-        "status": "connected" if body.api_key else "disconnected",
+        "status": "unverified",  # nothing here checks the service
         "description": provider_info["description"],
         "last_sync": None,
         "events_received": 0,
@@ -121,8 +133,7 @@ async def connect_integration(integration_id: str):
     if not integration:
         raise HTTPException(status_code=404, detail="Integration not found")
 
-    integration["status"] = "connected"
-    return {"status": "connected"}
+    raise HTTPException(status_code=409, detail=_NOT_WIRED.format(name=integration["name"]))
 
 
 @router.post("/integrations/{integration_id}/disconnect")
@@ -143,7 +154,11 @@ async def test_integration(integration_id: str):
     if not integration:
         raise HTTPException(status_code=404, detail="Integration not found")
 
-    return {"status": "ok", "message": f"Connection to {integration['name']} is working"}
+    return {
+        "status": "unverified",
+        "message": f"Not checked: RealizeOS doesn't test {integration['name']} from this page yet. "
+        "Configure it in Setup → Connections.",
+    }
 
 
 @router.delete("/integrations/{integration_id}")

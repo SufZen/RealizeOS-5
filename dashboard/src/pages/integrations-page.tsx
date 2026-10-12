@@ -25,7 +25,7 @@ import { cn } from '@/lib/utils'
 /* Types                                                               */
 /* ------------------------------------------------------------------ */
 
-type IntegrationStatus = 'connected' | 'disconnected' | 'error' | 'pending'
+type IntegrationStatus = 'connected' | 'disconnected' | 'unverified' | 'error' | 'pending'
 
 interface Integration {
   id: string
@@ -70,6 +70,11 @@ const STATUS_META: Record<IntegrationStatus, { color: string; bg: string; icon: 
     bg: 'bg-surface-700 border-surface-600',
     icon: WifiOff,
   },
+  unverified: {
+    color: 'text-amber-400',
+    bg: 'bg-amber-400/10 border-amber-400/20',
+    icon: AlertCircle,
+  },
   error: { color: 'text-red-400', bg: 'bg-red-400/10 border-red-400/20', icon: XCircle },
   pending: { color: 'text-amber-400', bg: 'bg-amber-400/10 border-amber-400/20', icon: Loader2 },
 }
@@ -84,6 +89,7 @@ export default function IntegrationsPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [showAddModal, setShowAddModal] = useState(false)
   const [actionInProgress, setActionInProgress] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
 
   /* ---- Actions ---- */
 
@@ -94,8 +100,8 @@ export default function IntegrationsPage() {
         const action = currentStatus === 'connected' ? 'disconnect' : 'connect'
         await api.post(`/integrations/${id}/${action}`)
         refetch()
-      } catch {
-        // Error handled by refetch
+      } catch (err) {
+        setNotice(err instanceof Error ? err.message : 'The action failed.')
       } finally {
         setActionInProgress(null)
       }
@@ -122,10 +128,11 @@ export default function IntegrationsPage() {
     async (id: string) => {
       setActionInProgress(id)
       try {
-        await api.post(`/integrations/${id}/test`)
+        const res = await api.post<{ message?: string }>(`/integrations/${id}/test`)
+        setNotice(res?.message ?? null)
         refetch()
-      } catch {
-        // Error handled by refetch
+      } catch (err) {
+        setNotice(err instanceof Error ? err.message : 'The test failed.')
       } finally {
         setActionInProgress(null)
       }
@@ -207,6 +214,19 @@ export default function IntegrationsPage() {
           </button>
         </div>
       </div>
+
+      <div className="rounded-lg border border-amber-400/30 bg-amber-400/10 p-3 text-xs text-amber-200">
+        This list doesn&apos;t connect to or check any service yet. To give RealizeOS access to a
+        service, add its key in Setup → Connections.
+      </div>
+      {notice && (
+        <div
+          role="status"
+          className="rounded-lg border border-border bg-card p-3 text-xs text-foreground"
+        >
+          {notice}
+        </div>
+      )}
 
       {/* Stats */}
       <div className="grid gap-4 md:grid-cols-3">
