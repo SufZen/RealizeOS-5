@@ -208,7 +208,8 @@ def index_kb_files(kb_root: str, db_path: Path = None, force: bool = False) -> i
 
     Args:
         kb_root: Root path of the knowledge base
-        db_path: Path for the index database. Defaults to <kb_root>/kb_index.db
+        db_path: Path for the index database. Defaults to <kb_root>/kb_index.db when
+            that folder is writable, else DATA_PATH/kb_index.db
         force: If True, re-index all files regardless of mtime
 
     Returns:
@@ -216,7 +217,9 @@ def index_kb_files(kb_root: str, db_path: Path = None, force: bool = False) -> i
     """
     kb_path = Path(kb_root)
     if db_path is None:
-        db_path = kb_path / "kb_index.db"
+        from realize_core.config import persisted_path
+
+        db_path = persisted_path("kb_index.db", kb_path, state=False)
 
     _init_index_db(db_path)
     conn = _get_conn(db_path)
@@ -381,9 +384,9 @@ def semantic_search(
         List of dicts with path, title, system_key, snippet, score.
     """
     if db_path is None:
-        from realize_core.config import KB_PATH
+        from realize_core.config import KB_PATH, persisted_path
 
-        db_path = KB_PATH / "kb_index.db"
+        db_path = persisted_path("kb_index.db", KB_PATH, state=False)
 
     _init_index_db(db_path)
     conn = _get_conn(db_path)

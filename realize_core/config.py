@@ -41,6 +41,52 @@ KB_PATH = Path(os.getenv("KB_PATH", ".")).resolve()
 DATA_PATH = Path(os.getenv("DATA_PATH", "./data")).resolve()
 
 
+# --- Persisted store locations ---
+_legacy_store_warned: set[Path] = set()
+
+
+def data_dir() -> Path:
+    """The persisted data directory (``DATA_PATH``, read at call time)."""
+    return Path(os.getenv("DATA_PATH", "./data")).resolve()
+
+
+def persisted_path(name: str, legacy_dir: str | Path, *, state: bool = True) -> Path:
+    """Where a file-based store lives.
+
+    Before 5.15 the operational DB, KB index and Synapse defaulted to the
+    working directory or KB root, which a container doesn't persist (and the
+    production image mounts read-only). Now:
+
+    1. An existing file at the legacy location keeps being used, so no
+       install loses data on upgrade.
+    2. State (``state=True``) otherwise goes under ``DATA_PATH``.
+    3. A rebuildable index (``state=False``) stays next to its source when
+       that folder is writable, else goes under ``DATA_PATH``.
+    """
+    legacy = Path(legacy_dir) / name
+    if legacy.exists():
+        resolved = legacy.resolve()
+        if data_dir() not in resolved.parents and resolved not in _legacy_store_warned:
+            _legacy_store_warned.add(resolved)
+            logger.warning(
+                "Using %s outside DATA_PATH (%s); make sure it is on persistent storage.", resolved, data_dir()
+            )
+        return legacy
+    if not state and os.access(legacy_dir, os.W_OK):
+        return legacy
+    return data_dir() / name
+
+
+def synapse_dir(kb_path: str | Path) -> Path:
+    """Folder for the Synapse index and the Dream Inbox.
+
+    An existing ``<kb>/.synapse`` keeps being used; otherwise ``DATA_PATH/synapse``.
+    """
+    if (Path(kb_path) / ".synapse").exists():
+        return persisted_path(".synapse", kb_path)
+    return data_dir() / "synapse"
+
+
 def _interpolate_env(value: str) -> str:
     """Replace ${ENV_VAR} placeholders with environment variable values."""
 
