@@ -4,6 +4,52 @@ All notable changes to RealizeOS are documented in this file.
 This changelog is automatically generated from [Conventional Commits](https://conventionalcommits.org).
 
 
+## [5.15.4](https://github.com/SufZen/RealizeOS-5/compare/v5.15.3...v5.15.4) (2026-10-12)
+
+### Bug Fixes
+
+* **integrations:** stop claiming connections the page never makes ([3ea82be](https://github.com/SufZen/RealizeOS-5/commit/3ea82be53c711d125623a250157c845500390e3c))
+* **pipelines:** label pipeline runs as simulated ([397332b](https://github.com/SufZen/RealizeOS-5/commit/397332bd72725aa081407b4d9ab36f5d6516de5c))
+* **workflows:** editor no longer crashes or fakes saves; API refuses empty workflows ([65b1821](https://github.com/SufZen/RealizeOS-5/commit/65b1821a98aa0130ae4f7f9859c8945df090a453))
+
+## [5.15.3](https://github.com/SufZen/RealizeOS-5/compare/v5.15.2...v5.15.3) (2026-10-12)
+
+### Bug Fixes
+
+* **approvals:** agent approval requests reach the dashboard queue ([ff64d99](https://github.com/SufZen/RealizeOS-5/commit/ff64d99d748dac9b0c120d636b255773cec794f8))
+* **missions:** a held action holds the mission instead of completing it ([f5e184c](https://github.com/SufZen/RealizeOS-5/commit/f5e184cef305e3df884a22905bb6944e639a0216))
+* **skills:** a held tool step pauses the skill; paused runs are durable ([4f72f31](https://github.com/SufZen/RealizeOS-5/commit/4f72f31aa74c3197a29c2a3a7cd865de9fb5ba76))
+* **skills:** don't relay third-party tool text when resuming after approval ([bebcb05](https://github.com/SufZen/RealizeOS-5/commit/bebcb05cf6fdba685c213aa844fa1d09c82b5633))
+
+## [5.15.2](https://github.com/SufZen/RealizeOS-5/compare/v5.15.1...v5.15.2) (2026-10-12)
+
+### Bug Fixes
+
+* **governance:** apply Settings policy changes to the live tool gate ([26b5289](https://github.com/SufZen/RealizeOS-5/commit/26b52891262a62004e0075f5521d98a38f5cd239))
+* **governance:** fail closed when the tool gate can't be applied ([47fe6c0](https://github.com/SufZen/RealizeOS-5/commit/47fe6c0b9c4a2da2cc8daf18fec0789c24a80b94))
+* **setup:** provider keys saved in Setup apply without a restart ([4ac2032](https://github.com/SufZen/RealizeOS-5/commit/4ac203247784ab05b063f804056ac620f50865b2))
+* **storage:** keep every durable store on persisted storage; report a failed one ([fcec8f0](https://github.com/SufZen/RealizeOS-5/commit/fcec8f02a852acfada553ac54a187aec634c838a))
+
+## [5.15.1](https://github.com/SufZen/RealizeOS-5/compare/v5.15.0...v5.15.1) (2026-10-12)
+
+### Bug Fixes
+
+* **dashboard:** never show one user's cached data to the next ([6791626](https://github.com/SufZen/RealizeOS-5/commit/679162683fa5e9ebf0eb86f79669186a78b4ba47))
+* **security:** keep venture-limited callers out of other ventures' diagnostics ([3ac5bfb](https://github.com/SufZen/RealizeOS-5/commit/3ac5bfb5f7f808e70d146f49d54c8ce146dd18cd))
+
+## [5.15.0](https://github.com/SufZen/RealizeOS-5/compare/v5.14.0...v5.15.0) (2026-10-12)
+
+### Features
+
+* **llm:** default to the newest Claude models (Sonnet 5.5, Opus 5.5) ([2d9b023](https://github.com/SufZen/RealizeOS-5/commit/2d9b023679c2044ebdae731d305e423e2828e497))
+
+### Bug Fixes
+
+* **llm:** recover from a dead Claude model on the native tool path ([0de7215](https://github.com/SufZen/RealizeOS-5/commit/0de72158716f1418f8beffa7d4b30f173cd1064f))
+* **llm:** treat a model refusal as final, never retry it on another provider ([a0a9796](https://github.com/SufZen/RealizeOS-5/commit/a0a9796f7bc2416d72c1623575240c1b9293d9c7))
+* **llm:** use live Claude model IDs and fall through to the next provider ([2e2eb26](https://github.com/SufZen/RealizeOS-5/commit/2e2eb263a385a3aefa02c87ffc830d929facf7ec))
+* **ventures:** make venture delete and create all-or-nothing ([4efe3bc](https://github.com/SufZen/RealizeOS-5/commit/4efe3bced4ffbad26290c2ec39fdb9d5879c27fd))
+
 ## [5.14.0](https://github.com/SufZen/RealizeOS-5/compare/v5.13.0...v5.14.0) (2026-10-12)
 
 ### Features
