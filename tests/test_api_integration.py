@@ -257,3 +257,25 @@ class TestUnknownApiPaths:
         assert res.status_code == 404
         assert res.headers["content-type"].startswith("application/json")
         assert "<html" not in res.text.lower()
+
+
+class TestApiDocsNeedSignIn:
+    """QA 5.14 S-2: the OpenAPI schema and docs are not public."""
+
+    @pytest.fixture
+    def app_client(self, monkeypatch, tmp_path):
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setenv("REALIZE_API_KEY", "test-api-key-1234567890abcdef")
+        from realize_api.main import create_app
+
+        return TestClient(create_app())
+
+    @pytest.mark.parametrize("path", ["/api/openapi.json", "/api/docs", "/api/redoc"])
+    def test_docs_require_auth(self, app_client, path):
+        assert app_client.get(path).status_code == 401
+        signed_in = app_client.get(path, headers={"X-API-Key": "test-api-key-1234567890abcdef"})
+        assert signed_in.status_code == 200
+
+    def test_old_public_schema_path_is_gone(self, app_client):
+        res = app_client.get("/openapi.json")
+        assert "paths" not in res.text

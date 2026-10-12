@@ -48,9 +48,6 @@ _PUBLIC_NON_API_PATHS = frozenset(
     {
         "/health",
         "/status",
-        "/docs",
-        "/openapi.json",
-        "/redoc",
         "/favicon.svg",
         "/icons.svg",
     }

@@ -32,9 +32,6 @@ _PUBLIC_PATHS = frozenset(
     {
         "/health",
         "/status",
-        "/docs",
-        "/openapi.json",
-        "/redoc",
         "/api/health",
         "/favicon.svg",
         "/icons.svg",
