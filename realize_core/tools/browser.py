@@ -64,10 +64,41 @@ def _validate_url(url: str) -> str | None:
         if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
             return f"Blocked private/internal IP: {hostname}"
     except ValueError:
-        # Not an IP literal — hostname is fine (DNS resolution is at browser level)
         pass
 
+    # Resolve the name and refuse it if any address is internal (Codex audit
+    # F13): a public-looking hostname can point at 10.x / 169.254.169.254.
+    from realize_core.security.url_guard import UnsafeURLError, check_url
+
+    try:
+        check_url(url if parsed.scheme else f"http://{url}")
+    except UnsafeURLError as exc:
+        return f"Blocked: {exc}"
+
     return None
+
+
+#: Request URLs that never touch the network.
+_LOCAL_SCHEMES = ("data:", "blob:", "about:")
+
+
+async def _guard_request(route) -> None:
+    """Playwright route handler: vet every request the page makes.
+
+    Covers the first navigation, each redirect hop (Chromium re-issues the
+    request), and subresources such as images, iframes and fetch/XHR calls,
+    so a page or a redirect can't reach an internal address either.
+    """
+    url = route.request.url
+    if url.startswith(_LOCAL_SCHEMES):
+        await route.continue_()
+        return
+    error = await asyncio.to_thread(_validate_url, url)
+    if error:
+        logger.warning("Browser request blocked: %s (%s)", url[:200], error)
+        await route.abort("blockedbyclient")
+        return
+    await route.continue_()
 
 
 # Browser context pool: {user_id: BrowserSession}
@@ -97,10 +128,14 @@ class BrowserSession:
                 args=["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage", "--disable-gpu"],
             )
             self.context = await self.browser.new_context(
+                # Service workers fetch outside the route handler: keep them off.
+                service_workers="block",
                 viewport={"width": 1280, "height": 720},
                 user_agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
                 "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             )
+            # Every request from every page in this context goes through the SSRF guard.
+            await self.context.route("**/*", _guard_request)
             self.page = await self.context.new_page()
             self.page.set_default_timeout(BROWSER_TIMEOUT * 1000)
             self._initialized = True
@@ -164,8 +199,8 @@ async def cleanup_all_sessions():
 
 
 async def browser_navigate(url: str, user_id: str = "0") -> dict:
-    # SSRF protection: validate URL before opening
-    url_error = _validate_url(url)
+    # SSRF protection: validate URL before opening (DNS lookup off the event loop)
+    url_error = await asyncio.to_thread(_validate_url, url)
     if url_error:
         return {"error": f"URL blocked: {url_error}", "url": url}
 

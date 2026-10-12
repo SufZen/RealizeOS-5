@@ -270,11 +270,60 @@ class TestBrowserSSRF:
         result = _validate_url("http://metadata.google.internal/computeMetadata/v1/")
         assert result is not None
 
-    def test_allows_public_urls(self):
+    def test_allows_public_urls(self, monkeypatch):
+        import ipaddress
+
+        from realize_core.security import url_guard
         from realize_core.tools.browser import _validate_url
 
+        monkeypatch.setattr(url_guard, "_resolve", lambda host: [ipaddress.ip_address("93.184.216.34")])
         assert _validate_url("https://www.google.com") is None
         assert _validate_url("https://example.com/path?q=1") is None
+
+    def test_blocks_hostname_that_resolves_internally(self, monkeypatch):
+        """Codex audit F13: a DNS name pointing at a private or metadata address is refused."""
+        import ipaddress
+
+        from realize_core.security import url_guard
+        from realize_core.tools.browser import _validate_url
+
+        for internal in ("10.0.0.5", "169.254.169.254", "127.0.0.1"):
+            monkeypatch.setattr(url_guard, "_resolve", lambda host, ip=internal: [ipaddress.ip_address(ip)])
+            assert _validate_url("http://audit-internal.example.test/admin") is not None
+
+    @pytest.mark.asyncio
+    async def test_route_guard_blocks_redirects_and_subrequests(self, monkeypatch):
+        """Every request the page makes (redirect hop, iframe, fetch) is vetted, not just the first URL."""
+        import ipaddress
+
+        from realize_core.security import url_guard
+        from realize_core.tools.browser import _guard_request
+
+        addresses = {"public.example": "93.184.216.34", "internal.example": "10.1.2.3"}
+        monkeypatch.setattr(
+            url_guard, "_resolve", lambda host: [ipaddress.ip_address(addresses.get(host, "93.184.216.34"))]
+        )
+
+        class Route:
+            def __init__(self, url):
+                self.request = type("Req", (), {"url": url})()
+                self.outcome = None
+
+            async def continue_(self):
+                self.outcome = "continued"
+
+            async def abort(self, reason):
+                self.outcome = f"aborted:{reason}"
+
+        for url, expected in (
+            ("https://public.example/page", "continued"),
+            ("http://internal.example/admin", "aborted:blockedbyclient"),
+            ("http://169.254.169.254/latest/meta-data/", "aborted:blockedbyclient"),
+            ("data:image/png;base64,AAAA", "continued"),
+        ):
+            route = Route(url)
+            await _guard_request(route)
+            assert route.outcome == expected, url
 
     def test_blocks_gopher_protocol(self):
         from realize_core.tools.browser import _validate_url
