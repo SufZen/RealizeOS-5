@@ -12,6 +12,15 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
+
+class ClaudeModelNotFoundError(RuntimeError):
+    """The requested Claude model ID returned 404 (retired or misspelled)."""
+
+    def __init__(self, model: str):
+        super().__init__(f"Claude model '{model}' was not found.")
+        self.model = model
+
+
 # Price per 1M tokens (input, output), by model ID prefix. Longest prefix wins.
 CLAUDE_PRICING: dict[str, tuple[float, float]] = {
     "claude-fable-5-1": (10.0, 50.0),

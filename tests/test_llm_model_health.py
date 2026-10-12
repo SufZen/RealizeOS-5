@@ -269,3 +269,56 @@ class TestRequestShape:
 
         assert response.refused
         assert not response.ok
+
+
+class TestToolPathModelHealth:
+    """F15: a dead model on the native tool path is marked and the next Claude model is used."""
+
+    @staticmethod
+    def _reply():
+        return SimpleNamespace(
+            content=[SimpleNamespace(type="text", text="done")],
+            stop_reason="end_turn",
+            usage=SimpleNamespace(input_tokens=1, output_tokens=1),
+        )
+
+    async def _call(self, claude_provider, side_effect):
+        calls = AsyncMock(side_effect=side_effect)
+        with patch.dict(
+            sys.modules, {"realize_core.llm.claude_client": _fake_claude_client(call_claude_with_tools=calls)}
+        ):
+            response = await claude_provider.complete_with_tools("sys", [{"role": "user", "content": "hi"}], tools=[])
+        return response, calls
+
+    async def test_404_marks_dead_and_uses_next_model(self, claude_provider):
+        reply = self._reply()
+        response, calls = await self._call(claude_provider, [cm.ClaudeModelNotFoundError("claude-sonnet-test"), reply])
+
+        assert response.ok
+        assert response.model == "claude-opus-test"
+        assert response.raw is reply
+        assert [c.kwargs["model"] for c in calls.call_args_list] == ["claude-sonnet-test", "claude-opus-test"]
+        assert "claude-sonnet-test" in claude_provider.model_errors()
+
+    async def test_dead_model_is_skipped_on_the_next_turn(self, claude_provider):
+        await self._call(claude_provider, [cm.ClaudeModelNotFoundError("claude-sonnet-test"), self._reply()])
+        _, calls = await self._call(claude_provider, [self._reply()])
+
+        assert [c.kwargs["model"] for c in calls.call_args_list] == ["claude-opus-test"]
+
+    async def test_all_models_dead_returns_error(self, claude_provider):
+        response, calls = await self._call(
+            claude_provider,
+            [cm.ClaudeModelNotFoundError("claude-sonnet-test"), cm.ClaudeModelNotFoundError("claude-opus-test")],
+        )
+
+        assert response.error == "model_not_found"
+        assert response.raw is None
+        assert calls.await_count == 2
+
+    async def test_transient_error_does_not_switch_models(self, claude_provider):
+        response, calls = await self._call(claude_provider, [RuntimeError("Rate limit hit.")])
+
+        assert response.error == "Rate limit hit."
+        assert calls.await_count == 1
+        assert claude_provider.model_errors() == {}

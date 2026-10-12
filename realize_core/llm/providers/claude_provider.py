@@ -6,7 +6,7 @@ Supports text, vision, and tool use via Anthropic's Claude API.
 
 import asyncio
 import logging
-from typing import Any, ClassVar, Protocol, cast
+from typing import Any, ClassVar, cast
 
 from realize_core.config import DEFAULT_CLAUDE_OPUS_MODEL, DEFAULT_CLAUDE_SONNET_MODEL
 from realize_core.llm.base_provider import (
@@ -16,13 +16,15 @@ from realize_core.llm.base_provider import (
     LLMResponse,
     ModelInfo,
 )
-from realize_core.llm.claude_models import claude_price, is_refusal, request_params, response_text
+from realize_core.llm.claude_models import (
+    ClaudeModelNotFoundError,
+    claude_price,
+    is_refusal,
+    request_params,
+    response_text,
+)
 
 logger = logging.getLogger(__name__)
-
-
-class _TextBlock(Protocol):
-    text: str
 
 
 class ClaudeProvider(BaseLLMProvider):
@@ -222,43 +224,55 @@ class ClaudeProvider(BaseLLMProvider):
         max_tokens: int = 4096,
         timeout: float = 60.0,
     ) -> LLMResponse:
-        """Tool-use completion via Claude API."""
+        """Tool-use completion via Claude API.
+
+        If a model answers 404 it is marked dead and the same request is sent
+        to the next configured Claude model. The failed call produced nothing,
+        so no tool is dispatched twice. Other errors are returned as-is; they
+        never trigger a model switch.
+        """
         from realize_core.llm.claude_client import call_claude_with_tools
 
         models = self._get_models_config()
-        model = model or models.get("claude_sonnet") or DEFAULT_CLAUDE_SONNET_MODEL
+        requested = model or models.get("claude_sonnet") or DEFAULT_CLAUDE_SONNET_MODEL
+        candidates = [requested] + [m.model_id for m in self.list_models() if m.model_id != requested]
+        candidates = [m for m in candidates if self.is_model_usable(m)]
 
-        try:
-            response = await call_claude_with_tools(
-                system_prompt=system_prompt,
-                messages=messages,
-                tools=tools,
-                model=model,
-                max_tokens=max_tokens,
-            )
+        for candidate in candidates:
+            try:
+                response = await call_claude_with_tools(
+                    system_prompt=system_prompt,
+                    messages=messages,
+                    tools=tools,
+                    model=candidate,
+                    max_tokens=max_tokens,
+                )
+            except ClaudeModelNotFoundError as e:
+                self._mark_model_dead(candidate, str(e))
+                continue
+            except RuntimeError as e:
+                return LLMResponse(text=str(e), model=candidate, provider=self.name, error=str(e))
+
+            if candidate != requested:
+                logger.warning("Tool call sent to %s because %s is unavailable", candidate, requested)
             input_tokens = getattr(response.usage, "input_tokens", 0)
             output_tokens = getattr(response.usage, "output_tokens", 0)
-
-            # Extract text from response (may have tool_use blocks)
-            text_parts = [str(cast(_TextBlock, b).text) for b in response.content if hasattr(b, "text")]
-            text = "\n".join(text_parts) if text_parts else ""
-
             return LLMResponse(
-                text=text,
-                model=model,
+                text=response_text(response),
+                model=candidate,
                 provider=self.name,
                 input_tokens=input_tokens,
                 output_tokens=output_tokens,
-                cost_usd=self._calc_cost(model, input_tokens, output_tokens),
+                cost_usd=self._calc_cost(candidate, input_tokens, output_tokens),
                 raw=response,
             )
-        except RuntimeError as e:
-            return LLMResponse(
-                text=str(e),
-                model=model,
-                provider=self.name,
-                error=str(e),
-            )
+
+        return LLMResponse(
+            text="An error occurred with the AI service.",
+            model=requested,
+            provider=self.name,
+            error="model_not_found",
+        )
 
     async def complete_with_vision(
         self,

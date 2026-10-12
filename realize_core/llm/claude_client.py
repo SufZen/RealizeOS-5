@@ -8,7 +8,13 @@ from typing import Any, cast
 
 import anthropic
 
-from realize_core.llm.claude_models import claude_price, is_refusal, request_params, response_text
+from realize_core.llm.claude_models import (
+    ClaudeModelNotFoundError,
+    claude_price,
+    is_refusal,
+    request_params,
+    response_text,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -117,6 +123,9 @@ async def call_claude_with_tools(
 
     except anthropic.RateLimitError as e:
         raise RuntimeError("Rate limit hit. Please try again in a moment.") from e
+
+    except anthropic.NotFoundError as e:
+        raise ClaudeModelNotFoundError(model) from e
 
     except anthropic.BadRequestError as e:
         logger.error(f"Claude bad request (tool_use): {e}")
