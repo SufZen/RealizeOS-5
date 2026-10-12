@@ -91,10 +91,10 @@ def build_rate_limiter(
     cost_per_hour_usd: float | None = None,
 ) -> RateLimiter:
     """Create a configured rate limiter instance."""
-    from realize_core.config import COST_LIMIT_PER_HOUR_USD, RATE_LIMIT_PER_MINUTE
+    from realize_core.config import API_RATE_LIMIT_PER_MINUTE, COST_LIMIT_PER_HOUR_USD
 
     return RateLimiter(
-        requests_per_minute=requests_per_minute or RATE_LIMIT_PER_MINUTE,
+        requests_per_minute=requests_per_minute or API_RATE_LIMIT_PER_MINUTE,
         cost_per_hour_usd=cost_per_hour_usd or COST_LIMIT_PER_HOUR_USD,
     )
 

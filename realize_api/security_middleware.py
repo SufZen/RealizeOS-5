@@ -17,6 +17,7 @@ the cross-cutting "every request" concerns.
 from __future__ import annotations
 
 import logging
+import os
 import time
 import uuid
 
@@ -64,12 +65,66 @@ class _MCPStreamBypassMixin:
         await super().__call__(scope, receive, send)
 
 
+def _trusted_proxies() -> list:
+    """Networks whose X-Forwarded-For is believed (``REALIZE_TRUSTED_PROXIES``, comma-separated)."""
+    import ipaddress
+
+    nets = []
+    for item in os.getenv("REALIZE_TRUSTED_PROXIES", "").split(","):
+        item = item.strip()
+        if not item:
+            continue
+        try:
+            nets.append(ipaddress.ip_network(item, strict=False))
+        except ValueError:
+            logger.warning("Ignoring invalid REALIZE_TRUSTED_PROXIES entry: %r", item)
+    return nets
+
+
+def _client_address(request: Request) -> str:
+    """The real client IP: the peer, or X-Forwarded-For's last untrusted hop behind a trusted proxy."""
+    import ipaddress
+
+    peer = request.client.host if request.client else ""
+    proxies = _trusted_proxies()
+
+    def trusted(addr: str) -> bool:
+        try:
+            ip = ipaddress.ip_address(addr)
+        except ValueError:
+            return False
+        return any(ip in net for net in proxies)
+
+    if not peer or not proxies or not trusted(peer):
+        return peer or "anonymous"
+    hops = [h.strip() for h in request.headers.get("x-forwarded-for", "").split(",") if h.strip()]
+    for hop in reversed(hops):  # walk back from our proxy; the first untrusted hop is the client
+        if not trusted(hop):
+            return hop
+    return peer
+
+
+def _rate_limit_key(request: Request) -> str:
+    """Bucket for a request: the signed-in principal, else the client address.
+
+    Keyed on identity, a user's dashboard traffic is one bucket wherever it
+    comes from, and host-local callers sharing the proxy's address (Hermes,
+    cron, Kuma) no longer share one bucket once they authenticate.
+    """
+    user_id = getattr(request.state, "user_id", None)
+    if user_id and user_id != "anonymous":
+        return f"user:{user_id}"
+    return f"ip:{_client_address(request)}"
+
+
 class RateLimitMiddleware(_MCPStreamBypassMixin, BaseHTTPMiddleware):
     """
-    Enforces per-tenant request-rate and cost limits.
+    Enforces per-caller request-rate and cost limits.
 
-    Uses ``realize_core.utils.rate_limiter.RateLimiter`` under the hood.
-    Tenant is identified by X-Tenant-ID header or falls back to client IP.
+    Uses ``realize_core.utils.rate_limiter.RateLimiter`` under the hood. The
+    caller is the authenticated identity (auth runs before this middleware),
+    else the client address (see :func:`_rate_limit_key`). A client-sent
+    ``X-Tenant-ID`` is not trusted: it let anyone pick a fresh bucket (QA 5.14 S-3).
     """
 
     async def dispatch(self, request: Request, call_next) -> Response:
@@ -80,10 +135,7 @@ class RateLimitMiddleware(_MCPStreamBypassMixin, BaseHTTPMiddleware):
             from realize_core.utils.rate_limiter import get_rate_limiter
 
             limiter = get_rate_limiter(request.app)
-            tenant = request.headers.get(
-                "X-Tenant-ID",
-                request.client.host if request.client else "anonymous",
-            )
+            tenant = _rate_limit_key(request)
 
             if not limiter.check_rate_limit(tenant):
                 logger.warning("Rate limit hit for tenant %s on %s", tenant, request.url.path)

@@ -43,7 +43,10 @@ MODELS = {
 }
 
 # --- Rate Limits ---
-RATE_LIMIT_PER_MINUTE = int(os.getenv("RATE_LIMIT_PER_MINUTE", "30"))
+RATE_LIMIT_PER_MINUTE = int(os.getenv("RATE_LIMIT_PER_MINUTE", "30"))  # LLM calls per minute
+# HTTP requests per minute per caller. Separate from the LLM limit: the
+# dashboard alone made more than 30 requests a minute (QA 5.14 S-3 / D-4).
+API_RATE_LIMIT_PER_MINUTE = int(os.getenv("API_RATE_LIMIT_PER_MINUTE", "120"))
 COST_LIMIT_PER_HOUR_USD = float(os.getenv("COST_LIMIT_PER_HOUR_USD", "5.0"))
 
 # --- Feature Flags ---
