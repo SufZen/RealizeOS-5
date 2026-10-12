@@ -4,6 +4,14 @@ All notable changes to RealizeOS are documented in this file.
 This changelog is automatically generated from [Conventional Commits](https://conventionalcommits.org).
 
 
+## [5.15.4](https://github.com/SufZen/RealizeOS-5/compare/v5.15.3...v5.15.4) (2026-10-12)
+
+### Bug Fixes
+
+* **integrations:** stop claiming connections the page never makes ([3ea82be](https://github.com/SufZen/RealizeOS-5/commit/3ea82be53c711d125623a250157c845500390e3c))
+* **pipelines:** label pipeline runs as simulated ([397332b](https://github.com/SufZen/RealizeOS-5/commit/397332bd72725aa081407b4d9ab36f5d6516de5c))
+* **workflows:** editor no longer crashes or fakes saves; API refuses empty workflows ([65b1821](https://github.com/SufZen/RealizeOS-5/commit/65b1821a98aa0130ae4f7f9859c8945df090a453))
+
 ## [5.15.3](https://github.com/SufZen/RealizeOS-5/compare/v5.15.2...v5.15.3) (2026-10-12)
 
 ### Bug Fixes
