@@ -4,6 +4,17 @@ All notable changes to RealizeOS are documented in this file.
 This changelog is automatically generated from [Conventional Commits](https://conventionalcommits.org).
 
 
+## [5.10.0](https://github.com/SufZen/RealizeOS-5/compare/v5.9.0...v5.10.0) (2026-10-12)
+
+### Features
+
+* **chat:** show what each answer used (brief item 3) ([c10ead5](https://github.com/SufZen/RealizeOS-5/commit/c10ead5d1dc5685803eaf2cb6f5346467dda014a))
+
+### Bug Fixes
+
+* **security:** chat and history act only for the signed-in user ([6e1a606](https://github.com/SufZen/RealizeOS-5/commit/6e1a606f338e24ba988f2827a1e7a1f913c6ea0f))
+* **security:** same conversation access rule for MCP chat tools ([fd7cb4a](https://github.com/SufZen/RealizeOS-5/commit/fd7cb4ac1420bf1714f0815a282a2d9bb2bc13f7))
+
 ## [5.9.0](https://github.com/SufZen/RealizeOS-5/compare/v5.8.0...v5.9.0) (2026-10-12)
 
 ### Features
