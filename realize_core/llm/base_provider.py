@@ -26,7 +26,7 @@ class ModelInfo:
     """Metadata about a specific model offered by a provider.
 
     Attributes:
-        model_id: The provider's model identifier string (e.g., "claude-sonnet-4-6-20260217")
+        model_id: The provider's model identifier string (e.g., "claude-sonnet-4-6")
         display_name: Human-readable name (e.g., "Claude Sonnet")
         tier: Cost tier (1=cheap, 2=mid, 3=premium)
         capabilities: Set of supported capabilities
@@ -165,6 +165,22 @@ class BaseLLMProvider(ABC):
         Default returns True. Override to add runtime checks.
         """
         return True
+
+    def is_model_usable(self, model_id: str) -> bool:
+        """Check whether a specific model can be called on this provider.
+
+        Default returns True. Providers that learn a model is gone (for example
+        a retired model ID answering 404) override this so routing skips it.
+        """
+        return True
+
+    def model_errors(self) -> dict[str, str]:
+        """Return configured models known to be unusable, mapped to the reason.
+
+        Default is empty. Shown in Settings so a dead model ID is visible
+        instead of the provider looking healthy because its key is set.
+        """
+        return {}
 
     def supports(self, capability: Capability) -> bool:
         """Check if any of this provider's models support a capability."""

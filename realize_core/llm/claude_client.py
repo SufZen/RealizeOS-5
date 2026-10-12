@@ -207,7 +207,7 @@ def _log_usage(model: str, usage):
         # Pricing per 1M tokens
         pricing = {
             MODELS["claude_sonnet"]: (3.0, 15.0),
-            MODELS["claude_opus"]: (15.0, 75.0),
+            MODELS["claude_opus"]: (5.0, 25.0),
         }
         in_rate, out_rate = pricing.get(model, (3.0, 15.0))
         cost = (input_tokens * in_rate / 1_000_000) + (output_tokens * out_rate / 1_000_000)

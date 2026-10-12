@@ -312,9 +312,9 @@ class TestBenchmarkSelection:
 
     def test_available_models_filter(self):
         """Only returns from available models when specified."""
-        available = {"claude-sonnet-4-6-20260217"}
+        available = {"claude-sonnet-4-6"}
         result = select_model_by_benchmark("reasoning", available_models=available)
-        assert result == "claude-sonnet-4-6-20260217"
+        assert result == "claude-sonnet-4-6"
 
     def test_returns_none_when_cache_fails(self):
         """Returns None gracefully when benchmark cache is unavailable."""

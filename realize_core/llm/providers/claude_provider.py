@@ -8,6 +8,7 @@ import asyncio
 import logging
 from typing import Any, ClassVar, Protocol, cast
 
+from realize_core.config import DEFAULT_CLAUDE_OPUS_MODEL, DEFAULT_CLAUDE_SONNET_MODEL
 from realize_core.llm.base_provider import (
     BaseLLMProvider,
     Capability,
@@ -26,6 +27,9 @@ class ClaudeProvider(BaseLLMProvider):
     """Anthropic Claude provider (Sonnet, Opus)."""
 
     _MODELS: ClassVar[dict[str, str] | None] = None  # Lazy-loaded to avoid circular imports
+    # Model IDs Anthropic answered 404 for (retired or misspelled), mapped to the error.
+    # Process-wide: a restart with a corrected CLAUDE_*_MODEL clears it.
+    _dead_models: ClassVar[dict[str, str]] = {}
 
     @property
     def name(self) -> str:
@@ -43,7 +47,7 @@ class ClaudeProvider(BaseLLMProvider):
         models = self._get_models_config()
         return [
             ModelInfo(
-                model_id=models.get("claude_sonnet", "claude-sonnet-4-6-20260217"),
+                model_id=models.get("claude_sonnet", DEFAULT_CLAUDE_SONNET_MODEL),
                 display_name="Claude Sonnet",
                 tier=2,
                 capabilities={Capability.TEXT, Capability.VISION, Capability.TOOLS},
@@ -53,27 +57,52 @@ class ClaudeProvider(BaseLLMProvider):
                 context_window=200000,
             ),
             ModelInfo(
-                model_id=models.get("claude_opus", "claude-opus-4-6-20260205"),
+                model_id=models.get("claude_opus", DEFAULT_CLAUDE_OPUS_MODEL),
                 display_name="Claude Opus",
                 tier=3,
                 capabilities={Capability.TEXT, Capability.VISION, Capability.TOOLS},
-                input_cost_per_m=15.0,
-                output_cost_per_m=75.0,
+                input_cost_per_m=5.0,
+                output_cost_per_m=25.0,
                 max_tokens=4096,
                 context_window=200000,
             ),
         ]
 
     def is_available(self) -> bool:
-        """Check if anthropic SDK is installed and API key is configured."""
+        """Check the SDK is installed, the API key is set, and a configured model still answers.
+
+        Once every configured model has returned 404 the provider reports itself
+        unavailable, so Settings stop showing it healthy and the fallback chain skips it.
+        """
         try:
             import anthropic  # noqa: F401
 
             from realize_core.config import ANTHROPIC_API_KEY
-
-            return bool(ANTHROPIC_API_KEY)
         except ImportError:
             return False
+        if not ANTHROPIC_API_KEY:
+            return False
+        configured = {m.model_id for m in self.list_models()}
+        return not configured.issubset(self._dead_models)
+
+    def is_model_usable(self, model_id: str) -> bool:
+        """Return False for a model ID that Anthropic has answered 404 for."""
+        return model_id not in self._dead_models
+
+    def model_errors(self) -> dict[str, str]:
+        """Return configured model IDs known to be unusable, with the API error."""
+        return dict(self._dead_models)
+
+    @classmethod
+    def _mark_model_dead(cls, model: str, error: str) -> None:
+        """Remember that a model ID returned 404 and log it once, loudly."""
+        if model not in cls._dead_models:
+            logger.error(
+                "Claude model %r was not found (404). It is likely retired; set "
+                "CLAUDE_SONNET_MODEL / CLAUDE_OPUS_MODEL to a current ID. Routing will skip it.",
+                model,
+            )
+        cls._dead_models[model] = error
 
     async def complete(
         self,
@@ -90,7 +119,7 @@ class ClaudeProvider(BaseLLMProvider):
         from realize_core.llm.claude_client import _log_usage
 
         models = self._get_models_config()
-        model = model or models.get("claude_sonnet") or "claude-sonnet-4-6-20260217"
+        model = model or models.get("claude_sonnet") or DEFAULT_CLAUDE_SONNET_MODEL
 
         try:
             from realize_core.llm.claude_client import _get_client
@@ -133,6 +162,15 @@ class ClaudeProvider(BaseLLMProvider):
                 error="rate_limit",
             )
 
+        except anthropic.NotFoundError as e:
+            self._mark_model_dead(model, str(e))
+            return LLMResponse(
+                text="An error occurred processing your request. Please try again.",
+                model=model,
+                provider=self.name,
+                error="model_not_found",
+            )
+
         except anthropic.APIError as e:
             logger.error(f"Claude API error: {e}")
             return LLMResponse(
@@ -173,7 +211,7 @@ class ClaudeProvider(BaseLLMProvider):
         from realize_core.llm.claude_client import call_claude_with_tools
 
         models = self._get_models_config()
-        model = model or models.get("claude_sonnet") or "claude-sonnet-4-6-20260217"
+        model = model or models.get("claude_sonnet") or DEFAULT_CLAUDE_SONNET_MODEL
 
         try:
             response = await call_claude_with_tools(
@@ -221,7 +259,7 @@ class ClaudeProvider(BaseLLMProvider):
         from realize_core.llm.claude_client import call_claude_vision
 
         models = self._get_models_config()
-        model = model or models.get("claude_sonnet") or "claude-sonnet-4-6-20260217"
+        model = model or models.get("claude_sonnet") or DEFAULT_CLAUDE_SONNET_MODEL
 
         text = await call_claude_vision(
             system_prompt=system_prompt,

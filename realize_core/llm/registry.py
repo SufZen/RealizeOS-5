@@ -33,7 +33,7 @@ class ProviderRegistry:
         Args:
             provider: The provider instance
             model_keys: Mapping of model_key → model_id
-                         e.g., {"claude_sonnet": "claude-sonnet-4-6-20260217"}
+                         e.g., {"claude_sonnet": "claude-sonnet-4-6"}
         """
         self._providers[provider.name] = provider
 
@@ -81,7 +81,7 @@ class ProviderRegistry:
             model_key: e.g., "claude_sonnet"
 
         Returns:
-            The provider's model ID string (e.g., "claude-sonnet-4-6-20260217")
+            The provider's model ID string (e.g., "claude-sonnet-4-6")
         """
         from realize_core.config import MODELS
 
@@ -136,7 +136,7 @@ class ProviderRegistry:
         Checks if each provider's SDK is installed and API key is configured.
         Only registers providers that pass is_available().
         """
-        from realize_core.config import MODELS
+        from realize_core.config import DEFAULT_CLAUDE_OPUS_MODEL, DEFAULT_CLAUDE_SONNET_MODEL, MODELS
 
         # Claude
         try:
@@ -146,8 +146,8 @@ class ProviderRegistry:
             self.register(
                 claude,
                 {
-                    "claude_sonnet": MODELS.get("claude_sonnet", "claude-sonnet-4-6-20260217"),
-                    "claude_opus": MODELS.get("claude_opus", "claude-opus-4-6-20260205"),
+                    "claude_sonnet": MODELS.get("claude_sonnet", DEFAULT_CLAUDE_SONNET_MODEL),
+                    "claude_opus": MODELS.get("claude_opus", DEFAULT_CLAUDE_OPUS_MODEL),
                 },
             )
         except Exception as e:

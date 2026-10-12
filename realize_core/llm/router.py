@@ -440,8 +440,8 @@ async def route_to_llm(
         provider = registry.get_provider(model_key)
 
         # Attempt 1: Primary provider
-        if provider and provider.is_available():
-            model_id = registry.resolve_model_id(model_key)
+        model_id = registry.resolve_model_id(model_key)
+        if provider and provider.is_available() and provider.is_model_usable(model_id or ""):
             try:
                 response = await provider.complete(
                     system_prompt=system_prompt,
@@ -461,8 +461,10 @@ async def route_to_llm(
         attempts = 0
 
         for fallback_name in registry._fallback_chain:
-            if fallback_name in tried or attempts >= max_retries:
+            if attempts >= max_retries:
                 break
+            if fallback_name in tried:
+                continue
             fb_provider = registry.get_provider_by_name(fallback_name)
             if not fb_provider or not fb_provider.is_available():
                 continue

@@ -85,9 +85,9 @@ class CostBenefitScore:
 # Based on public benchmark data (MMLU, HumanEval, GSM8K, etc.).
 _STATIC_BENCHMARKS: list[dict[str, Any]] = [
     {
-        "model_id": "claude-sonnet-4-6-20260217",
+        "model_id": "claude-sonnet-4-6",
         "provider": "claude",
-        "display_name": "Claude 4 Sonnet",
+        "display_name": "Claude Sonnet 4.6",
         "quality_score": 88,
         "coding_score": 90,
         "reasoning_score": 87,
@@ -97,15 +97,15 @@ _STATIC_BENCHMARKS: list[dict[str, Any]] = [
         "context_window": 200000,
     },
     {
-        "model_id": "claude-opus-4-6-20260205",
+        "model_id": "claude-opus-4-6",
         "provider": "claude",
-        "display_name": "Claude 4 Opus",
+        "display_name": "Claude Opus 4.6",
         "quality_score": 93,
         "coding_score": 94,
         "reasoning_score": 95,
         "speed_score": 50,
-        "input_cost_per_m": 15.0,
-        "output_cost_per_m": 75.0,
+        "input_cost_per_m": 5.0,
+        "output_cost_per_m": 25.0,
         "context_window": 200000,
     },
     {
