@@ -340,8 +340,8 @@ class TestFastAPIMount:
     def test_disabled_route_not_registered(self, app_factory):
         """When MCP is disabled the /mcp/* router is not mounted.
 
-        FastAPI's catch-all SPA route then serves dashboard HTML for
-        these paths, but the MCP JSON endpoint must not respond.
+        The catch-all answers these paths with a JSON 404 (not the dashboard
+        HTML, and not the MCP endpoint).
         """
         with env(MCP_ENABLED="false"):
             app = app_factory()
@@ -351,5 +351,6 @@ class TestFastAPIMount:
         assert "/mcp/health" not in mounted_paths
         assert "/mcp/sse" not in mounted_paths
         # Behavioural check: newer FastAPI hides included routers from
-        # ``app.routes``, so also prove the JSON endpoint doesn't answer.
-        assert "application/json" not in r.headers.get("content-type", "")
+        # ``app.routes``, so also prove the MCP endpoint doesn't answer.
+        assert r.status_code == 404
+        assert "status" not in r.json()
