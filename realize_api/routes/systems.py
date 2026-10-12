@@ -63,7 +63,9 @@ async def list_agents(system_key: str, request: Request):
 
 @router.get("/systems/{system_key}/skills")
 async def list_skills(system_key: str, request: Request):
-    """List available skills for a system."""
+    """List available skills for a system the caller may see (404 otherwise)."""
+    if system_key not in visible_systems(request):
+        raise HTTPException(status_code=404, detail=f"System '{system_key}' not found")
     try:
         from realize_core.skills.detector import get_skills_for_system
 
