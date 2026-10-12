@@ -23,23 +23,68 @@ mcp:
   expose_ops: true
   allow_admin: false           # off by default
   audit_full_payload: false
+  streamable_http: true        # serve /mcp next to /mcp/sse (default on)
+  public_url: ""               # https://your-host — needed for OAuth
+  oauth:
+    enabled: false             # Claude.ai custom connectors (see below)
 ```
 
 Start RealizeOS as usual. The server logs:
 
 ```
-MCP server mounted at /mcp/sse — families=chat,kb,ops, allow_admin=False
+MCP server mounted at /mcp/sse and /mcp (Streamable HTTP) — families=chat,kb,ops, allow_admin=False, oauth=False
 ```
 
 ## Endpoints
 
 | Method | Path | Description |
 |---|---|---|
-| `GET` | `/mcp/sse` | SSE handshake. The client keeps this connection open. |
-| `POST` | `/mcp/messages/{session_id}` | Client posts JSON-RPC payloads here. |
-| `GET` | `/mcp/health` | No-auth liveness probe — returns `{ ok, name, tools, families }`. |
+| `POST` | `/mcp` | **Streamable HTTP** transport (stateless, JSON responses). Use this for new clients. |
+| `GET` | `/mcp/sse` | HTTP+SSE handshake (older transport, kept for existing clients). The client keeps this connection open. |
+| `POST` | `/mcp/messages/?session_id=` | SSE clients post JSON-RPC payloads here. |
+| `GET` | `/mcp/health` | Liveness probe — returns `{ ok, name, tools, families }`. |
 
-Auth: same as the REST API. Pass `Authorization: Bearer <jwt>` (from `POST /api/auth/token`) or `X-API-Key: <key>`.
+Auth: the same as the REST API. Send `Authorization: Bearer <jwt>` (from `POST /api/auth/token`), `X-API-Key: <key>`, or an OAuth access token (see below).
+
+HTTP+SSE is deprecated in the MCP spec. It stays here for Claude Code, `mcp-remote` bridges and other existing clients; new clients should use `/mcp`.
+
+## Connect Claude.ai (custom connector, OAuth)
+
+Claude.ai custom connectors (web and desktop, **Settings → Connectors → Add custom connector**) can't send a fixed `Authorization` header. They sign in with OAuth 2.1. RealizeOS has a small authorization server for this:
+
+1. Serve RealizeOS over **HTTPS** on a public host, for example `https://realizeos.example.com`.
+2. Set, in `.env`:
+
+   ```env
+   MCP_ENABLED=true
+   MCP_OAUTH_ENABLED=true
+   MCP_PUBLIC_URL=https://realizeos.example.com
+   REALIZE_API_KEY=...        # auth must be on, or /mcp would be open
+   ```
+
+3. Make sure the person who connects has an entry in `users.yaml` (email + password hash). Their role and ventures decide what the connector can do.
+4. In Claude.ai, add a custom connector with the URL `https://realizeos.example.com/mcp`.
+5. Claude opens a RealizeOS sign-in page. It shows which app is asking and where it will send you back. Sign in and click **Sign in and allow**.
+
+What happens behind it:
+
+| Step | Endpoint |
+|---|---|
+| Claude calls `/mcp` without a token and gets `401` with `WWW-Authenticate: Bearer resource_metadata=".../.well-known/oauth-protected-resource/mcp"` | `/mcp` |
+| Protected-resource metadata (RFC 9728) names the authorization server | `GET /.well-known/oauth-protected-resource/mcp` |
+| Authorization-server metadata (RFC 8414) | `GET /.well-known/oauth-authorization-server` |
+| Dynamic client registration (RFC 7591) | `POST /register` |
+| Authorization code with PKCE (S256 only) | `GET /authorize` → `/oauth/login` |
+| Code → access + refresh token; refresh rotates the pair | `POST /token` |
+| Revoke a token (ends the whole grant) | `POST /revoke` |
+
+Rules:
+
+- **Tokens map to a `users.yaml` user.** On every request the user is looked up again, like cookie sessions. RBAC roles (owner/admin/operator/user/viewer) and venture scope apply exactly as for that user on the REST API and the SSE transport. If you remove the user, their tokens stop working at once.
+- Access tokens last 1 hour and refresh tokens 30 days. Codes are single-use and last 5 minutes. Codes and tokens are stored only as SHA-256 hashes (migration 009).
+- After 10 failed sign-ins from one IP in 15 minutes, sign-in is refused for that IP. Every sign-in, failure and denial is audit-logged (channel `mcp`).
+- API keys and JWTs keep working on both transports for service integrations (Hermes, cron, bots).
+- OAuth stays off unless `MCP_PUBLIC_URL` is set and auth is on (`REALIZE_API_KEY` or JWT). The issuer must be `https://`; plain `http://` is allowed only for `localhost`.
 
 ## Tool Families
 
@@ -85,24 +130,25 @@ A caller limited to some ventures (a `users.yaml` user with `ventures`, or a JWT
 * `venture_kb_search` is a convenience: it validates the venture exists, then delegates to `kb_search` with the venture as `system_key`.
 * `list_ventures` mirrors `GET /api/ventures` — venture key, name, agent count, skill count, FABRIC completeness.
 
-## Plug into Claude Desktop
+## Plug into Claude Code or a header-based client
 
 ```json
 {
   "mcpServers": {
     "realize-os": {
-      "url": "http://localhost:8080/mcp/sse",
-      "headers": { "Authorization": "Bearer <your jwt>" }
+      "type": "http",
+      "url": "http://localhost:8080/mcp",
+      "headers": { "Authorization": "Bearer <your jwt or API key>" }
     }
   }
 }
 ```
 
-Restart Claude Desktop. The RealizeOS tools appear in the tool palette.
+Clients that only speak HTTP+SSE can keep using `http://localhost:8080/mcp/sse`. For Claude.ai and Claude Desktop custom connectors, use OAuth (above).
 
 ## Security
 
-- No anonymous access — the SSE handshake and every JSON-RPC POST go through the existing auth middleware.
+- No anonymous access — `/mcp`, the SSE handshake and every JSON-RPC POST go through the existing auth middleware.
 - Scope hierarchy: `read` < `editor` < `owner`. Chat-family tools require `read`; `clear_history` requires `editor`; admin tools (Story 5) require `owner`.
 - Audit log: every tool call goes through `realize_core/security/audit.py` (same retention + log file as REST).
 - Production guard: in `REALIZE_ENV=production`, enabling `mcp.allow_admin` requires `REALIZE_JWT_ENABLED=true` and a 32+ char `REALIZE_JWT_SECRET`. The server refuses to start otherwise.
@@ -128,6 +174,7 @@ Stable `code` values:
 
 ## Roadmap
 
-- **5.2.0:** stdio transport (Claude Desktop local install without network).
-- **5.2.0:** Streamable HTTP transport (spec finalisation pending).
-- **5.2.0:** Per-tool feature flags inside `mcp:` config.
+- stdio transport (local install without network) — STORY-37.
+- Venture-scoped agent tokens and governed MCP writes — STORY-37.
+- Remove HTTP+SSE after a deprecation window, once existing clients have moved to `/mcp`.
+- Per-tool feature flags inside `mcp:` config.

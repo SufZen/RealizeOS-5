@@ -356,7 +356,11 @@ The built-in MCP server can be configured in `realize-os.yaml`:
 
 ```yaml
 mcp:
-  enabled: true                   # Mount /mcp/sse + /mcp/messages/{session}
+  enabled: true                   # Mount /mcp (Streamable HTTP) + /mcp/sse + /mcp/messages/
+  streamable_http: true           # Serve the Streamable HTTP transport on /mcp
+  public_url: https://os.example.com  # Public base URL — OAuth issuer
+  oauth:
+    enabled: false                # OAuth 2.1 for Claude.ai custom connectors
   allow_admin: false              # Admin tools (venture CRUD, system settings)
   expose_kb: true                 # KB search/get tools
   expose_ops: true                # Workflow, skill, evolution tools

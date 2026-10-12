@@ -53,11 +53,13 @@ def _is_public(path: str) -> bool:
 
 
 class _MCPStreamBypassMixin:
-    """Let /mcp/* stream through unbuffered. BaseHTTPMiddleware buffers responses,
-    which breaks the built-in MCP SSE transport (/mcp/sse + /mcp/messages/)."""
+    """Let /mcp and /mcp/* stream through unbuffered. BaseHTTPMiddleware buffers
+    responses, which breaks the built-in MCP transports (/mcp/sse + /mcp/messages/,
+    and Streamable HTTP on /mcp)."""
 
     async def __call__(self, scope, receive, send):
-        if scope.get("type") == "http" and scope.get("path", "").startswith("/mcp/"):
+        path = scope.get("path", "")
+        if scope.get("type") == "http" and (path == "/mcp" or path.startswith("/mcp/")):
             await self.app(scope, receive, send)
             return
         await super().__call__(scope, receive, send)

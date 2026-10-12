@@ -1,5 +1,5 @@
 """
-RealizeOS built-in MCP server (HTTP+SSE transport).
+RealizeOS built-in MCP server (Streamable HTTP + HTTP+SSE transports, optional OAuth 2.1).
 
 Exposes the RealizeOS REST surface as Model Context Protocol tools so any
 MCP-speaking agent (Claude Desktop, Cursor, n8n, cloud routines, …) can
@@ -12,7 +12,9 @@ Counterpart to ``realize_core.tools.mcp`` — that module is the outbound
 Public entry points
 -------------------
 ``mount_mcp(app)``
-    Wire MCP into a FastAPI app at ``/mcp/sse`` + ``/mcp/messages``. Idempotent.
+    Wire MCP into a FastAPI app at ``/mcp`` (Streamable HTTP), ``/mcp/sse`` +
+    ``/mcp/messages`` (HTTP+SSE) and, with ``mcp.oauth.enabled``, the OAuth
+    routes. Idempotent.
 
 ``mcp_config_from_env(config)``
     Resolve effective MCP configuration from ``realize-os.yaml`` + env overrides.
