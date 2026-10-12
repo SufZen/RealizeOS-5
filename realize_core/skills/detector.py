@@ -341,6 +341,16 @@ def _get_candidates(system_key: str | None) -> list[dict]:
     return candidates
 
 
+def get_skills_for_system(system_key: str) -> list[dict]:
+    """Skills available to one venture: its own, the shared ones, else the defaults.
+
+    The same candidates skill detection uses. The venture skills endpoint and
+    the MCP ``list_skills`` tool import this (QA 5.14 K-1: it was missing, so
+    both reported "Skills unavailable").
+    """
+    return list(_get_candidates(system_key))
+
+
 def get_all_skills() -> list[dict]:
     """Return all loaded skills across all systems as a flat list.
 

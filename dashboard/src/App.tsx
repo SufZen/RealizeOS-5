@@ -28,6 +28,7 @@ import { TourProvider } from '@/components/tour-provider'
 import { ToastProvider } from '@/components/ui/toast'
 import { Skeleton, SkeletonCard } from '@/components/ui/skeleton'
 import { AuthProvider, useAuth } from '@/hooks/use-auth'
+import { api } from '@/lib/api'
 import { VentureProvider } from '@/hooks/use-venture'
 import { VentureSwitcher } from '@/components/venture-switcher'
 import { LocaleProvider } from '@/components/locale-provider'
@@ -56,7 +57,11 @@ const MissionsPage = lazy(() => import('@/pages/missions-page'))
 const KnowledgeMapPage = lazy(() => import('@/pages/knowledge-map-page'))
 const DreamInboxPage = lazy(() => import('@/pages/dream-inbox-page'))
 
-import OnboardingWizard, { isOnboardingComplete } from '@/components/onboarding-wizard'
+import OnboardingWizard, {
+  isOnboardingComplete,
+  markOnboardingComplete,
+  serverHasAiProvider,
+} from '@/components/onboarding-wizard'
 
 const navGroups = [
   {
@@ -332,11 +337,33 @@ function AuthenticatedShell() {
   const [mobileOpen, setMobileOpen] = useState(false)
   const { user } = useAuth()
   const [showOnboarding, setShowOnboarding] = useState(!isOnboardingComplete())
+  // 'unknown' until the server says whether setup was already done (QA 5.14 D-1:
+  // the wizard used to appear in every new browser, even on a configured server).
+  const [serverSetup, setServerSetup] = useState<'unknown' | 'done' | 'needed'>('unknown')
 
   // Don't show onboarding until the user is signed in — onboarding writes setup state
   // for the active deployment, not the anonymous visitor. Users limited to some
   // ventures can't change deployment setup, so they never get it.
-  if (showOnboarding && user && !Array.isArray(user.ventures)) {
+  const wantsOnboarding = showOnboarding && !!user && !Array.isArray(user.ventures)
+
+  useEffect(() => {
+    if (!wantsOnboarding) return
+    let current = true
+    api
+      .get<{ connections: { category: string; configured: boolean }[] }>('/setup/connections')
+      .then((data) => {
+        if (!current) return
+        const done = serverHasAiProvider(data.connections ?? [])
+        if (done) markOnboardingComplete()
+        setServerSetup(done ? 'done' : 'needed')
+      })
+      .catch(() => current && setServerSetup('needed'))
+    return () => {
+      current = false
+    }
+  }, [wantsOnboarding])
+
+  if (wantsOnboarding && serverSetup === 'needed') {
     return <OnboardingWizard onComplete={() => setShowOnboarding(false)} />
   }
 

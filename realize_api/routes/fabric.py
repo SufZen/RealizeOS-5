@@ -293,15 +293,22 @@ async def reindex_fabric(request: Request, venture: str = ""):
             "count": 0,
         }
 
+    # A configured venture without a folder is skipped and reported, not a 404
+    # halfway through (QA 5.14 F-1: the 30-minute cron failed on every run and
+    # left later ventures unindexed).
     indexed: dict[str, int] = {}
+    missing: list[str] = []
     for key, venture_dir in targets:
         if not venture_dir.exists():
-            raise HTTPException(status_code=404, detail=f"Venture '{key}' directory not found")
+            logger.warning("Reindex: venture '%s' has no directory (%s); skipped", key, venture_dir)
+            missing.append(key)
+            continue
         indexed[key] = synapse.index_venture(venture_dir, venture=key)
 
     return {
-        "status": "reindexed",
+        "status": "partial" if missing else "reindexed",
         "ventures": indexed,
+        "missing": missing,
         "count": sum(indexed.values()),
     }
 

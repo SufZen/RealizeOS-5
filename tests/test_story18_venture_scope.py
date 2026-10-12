@@ -880,3 +880,32 @@ def test_anonymous_status_is_refused(tmp_path, monkeypatch):
     resp = TestClient(app).get("/api/status")
     assert resp.status_code == 401
     assert "Globex" not in resp.text
+
+
+class TestVentureSkillsScope:
+    """Security review of the K-1 fix: a venture's skills are only listed to callers who may see it."""
+
+    def test_rest_skills_of_another_venture_are_refused(self, users_file, monkeypatch):
+        from realize_core.skills import detector
+
+        monkeypatch.setattr(detector, "_loaded_skills", {"globex": [{"name": "globex-secret-skill"}]})
+        resp = _client("dana@acme.io", "operator").get("/api/systems/globex/skills")
+        assert resp.status_code in (403, 404)
+        assert "globex-secret-skill" not in resp.text
+
+    def test_rest_skills_of_own_venture_are_listed(self, users_file, monkeypatch):
+        from realize_core.skills import detector
+
+        monkeypatch.setattr(detector, "_loaded_skills", {"acme": [{"name": "acme-skill"}]})
+        body = _client("dana@acme.io", "operator").get("/api/systems/acme/skills").json()
+        assert [s["name"] for s in body["skills"]] == ["acme-skill"]
+
+    def test_unknown_venture_is_404_not_default_skills(self, users_file):
+        resp = _client("owner@realization.co.il", "owner").get("/api/systems/nope/skills")
+        assert resp.status_code == 404
+
+    async def test_mcp_list_skills_checks_the_venture(self, monkeypatch):
+        from realize_core.mcp_server.venture_guard import check_call
+
+        denial = check_call("list_skills", {"system_key": "globex"}, frozenset({"acme"}))
+        assert denial is not None

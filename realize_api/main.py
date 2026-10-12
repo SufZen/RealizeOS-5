@@ -460,6 +460,12 @@ def create_app() -> FastAPI:
         description="AI Operations System — Multi-agent, multi-venture, self-evolving.",
         version=__version__,
         lifespan=lifespan,
+        # API docs live under /api, so they need sign-in like the rest of the
+        # API (QA 5.14 S-2: /docs, /redoc and /openapi.json listed every route
+        # to anyone) and /docs is the dashboard's own Docs page again.
+        docs_url="/api/docs",
+        redoc_url="/api/redoc",
+        openapi_url="/api/openapi.json",
         # Venture scope + write permissions for every route (STORY-18).
         dependencies=[Depends(enforce_access)],
     )
