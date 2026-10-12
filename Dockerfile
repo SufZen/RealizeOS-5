@@ -59,6 +59,8 @@ COPY realize_api/ ./realize_api/
 COPY realize_lite/ ./realize_lite/
 COPY templates/ ./templates/
 COPY cli.py .
+# Release identity for /api/status and the MCP serverInfo (else "unknown").
+COPY VERSION .
 COPY .env.example .
 
 # Copy built dashboard static assets from Stage 1
