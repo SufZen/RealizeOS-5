@@ -4,6 +4,13 @@ All notable changes to RealizeOS are documented in this file.
 This changelog is automatically generated from [Conventional Commits](https://conventionalcommits.org).
 
 
+## [5.15.1](https://github.com/SufZen/RealizeOS-5/compare/v5.15.0...v5.15.1) (2026-10-12)
+
+### Bug Fixes
+
+* **dashboard:** never show one user's cached data to the next ([6791626](https://github.com/SufZen/RealizeOS-5/commit/679162683fa5e9ebf0eb86f79669186a78b4ba47))
+* **security:** keep venture-limited callers out of other ventures' diagnostics ([3ac5bfb](https://github.com/SufZen/RealizeOS-5/commit/3ac5bfb5f7f808e70d146f49d54c8ce146dd18cd))
+
 ## [5.15.0](https://github.com/SufZen/RealizeOS-5/compare/v5.14.0...v5.15.0) (2026-10-12)
 
 ### Features
