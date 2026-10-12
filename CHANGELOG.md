@@ -4,6 +4,15 @@ All notable changes to RealizeOS are documented in this file.
 This changelog is automatically generated from [Conventional Commits](https://conventionalcommits.org).
 
 
+## [5.15.6](https://github.com/SufZen/RealizeOS-5/compare/v5.15.5...v5.15.6) (2026-10-12)
+
+### Bug Fixes
+
+* **dashboard:** skip the onboarding wizard on a server that is already set up ([5074c72](https://github.com/SufZen/RealizeOS-5/commit/5074c72cce3c4673fdb05d60d3e106dc3308e57b))
+* **fabric:** reindex skips a venture with no folder instead of 404ing ([69b4070](https://github.com/SufZen/RealizeOS-5/commit/69b407047cd015952a7fd960058e78bf31c389f3))
+* **skills:** add get_skills_for_system, which the skills endpoint and MCP tool import ([e29e124](https://github.com/SufZen/RealizeOS-5/commit/e29e124739f34a4c70b764d03fc4306b3636a185))
+* **skills:** the venture skills endpoint checks the venture itself ([7002342](https://github.com/SufZen/RealizeOS-5/commit/7002342dd0b91f77d0f727a4bb2a9af4b7dc7004))
+
 ## [5.15.5](https://github.com/SufZen/RealizeOS-5/compare/v5.15.4...v5.15.5) (2026-10-12)
 
 ### Bug Fixes
