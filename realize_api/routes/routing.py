@@ -14,7 +14,7 @@ import logging
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
-from realize_api.dependencies import visible_systems
+from realize_api.dependencies import get_allowed_ventures, visible_systems
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -171,6 +171,18 @@ async def test_routing(body: TestRoutingBody, request: Request):
     }
 
 
+def _visible_entries(request: Request) -> list[dict]:
+    """Routing analytics entries for ventures the caller may see.
+
+    Each entry's ``system_key`` was checked against the caller's scope when
+    it was recorded, so it is a trusted owner to filter on.
+    """
+    allowed = get_allowed_ventures(request)
+    if allowed is None:
+        return list(_routing_analytics)
+    return [e for e in _routing_analytics if e.get("system_key") in allowed]
+
+
 @router.get("/routing/analytics")
 async def get_routing_analytics(
     request: Request,
@@ -184,7 +196,7 @@ async def get_routing_analytics(
     - system_key: filter by system
     - limit: max entries to return (default 50)
     """
-    entries = _routing_analytics
+    entries = _visible_entries(request)
 
     if system_key:
         entries = [e for e in entries if e.get("system_key") == system_key]
@@ -208,7 +220,7 @@ async def get_routing_analytics(
 @router.get("/routing/agents/{agent_key}/stats")
 async def get_agent_routing_stats(agent_key: str, request: Request):
     """Get routing stats for a specific agent."""
-    entries = [e for e in _routing_analytics if e.get("selected_agent") == agent_key]
+    entries = [e for e in _visible_entries(request) if e.get("selected_agent") == agent_key]
 
     # Most common matched keywords
     keyword_counts: dict[str, int] = {}

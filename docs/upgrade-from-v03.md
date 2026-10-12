@@ -210,7 +210,7 @@ docker compose up -d
 curl http://localhost:8080/api/health
 
 # Check status (should show V5 features)
-curl http://localhost:8080/status
+curl -H "X-API-Key: $REALIZE_API_KEY" http://localhost:8080/api/status
 
 # Run tests
 python -m pytest tests/ -v --tb=short

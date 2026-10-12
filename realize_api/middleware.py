@@ -37,7 +37,6 @@ logger = logging.getLogger(__name__)
 _PUBLIC_API_PATHS = frozenset(
     {
         "/api/health",
-        "/api/status",
         "/api/auth/login",
         "/api/auth/session",  # SPA can ask "am I logged in?" without being logged in
         "/api/auth/token",  # bootstraps a JWT pair from an API key

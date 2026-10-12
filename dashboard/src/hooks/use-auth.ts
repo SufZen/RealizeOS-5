@@ -13,10 +13,12 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useRef,
   useState,
   type ReactNode,
 } from 'react'
 import { api } from '@/lib/api'
+import { principalKey, resetQueryCache } from '@/lib/query-client'
 
 export interface AuthUser {
   user_id: string
@@ -49,8 +51,20 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | null>(null)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(null)
+  const [user, setUserState] = useState<AuthUser | null>(null)
   const [loading, setLoading] = useState(true)
+  const identity = useRef(principalKey(null))
+
+  // Every identity change (sign-in, sign-out, expiry, role/scope change)
+  // drops the previous identity's cached data before the new one renders.
+  const setUser = useCallback((next: AuthUser | null) => {
+    const key = principalKey(next)
+    if (key !== identity.current) {
+      resetQueryCache()
+      identity.current = key
+    }
+    setUserState(next)
+  }, [])
 
   const refresh = useCallback(async () => {
     try {
@@ -65,16 +79,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [setUser])
 
-  const login = useCallback(async (email: string, password: string, rememberMe: boolean) => {
-    const res = await api.post<LoginResponse>('/auth/login', {
-      email,
-      password,
-      remember_me: rememberMe,
-    })
-    setUser({ user_id: res.user_id, role: res.role, ventures: res.ventures ?? null })
-  }, [])
+  const login = useCallback(
+    async (email: string, password: string, rememberMe: boolean) => {
+      const res = await api.post<LoginResponse>('/auth/login', {
+        email,
+        password,
+        remember_me: rememberMe,
+      })
+      setUser({ user_id: res.user_id, role: res.role, ventures: res.ventures ?? null })
+    },
+    [setUser],
+  )
 
   const logout = useCallback(async () => {
     try {
@@ -83,7 +100,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // even if the server call fails, drop the client state
     }
     setUser(null)
-  }, [])
+  }, [setUser])
 
   useEffect(() => {
     refresh()
@@ -93,13 +110,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const onExpired = () => setUser(null)
     window.addEventListener('realize:session-expired', onExpired)
     return () => window.removeEventListener('realize:session-expired', onExpired)
-  }, [])
+  }, [setUser])
 
   return createElement(
     AuthContext.Provider,
     { value: { user, loading, login, logout, refresh } },
     children,
   )
+}
+
+/** Cache partition of the signed-in user ('anonymous' outside AuthProvider). */
+export function useAuthPrincipal(): string {
+  return principalKey(useContext(AuthContext)?.user)
 }
 
 export function useAuth(): AuthContextValue {

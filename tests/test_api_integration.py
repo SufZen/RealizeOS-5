@@ -78,11 +78,10 @@ class TestHealthEndpoint:
         resp = mw_client.get("/api/health")
         assert resp.status_code == 200
 
-    def test_status_bypasses_api_key_middleware(self, mw_client):
-        """Status endpoint should be accessible without API key."""
+    def test_status_requires_auth(self, mw_client):
+        """Detailed status lists ventures and agents, so it is not public (Codex audit F03)."""
         resp = mw_client.get("/api/status")
-        # 200 or 404 if no full status route configured — but NOT 401
-        assert resp.status_code != 401
+        assert resp.status_code == 401
 
 
 # ---------------------------------------------------------------------------
@@ -229,7 +228,7 @@ class TestSecurityMiddlewarePaths:
         from realize_api.security_middleware import _PUBLIC_PATHS
 
         assert "/api/health" in _PUBLIC_PATHS
-        assert "/api/status" in _PUBLIC_PATHS
+        assert "/api/status" not in _PUBLIC_PATHS
 
     def test_public_paths_include_root_health(self):
         from realize_api.security_middleware import _PUBLIC_PATHS

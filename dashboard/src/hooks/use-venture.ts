@@ -17,7 +17,7 @@ import {
   type ReactNode,
 } from 'react'
 import { api } from '@/lib/api'
-import { useAuth } from '@/hooks/use-auth'
+import { useAuth, useAuthPrincipal } from '@/hooks/use-auth'
 
 export interface VentureSummary {
   key: string
@@ -70,21 +70,27 @@ const VentureContext = createContext<VentureContextValue | null>(null)
 
 export function VentureProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth()
-  const [ventures, setVentures] = useState<VentureSummary[]>([])
-  const [loading, setLoading] = useState(true)
+  const principal = useAuthPrincipal()
+  // The list is stored with the identity it was fetched for; a list fetched for
+  // anyone else reads as empty, so a new identity never sees the previous one's.
+  const [loaded, setLoaded] = useState<{ principal: string; ventures: VentureSummary[] } | null>(
+    null,
+  )
   const [stored, setStored] = useState(readStored)
+  const current = loaded?.principal === principal ? loaded : null
+  const ventures = useMemo(() => current?.ventures ?? [], [current])
+  const loading = current === null
 
   useEffect(() => {
     let cancelled = false
     api
       .get<{ ventures: VentureSummary[] }>('/ventures')
-      .then((data) => !cancelled && setVentures(data.ventures || []))
-      .catch(() => !cancelled && setVentures([]))
-      .finally(() => !cancelled && setLoading(false))
+      .then((data) => !cancelled && setLoaded({ principal, ventures: data.ventures || [] }))
+      .catch(() => !cancelled && setLoaded({ principal, ventures: [] }))
     return () => {
       cancelled = true
     }
-  }, [user?.user_id])
+  }, [principal])
 
   const select = useCallback((key: string) => {
     setStored(key)

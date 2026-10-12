@@ -438,7 +438,7 @@ curl http://localhost:8080/api/health
 ### Detailed Status
 
 ```bash
-curl http://localhost:8080/status
+curl -H "X-API-Key: $REALIZE_API_KEY" http://localhost:8080/api/status
 # → {"status": "ok", "ventures": 3, "agents": 12, ...}
 ```
 
@@ -510,7 +510,7 @@ At least one API key must be set in `.env`:
 
 ```bash
 # Check which providers are detected
-curl http://localhost:8080/status | python -m json.tool
+curl -H "X-API-Key: $REALIZE_API_KEY" http://localhost:8080/api/status | python -m json.tool
 ```
 
 ### Google Workspace tools not working
