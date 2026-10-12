@@ -33,6 +33,7 @@ class StepStatus(StrEnum):
     SUCCEEDED = "succeeded"
     FAILED = "failed"
     SKIPPED = "skipped"
+    AWAITING_APPROVAL = "awaiting-approval"  # an action it requested is held for an operator
 
 
 # Valid state transitions
@@ -75,6 +76,7 @@ class MissionStep:
     completed_at: datetime | None = None
     cost_eur: float = 0.0
     cost_tokens: int = 0
+    pending_approvals: list[str] = field(default_factory=list)  # approval ids still undecided
 
     @property
     def is_complete(self) -> bool:

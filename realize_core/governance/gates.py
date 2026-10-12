@@ -507,14 +507,26 @@ async def decide_approval(
     elif approve and record.get("action_name"):
         out["execution"] = await execute_approved_action(approval_id, db_path=db_path)
         out["skill_output"] = await _resume_skill_after_tool(record, out["execution"])
+        await _notify_missions(approval_id, True, out["execution"])
     elif not approve and record.get("action_name"):
         report_to_conversation(
             record.get("session_ref"), f"`{record['action_name']}` was not approved, so it was not done."
         )
         _stop_paused_skill(record)
+        await _notify_missions(approval_id, False, None)
     elif action_type in _AGENT_REQUEST_OUTCOMES:
         report_to_conversation(record.get("session_ref"), _agent_request_outcome(action_type, approve, decision_note))
     return out
+
+
+async def _notify_missions(approval_id: str, approved: bool, execution: dict | None) -> None:
+    """Let a mission step that waits on this approval continue (F11). Never raises."""
+    try:
+        from realize_core.missions.engine import on_approval_decided
+
+        await on_approval_decided(approval_id, approved, execution)
+    except Exception:
+        logger.warning("Mission update after approval %s failed", approval_id, exc_info=True)
 
 
 _AGENT_REQUEST_OUTCOMES = {"agent_decision", "agent_input", "agent_credential"}
