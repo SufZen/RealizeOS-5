@@ -516,7 +516,18 @@ async def decide_approval(
         await _notify_missions(approval_id, False, None)
     elif action_type in _AGENT_REQUEST_OUTCOMES:
         report_to_conversation(record.get("session_ref"), _agent_request_outcome(action_type, approve, decision_note))
+    _record_decision(record, approve, action_type)
     return out
+
+
+def _record_decision(record: dict, approve: bool, action_type: str | None) -> None:
+    """Add the decision to the venture's decision log (STORY-44). Never raises."""
+    try:
+        from realize_core.governance.decision_log import record_approval_decision
+
+        record_approval_decision(record, approve, action_type=action_type)
+    except Exception:
+        logger.warning("Decision log write failed for approval %s", record.get("id"), exc_info=True)
 
 
 async def _notify_missions(approval_id: str, approved: bool, execution: dict | None) -> None:

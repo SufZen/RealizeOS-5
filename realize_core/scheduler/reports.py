@@ -168,8 +168,31 @@ async def generate_weekly_review(
         except Exception:
             pass
 
+    # Decision log (STORY-44): counted from the decision files that exist.
+    decision_lines = _decision_lines(systems, kb_path)
+    if decision_lines:
+        sections.append("\n## Decisions\n" + "\n".join(decision_lines))
+
     sections.append(f"\n---\n*Generated at {now.strftime('%Y-%m-%d %H:%M UTC')}*")
     return "\n".join(sections)
+
+
+def _decision_lines(systems: dict, kb_path: Path) -> list[str]:
+    """One line per venture: decisions recorded this week, and how many lack a source."""
+    from realize_core.governance.decision_log import weekly_counts
+    from realize_core.scaffold import find_venture_dir
+
+    lines = []
+    for sys_key in systems:
+        venture_dir = find_venture_dir(kb_path, sys_key)
+        if venture_dir is None:
+            continue
+        counts = weekly_counts(venture_dir)
+        if counts["recorded"]:
+            lines.append(
+                f"- **{sys_key}**: {counts['recorded']} decisions recorded, {counts['without_source']} without a source"
+            )
+    return lines
 
 
 async def generate_daily_log(
