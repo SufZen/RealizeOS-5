@@ -196,12 +196,12 @@ function ProviderInput({
                   onChange={(e) => setValue(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && value.trim() && handleSave()}
                   placeholder={provider.help}
-                  className="w-full rounded-lg border border-border bg-surface-800 px-3 py-2 pr-10 text-sm text-foreground font-mono focus:outline-none focus:ring-1 focus:ring-brand-400"
+                  className="w-full rounded-lg border border-border bg-surface-800 px-3 py-2 pe-10 text-sm text-foreground font-mono focus:outline-none focus:ring-1 focus:ring-brand-400"
                 />
                 {!provider.isUrl && (
                   <button
                     onClick={() => setShowValue(!showValue)}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    className="absolute end-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                     type="button"
                   >
                     {showValue ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -301,7 +301,7 @@ export default function OnboardingWizard({ onComplete }: { onComplete: () => voi
             </div>
 
             {/* Feature highlights */}
-            <div className="grid grid-cols-2 gap-4 max-w-lg mx-auto text-left">
+            <div className="grid grid-cols-2 gap-4 max-w-lg mx-auto text-start">
               {FEATURES.map((f) => (
                 <div key={f.title} className="flex items-start gap-3 rz-card p-4">
                   <f.icon className="h-5 w-5 text-brand-400 mt-0.5 shrink-0" />
@@ -391,7 +391,7 @@ export default function OnboardingWizard({ onComplete }: { onComplete: () => voi
                 <div className="flex items-center justify-center w-20 h-20 rounded-full bg-green-400/10">
                   <Rocket className="h-10 w-10 text-green-400" />
                 </div>
-                <div className="absolute -top-1 -right-1 flex items-center justify-center w-7 h-7 rounded-full bg-green-400">
+                <div className="absolute -top-1 -end-1 flex items-center justify-center w-7 h-7 rounded-full bg-green-400">
                   <Check className="h-4 w-4 text-black" />
                 </div>
               </div>
@@ -409,7 +409,7 @@ export default function OnboardingWizard({ onComplete }: { onComplete: () => voi
             </div>
 
             {/* Quick tips */}
-            <div className="text-left max-w-md mx-auto space-y-3">
+            <div className="text-start max-w-md mx-auto space-y-3">
               <h3 className="text-sm font-semibold text-foreground">What to do next:</h3>
               <div className="space-y-2">
                 {[
@@ -427,7 +427,7 @@ export default function OnboardingWizard({ onComplete }: { onComplete: () => voi
                     <Check className="h-4 w-4 text-green-400 mt-0.5 shrink-0" />
                     <div>
                       <span className="text-sm font-medium text-foreground">{tip.label}</span>
-                      <span className="text-xs text-muted-foreground ml-1.5">— {tip.desc}</span>
+                      <span className="text-xs text-muted-foreground ms-1.5">— {tip.desc}</span>
                     </div>
                   </div>
                 ))}

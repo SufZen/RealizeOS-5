@@ -367,7 +367,7 @@ export default function KnowledgeMapPage() {
                       style={{ width: `${pct}%` }}
                     />
                   </div>
-                  <span className="text-xs text-muted-foreground font-mono w-8 text-right">
+                  <span className="text-xs text-muted-foreground font-mono w-8 text-end">
                     {count}
                   </span>
                 </div>
@@ -380,14 +380,14 @@ export default function KnowledgeMapPage() {
       {/* Search + Filters */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <input
             type="text"
             placeholder="Search knowledge base..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className={cn(
-              'w-full rounded-lg border border-border bg-surface-800 pl-9 pr-3 py-2 text-sm text-foreground',
+              'w-full rounded-lg border border-border bg-surface-800 ps-9 pe-3 py-2 text-sm text-foreground',
               'placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-brand-400',
             )}
           />

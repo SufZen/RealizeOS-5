@@ -32,7 +32,7 @@ function OrgNode({
   const status = agentStatuses?.[node.key] || 'idle'
 
   return (
-    <div className={cn(depth > 0 && 'ml-6 border-l border-border pl-4')}>
+    <div className={cn(depth > 0 && 'ms-6 border-s border-border ps-4')}>
       <div
         onClick={() => navigate(`/ventures/${ventureKey}/agents/${node.key}`)}
         className="flex items-center gap-2 rounded-lg px-3 py-2 cursor-pointer hover:bg-surface-700/50 transition-colors"
@@ -40,7 +40,7 @@ function OrgNode({
         <Bot className="h-4 w-4 text-muted-foreground shrink-0" />
         <span className="text-sm font-medium text-foreground">{node.key}</span>
         {node.role && <span className="text-xs text-muted-foreground">{node.role}</span>}
-        <AgentStatusBadge status={status} className="ml-auto" />
+        <AgentStatusBadge status={status} className="ms-auto" />
       </div>
       {node.children.map((child) => (
         <OrgNode

@@ -115,7 +115,7 @@ export default function VenturesListPage() {
               onClick={() => navigate(`/ventures/${v.key}`)}
             />
             {/* Action buttons overlay */}
-            <div className="absolute top-3 right-3 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <div className="absolute top-3 end-3 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
               <button
                 onClick={(e) => handleExport(v.key, e)}
                 className="p-1.5 rounded-lg bg-surface-800/80 border border-border text-muted-foreground hover:text-foreground transition-colors"

@@ -73,6 +73,12 @@ Each system represents a venture or business unit. Key fields:
 | `directory` | Path to FABRIC directories (relative to project root) |
 | `routing` | Task type → agent pipeline mapping |
 | `agent_routing` | Agent → keyword list for message-based routing |
+| `locale` | Content language, e.g. `he`. A right-to-left language (Hebrew, Arabic, ...) turns the dashboard RTL while that venture is selected |
+
+**Language and direction.** The dashboard follows the selected venture's `locale`: with
+`locale: he` the page is right-to-left, and each message, approval and trail line takes the
+direction of its own text, so mixed Hebrew/English reads correctly. The language button in the
+sidebar overrides it per browser (venture → עברית → English). UI labels stay in English.
 
 ### Agent Routing
 

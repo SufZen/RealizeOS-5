@@ -85,7 +85,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       {children}
       {toasts.length > 0 &&
         createPortal(
-          <div className="fixed bottom-4 right-4 z-[10001] flex flex-col gap-2 w-80">
+          <div className="fixed bottom-4 end-4 z-[10001] flex flex-col gap-2 w-80">
             {toasts.map((toast) => {
               const meta = TOAST_META[toast.type]
               const Icon = meta.icon

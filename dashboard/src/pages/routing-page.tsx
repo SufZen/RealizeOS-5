@@ -187,19 +187,17 @@ export default function RoutingPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border">
-                  <th className="text-left py-2 text-xs text-muted-foreground font-medium">
+                  <th className="text-start py-2 text-xs text-muted-foreground font-medium">
                     Agent
                   </th>
-                  <th className="text-right py-2 text-xs text-muted-foreground font-medium">
-                    Calls
-                  </th>
-                  <th className="text-right py-2 text-xs text-muted-foreground font-medium">
+                  <th className="text-end py-2 text-xs text-muted-foreground font-medium">Calls</th>
+                  <th className="text-end py-2 text-xs text-muted-foreground font-medium">
                     Avg Confidence
                   </th>
-                  <th className="text-right py-2 text-xs text-muted-foreground font-medium">
+                  <th className="text-end py-2 text-xs text-muted-foreground font-medium">
                     Avg Latency
                   </th>
-                  <th className="text-right py-2 text-xs text-muted-foreground font-medium">
+                  <th className="text-end py-2 text-xs text-muted-foreground font-medium">
                     Fallback Rate
                   </th>
                 </tr>
@@ -218,14 +216,14 @@ export default function RoutingPage() {
                         </span>
                       </div>
                     </td>
-                    <td className="text-right py-3 text-muted-foreground">{agent.total_calls}</td>
-                    <td className="text-right py-3">
+                    <td className="text-end py-3 text-muted-foreground">{agent.total_calls}</td>
+                    <td className="text-end py-3">
                       <ConfidenceBadge value={agent.avg_confidence} />
                     </td>
-                    <td className="text-right py-3">
+                    <td className="text-end py-3">
                       <LatencyBadge value={agent.avg_latency_ms} />
                     </td>
-                    <td className="text-right py-3">
+                    <td className="text-end py-3">
                       <span
                         className={cn(
                           'text-xs',
@@ -255,13 +253,13 @@ export default function RoutingPage() {
               </div>
               <div className="flex items-center gap-4 text-xs">
                 <span className="text-muted-foreground">
-                  <Clock className="h-3 w-3 inline mr-1" />
+                  <Clock className="h-3 w-3 inline me-1" />
                   {model.avg_latency_ms.toFixed(0)}ms
                 </span>
                 <span
                   className={cn(model.error_rate > 0.05 ? 'text-red-400' : 'text-muted-foreground')}
                 >
-                  {model.error_rate > 0 && <AlertCircle className="h-3 w-3 inline mr-1" />}
+                  {model.error_rate > 0 && <AlertCircle className="h-3 w-3 inline me-1" />}
                   {(model.error_rate * 100).toFixed(1)}% errors
                 </span>
               </div>

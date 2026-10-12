@@ -195,13 +195,13 @@ function ConnectionCard({ conn, onSaved }: { conn: Connection; onSaved: () => vo
               onChange={(e) => setValue(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && value.trim() && handleSave()}
               placeholder={conn.help || `Enter ${conn.env_key}`}
-              className="w-full rounded-lg border border-border bg-surface-800 px-3 py-2 pr-10 text-sm text-foreground font-mono focus:outline-none focus:ring-1 focus:ring-brand-400"
+              className="w-full rounded-lg border border-border bg-surface-800 px-3 py-2 pe-10 text-sm text-foreground font-mono focus:outline-none focus:ring-1 focus:ring-brand-400"
               autoFocus
             />
             {conn.type === 'secret' && (
               <button
                 onClick={() => setShowValue(!showValue)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                className="absolute end-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
               >
                 {showValue ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
@@ -246,7 +246,7 @@ function ConnectionCard({ conn, onSaved }: { conn: Connection; onSaved: () => vo
                   }
                 }}
                 disabled={saving}
-                className="px-3 py-1.5 text-xs rounded-lg border border-red-400/30 text-red-400 hover:bg-red-400/10 transition-colors ml-auto"
+                className="px-3 py-1.5 text-xs rounded-lg border border-red-400/30 text-red-400 hover:bg-red-400/10 transition-colors ms-auto"
               >
                 Disconnect
               </button>

@@ -216,12 +216,12 @@ export default function WorkflowEditorPage() {
         <div className="rounded-xl border border-border bg-card p-4 space-y-4">
           <div className="flex items-center gap-2">
             <div className="relative flex-1">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <Search className="absolute start-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
               <input
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search files..."
-                className="w-full pl-8 pr-3 py-1.5 rounded-lg border border-border bg-surface-800 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-brand-400"
+                className="w-full ps-8 pe-3 py-1.5 rounded-lg border border-border bg-surface-800 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-brand-400"
               />
             </div>
             <button
@@ -249,7 +249,7 @@ export default function WorkflowEditorPage() {
                   key={file.id}
                   onClick={() => handleLoad(file)}
                   className={cn(
-                    'w-full text-left rounded-lg px-3 py-2 text-xs transition-colors',
+                    'w-full text-start rounded-lg px-3 py-2 text-xs transition-colors',
                     activeFileId === file.id
                       ? 'bg-brand-400/10 text-brand-400'
                       : 'text-muted-foreground hover:bg-surface-700 hover:text-foreground',
@@ -260,7 +260,7 @@ export default function WorkflowEditorPage() {
                     <span className="truncate font-medium">{file.name}</span>
                     <span
                       className={cn(
-                        'ml-auto text-[9px] px-1 py-0.5 rounded uppercase tracking-wider shrink-0',
+                        'ms-auto text-[9px] px-1 py-0.5 rounded uppercase tracking-wider shrink-0',
                         file.format === 'skill_md'
                           ? 'bg-purple-400/10 text-purple-400'
                           : 'bg-cyan-400/10 text-cyan-400',
@@ -332,7 +332,7 @@ export default function WorkflowEditorPage() {
             />
 
             {/* Actions */}
-            <div className="ml-auto flex items-center gap-2">
+            <div className="ms-auto flex items-center gap-2">
               <button
                 onClick={handleCopy}
                 className="p-1.5 rounded-lg border border-border text-muted-foreground hover:text-foreground transition-colors"
@@ -374,12 +374,12 @@ export default function WorkflowEditorPage() {
                   spellCheck={false}
                   className={cn(
                     'w-full min-h-[500px] bg-transparent text-xs text-foreground font-mono',
-                    'p-4 pl-14 leading-6 resize-y',
+                    'p-4 ps-14 leading-6 resize-y',
                     'focus:outline-none focus:ring-0 border-none',
                   )}
                 />
                 {/* Line numbers overlay */}
-                <div className="absolute left-0 top-0 w-10 p-4 text-right pointer-events-none select-none">
+                <div className="absolute start-0 top-0 w-10 p-4 text-end pointer-events-none select-none">
                   {content.split('\n').map((_, i) => (
                     <div key={i} className="text-[10px] leading-6 text-surface-600 font-mono">
                       {i + 1}

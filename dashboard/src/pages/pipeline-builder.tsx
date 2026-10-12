@@ -249,7 +249,7 @@ export default function PipelineBuilderPage() {
 
           {/* Step toolbox */}
           <div className="flex flex-wrap gap-2">
-            <span className="text-xs text-muted-foreground self-center mr-1">Add step:</span>
+            <span className="text-xs text-muted-foreground self-center me-1">Add step:</span>
             {(
               Object.entries(STEP_TYPE_META) as [StepType, (typeof STEP_TYPE_META)[StepType]][]
             ).map(([type, meta]) => {
@@ -635,7 +635,7 @@ function PipelineLibrary({ pipelines, loading, error, onSelect }: PipelineLibrar
         <button
           key={p.id}
           onClick={() => onSelect(p)}
-          className="rounded-xl border border-border bg-card p-5 text-left hover:border-brand-400/50 transition-colors group"
+          className="rounded-xl border border-border bg-card p-5 text-start hover:border-brand-400/50 transition-colors group"
         >
           <h3 className="text-sm font-semibold text-foreground group-hover:text-brand-400 transition-colors">
             {p.name}
@@ -649,7 +649,7 @@ function PipelineLibrary({ pipelines, loading, error, onSelect }: PipelineLibrar
             </span>
             <span className="text-[10px] text-muted-foreground">v{p.version}</span>
             {p.updated_at && (
-              <span className="text-[10px] text-muted-foreground ml-auto">
+              <span className="text-[10px] text-muted-foreground ms-auto">
                 {new Date(p.updated_at).toLocaleDateString()}
               </span>
             )}

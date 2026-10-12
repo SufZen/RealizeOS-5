@@ -137,7 +137,7 @@ export function ChatMessage({ msg, anchorPrefix }: { msg: ChatMsg; anchorPrefix:
       : null
 
   return (
-    <div className={cn('flex gap-3 max-w-3xl', isUser ? 'ml-auto flex-row-reverse' : '')}>
+    <div className={cn('flex gap-3 max-w-3xl', isUser ? 'ms-auto flex-row-reverse' : '')}>
       <div
         className={cn(
           'flex h-8 w-8 shrink-0 items-center justify-center rounded-full',
@@ -169,7 +169,7 @@ export function ChatMessage({ msg, anchorPrefix }: { msg: ChatMsg; anchorPrefix:
         {!isUser && msg.trail && <TrailPanel trail={msg.trail} anchorPrefix={anchorPrefix} />}
         {msg.timestamp && !msg.pending && (
           <div className="text-xs text-muted-foreground mt-1 opacity-60">
-            {new Date(msg.timestamp).toLocaleTimeString()}
+            <bdi>{new Date(msg.timestamp).toLocaleTimeString()}</bdi>
           </div>
         )}
       </div>

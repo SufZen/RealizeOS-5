@@ -37,7 +37,7 @@ export function LLMRoutingSection() {
           >
             <div>
               <span className="text-sm font-medium text-foreground capitalize">{taskType}</span>
-              <span className="text-xs text-muted-foreground ml-2">{rule.description}</span>
+              <span className="text-xs text-muted-foreground ms-2">{rule.description}</span>
             </div>
             <span className="text-xs font-mono px-2 py-0.5 rounded bg-brand-400/10 text-brand-400 shrink-0">
               {rule.model}
