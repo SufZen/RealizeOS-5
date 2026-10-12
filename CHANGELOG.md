@@ -4,6 +4,19 @@ All notable changes to RealizeOS are documented in this file.
 This changelog is automatically generated from [Conventional Commits](https://conventionalcommits.org).
 
 
+## [5.11.0](https://github.com/SufZen/RealizeOS-5/compare/v5.10.0...v5.11.0) (2026-10-12)
+
+### Features
+
+* **security:** venture-scoped users and real roles (brief item 4) ([0767de9](https://github.com/SufZen/RealizeOS-5/commit/0767de98ea4e20d771af907f26020e30ce11754b))
+
+### Bug Fixes
+
+* **auth:** let operator and user roles sign in (migration 008) ([ad72d9c](https://github.com/SufZen/RealizeOS-5/commit/ad72d9c2b4287a37de7dbfe9d9c6f5a4735f4bd6))
+* **security:** check skills by owning venture; scope MCP chat context ([fcff94c](https://github.com/SufZen/RealizeOS-5/commit/fcff94ca25e8ff713c8f2c600e83311179db8602))
+* **security:** check venture ownership where resources are resolved ([b748840](https://github.com/SufZen/RealizeOS-5/commit/b748840319f19131d9093da9b73ced388a997591))
+* **security:** close venture-scope bypasses found in review ([48f843d](https://github.com/SufZen/RealizeOS-5/commit/48f843d5006f49b5a95e2ded1db47031fa750e39))
+
 ## [5.10.0](https://github.com/SufZen/RealizeOS-5/compare/v5.9.0...v5.10.0) (2026-10-12)
 
 ### Features
