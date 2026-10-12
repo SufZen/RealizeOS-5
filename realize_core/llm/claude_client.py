@@ -18,20 +18,22 @@ from realize_core.llm.claude_models import (
 
 logger = logging.getLogger(__name__)
 
-# Lazy-initialized client (created on first use)
+# Lazy-initialized client, rebuilt when the key changes (Setup can rotate it at runtime).
 _client: anthropic.AsyncAnthropic | None = None
+_client_key: str = ""
 
 
 def _get_client(api_key: str | None = None) -> anthropic.AsyncAnthropic:
-    """Get or create the async Anthropic client."""
-    global _client
-    if _client is None:
-        from realize_core.config import ANTHROPIC_API_KEY
+    """Get the async Anthropic client for the current key."""
+    global _client, _client_key
+    from realize_core.config import anthropic_api_key
 
-        key = api_key or ANTHROPIC_API_KEY
-        if not key:
-            raise RuntimeError("Anthropic API key not configured. Set ANTHROPIC_API_KEY.")
+    key = api_key or anthropic_api_key()
+    if not key:
+        raise RuntimeError("Anthropic API key not configured. Set ANTHROPIC_API_KEY.")
+    if _client is None or key != _client_key:
         _client = anthropic.AsyncAnthropic(api_key=key)
+        _client_key = key
     return _client
 
 

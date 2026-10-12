@@ -17,6 +17,8 @@ from pathlib import Path
 
 import typer
 
+from realize_core.config import synapse_dir
+
 fabric_app = typer.Typer(no_args_is_help=True)
 
 
@@ -89,7 +91,7 @@ def reindex(
     config = load_config()
     kb_path = Path(config.get("kb_path", "."))
 
-    db_path = kb_path / ".synapse" / "synapse.db"
+    db_path = synapse_dir(kb_path) / "synapse.db"
     db_path.parent.mkdir(parents=True, exist_ok=True)
     synapse = Synapse(db_path=db_path)
 
@@ -129,7 +131,7 @@ def stats(
     config = load_config()
     kb_path = Path(config.get("kb_path", "."))
 
-    db_path = kb_path / ".synapse" / "synapse.db"
+    db_path = synapse_dir(kb_path) / "synapse.db"
     if not db_path.exists():
         typer.echo("No Synapse index found. Run: realize-os fabric reindex")
         raise typer.Exit(1)
@@ -157,7 +159,7 @@ def search(
     config = load_config()
     kb_path = Path(config.get("kb_path", "."))
 
-    db_path = kb_path / ".synapse" / "synapse.db"
+    db_path = synapse_dir(kb_path) / "synapse.db"
     if not db_path.exists():
         typer.echo("No Synapse index found. Run: realize-os fabric reindex")
         raise typer.Exit(1)
@@ -188,7 +190,7 @@ def toc(
     config = load_config()
     kb_path = Path(config.get("kb_path", "."))
 
-    db_path = kb_path / ".synapse" / "synapse.db"
+    db_path = synapse_dir(kb_path) / "synapse.db"
     if not db_path.exists():
         typer.echo("No Synapse index found. Run: realize-os fabric reindex")
         raise typer.Exit(1)
@@ -223,7 +225,7 @@ def dream(
     config = load_config()
     kb_path = Path(config.get("kb_path", "."))
 
-    db_path = kb_path / ".synapse" / "synapse.db"
+    db_path = synapse_dir(kb_path) / "synapse.db"
     if not db_path.exists():
         typer.echo("No Synapse index found. Run: realize-os fabric reindex")
         raise typer.Exit(1)
@@ -232,7 +234,7 @@ def dream(
     policy = TrustPolicy.load(kb_path / "shared" / "trust-policy.yaml")
     curator = CuratorCycle(synapse=synapse, policy=policy)
     inbox = DreamInbox(
-        inbox_path=kb_path / ".synapse" / "dream-inbox.jsonl",
+        inbox_path=synapse_dir(kb_path) / "dream-inbox.jsonl",
         policy=policy,
     )
 
@@ -278,7 +280,7 @@ def apply(
 
     policy = TrustPolicy.load(kb_path / "shared" / "trust-policy.yaml")
     inbox = DreamInbox(
-        inbox_path=kb_path / ".synapse" / "dream-inbox.jsonl",
+        inbox_path=synapse_dir(kb_path) / "dream-inbox.jsonl",
         policy=policy,
     )
 
@@ -341,7 +343,7 @@ def digest(
 
     policy = TrustPolicy.load(kb_path / "shared" / "trust-policy.yaml")
     inbox = DreamInbox(
-        inbox_path=kb_path / ".synapse" / "dream-inbox.jsonl",
+        inbox_path=synapse_dir(kb_path) / "dream-inbox.jsonl",
         policy=policy,
     )
 

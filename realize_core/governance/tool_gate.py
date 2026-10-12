@@ -97,6 +97,10 @@ class ToolGate:
         self._agent_key = agent_key
         self._system_key = system_key
 
+    def update_config(self, config: dict[str, Any] | None) -> None:
+        """Use a reloaded config (trust level, rules) from the next decision on."""
+        self._config = config or {}
+
     @property
     def store(self) -> ApprovalStore:
         """The approval store the gate records held actions into."""

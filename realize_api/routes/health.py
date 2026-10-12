@@ -6,6 +6,7 @@ import logging
 import os
 
 from fastapi import APIRouter, Request
+from fastapi.responses import JSONResponse
 from realize_core import __version__
 
 from realize_api.dependencies import visible_systems
@@ -15,8 +16,24 @@ logger = logging.getLogger(__name__)
 
 
 @router.get("/health")
-async def health():
-    """Basic health check."""
+async def health(request: Request):
+    """Liveness plus store readiness.
+
+    503 when a required store (the operational DB) failed to initialize, so a
+    probe notices instead of seeing "ok" while sign-in and approvals are broken.
+    Optional stores that failed make the status "degraded". Only store names
+    are reported: this endpoint is public.
+    """
+    errors: dict[str, str] = getattr(request.app.state, "store_errors", None) or {}
+    required = sorted(name for name, kind in errors.items() if kind == "required")
+    optional = sorted(name for name, kind in errors.items() if kind != "required")
+    if required:
+        return JSONResponse(
+            status_code=503,
+            content={"status": "unavailable", "service": "realize-os", "failed": required + optional},
+        )
+    if optional:
+        return {"status": "degraded", "service": "realize-os", "failed": optional}
     return {"status": "ok", "service": "realize-os"}
 
 

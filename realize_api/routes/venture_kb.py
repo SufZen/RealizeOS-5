@@ -224,11 +224,9 @@ async def save_kb_file(venture_key: str, request: Request):
     # Reload config if this was an agent file (auto-discovery)
     if "/A-agents/" in path or "\\A-agents\\" in path:
         try:
-            from realize_core.config import build_systems_dict, load_config
+            from realize_core.config_runtime import reload_app_config
 
-            config = load_config()
-            request.app.state.config = config
-            request.app.state.systems = build_systems_dict(config)
+            reload_app_config(request.app.state)
         except Exception as exc:
             logger.debug("Config reload after agent edit failed: %s", exc)
 
@@ -263,11 +261,9 @@ async def create_kb_file(venture_key: str, request: Request):
     # Reload config if agent file
     if "/A-agents/" in path or "\\A-agents\\" in path:
         try:
-            from realize_core.config import build_systems_dict, load_config
+            from realize_core.config_runtime import reload_app_config
 
-            config = load_config()
-            request.app.state.config = config
-            request.app.state.systems = build_systems_dict(config)
+            reload_app_config(request.app.state)
         except Exception as exc:
             logger.debug("Config reload after agent create failed: %s", exc)
 
@@ -297,10 +293,8 @@ async def delete_kb_file(venture_key: str, path: str, request: Request):
     # Reload config if agent file
     if "/A-agents/" in path or "\\A-agents\\" in path:
         try:
-            from realize_core.config import build_systems_dict, load_config
+            from realize_core.config_runtime import reload_app_config
 
-            config = load_config()
-            request.app.state.config = config
-            request.app.state.systems = build_systems_dict(config)
+            reload_app_config(request.app.state)
         except Exception as exc:
             logger.debug("Config reload after agent delete failed: %s", exc)

@@ -6,6 +6,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
+from realize_core.config import synapse_dir
 from realize_core.dreaming.curator import CuratorCycle
 from realize_core.dreaming.inbox import DreamInbox
 from realize_core.dreaming.policy import TrustPolicy
@@ -31,7 +32,7 @@ def _get_dream_inbox(request: Request) -> DreamInbox:
     kb_path = Path(getattr(request.app.state, "kb_path", None) or ".")
     policy = TrustPolicy.load(kb_path / "shared" / "trust-policy.yaml")
     inbox = DreamInbox(
-        inbox_path=kb_path / ".synapse" / "dream-inbox.jsonl",
+        inbox_path=synapse_dir(kb_path) / "dream-inbox.jsonl",
         policy=policy,
         event_log=getattr(request.app.state, "event_log", None),
     )

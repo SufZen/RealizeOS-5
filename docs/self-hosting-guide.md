@@ -168,6 +168,10 @@ Docker Compose configures these volumes:
 | bind | `./systems` | `/app/systems` | Venture FABRIC directories |
 | bind | `./.credentials` | `/app/.credentials` | Google OAuth (read-only) |
 
+Everything RealizeOS writes lives under `DATA_PATH` (`/app/data`): `memory.db`, the operational database `realize_data.db` (sign-in sessions, approvals, MCP OAuth), `synapse/` (FABRIC index and Dream Inbox) and the audit log. The KB index `kb_index.db` stays next to the knowledge base when that folder is writable and moves to `DATA_PATH` otherwise. Set `REALIZE_DB_PATH` to put the operational database somewhere else.
+
+Upgrading from 5.14 or earlier: an existing `realize_data.db` in the working directory or `.synapse/` in the KB root keeps being used (the log warns if it isn't on `DATA_PATH`). To move it, stop the container, copy it into the data volume, and remove the old copy.
+
 ### Google Workspace Setup (Optional)
 
 To enable Gmail, Calendar, Drive, and Sheets tools:
@@ -434,6 +438,8 @@ Add a cron job:
 curl http://localhost:8080/api/health
 # → {"status": "ok"}
 ```
+
+A required store that failed to start (the operational database) returns **503** `{"status": "unavailable", "failed": ["operational_db"]}`; an optional one (Synapse) returns `{"status": "degraded", ...}` with 200. Point your monitor at this endpoint.
 
 ### Detailed Status
 

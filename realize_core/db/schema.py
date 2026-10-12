@@ -8,6 +8,7 @@ Tables:
 """
 
 import logging
+import os
 import sqlite3
 from pathlib import Path
 
@@ -18,14 +19,23 @@ _SCHEMA_VERSION = 1
 
 
 def get_db_path(base_path: Path | None = None) -> Path:
-    """Get the database file path. Defaults to <cwd>/realize_data.db."""
+    """Get the operational database path.
+
+    ``REALIZE_DB_PATH`` wins; then ``base_path``; then an existing
+    ``<cwd>/realize_data.db`` (pre-5.15 installs); else ``DATA_PATH/realize_data.db``.
+    """
     global _DB_PATH
     if _DB_PATH is not None:
         return _DB_PATH
-    if base_path:
+    explicit = os.getenv("REALIZE_DB_PATH")
+    if explicit:
+        _DB_PATH = Path(explicit)
+    elif base_path:
         _DB_PATH = base_path / "realize_data.db"
     else:
-        _DB_PATH = Path("realize_data.db")
+        from realize_core.config import persisted_path
+
+        _DB_PATH = persisted_path("realize_data.db", Path.cwd())
     return _DB_PATH
 
 

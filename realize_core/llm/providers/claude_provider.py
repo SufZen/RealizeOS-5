@@ -83,10 +83,11 @@ class ClaudeProvider(BaseLLMProvider):
         try:
             import anthropic  # noqa: F401
 
-            from realize_core.config import ANTHROPIC_API_KEY
         except ImportError:
             return False
-        if not ANTHROPIC_API_KEY:
+        from realize_core.config import anthropic_api_key
+
+        if not anthropic_api_key():
             return False
         configured = {m.model_id for m in self.list_models()}
         return not configured.issubset(self._dead_models)

@@ -13,6 +13,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
+from realize_core.config import synapse_dir
 
 from realize_api.dependencies import visible_systems, visible_to
 
@@ -323,7 +324,7 @@ def _get_synapse(request: Request):
         from realize_core.fabric.synapse import Synapse
 
         kb_path = Path(getattr(request.app.state, "kb_path", None) or ".")
-        db_path = kb_path / ".synapse" / "synapse.db"
+        db_path = synapse_dir(kb_path) / "synapse.db"
         db_path.parent.mkdir(parents=True, exist_ok=True)
         request.app.state.synapse = Synapse(db_path=db_path)
 

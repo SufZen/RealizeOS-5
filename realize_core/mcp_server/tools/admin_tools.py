@@ -103,11 +103,9 @@ async def create_venture(args: dict[str, Any], app_state: Any, user: CurrentUser
 
     # Refresh in-memory config so the new venture is visible immediately.
     try:
-        from realize_core.config import build_systems_dict, load_config
+        from realize_core.config_runtime import reload_app_config
 
-        config = load_config()
-        app_state.config = config
-        app_state.systems = build_systems_dict(config, Path(kb_path))
+        reload_app_config(app_state, Path(kb_path))
     except Exception as exc:
         logger.warning("Config refresh after create_venture failed: %s", exc)
 
@@ -169,11 +167,9 @@ async def delete_venture(args: dict[str, Any], app_state: Any, user: CurrentUser
         return {"error": f"Delete failed, nothing was changed: {exc}", "code": "MCP_INTERNAL"}
 
     try:
-        from realize_core.config import build_systems_dict, load_config
+        from realize_core.config_runtime import reload_app_config
 
-        config = load_config()
-        app_state.config = config
-        app_state.systems = build_systems_dict(config, kb_path)
+        reload_app_config(app_state, kb_path)
     except Exception as exc:
         logger.warning("Config refresh after delete_venture failed: %s", exc)
 
@@ -244,11 +240,9 @@ async def update_setting(args: dict[str, Any], app_state: Any, user: CurrentUser
         return {"error": f"Failed to update: {exc}", "code": "MCP_INTERNAL"}
 
     try:
-        from realize_core.config import build_systems_dict, load_config
+        from realize_core.config_runtime import reload_app_config
 
-        new_cfg = load_config()
-        app_state.config = new_cfg
-        app_state.systems = build_systems_dict(new_cfg)
+        reload_app_config(app_state)
     except Exception as exc:
         logger.warning("Config refresh after update_setting failed: %s", exc)
 

@@ -10,20 +10,22 @@ logger = logging.getLogger(__name__)
 
 # Lazy-initialized client
 _client: Any = None
+_client_key: str = ""
 
 
 def _get_client(api_key: str | None = None) -> Any:
-    """Get or create the Gemini client."""
-    global _client
-    if _client is None:
+    """Get the Gemini client for the current key (rebuilt when the key changes)."""
+    global _client, _client_key
+    from realize_core.config import google_ai_api_key
+
+    key = api_key or google_ai_api_key()
+    if not key:
+        raise RuntimeError("Google AI API key not configured. Set GOOGLE_AI_API_KEY.")
+    if _client is None or key != _client_key:
         from google import genai
 
-        from realize_core.config import GOOGLE_AI_API_KEY
-
-        key = api_key or GOOGLE_AI_API_KEY
-        if not key:
-            raise RuntimeError("Google AI API key not configured. Set GOOGLE_AI_API_KEY.")
         _client = genai.Client(api_key=key)
+        _client_key = key
     return _client
 
 

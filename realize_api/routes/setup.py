@@ -307,11 +307,9 @@ async def update_connection(body: UpdateConnectionBody, request: Request):
 
     # Reload system config
     try:
-        from realize_core.config import build_systems_dict, load_config
+        from realize_core.config_runtime import reload_app_config
 
-        new_config = load_config()
-        request.app.state.config = new_config
-        request.app.state.systems = build_systems_dict(new_config)
+        reload_app_config(request.app.state)
         logger.info(f"Config reloaded after updating {env_key}")
     except Exception as e:
         logger.warning(f"Config reload failed: {e}")

@@ -9,7 +9,7 @@ import os
 from contextlib import AsyncExitStack, asynccontextmanager
 from pathlib import Path
 
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -119,7 +119,7 @@ async def lifespan(app: FastAPI):
     # Startup
     logger.info("RealizeOS API starting up...")
 
-    from realize_core.config import KB_PATH, build_systems_dict, load_config
+    from realize_core.config import KB_PATH, build_systems_dict, load_config, synapse_dir
 
     config = load_config()
     app.state.config = config
@@ -132,6 +132,9 @@ async def lifespan(app: FastAPI):
             "preferences": "shared/user-preferences.md",
         },
     )
+
+    # Stores that failed to initialize; /api/health reports them (names only).
+    app.state.store_errors = {}
 
     # Initialize memory store
     from realize_core.memory.store import init_db
@@ -149,7 +152,9 @@ async def lifespan(app: FastAPI):
         MigrationEngine().migrate_up()
         logger.info("Operational database initialized")
     except Exception as e:
-        logger.warning(f"Operational DB initialization skipped: {e}")
+        # Sessions, approvals and MCP OAuth live here: report not-ready, don't hide it.
+        app.state.store_errors["operational_db"] = "required"
+        logger.error("Operational DB initialization failed: %s", e, exc_info=True)
 
     # Initialize KB index
     try:
@@ -251,20 +256,10 @@ async def lifespan(app: FastAPI):
     # inject it into the tool-execution registry. When off, the registry's gate
     # stays None and tool dispatch is byte-for-byte unchanged.
     try:
-        from realize_core.config import get_features
+        from realize_core.config_runtime import sync_tool_gate
 
-        if get_features(config).get("enforce_gates"):
-            from realize_core.governance.tool_gate import ToolGate
-            from realize_core.tools.approval import ApprovalStore
-            from realize_core.tools.tool_registry import get_tool_registry
-
-            approval_store = getattr(app.state, "approval_store", None) or ApprovalStore()
-            app.state.approval_store = approval_store
-            gate = ToolGate(config=config, approval_store=approval_store)
-            get_tool_registry().set_gate(gate)
-            app.state.tool_gate = gate
-            logger.warning("Governance ENFORCEMENT ON: tool gate installed (features.enforce_gates=true)")
-        else:
+        sync_tool_gate(app.state, config)
+        if getattr(app.state, "tool_gate", None) is None:
             logger.info("Governance enforcement off (features.enforce_gates not set)")
     except Exception as e:
         logger.error("Tool gate wiring skipped: %s", e, exc_info=True)
@@ -300,12 +295,13 @@ async def lifespan(app: FastAPI):
     try:
         from realize_core.fabric.synapse import Synapse
 
-        db_path = Path(KB_PATH) / ".synapse" / "synapse.db"
+        db_path = synapse_dir(KB_PATH) / "synapse.db"
         db_path.parent.mkdir(parents=True, exist_ok=True)
         app.state.synapse = Synapse(db_path=db_path)
         logger.info("FABRIC Synapse index initialized")
     except Exception as e:
         app.state.synapse = None
+        app.state.store_errors["synapse"] = "optional"
         logger.warning(f"Synapse initialization skipped: {e}")
 
     # v5.5.0 — Initialize Runtime Registry
@@ -366,7 +362,7 @@ async def lifespan(app: FastAPI):
             synapse=app.state.synapse,
         )
         app.state.dream_inbox = DreamInbox(
-            inbox_path=Path(KB_PATH) / ".synapse" / "dream-inbox.jsonl",
+            inbox_path=synapse_dir(KB_PATH) / "dream-inbox.jsonl",
             policy=TrustPolicy.load(Path(KB_PATH) / "shared" / "trust-policy.yaml"),
         )
         logger.info("Mission Engine and Dream Inbox initialized")
@@ -573,9 +569,11 @@ def create_app() -> FastAPI:
         logger.warning("MCP server mount skipped: %s", exc)
 
     @app.get("/health", include_in_schema=False)
-    async def root_health():
-        """Backward-compatible health endpoint for load balancers."""
-        return {"status": "ok", "service": "realize-os"}
+    async def root_health(request: Request):
+        """Backward-compatible health endpoint for load balancers (same answer as /api/health)."""
+        from realize_api.routes.health import health
+
+        return await health(request)
 
     # Serve dashboard from static/ (only if built)
     static_dir = Path(__file__).parent.parent / "static"

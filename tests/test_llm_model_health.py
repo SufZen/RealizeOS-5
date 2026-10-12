@@ -164,7 +164,7 @@ def claude_provider():
     ClaudeProvider._dead_models = {}
     models = {"claude_sonnet": "claude-sonnet-test", "claude_opus": "claude-opus-test"}
     with (
-        patch("realize_core.config.ANTHROPIC_API_KEY", "test-key"),
+        patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test-key"}),
         patch.object(ClaudeProvider, "_MODELS", models),
     ):
         yield ClaudeProvider()
