@@ -4,6 +4,18 @@ All notable changes to RealizeOS are documented in this file.
 This changelog is automatically generated from [Conventional Commits](https://conventionalcommits.org).
 
 
+## [5.13.0](https://github.com/SufZen/RealizeOS-5/compare/v5.12.0...v5.13.0) (2026-10-12)
+
+### Features
+
+* **demo:** rehearsal kit — Google sign-in, sheet import files, read-only preflight ([d867396](https://github.com/SufZen/RealizeOS-5/commit/d867396c3b2867d1ca3a48a0d32c9f5aa4a861d6))
+* **templates:** real-estate developer demo pack (STORY-20) ([7761caa](https://github.com/SufZen/RealizeOS-5/commit/7761caa314c69e546fb8fbb777fe9620ebb77364))
+
+### Bug Fixes
+
+* **security:** save the Google token owner-only ([d4eb040](https://github.com/SufZen/RealizeOS-5/commit/d4eb0403a98fbfe76b663537a0d3984b527f2405))
+* **skills:** failed tool steps stop the workflow; skill steps leave a trail ([d64701f](https://github.com/SufZen/RealizeOS-5/commit/d64701fc79f5c9b49b5e6759da36fbee2fc51ac4))
+
 ## [5.12.0](https://github.com/SufZen/RealizeOS-5/compare/v5.11.0...v5.12.0) (2026-10-12)
 
 ### Features
