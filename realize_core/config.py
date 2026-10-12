@@ -13,8 +13,22 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 # --- API Keys (from environment) ---
+# Import-time snapshots, kept for backward compatibility. Code should call
+# anthropic_api_key() / google_ai_api_key(): Setup changes os.environ at
+# runtime, and a key saved there must apply without a restart.
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 GOOGLE_AI_API_KEY = os.getenv("GOOGLE_AI_API_KEY", "")
+
+
+def anthropic_api_key() -> str:
+    """The current Anthropic API key (read from the environment on every call)."""
+    return os.getenv("ANTHROPIC_API_KEY", "")
+
+
+def google_ai_api_key() -> str:
+    """The current Google AI API key (read from the environment on every call)."""
+    return os.getenv("GOOGLE_AI_API_KEY", "")
+
 
 # --- Model Definitions (override via environment variables) ---
 # Defaults are always the newest model in each line. Users who want an older

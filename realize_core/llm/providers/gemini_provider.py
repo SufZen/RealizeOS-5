@@ -53,9 +53,9 @@ class GeminiProvider(BaseLLMProvider):
         try:
             from google import genai  # noqa: F401
 
-            from realize_core.config import GOOGLE_AI_API_KEY
+            from realize_core.config import google_ai_api_key
 
-            return bool(GOOGLE_AI_API_KEY)
+            return bool(google_ai_api_key())
         except BaseException:
             # Catch ImportError, ModuleNotFoundError, and Rust/cffi panics
             return False
