@@ -410,10 +410,13 @@ async def process_message(
     venture_agents = (system_config or {}).get("agents", {})
     if requested_agent and (requested_agent == "orchestrator" or requested_agent in venture_agents):
         agent_key = requested_agent
+        route_method = "requested"
     else:
         if requested_agent:
             logger.warning("Requested agent %r is not in %s; routing automatically", requested_agent, system_key)
         agent_key = select_agent(agent_routing, message)
+        route_method = "keyword" if agent_key != "orchestrator" else "default"
+    routed_to = agent_key
 
     # --- Safety: verify agent definition exists, fallback to orchestrator ---
     if system_config and agent_key != "orchestrator":
@@ -438,6 +441,10 @@ async def process_message(
 
     if selected is not None:
         selected["agent_key"] = agent_key
+
+    from realize_core.agents.routing_log import record_decision
+
+    record_decision(system_key, agent_key, "fallback" if agent_key != routed_to else route_method)
 
     # --- Activity: log agent routing ---
     if features.get("activity_log"):
