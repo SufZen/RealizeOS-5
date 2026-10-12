@@ -227,11 +227,20 @@ class TestSignIn:
         from realize_api.routes import mcp_oauth
 
         request_id = _start_authorize(client, _register(client), _pkce()[1])
-        for n in range(mcp_oauth.MAX_FAILED_SIGNINS):
+        for n in range(mcp_oauth.MAX_FAILED_PER_ACCOUNT):
             mcp_oauth._record_failure(f"10.0.0.{n}", "dana@acme.io")
         assert _sign_in(client, request_id, "dana@acme.io").status_code == 429
         # Another account from the test client's IP is unaffected.
         assert _sign_in(client, request_id, "owner@realization.co.il").status_code == 302
+
+    def test_one_ip_cannot_lock_an_account(self, client):
+        """A single source hits its own IP limit long before the account limit."""
+        from realize_api.routes import mcp_oauth
+
+        for _ in range(mcp_oauth.MAX_FAILED_SIGNINS):
+            mcp_oauth._record_failure("10.9.9.9", "dana@acme.io")
+        assert mcp_oauth._too_many_failures("10.9.9.9", "dana@acme.io")
+        assert not mcp_oauth._too_many_failures("10.8.8.8", "dana@acme.io")
 
     def test_failure_tracking_is_bounded(self, monkeypatch):
         from realize_api.routes import mcp_oauth

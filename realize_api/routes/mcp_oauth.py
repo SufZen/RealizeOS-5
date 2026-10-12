@@ -23,12 +23,16 @@ from starlette.routing import Route
 
 logger = logging.getLogger(__name__)
 
-#: Failed sign-ins allowed per client IP, and separately per account, inside
+#: Failed sign-ins allowed per client IP (and per account, see below) inside
 #: :data:`_FAIL_WINDOW` seconds. The per-account limit stops a slow guess
 #: spread over many IPs; the per-IP one stops one source trying many accounts.
 #: Behind a reverse proxy, run uvicorn with ``--proxy-headers`` (and
 #: ``--forwarded-allow-ips``) so the IP is the real client, not the proxy.
 MAX_FAILED_SIGNINS = 10
+#: Higher than the per-IP limit, so no single IP can lock someone's account:
+#: locking it takes failures from at least three IPs. At 30 guesses per
+#: 15 minutes, guessing a password online is still far too slow to work.
+MAX_FAILED_PER_ACCOUNT = 30
 _FAIL_WINDOW = 15 * 60
 #: Cap on tracked keys so a flood of made-up emails can't grow memory forever.
 _MAX_TRACKED = 10_000
@@ -75,7 +79,10 @@ def _recent(key: str) -> int:
 
 
 def _too_many_failures(ip: str, email: str) -> bool:
-    return any(_recent(key) >= MAX_FAILED_SIGNINS for key in _keys(ip, email))
+    return any(
+        _recent(key) >= (MAX_FAILED_PER_ACCOUNT if key.startswith("account:") else MAX_FAILED_SIGNINS)
+        for key in _keys(ip, email)
+    )
 
 
 def _record_failure(ip: str, email: str) -> None:
