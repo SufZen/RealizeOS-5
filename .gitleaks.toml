@@ -20,3 +20,8 @@ paths = [
     '''tests/test_auth_middleware\.py''',
     '''tests/test_mcp_oauth\.py''',
 ]
+# The fixed dummy REALIZE_API_KEY that API tests authenticate with. Allowlisted
+# by value so new test files using it don't need a path entry each time.
+regexes = [
+    '''test-api-key-1234567890abcdef''',
+]
