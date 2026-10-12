@@ -4,6 +4,20 @@ All notable changes to RealizeOS are documented in this file.
 This changelog is automatically generated from [Conventional Commits](https://conventionalcommits.org).
 
 
+## [5.15.5](https://github.com/SufZen/RealizeOS-5/compare/v5.15.4...v5.15.5) (2026-10-12)
+
+### Bug Fixes
+
+* **api:** unknown /api and /mcp paths return a JSON 404, not the dashboard ([bb18287](https://github.com/SufZen/RealizeOS-5/commit/bb1828745732b6027babf849089133e494f1fe31))
+* **auth:** session introspection re-checks the configured user ([9a2fd5b](https://github.com/SufZen/RealizeOS-5/commit/9a2fd5bc5cb9a74e4fff220a35ab7890472531b6))
+* **chat:** the agent you pick is the agent that runs, and the reply says who did ([1b55e3e](https://github.com/SufZen/RealizeOS-5/commit/1b55e3e1589c1dc42e36351987c0e800fc927064))
+* **dashboard:** the first-visit tour waits for the signed-in app ([9ab7d7d](https://github.com/SufZen/RealizeOS-5/commit/9ab7d7dad1bfd5bf6d9a3841911bc2ab3e018666))
+* **missions:** validate plans before storing; say the page only follows missions ([906c46e](https://github.com/SufZen/RealizeOS-5/commit/906c46e6e8dbda573463a6ae4043137220d0e1a4))
+* **release:** the image and MCP server report the real release version ([834a91f](https://github.com/SufZen/RealizeOS-5/commit/834a91f4ffd2aa925ee6f364e7351d11a63ea622))
+* **routing:** Routing Analytics shows real routing decisions, in the page's shape ([377ffeb](https://github.com/SufZen/RealizeOS-5/commit/377ffebfd8b0c9ce449960ce6466de8c17ce5d52))
+* **storage:** a real export download, and saved storage settings take effect ([70ac096](https://github.com/SufZen/RealizeOS-5/commit/70ac096a4311a0b026393d40bde6d47433d7f197))
+* **webhooks:** report matched triggers as matched, not fired ([7f9231d](https://github.com/SufZen/RealizeOS-5/commit/7f9231d3957bb74f549c77ec778e54d636a1dc6a))
+
 ## [5.15.4](https://github.com/SufZen/RealizeOS-5/compare/v5.15.3...v5.15.4) (2026-10-12)
 
 ### Bug Fixes
