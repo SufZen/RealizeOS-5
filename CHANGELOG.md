@@ -4,6 +4,15 @@ All notable changes to RealizeOS are documented in this file.
 This changelog is automatically generated from [Conventional Commits](https://conventionalcommits.org).
 
 
+## [5.15.2](https://github.com/SufZen/RealizeOS-5/compare/v5.15.1...v5.15.2) (2026-10-12)
+
+### Bug Fixes
+
+* **governance:** apply Settings policy changes to the live tool gate ([26b5289](https://github.com/SufZen/RealizeOS-5/commit/26b52891262a62004e0075f5521d98a38f5cd239))
+* **governance:** fail closed when the tool gate can't be applied ([47fe6c0](https://github.com/SufZen/RealizeOS-5/commit/47fe6c0b9c4a2da2cc8daf18fec0789c24a80b94))
+* **setup:** provider keys saved in Setup apply without a restart ([4ac2032](https://github.com/SufZen/RealizeOS-5/commit/4ac203247784ab05b063f804056ac620f50865b2))
+* **storage:** keep every durable store on persisted storage; report a failed one ([fcec8f0](https://github.com/SufZen/RealizeOS-5/commit/fcec8f02a852acfada553ac54a187aec634c838a))
+
 ## [5.15.1](https://github.com/SufZen/RealizeOS-5/compare/v5.15.0...v5.15.1) (2026-10-12)
 
 ### Bug Fixes
