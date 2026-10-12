@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Cloud, RefreshCw, Check, Loader2, TestTube2, Download } from 'lucide-react'
-import { api } from '@/lib/api'
+import { api, csrfHeader, toApiError } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { Toggle, StatusBanner } from './shared'
 
@@ -101,10 +101,32 @@ export function StorageSection() {
   async function handleExport() {
     setExporting(true)
     try {
-      const res = await api.post<{ message: string; path: string }>('/storage/export')
-      setStorageStatus({ message: `${res.message} → ${res.path}`, type: 'success' })
-    } catch {
-      setStorageStatus({ message: 'Export failed', type: 'error' })
+      // The export is a file download (it used to only show a path on the server).
+      const res = await fetch('/api/storage/export', {
+        method: 'POST',
+        credentials: 'include',
+        headers: csrfHeader(),
+      })
+      if (!res.ok) throw await toApiError(res)
+      const blob = await res.blob()
+      const name =
+        /filename="?([^";]+)"?/.exec(res.headers.get('content-disposition') ?? '')?.[1] ??
+        'realizeos-export.zip'
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = name
+      link.click()
+      URL.revokeObjectURL(url)
+      setStorageStatus({
+        message: `Downloaded ${name}. API keys and credentials aren't included.`,
+        type: 'success',
+      })
+    } catch (err) {
+      setStorageStatus({
+        message: err instanceof Error ? `Export failed: ${err.message}` : 'Export failed',
+        type: 'error',
+      })
     } finally {
       setExporting(false)
     }

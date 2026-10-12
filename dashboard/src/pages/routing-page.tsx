@@ -2,58 +2,54 @@ import { useState, useMemo } from 'react'
 import {
   Route as RouteIcon,
   BarChart3,
-  Clock,
-  AlertCircle,
-  TrendingUp,
-  TrendingDown,
-  Minus,
   Bot,
-  Zap,
   Filter,
   RefreshCw,
+  UserCheck,
+  Search,
 } from 'lucide-react'
 import { useApi } from '@/hooks/use-api'
 import { ErrorState } from '@/components/ui/error-state'
 import { cn } from '@/lib/utils'
 
 /* ------------------------------------------------------------------ */
-/* Types                                                               */
+/* Types — what GET /routing/analytics actually returns                */
 /* ------------------------------------------------------------------ */
+
+/** How an agent was chosen for a message. */
+type RouteMethod = 'requested' | 'keyword' | 'default' | 'fallback' | 'test'
 
 interface RoutingDecision {
   id: string
   timestamp: string
-  venture_key: string
-  user_message: string
+  system_key: string
   selected_agent: string
-  confidence: number
-  latency_ms: number
-  model_used: string
-  fallback_used: boolean
+  method: RouteMethod
+  /** Only routing tests keep the message; real chats don't. */
+  message_preview: string
 }
 
 interface AgentStat {
   agent_key: string
   total_calls: number
-  avg_confidence: number
-  avg_latency_ms: number
   fallback_rate: number
-}
-
-interface ModelStat {
-  model: string
-  calls: number
-  avg_latency_ms: number
-  error_rate: number
 }
 
 interface RoutingData {
   decisions: RoutingDecision[]
   agent_stats: AgentStat[]
-  model_stats: ModelStat[]
+  method_counts: Partial<Record<RouteMethod, number>>
   total_decisions: number
-  avg_latency_ms: number
-  avg_confidence: number
+}
+
+const RANGE_HOURS = { '1h': 1, '24h': 24, '7d': 24 * 7, '30d': 24 * 30 } as const
+
+const METHOD_LABELS: Record<RouteMethod, string> = {
+  requested: 'chosen by user',
+  keyword: 'keyword match',
+  default: 'default agent',
+  fallback: 'fallback',
+  test: 'routing test',
 }
 
 /* ------------------------------------------------------------------ */
@@ -61,31 +57,23 @@ interface RoutingData {
 /* ------------------------------------------------------------------ */
 
 export default function RoutingPage() {
-  const { data: rawData, loading, error, refetch } = useApi<RoutingData>('/routing/analytics')
-  const [timeRange, setTimeRange] = useState<'1h' | '24h' | '7d' | '30d'>('24h')
+  const [timeRange, setTimeRange] = useState<keyof typeof RANGE_HOURS>('24h')
   const [agentFilter, setAgentFilter] = useState<string>('')
+  const {
+    data: rawData,
+    loading,
+    error,
+    refetch,
+  } = useApi<RoutingData>(`/routing/analytics?hours=${RANGE_HOURS[timeRange]}&limit=200`)
 
   // Normalize data with safe defaults to prevent crashes
   const data = useMemo<RoutingData | null>(() => {
     if (!rawData) return null
     return {
       decisions: rawData.decisions ?? [],
-      agent_stats: (rawData.agent_stats ?? []).map((a) => ({
-        ...a,
-        avg_confidence: a.avg_confidence ?? 0,
-        avg_latency_ms: a.avg_latency_ms ?? 0,
-        fallback_rate: a.fallback_rate ?? 0,
-        total_calls: a.total_calls ?? 0,
-      })),
-      model_stats: (rawData.model_stats ?? []).map((m) => ({
-        ...m,
-        calls: m.calls ?? 0,
-        avg_latency_ms: m.avg_latency_ms ?? 0,
-        error_rate: m.error_rate ?? 0,
-      })),
+      agent_stats: rawData.agent_stats ?? [],
+      method_counts: rawData.method_counts ?? {},
       total_decisions: rawData.total_decisions ?? 0,
-      avg_latency_ms: rawData.avg_latency_ms ?? 0,
-      avg_confidence: rawData.avg_confidence ?? 0,
     }
   }, [rawData])
 
@@ -115,6 +103,11 @@ export default function RoutingPage() {
     return <ErrorState message={error || 'Failed to load routing data'} onRetry={refetch} />
   }
 
+  const share = (method: RouteMethod) =>
+    data.total_decisions
+      ? `${(((data.method_counts[method] ?? 0) / data.total_decisions) * 100).toFixed(0)}%`
+      : '—'
+
   return (
     <div className="space-y-6 max-w-6xl rz-animate-fade-up">
       {/* Header */}
@@ -125,7 +118,7 @@ export default function RoutingPage() {
         </div>
         <div className="flex items-center gap-2">
           <div className="flex rounded-lg border border-border overflow-hidden">
-            {(['1h', '24h', '7d', '30d'] as const).map((range) => (
+            {(Object.keys(RANGE_HOURS) as (keyof typeof RANGE_HOURS)[]).map((range) => (
               <button
                 key={range}
                 onClick={() => setTimeRange(range)}
@@ -151,37 +144,33 @@ export default function RoutingPage() {
         </div>
       </div>
 
+      <p className="text-xs text-muted-foreground">
+        Which agent answered each message, and how it was chosen. Kept since the server last
+        started; chat text isn&apos;t stored.
+      </p>
+
       {/* Summary cards */}
       <div className="grid gap-4 md:grid-cols-4">
         <SummaryCard
-          label="Total Decisions"
+          label="Decisions"
           value={data.total_decisions.toLocaleString()}
           icon={RouteIcon}
         />
+        <SummaryCard label="Chosen by user" value={share('requested')} icon={UserCheck} />
+        <SummaryCard label="Keyword match" value={share('keyword')} icon={Search} />
         <SummaryCard
-          label="Avg Confidence"
-          value={`${(data.avg_confidence * 100).toFixed(1)}%`}
-          icon={TrendingUp}
-          accent={
-            data.avg_confidence >= 0.8 ? 'green' : data.avg_confidence >= 0.6 ? 'amber' : 'red'
-          }
+          label="Fallback"
+          value={share('fallback')}
+          icon={BarChart3}
+          accent={(data.method_counts.fallback ?? 0) > 0 ? 'amber' : undefined}
         />
-        <SummaryCard
-          label="Avg Latency"
-          value={`${data.avg_latency_ms.toFixed(0)}ms`}
-          icon={Clock}
-          accent={
-            data.avg_latency_ms <= 500 ? 'green' : data.avg_latency_ms <= 1500 ? 'amber' : 'red'
-          }
-        />
-        <SummaryCard label="Active Models" value={`${data.model_stats.length}`} icon={Bot} />
       </div>
 
-      {/* Agent performance */}
+      {/* Agents */}
       <div className="rounded-xl border border-border bg-card p-6">
-        <h2 className="text-lg font-semibold text-foreground mb-4">Agent Performance</h2>
+        <h2 className="text-lg font-semibold text-foreground mb-4">Agents</h2>
         {data.agent_stats.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No agent data available</p>
+          <p className="text-sm text-muted-foreground">No routing decisions in this period</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -190,15 +179,11 @@ export default function RoutingPage() {
                   <th className="text-start py-2 text-xs text-muted-foreground font-medium">
                     Agent
                   </th>
-                  <th className="text-end py-2 text-xs text-muted-foreground font-medium">Calls</th>
                   <th className="text-end py-2 text-xs text-muted-foreground font-medium">
-                    Avg Confidence
+                    Messages
                   </th>
                   <th className="text-end py-2 text-xs text-muted-foreground font-medium">
-                    Avg Latency
-                  </th>
-                  <th className="text-end py-2 text-xs text-muted-foreground font-medium">
-                    Fallback Rate
+                    Fallback rate
                   </th>
                 </tr>
               </thead>
@@ -218,12 +203,6 @@ export default function RoutingPage() {
                     </td>
                     <td className="text-end py-3 text-muted-foreground">{agent.total_calls}</td>
                     <td className="text-end py-3">
-                      <ConfidenceBadge value={agent.avg_confidence} />
-                    </td>
-                    <td className="text-end py-3">
-                      <LatencyBadge value={agent.avg_latency_ms} />
-                    </td>
-                    <td className="text-end py-3">
                       <span
                         className={cn(
                           'text-xs',
@@ -239,42 +218,6 @@ export default function RoutingPage() {
             </table>
           </div>
         )}
-      </div>
-
-      {/* Model stats */}
-      <div className="rounded-xl border border-border bg-card p-6">
-        <h2 className="text-lg font-semibold text-foreground mb-4">Model Usage</h2>
-        <div className="grid gap-3 md:grid-cols-3">
-          {data.model_stats.map((model) => (
-            <div key={model.model} className="rounded-lg border border-border p-4">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium text-foreground">{model.model}</span>
-                <span className="text-xs text-muted-foreground">{model.calls} calls</span>
-              </div>
-              <div className="flex items-center gap-4 text-xs">
-                <span className="text-muted-foreground">
-                  <Clock className="h-3 w-3 inline me-1" />
-                  {model.avg_latency_ms.toFixed(0)}ms
-                </span>
-                <span
-                  className={cn(model.error_rate > 0.05 ? 'text-red-400' : 'text-muted-foreground')}
-                >
-                  {model.error_rate > 0 && <AlertCircle className="h-3 w-3 inline me-1" />}
-                  {(model.error_rate * 100).toFixed(1)}% errors
-                </span>
-              </div>
-              {/* Usage bar */}
-              <div className="mt-3 h-1.5 rounded-full bg-surface-700 overflow-hidden">
-                <div
-                  className="h-full rounded-full bg-brand-400 transition-all"
-                  style={{
-                    width: `${Math.min(100, (model.calls / Math.max(1, ...data.model_stats.map((m) => m.calls))) * 100)}%`,
-                  }}
-                />
-              </div>
-            </div>
-          ))}
-        </div>
       </div>
 
       {/* Recent decisions */}
@@ -309,21 +252,26 @@ export default function RoutingPage() {
               >
                 <div className="flex items-start gap-3">
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs text-foreground truncate">{d.user_message}</p>
+                    {d.message_preview && (
+                      <p className="text-xs text-foreground truncate" dir="auto">
+                        {d.message_preview}
+                      </p>
+                    )}
                     <div className="flex flex-wrap items-center gap-3 mt-1.5">
                       <span className="flex items-center gap-1 text-[10px] text-brand-400">
                         <Bot className="h-3 w-3" /> {d.selected_agent}
                       </span>
-                      <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
-                        <Zap className="h-3 w-3" /> {d.model_used}
+                      <span className="text-[10px] text-muted-foreground">{d.system_key}</span>
+                      <span
+                        className={cn(
+                          'text-[10px] px-1.5 py-0.5 rounded',
+                          d.method === 'fallback'
+                            ? 'bg-amber-400/10 text-amber-400'
+                            : 'bg-surface-700 text-muted-foreground',
+                        )}
+                      >
+                        {METHOD_LABELS[d.method] ?? d.method}
                       </span>
-                      <ConfidenceBadge value={d.confidence} />
-                      <LatencyBadge value={d.latency_ms} />
-                      {d.fallback_used && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-400/10 text-amber-400">
-                          fallback
-                        </span>
-                      )}
                     </div>
                   </div>
                   <span className="text-[10px] text-muted-foreground whitespace-nowrap">
@@ -337,7 +285,7 @@ export default function RoutingPage() {
 
         {data.total_decisions > 50 && (
           <p className="text-xs text-muted-foreground text-center mt-4">
-            Showing 50 of {data.total_decisions} decisions
+            Showing the latest 50 of {data.total_decisions} decisions
           </p>
         )}
       </div>
@@ -376,27 +324,5 @@ function SummaryCard({
         {value}
       </div>
     </div>
-  )
-}
-
-function ConfidenceBadge({ value }: { value: number }) {
-  const pct = (value * 100).toFixed(0)
-  const color = value >= 0.8 ? 'text-green-400' : value >= 0.6 ? 'text-amber-400' : 'text-red-400'
-  const TrendIcon = value >= 0.8 ? TrendingUp : value >= 0.6 ? Minus : TrendingDown
-
-  return (
-    <span className={cn('flex items-center gap-0.5 text-[10px]', color)}>
-      <TrendIcon className="h-3 w-3" /> {pct}%
-    </span>
-  )
-}
-
-function LatencyBadge({ value }: { value: number }) {
-  const color = value <= 500 ? 'text-green-400' : value <= 1500 ? 'text-amber-400' : 'text-red-400'
-
-  return (
-    <span className={cn('flex items-center gap-0.5 text-[10px]', color)}>
-      <Clock className="h-3 w-3" /> {value.toFixed(0)}ms
-    </span>
   )
 }

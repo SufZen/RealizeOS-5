@@ -10,7 +10,10 @@ Supports configurable webhook triggers in realize-os.yaml:
       event_type: invoice.paid
       skill: invoice_processor
 
-Events are logged to the activity system and can trigger skills/workflows.
+Events are logged to the activity system. Matching triggers are recorded,
+but a webhook does not run the skill yet (Codex audit: it used to log
+"trigger fired" without executing anything). Running skills from inbound
+payloads needs replay protection and governance first.
 """
 
 import hashlib
@@ -98,11 +101,11 @@ async def receive_webhook(source: str, request: Request):
             if not trigger_event or trigger_event in event["event_type"]:
                 matched.append(trigger)
 
-    # Execute matched triggers
+    # Record matched triggers (not executed: see the module docstring)
     for trigger in matched:
         skill_name = trigger.get("skill", "")
         if skill_name:
-            logger.info(f"Webhook trigger matched: {source}/{event['event_type']} -> skill:{skill_name}")
+            logger.info(f"Webhook trigger matched (not run): {source}/{event['event_type']} -> skill:{skill_name}")
             try:
                 from realize_core.activity.logger import log_event as _log
 
@@ -110,18 +113,19 @@ async def receive_webhook(source: str, request: Request):
                     venture_key="shared",
                     actor_type="system",
                     actor_id=f"webhook:{source}",
-                    action="webhook_trigger_fired",
+                    action="webhook_trigger_matched",
                     entity_type="skill",
                     entity_id=skill_name,
                 )
             except Exception as exc:
-                logger.debug("Activity log failed for webhook_trigger_fired: %s", exc)
+                logger.debug("Activity log failed for webhook_trigger_matched: %s", exc)
 
     return {
         "status": "received",
         "source": source,
         "event_type": event["event_type"],
         "triggers_matched": len(matched),
+        "triggers_executed": 0,
     }
 
 

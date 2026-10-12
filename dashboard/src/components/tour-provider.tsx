@@ -3,6 +3,7 @@ import { createContext, useContext, useState, useEffect, useCallback, type React
 import { createPortal } from 'react-dom'
 import { X, ChevronLeft, ChevronRight, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useAuth } from '@/hooks/use-auth'
 
 /* ------------------------------------------------------------------ */
 /* Types                                                               */
@@ -169,17 +170,20 @@ export const useTour = () => useContext(TourContext)
 /* ------------------------------------------------------------------ */
 
 export function TourProvider({ children }: { children: ReactNode }) {
-  const [isRunning, setIsRunning] = useState(false)
+  const { user } = useAuth()
+  const [started, setStarted] = useState(false)
+  // Never over the sign-in page: the tour belongs to the signed-in app shell.
+  const isRunning = started && !!user
   const [currentStep, setCurrentStep] = useState(0)
   const steps = DEFAULT_TOUR_STEPS
 
   const startTour = useCallback(() => {
     setCurrentStep(0)
-    setIsRunning(true)
+    setStarted(true)
   }, [])
 
   const endTour = useCallback(() => {
-    setIsRunning(false)
+    setStarted(false)
     setCurrentStep(0)
     try {
       localStorage.setItem(STORAGE_KEY, 'true')
@@ -200,18 +204,22 @@ export function TourProvider({ children }: { children: ReactNode }) {
     if (currentStep > 0) setCurrentStep((s) => s - 1)
   }, [currentStep])
 
-  // Auto-start on first visit
+  // Auto-start on the first signed-in visit, once the app shell it points at is on screen
+  // (it used to start on the login page and cover the Sign in button).
+  const firstTarget = steps[0]?.target
   useEffect(() => {
+    if (!user) return
     try {
-      if (!localStorage.getItem(STORAGE_KEY)) {
-        // Small delay so the DOM settles after initial render
-        const t = setTimeout(() => setIsRunning(true), 1200)
-        return () => clearTimeout(t)
-      }
+      if (localStorage.getItem(STORAGE_KEY)) return
     } catch {
-      // ignore
+      return
     }
-  }, [])
+    // Small delay so the DOM settles after initial render
+    const t = setTimeout(() => {
+      if (firstTarget && document.querySelector(firstTarget)) setStarted(true)
+    }, 1200)
+    return () => clearTimeout(t)
+  }, [user, firstTarget])
 
   return (
     <TourContext.Provider

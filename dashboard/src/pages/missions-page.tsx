@@ -258,6 +258,11 @@ export default function MissionsPage() {
         </div>
       </div>
 
+      <p className="text-xs text-muted-foreground">
+        This page follows missions. It can&apos;t start, pause or cancel them yet, and missions are
+        kept only until the server restarts.
+      </p>
+
       {/* Stats row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[

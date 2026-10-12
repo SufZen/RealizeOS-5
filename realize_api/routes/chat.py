@@ -109,8 +109,20 @@ def _resolve_system(body: ChatRequest, request: Request) -> tuple[dict, dict]:
     return systems, systems[body.system_key]
 
 
-async def _process(body: ChatRequest, request: Request, systems: dict, system_config: dict, recorder) -> str:
-    """Run the message through the pipeline, reporting the trail to ``recorder``."""
+def _check_agent(body: ChatRequest, system_config: dict) -> None:
+    """A chosen agent must belong to the venture (Codex audit F18)."""
+    agent = body.agent_key
+    if agent and agent != "orchestrator" and agent not in (system_config.get("agents") or {}):
+        raise HTTPException(status_code=400, detail=f"Agent '{agent}' is not part of venture '{body.system_key}'")
+
+
+async def _process(
+    body: ChatRequest, request: Request, systems: dict, system_config: dict, recorder, selected: dict
+) -> str:
+    """Run the message through the pipeline, reporting the trail to ``recorder``.
+
+    ``selected`` receives the agent that actually answered.
+    """
     from realize_core import base_handler
     from realize_core.config import get_features
 
@@ -135,20 +147,25 @@ async def _process(body: ChatRequest, request: Request, systems: dict, system_co
         features=get_features(getattr(request.app.state, "config", None) or {}),
         all_systems=systems,
         emit=recorder,
+        requested_agent=body.agent_key,
+        selected=selected,
     )
 
 
-def _finish(body: ChatRequest, response: str, recorder) -> ChatResponse:
-    """Build the response: handling agent, humanized text, stored trail."""
-    agent_used = body.agent_key or "orchestrator"
-    try:
-        from realize_core.pipeline.session import get_session
+def _finish(body: ChatRequest, response: str, recorder, selected: dict) -> ChatResponse:
+    """Build the response: the agent that actually answered, humanized text, stored trail."""
+    agent_used = selected.get("agent_key")
+    if not agent_used:
+        # Not routed to an agent (creative session, skill, resumed skill).
+        agent_used = "orchestrator"
+        try:
+            from realize_core.pipeline.session import get_session
 
-        session = get_session(body.system_key, body.user_id)
-        if session:
-            agent_used = session.active_agent
-    except Exception as exc:
-        logger.debug("Session lookup failed: %s", exc)
+            session = get_session(body.system_key, body.user_id)
+            if session:
+                agent_used = session.active_agent
+        except Exception as exc:
+            logger.debug("Session lookup failed: %s", exc)
 
     try:
         from realize_core.utils.humanizer import clean_output
@@ -179,10 +196,12 @@ async def chat(body: ChatRequest, request: Request):
 
     body.user_id = _chat_user(request, body.user_id)
     systems, system_config = _resolve_system(body, request)
+    _check_agent(body, system_config)
     recorder = TrailRecorder()
+    selected: dict = {}
     try:
         response = await asyncio.wait_for(
-            _process(body, request, systems, system_config, recorder),
+            _process(body, request, systems, system_config, recorder, selected),
             timeout=CHAT_TIMEOUT_SECONDS,
         )
     except TimeoutError:
@@ -192,7 +211,7 @@ async def chat(body: ChatRequest, request: Request):
         logger.error("Chat processing failed for %s", body.system_key, exc_info=True)
         raise HTTPException(status_code=500, detail="Processing error — see server logs")
 
-    return _finish(body, response, recorder)
+    return _finish(body, response, recorder, selected)
 
 
 def _sse(event: dict[str, Any]) -> str:
@@ -211,12 +230,14 @@ async def chat_stream(body: ChatRequest, request: Request):
 
     body.user_id = _chat_user(request, body.user_id)
     systems, system_config = _resolve_system(body, request)  # plain HTTP errors before streaming starts
+    _check_agent(body, system_config)
     queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
     recorder = TrailRecorder(forward=queue.put_nowait)
+    selected: dict = {}
 
     async def event_stream():
         task = asyncio.ensure_future(
-            asyncio.wait_for(_process(body, request, systems, system_config, recorder), CHAT_TIMEOUT_SECONDS)
+            asyncio.wait_for(_process(body, request, systems, system_config, recorder, selected), CHAT_TIMEOUT_SECONDS)
         )
         try:
             while not task.done() or not queue.empty():
@@ -248,7 +269,7 @@ async def chat_stream(body: ChatRequest, request: Request):
                 yield _sse({"type": "error", "detail": "Processing error — see server logs"})
                 return
 
-            final = _finish(body, response, recorder)
+            final = _finish(body, response, recorder, selected)
             yield _sse({"type": "final", **final.model_dump()})
         finally:
             if not task.done():

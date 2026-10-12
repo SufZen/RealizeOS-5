@@ -241,3 +241,19 @@ class TestSecurityMiddlewarePaths:
 
         assert _is_public("/assets/style.css") is True
         assert _is_public("/api/ventures") is False
+
+
+class TestUnknownApiPaths:
+    """Codex audit: an unknown /api path returned the dashboard HTML with 200."""
+
+    @pytest.mark.parametrize("path", ["/api/routing/decisions", "/api/does-not-exist", "/api"])
+    def test_unknown_api_path_is_a_json_404(self, path, monkeypatch, tmp_path):
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setenv("REALIZE_API_KEY", "test-api-key-1234567890abcdef")
+        from realize_api.main import create_app
+
+        res = TestClient(create_app()).get(path, headers={"X-API-Key": "test-api-key-1234567890abcdef"})
+
+        assert res.status_code == 404
+        assert res.headers["content-type"].startswith("application/json")
+        assert "<html" not in res.text.lower()

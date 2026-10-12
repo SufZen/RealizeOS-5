@@ -46,7 +46,7 @@ def build_mcp_server(
     mcp_config: McpConfig,
     registry: ToolRegistry | None = None,
     name: str = "realize-os",
-    version: str = "5.2.1",
+    version: str | None = None,
 ) -> Server:
     """Build a configured :class:`mcp.server.lowlevel.Server` instance.
 
@@ -54,6 +54,8 @@ def build_mcp_server(
     read systems/kb_path/etc. as if they were inside a REST handler.
     """
     registry = registry or get_registry()
+    if version is None:
+        from realize_core import __version__ as version  # the release, not a hard-coded string
     server: Server = Server(name=name, version=version)
 
     @server.list_tools()

@@ -13,6 +13,7 @@ import logging
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
+from realize_core.agents import routing_log
 
 from realize_api.dependencies import get_allowed_ventures, visible_systems
 
@@ -20,7 +21,8 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 # In-memory analytics store (reset on restart)
-_routing_analytics: list[dict] = []
+# Real chat routing and the routing test both record here (Codex audit F19).
+_routing_analytics: list[dict] = routing_log.DECISIONS
 
 
 # ---------------------------------------------------------------------------
@@ -154,14 +156,7 @@ async def test_routing(body: TestRoutingBody, request: Request):
             scores[agent] = {"score": score, "matched_keywords": [kw for kw in keywords if kw in msg_lower]}
 
     # Track analytics
-    _routing_analytics.append(
-        {
-            "system_key": body.system_key,
-            "message_preview": body.message[:100],
-            "selected_agent": selected,
-            "scores": scores,
-        }
-    )
+    routing_log.record_decision(body.system_key, selected, "test", message_preview=body.message[:100], scores=scores)
 
     return {
         "selected_agent": selected,
@@ -187,33 +182,53 @@ def _visible_entries(request: Request) -> list[dict]:
 async def get_routing_analytics(
     request: Request,
     system_key: str | None = None,
+    hours: float | None = None,
     limit: int = 50,
 ):
     """
-    Get routing decision analytics.
+    Agent routing decisions for the caller's ventures (real chats and routing tests).
 
     Query params:
-    - system_key: filter by system
-    - limit: max entries to return (default 50)
+    - system_key: filter by venture
+    - hours: only decisions from the last N hours
+    - limit: max decisions to return (default 50)
+
+    Only what is recorded is reported: venture, agent, how it was chosen and
+    when. Confidence, latency and model aren't tracked, so they aren't returned.
     """
     entries = _visible_entries(request)
-
     if system_key:
         entries = [e for e in entries if e.get("system_key") == system_key]
+    if hours:
+        from datetime import UTC, datetime, timedelta
 
-    # Most recent first
-    entries = list(reversed(entries[-limit:]))
+        since = (datetime.now(UTC) - timedelta(hours=hours)).isoformat()
+        entries = [e for e in entries if (e.get("timestamp") or "") >= since]
 
-    # Compute aggregate stats
+    total = len(entries)
     agent_counts: dict[str, int] = {}
+    fallbacks: dict[str, int] = {}
+    method_counts: dict[str, int] = {}
     for entry in entries:
         agent = entry.get("selected_agent", "unknown")
         agent_counts[agent] = agent_counts.get(agent, 0) + 1
+        method = entry.get("method", "test")
+        method_counts[method] = method_counts.get(method, 0) + 1
+        if method == "fallback":
+            fallbacks[agent] = fallbacks.get(agent, 0) + 1
 
+    recent = list(reversed(entries[-limit:]))  # most recent first
     return {
-        "entries": entries,
-        "total": len(entries),
+        "entries": recent,
+        "decisions": recent,
+        "total": total,
+        "total_decisions": total,
         "agent_distribution": agent_counts,
+        "method_counts": method_counts,
+        "agent_stats": [
+            {"agent_key": agent, "total_calls": calls, "fallback_rate": fallbacks.get(agent, 0) / calls}
+            for agent, calls in sorted(agent_counts.items(), key=lambda kv: -kv[1])
+        ],
     }
 
 
