@@ -202,7 +202,16 @@ class TestToolLoop:
         result, _ = await _run(provider, reg, max_iterations=2)
 
         assert len(provider.requests) == 3
-        assert "tool-use limit" in provider.requests[-1]["system"]
+        # The system prompt stays frozen (editing it invalidates earlier thinking
+        # blocks); the note rides on the not-yet-sent trailing user turn instead.
+        assert {r["system"] for r in provider.requests} == {provider.requests[0]["system"]}
+        last_turn = provider.requests[-1]["messages"][-1]
+        assert last_turn["role"] == "user"
+        assert last_turn["content"][0]["type"] == "tool_result"
+        assert "tool-use limit" in last_turn["content"][-1]["text"]
+        # Earlier turns went out unchanged.
+        earlier = provider.requests[1]["messages"]
+        assert provider.requests[-1]["messages"][: len(earlier)] == earlier
         assert result.stop_reason == "max_iterations"
 
     @pytest.mark.asyncio

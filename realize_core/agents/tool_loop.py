@@ -38,6 +38,21 @@ DEFAULT_MAX_ITERATIONS = 8
 #: Characters of a tool result echoed into trail events (the model gets it all).
 EVENT_PREVIEW_CHARS = 2_000
 
+
+def _append_user_text(convo: list[dict[str, Any]], text: str) -> None:
+    """Add a text block to the trailing user turn (after its tool results), or a new user turn.
+
+    The trailing user turn has not been sent yet, so this keeps the history append-only.
+    """
+    last = convo[-1] if convo else None
+    if last and last.get("role") == "user":
+        content = last["content"]
+        blocks = [{"type": "text", "text": content}] if isinstance(content, str) else list(content)
+        convo[-1] = {**last, "content": [*blocks, {"type": "text", "text": text}]}
+    else:
+        convo.append({"role": "user", "content": text})
+
+
 _WRAP_UP_NOTE = (
     "You have reached the tool-use limit for this answer. Do not call any more tools; "
     "answer now with what you have, and say what is still missing."
@@ -230,8 +245,12 @@ async def run_tool_loop(
             result.stop_reason = "limit"
             break
 
+        if wrap_up:
+            # Append the note instead of editing the system prompt: changing
+            # `system` mid-conversation invalidates earlier thinking blocks.
+            _append_user_text(convo, _WRAP_UP_NOTE)
         response = await provider.complete_with_tools(
-            system_prompt=f"{prompt}\n\n{_WRAP_UP_NOTE}" if wrap_up else prompt,
+            system_prompt=prompt,
             messages=convo,
             tools=tools,
             model=model,

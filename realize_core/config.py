@@ -17,9 +17,10 @@ ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 GOOGLE_AI_API_KEY = os.getenv("GOOGLE_AI_API_KEY", "")
 
 # --- Model Definitions (override via environment variables) ---
-# Anthropic IDs for the 4.6 family have no date suffix; a suffixed ID returns 404.
-DEFAULT_CLAUDE_SONNET_MODEL = "claude-sonnet-4-6"
-DEFAULT_CLAUDE_OPUS_MODEL = "claude-opus-4-6"
+# Defaults are always the newest model in each line. Users who want an older
+# model set CLAUDE_SONNET_MODEL / CLAUDE_OPUS_MODEL. IDs have no date suffix.
+DEFAULT_CLAUDE_SONNET_MODEL = "claude-sonnet-5-5"
+DEFAULT_CLAUDE_OPUS_MODEL = "claude-opus-5-5"
 
 MODELS = {
     "gemini_flash": os.getenv("GEMINI_FLASH_MODEL", "gemini-2.5-flash"),

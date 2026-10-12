@@ -8,6 +8,8 @@ from typing import Any, cast
 
 import anthropic
 
+from realize_core.llm.claude_models import claude_price, is_refusal, request_params, response_text
+
 logger = logging.getLogger(__name__)
 
 # Lazy-initialized client (created on first use)
@@ -55,15 +57,15 @@ async def call_claude(
     try:
         response = await client.messages.create(
             model=model,
-            max_tokens=max_tokens,
-            temperature=temperature,
             system=system_prompt,
             messages=cast(Any, messages),
+            **request_params(model, max_tokens, temperature),
         )
 
         _log_usage(model, response.usage)
-        first_block = response.content[0]
-        return str(getattr(first_block, "text", ""))
+        if is_refusal(response):
+            return "I can't help with that request."
+        return response_text(response)
 
     except anthropic.RateLimitError:
         logger.warning("Claude rate limit hit.")
@@ -100,11 +102,10 @@ async def call_claude_with_tools(
     try:
         response = await client.messages.create(
             model=model,
-            max_tokens=max_tokens,
-            temperature=0.3,
             system=system_prompt,
             messages=cast(Any, messages),
             tools=cast(Any, tools),
+            **request_params(model, max_tokens, 0.3),
         )
         logger.info(
             f"Claude tool_use: model={model}, stop={response.stop_reason}, "
@@ -174,13 +175,14 @@ async def call_claude_vision(
 
         response = await client.messages.create(
             model=model,
-            max_tokens=max_tokens,
-            temperature=temperature,
             system=system_prompt,
             messages=cast(Any, vision_messages),
+            **request_params(model, max_tokens, temperature),
         )
-        first_block = response.content[0]
-        return str(getattr(first_block, "text", ""))
+        _log_usage(model, response.usage)
+        if is_refusal(response):
+            return "I can't help with that request."
+        return response_text(response)
 
     except anthropic.RateLimitError:
         logger.warning("Claude rate limit hit (vision).")
@@ -198,18 +200,12 @@ async def call_claude_vision(
 def _log_usage(model: str, usage):
     """Log Claude API usage for cost tracking."""
     try:
-        from realize_core.config import MODELS
         from realize_core.memory.store import log_llm_usage
 
         input_tokens = getattr(usage, "input_tokens", 0)
         output_tokens = getattr(usage, "output_tokens", 0)
 
-        # Pricing per 1M tokens
-        pricing = {
-            MODELS["claude_sonnet"]: (3.0, 15.0),
-            MODELS["claude_opus"]: (5.0, 25.0),
-        }
-        in_rate, out_rate = pricing.get(model, (3.0, 15.0))
+        in_rate, out_rate = claude_price(model)
         cost = (input_tokens * in_rate / 1_000_000) + (output_tokens * out_rate / 1_000_000)
 
         log_llm_usage(model=model, input_tokens=input_tokens, output_tokens=output_tokens, cost_usd=cost)

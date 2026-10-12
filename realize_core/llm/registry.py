@@ -33,7 +33,7 @@ class ProviderRegistry:
         Args:
             provider: The provider instance
             model_keys: Mapping of model_key → model_id
-                         e.g., {"claude_sonnet": "claude-sonnet-4-6"}
+                         e.g., {"claude_sonnet": "claude-sonnet-5-5"}
         """
         self._providers[provider.name] = provider
 
@@ -81,7 +81,7 @@ class ProviderRegistry:
             model_key: e.g., "claude_sonnet"
 
         Returns:
-            The provider's model ID string (e.g., "claude-sonnet-4-6")
+            The provider's model ID string (e.g., "claude-sonnet-5-5")
         """
         from realize_core.config import MODELS
 

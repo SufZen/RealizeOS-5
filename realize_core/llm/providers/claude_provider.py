@@ -15,6 +15,7 @@ from realize_core.llm.base_provider import (
     LLMResponse,
     ModelInfo,
 )
+from realize_core.llm.claude_models import claude_price, is_refusal, request_params, response_text
 
 logger = logging.getLogger(__name__)
 
@@ -45,26 +46,28 @@ class ClaudeProvider(BaseLLMProvider):
 
     def list_models(self) -> list[ModelInfo]:
         models = self._get_models_config()
+        sonnet = models.get("claude_sonnet", DEFAULT_CLAUDE_SONNET_MODEL)
+        opus = models.get("claude_opus", DEFAULT_CLAUDE_OPUS_MODEL)
         return [
             ModelInfo(
-                model_id=models.get("claude_sonnet", DEFAULT_CLAUDE_SONNET_MODEL),
+                model_id=sonnet,
                 display_name="Claude Sonnet",
                 tier=2,
                 capabilities={Capability.TEXT, Capability.VISION, Capability.TOOLS},
-                input_cost_per_m=3.0,
-                output_cost_per_m=15.0,
-                max_tokens=8192,
-                context_window=200000,
+                input_cost_per_m=claude_price(sonnet)[0],
+                output_cost_per_m=claude_price(sonnet)[1],
+                max_tokens=128000,
+                context_window=1000000,
             ),
             ModelInfo(
-                model_id=models.get("claude_opus", DEFAULT_CLAUDE_OPUS_MODEL),
+                model_id=opus,
                 display_name="Claude Opus",
                 tier=3,
                 capabilities={Capability.TEXT, Capability.VISION, Capability.TOOLS},
-                input_cost_per_m=5.0,
-                output_cost_per_m=25.0,
-                max_tokens=4096,
-                context_window=200000,
+                input_cost_per_m=claude_price(opus)[0],
+                output_cost_per_m=claude_price(opus)[1],
+                max_tokens=128000,
+                context_window=1000000,
             ),
         ]
 
@@ -129,10 +132,9 @@ class ClaudeProvider(BaseLLMProvider):
             response = await asyncio.wait_for(
                 client.messages.create(
                     model=model,
-                    max_tokens=max_tokens,
-                    temperature=temperature,
                     system=system_prompt,
                     messages=cast(Any, messages),
+                    **request_params(model, max_tokens, temperature),
                 ),
                 timeout=timeout,
             )
@@ -143,8 +145,20 @@ class ClaudeProvider(BaseLLMProvider):
 
             _log_usage(model, response.usage)
 
+            if is_refusal(response):
+                # Reported as an error so the router can try the next provider.
+                return LLMResponse(
+                    text="I can't help with that request.",
+                    model=model,
+                    provider=self.name,
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
+                    cost_usd=cost,
+                    error="refusal",
+                )
+
             return LLMResponse(
-                text=str(getattr(response.content[0], "text", "")),
+                text=response_text(response),
                 model=model,
                 provider=self.name,
                 input_tokens=input_tokens,
@@ -274,9 +288,5 @@ class ClaudeProvider(BaseLLMProvider):
 
     def _calc_cost(self, model: str, input_tokens: int, output_tokens: int) -> float:
         """Calculate cost based on model pricing."""
-        pricing = {}
-        for m_info in self.list_models():
-            pricing[m_info.model_id] = (m_info.input_cost_per_m, m_info.output_cost_per_m)
-
-        in_rate, out_rate = pricing.get(model, (3.0, 15.0))
+        in_rate, out_rate = claude_price(model)
         return (input_tokens * in_rate / 1_000_000) + (output_tokens * out_rate / 1_000_000)

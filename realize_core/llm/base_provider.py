@@ -26,7 +26,7 @@ class ModelInfo:
     """Metadata about a specific model offered by a provider.
 
     Attributes:
-        model_id: The provider's model identifier string (e.g., "claude-sonnet-4-6")
+        model_id: The provider's model identifier string (e.g., "claude-sonnet-5-5")
         display_name: Human-readable name (e.g., "Claude Sonnet")
         tier: Cost tier (1=cheap, 2=mid, 3=premium)
         capabilities: Set of supported capabilities

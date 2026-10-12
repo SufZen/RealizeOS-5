@@ -9,11 +9,13 @@ Tests for LLM fallback routing and Claude model health (QA 5.14, L-1 / L-2).
 
 import sys
 import types
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import anthropic
 import httpx
 import pytest
+import realize_core.llm.claude_models as cm
 from realize_core.llm.base_provider import BaseLLMProvider, Capability, LLMResponse, ModelInfo
 from realize_core.llm.providers.claude_provider import ClaudeProvider
 from realize_core.llm.registry import ProviderRegistry
@@ -154,11 +156,11 @@ def claude_provider():
 
 
 class TestClaudeModelHealth:
-    def test_defaults_are_undated_ids(self):
+    def test_defaults_are_newest_models(self):
         from realize_core.config import DEFAULT_CLAUDE_OPUS_MODEL, DEFAULT_CLAUDE_SONNET_MODEL
 
-        assert DEFAULT_CLAUDE_SONNET_MODEL == "claude-sonnet-4-6"
-        assert DEFAULT_CLAUDE_OPUS_MODEL == "claude-opus-4-6"
+        assert DEFAULT_CLAUDE_SONNET_MODEL == "claude-sonnet-5-5"
+        assert DEFAULT_CLAUDE_OPUS_MODEL == "claude-opus-5-5"
 
     async def test_404_marks_model_dead(self, claude_provider):
         client = MagicMock()
@@ -188,3 +190,66 @@ class TestClaudeModelHealth:
     def test_available_with_key_and_no_failures(self, claude_provider):
         assert claude_provider.is_available()
         assert claude_provider.model_errors() == {}
+
+
+class TestRequestShape:
+    """Newer models reject sampling params and think by default (QA follow-up)."""
+
+    @pytest.mark.parametrize(
+        "model",
+        ["claude-sonnet-4-6", "claude-opus-4-6", "claude-haiku-4-5-20251001", "claude-sonnet-4-20250514"],
+    )
+    def test_legacy_models_keep_temperature(self, model):
+        assert cm.request_params(model, 4096, 0.7) == {"max_tokens": 4096, "temperature": 0.7}
+
+    @pytest.mark.parametrize("model", ["claude-sonnet-5-5", "claude-opus-5-5", "claude-opus-4-7", "claude-fable-5-1"])
+    def test_new_models_drop_temperature_and_raise_max_tokens(self, model):
+        params = cm.request_params(model, 4096, 0.7)
+        assert "temperature" not in params
+        assert params["max_tokens"] >= cm.THINKING_MIN_MAX_TOKENS
+
+    def test_pricing_by_model(self):
+        assert cm.claude_price("claude-opus-5-5") == (4.0, 20.0)
+        assert cm.claude_price("claude-sonnet-5-5") == (2.0, 10.0)
+        assert cm.claude_price("claude-opus-4-6") == (5.0, 25.0)
+        assert cm.claude_price("claude-opus-4-1-20250805") == (15.0, 75.0)
+
+    async def test_text_read_past_thinking_block(self, claude_provider):
+        reply = SimpleNamespace(
+            content=[SimpleNamespace(type="thinking", thinking=""), SimpleNamespace(type="text", text="hello")],
+            stop_reason="end_turn",
+            usage=SimpleNamespace(input_tokens=10, output_tokens=5),
+        )
+        client = MagicMock()
+        client.messages.create = AsyncMock(return_value=reply)
+        with patch.dict(
+            sys.modules, {"realize_core.llm.claude_client": _fake_claude_client(_get_client=lambda: client)}
+        ):
+            response = await claude_provider.complete(
+                "sys", [{"role": "user", "content": "hi"}], model="claude-opus-5-5"
+            )
+
+        assert response.ok
+        assert response.text == "hello"
+        sent = client.messages.create.call_args.kwargs
+        assert "temperature" not in sent
+        assert sent["max_tokens"] >= 16000
+
+    async def test_refusal_is_an_error_so_routing_falls_back(self, claude_provider):
+        reply = SimpleNamespace(
+            content=[],
+            stop_reason="refusal",
+            stop_details=SimpleNamespace(category="cyber"),
+            usage=SimpleNamespace(input_tokens=10, output_tokens=0),
+        )
+        client = MagicMock()
+        client.messages.create = AsyncMock(return_value=reply)
+        with patch.dict(
+            sys.modules, {"realize_core.llm.claude_client": _fake_claude_client(_get_client=lambda: client)}
+        ):
+            response = await claude_provider.complete(
+                "sys", [{"role": "user", "content": "hi"}], model="claude-sonnet-5-5"
+            )
+
+        assert response.error == "refusal"
+        assert not response.ok
