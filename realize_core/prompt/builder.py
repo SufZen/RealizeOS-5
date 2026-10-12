@@ -661,6 +661,22 @@ def _build_brand_profile_layer(
     return ""
 
 
+def _build_pack_layer(
+    kb_path: Path, system_config: dict, user_message: str, features: dict, sources_out: list[dict]
+) -> str:
+    """Local terms, defaults and rule cards from the venture's packs (spec 010)."""
+    if not system_config.get("system_dir"):
+        return ""
+    from realize_core.packs import build_pack_context, get_resolver, venture_dir_for
+
+    try:
+        resolver = get_resolver(venture_dir_for(kb_path, system_config), enabled=bool(features.get("packs")))
+    except (OSError, ValueError) as exc:
+        logger.warning("Pack context unavailable: %s", exc)
+        return ""
+    return build_pack_context(resolver, user_message, sources_out)
+
+
 def build_system_prompt(
     kb_path: Path,
     system_config: dict,
@@ -758,6 +774,12 @@ def build_system_prompt(
     if dynamic_kb:
         layers.append(dynamic_kb)
 
+    # Layer 6.5: Profession and market packs (spec 010)
+    pack_sources: list[dict] = []
+    pack_context = _build_pack_layer(kb_path, system_config, user_message, features, pack_sources)
+    if pack_context:
+        layers.append(pack_context)
+
     # Layer 7: Memory
     memory = _build_memory_layer(kb_path, system_config)
     if memory:
@@ -805,5 +827,7 @@ def build_system_prompt(
     # Only report sources whose text actually reached the model.
     if sources_out is not None and dynamic_kb and dynamic_kb in layers:
         sources_out.extend(kb_sources)
+    if sources_out is not None and pack_context and pack_context in layers:
+        sources_out.extend(pack_sources)
 
     return "\n\n---\n\n".join(layers)

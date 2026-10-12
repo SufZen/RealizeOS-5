@@ -367,6 +367,9 @@ def get_features(config: dict) -> dict:
         # cite_sources: tell the model to cite numbered KB sources inline ([S1])
         #   on channels that show them as footnotes (api, dashboard, mcp).
         "cite_sources": False,
+        # packs: resolve profession and market packs (ADR 0005, spec 010) on top
+        #   of the core. When false only the firm layer and core apply.
+        "packs": False,
     }
     features = config.get("features", {})
     merged = {**defaults, **features}
