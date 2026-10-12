@@ -22,14 +22,27 @@ import { cn } from '@/lib/utils'
 
 const STORAGE_KEY = 'realizeos_onboarding_complete'
 
-/** Check if onboarding has been completed */
+/** Check if onboarding has been completed in this browser */
 export function isOnboardingComplete(): boolean {
-  return localStorage.getItem(STORAGE_KEY) === 'true'
+  try {
+    return localStorage.getItem(STORAGE_KEY) === 'true'
+  } catch {
+    return false
+  }
 }
 
-/** Mark onboarding as complete */
-function markOnboardingComplete() {
-  localStorage.setItem(STORAGE_KEY, 'true')
+/** Mark onboarding as complete in this browser */
+export function markOnboardingComplete() {
+  try {
+    localStorage.setItem(STORAGE_KEY, 'true')
+  } catch {
+    // storage unavailable: the server-side check still skips the wizard next time
+  }
+}
+
+/** True when the server already has an AI provider configured (onboarding was done). */
+export function serverHasAiProvider(connections: { category: string; configured: boolean }[]) {
+  return connections.some((c) => c.category === 'llm' && c.configured)
 }
 
 interface Connection {
