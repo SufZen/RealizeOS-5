@@ -3,6 +3,36 @@
 import pytest
 
 
+@pytest.fixture(scope="session")
+def _session_ops_db(tmp_path_factory):
+    """One fully migrated operational DB for the whole run, in a temp folder."""
+    from realize_core.db.migrations import run_migrations
+    from realize_core.db.schema import init_schema
+    from realize_core.migration.engine import MigrationEngine
+
+    path = tmp_path_factory.mktemp("ops") / "realize_data.db"
+    init_schema(path)
+    run_migrations(path)
+    MigrationEngine(db_path=path).migrate_up()
+    return path
+
+
+@pytest.fixture(autouse=True)
+def _isolated_ops_db(_session_ops_db):
+    """Default every test to the temp operational DB.
+
+    Without this, a test that doesn't set its own DB falls back to
+    ``<cwd>/realize_data.db``: the developer's real database locally, and an
+    empty file in CI, so results differed between the two. Tests that call
+    ``set_db_path`` themselves still override it.
+    """
+    from realize_core.db import schema
+
+    schema.set_db_path(_session_ops_db)
+    yield
+    schema.set_db_path(None)
+
+
 @pytest.fixture
 def kb_root(tmp_path):
     """Create a minimal KB directory structure for testing.
