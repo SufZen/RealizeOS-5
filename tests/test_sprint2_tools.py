@@ -118,6 +118,43 @@ class TestGwsCliTool:
         result = GwsCliTool._render_command("gws drive ls", {}, binary="/opt/gws/bin/gws")
         assert result[0] == "/opt/gws/bin/gws"
 
+    async def test_undeclared_params_are_refused(self):
+        """Security review: only declared params may reach the command line."""
+        from realize_core.tools.gws_base import GwsCommandConfig, GwsToolConfig
+        from realize_core.tools.gws_cli_tool import GwsCliTool
+
+        config = GwsToolConfig(
+            enabled=True,
+            commands=[
+                GwsCommandConfig(
+                    action="sheets_read",
+                    gws_command="gws sheets get {spreadsheet_id}",
+                    required_params=["spreadsheet_id"],
+                    optional_params=["range"],
+                )
+            ],
+        )
+        result = await GwsCliTool(config=config).execute(
+            "sheets_read", {"spreadsheet_id": "abc", "output": "/etc/cron.d/x"}
+        )
+        assert not result.success
+        assert "output" in result.error
+
+    def test_batch_shim_with_cmd_metacharacters_is_refused(self, monkeypatch):
+        """Security review: a .cmd wrapper runs through cmd.exe even with shell=False."""
+        import subprocess
+
+        from realize_core.tools.gws_cli_tool import GwsCliTool
+
+        ran = []
+        monkeypatch.setattr("shutil.which", lambda name: r"C:\npm\gws.cmd")
+        monkeypatch.setattr(subprocess, "run", lambda *a, **k: ran.append(a))
+
+        result = GwsCliTool._run_command(["gws", "sheets", "get", "x & calc"], 5)
+
+        assert not result.success
+        assert ran == []
+
     def test_run_command_never_uses_a_shell(self, monkeypatch):
         import subprocess
 

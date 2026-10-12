@@ -45,6 +45,14 @@ logger = logging.getLogger(__name__)
 _PLACEHOLDER = re.compile(r"\{([A-Za-z_][A-Za-z0-9_]*)\}")
 #: Parameter names allowed to become ``--flag`` options.
 _FLAG_NAME = re.compile(r"[A-Za-z][A-Za-z0-9_]*")
+#: Characters cmd.exe interprets inside arguments passed to a .cmd/.bat file.
+_BATCH_UNSAFE = re.compile(r'[&|<>^%!"\r\n]')
+
+
+def _is_batch_file(path: str) -> bool:
+    """True for a Windows batch file, which runs through cmd.exe even without shell=True."""
+    return path.lower().endswith((".cmd", ".bat"))
+
 
 # Default timeout for gws commands (seconds)
 _DEFAULT_TIMEOUT = 30
@@ -131,6 +139,12 @@ class GwsCliTool(BaseTool):
 
         # Build the argument list (never a shell string: values are agent-controlled)
         try:
+            # Only the parameters this command declares are used: anything else
+            # the agent sends would become an extra, unreviewed CLI option.
+            declared = set(cmd_config.required_params) | set(cmd_config.optional_params)
+            undeclared = sorted(k for k in params if k not in declared)
+            if undeclared:
+                return ToolResult.fail(f"Unknown parameters for '{action}': {', '.join(undeclared)}")
             argv = self._render_command(cmd_config.gws_command, params, binary=self._config.binary_path)
         except KeyError as e:
             return ToolResult.fail(f"Missing template parameter: {e}")
@@ -205,6 +219,13 @@ class GwsCliTool(BaseTool):
         resolved = shutil.which(argv[0]) if argv else None
         if not resolved:
             return ToolResult.fail(error="gws binary not found. Install with: pip install gws-cli")
+        if _is_batch_file(resolved) and any(_BATCH_UNSAFE.search(arg) for arg in argv[1:]):
+            # Windows runs .cmd/.bat (e.g. npm shims) through cmd.exe even with
+            # shell=False, and cmd.exe acts on these characters inside arguments.
+            return ToolResult.fail(
+                error="Refused: a parameter contains characters that are unsafe for this gws install "
+                '(a Windows .cmd/.bat wrapper). Install the gws executable, or remove & | < > ^ % ! " '
+            )
         try:
             result = subprocess.run(
                 [resolved, *argv[1:]],
