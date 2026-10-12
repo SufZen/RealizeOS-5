@@ -344,6 +344,13 @@ async def reload_agents(request: Request):
 # ---------------------------------------------------------------------------
 
 
+#: What every pipeline run says about itself: nothing in it was executed.
+SIMULATED_NOTE = (
+    "Simulated run: no agent, tool, approval or condition actually ran. "
+    "Pipeline execution isn't wired up; use a skill (Workflows) for real runs."
+)
+
+
 def _pipeline_definition_to_dict(pipeline_id: str, data: dict) -> dict:
     """Return a stable JSON shape for saved dashboard pipelines."""
     return {
@@ -419,12 +426,7 @@ async def test_pipeline_definition(body: PipelineDefinitionBody, request: Reques
         input_text=f"Test run for {body.name}",
     )
     result = await execute_pipeline_endpoint(exec_body, request)
-    return {
-        "result": (
-            f"Pipeline test {result['status']}: {result['stages_completed']}/{result['total_stages']} step(s) completed"
-        ),
-        **result,
-    }
+    return {"result": SIMULATED_NOTE, **result}
 
 
 @router.post("/pipelines/execute", status_code=202)
@@ -453,9 +455,10 @@ async def execute_pipeline_endpoint(body: PipelineExecuteBody, request: Request)
     if not stages:
         raise HTTPException(status_code=400, detail="Pipeline must have at least one stage")
 
-    # Simple echo executor for now — real LLM executor wired at integration gate
+    # Pipelines are a frozen surface (ADR 0004) with no real executor: stages
+    # are echoed, never run. Every response says so (Codex audit F07).
     async def _api_stage_executor(stage, input_text, context):
-        return f"[{stage.agent_key}] Processed: {input_text[:200]}"
+        return f"[simulated: {stage.agent_key} did not run]"
 
     state = await execute_pipeline(
         pipeline_id=pipeline_id,
@@ -472,6 +475,8 @@ async def execute_pipeline_endpoint(body: PipelineExecuteBody, request: Request)
     return {
         "pipeline_id": pipeline_id,
         "status": state.status.value,
+        "simulated": True,
+        "message": SIMULATED_NOTE,
         "stages_completed": len(state.results),
         "total_stages": len(stages),
     }
@@ -486,6 +491,7 @@ async def get_pipeline_state(pipeline_id: str):
 
     return {
         "pipeline_id": state.pipeline_id,
+        "simulated": True,
         "status": state.status.value,
         "current_stage_index": state.current_stage_index,
         "total_stages": len(state.stages),

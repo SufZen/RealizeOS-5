@@ -13,7 +13,7 @@ Endpoints:
 import logging
 
 from fastapi import APIRouter, HTTPException, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from realize_api.dependencies import get_allowed_ventures, visible_to
 
@@ -27,22 +27,31 @@ logger = logging.getLogger(__name__)
 
 
 class CreateWorkflowBody(BaseModel):
-    """Body for creating a new workflow/skill."""
+    """Body for creating a new workflow/skill.
+
+    Unknown fields are refused and a workflow needs at least one step
+    (Codex audit F06): an editor-shaped body (``content``, ``format``,
+    ``venture_key``) used to be accepted and stored as an empty workflow.
+    """
+
+    model_config = ConfigDict(extra="forbid")
 
     name: str
     description: str = ""
     system_key: str = ""
     triggers: list[str] = Field(default_factory=list)
-    steps: list[dict] = Field(default_factory=list)
+    steps: list[dict] = Field(min_length=1)
     version: int = 2
 
 
 class UpdateWorkflowBody(BaseModel):
-    """Body for updating a workflow/skill."""
+    """Body for updating a workflow/skill (unknown fields refused; steps, if given, not empty)."""
+
+    model_config = ConfigDict(extra="forbid")
 
     description: str | None = None
     triggers: list[str] | None = None
-    steps: list[dict] | None = None
+    steps: list[dict] | None = Field(default=None, min_length=1)
     enabled: bool | None = None
 
 

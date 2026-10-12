@@ -7,8 +7,6 @@ import {
   Eye,
   Code2,
   AlertCircle,
-  CheckCircle2,
-  Loader2,
   Copy,
   FileText,
   Search,
@@ -26,17 +24,33 @@ import { cn } from '@/lib/utils'
 type EditorFormat = 'yaml' | 'skill_md'
 type EditorView = 'code' | 'preview'
 
-interface WorkflowFile {
-  id: string
+/** One entry of GET /workflows (skill metadata; the definition comes from GET /workflows/{name}). */
+interface WorkflowSummary {
   name: string
-  format: EditorFormat
-  content: string
-  venture_key: string
-  updated_at?: string
+  description: string
+  triggers: string[]
+  system_key: string
+  steps_count: number
+}
+
+interface WorkflowDetail {
+  name: string
+  description?: string
+  triggers?: string[]
+  steps?: unknown[]
 }
 
 interface WorkflowsData {
-  workflows: WorkflowFile[]
+  workflows: WorkflowSummary[]
+}
+
+/** A workflow as YAML for viewing (steps as flow mappings, which YAML accepts). */
+function workflowToYaml(w: WorkflowDetail): string {
+  const lines = [`name: ${w.name}`]
+  if (w.description) lines.push(`description: ${JSON.stringify(w.description)}`)
+  lines.push('triggers:', ...(w.triggers ?? []).map((t) => `  - ${JSON.stringify(t)}`))
+  lines.push('steps:', ...(w.steps ?? []).map((step) => `  - ${JSON.stringify(step)}`))
+  return lines.join('\n') + '\n'
 }
 
 interface VenturesData {
@@ -104,8 +118,8 @@ export default function WorkflowEditorPage() {
   const [view, setView] = useState<EditorView>('code')
   const [content, setContent] = useState(SKILL_MD_TEMPLATE)
   const [filename, setFilename] = useState('new_skill')
-  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [activeFileId, setActiveFileId] = useState<string | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   /* ---- Format switch ---- */
   const handleFormatSwitch = useCallback(
@@ -124,38 +138,24 @@ export default function WorkflowEditorPage() {
     setActiveFileId(null)
     setContent(format === 'skill_md' ? SKILL_MD_TEMPLATE : YAML_TEMPLATE)
     setFilename(format === 'skill_md' ? 'new_skill' : 'new_pipeline')
-    setSaveStatus('idle')
+    setLoadError(null)
   }, [format])
 
   /* ---- Load file ---- */
-  const handleLoad = useCallback((file: WorkflowFile) => {
-    setActiveFileId(file.id)
-    setFormat(file.format)
-    setContent(file.content)
+  const handleLoad = useCallback(async (file: WorkflowSummary) => {
+    setActiveFileId(file.name)
     setFilename(file.name)
-    setSelectedVenture(file.venture_key)
+    setSelectedVenture(file.system_key)
     setView('code')
-    setSaveStatus('idle')
-  }, [])
-
-  /* ---- Save ---- */
-  const handleSave = useCallback(async () => {
-    if (!selectedVenture) return
-    setSaveStatus('saving')
+    setLoadError(null)
     try {
-      await api.post('/workflows', {
-        id: activeFileId,
-        name: filename,
-        format,
-        content,
-        venture_key: selectedVenture,
-      })
-      setSaveStatus('saved')
-      setTimeout(() => setSaveStatus('idle'), 2000)
-    } catch {
-      setSaveStatus('error')
+      const detail = await api.get<WorkflowDetail>(`/workflows/${encodeURIComponent(file.name)}`)
+      setFormat('yaml')
+      setContent(workflowToYaml(detail))
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : 'Could not load this workflow')
     }
-  }, [activeFileId, filename, format, content, selectedVenture])
+  }, [])
 
   /* ---- Copy ---- */
   const handleCopy = useCallback(() => {
@@ -168,12 +168,12 @@ export default function WorkflowEditorPage() {
     if (!data?.workflows) return []
     let files = data.workflows
     if (selectedVenture) {
-      files = files.filter((f) => f.venture_key === selectedVenture)
+      files = files.filter((f) => f.system_key === selectedVenture)
     }
     if (debouncedSearch) {
       const q = debouncedSearch.toLowerCase()
       files = files.filter(
-        (f) => f.name.toLowerCase().includes(q) || f.content.toLowerCase().includes(q),
+        (f) => f.name.toLowerCase().includes(q) || (f.description || '').toLowerCase().includes(q),
       )
     }
     return files
@@ -246,11 +246,11 @@ export default function WorkflowEditorPage() {
             <div className="space-y-1 max-h-[60vh] overflow-y-auto">
               {filteredFiles.map((file) => (
                 <button
-                  key={file.id}
+                  key={`${file.system_key}:${file.name}`}
                   onClick={() => handleLoad(file)}
                   className={cn(
                     'w-full text-start rounded-lg px-3 py-2 text-xs transition-colors',
-                    activeFileId === file.id
+                    activeFileId === file.name
                       ? 'bg-brand-400/10 text-brand-400'
                       : 'text-muted-foreground hover:bg-surface-700 hover:text-foreground',
                   )}
@@ -258,15 +258,8 @@ export default function WorkflowEditorPage() {
                   <div className="flex items-center gap-2">
                     <FileText className="h-3.5 w-3.5 shrink-0" />
                     <span className="truncate font-medium">{file.name}</span>
-                    <span
-                      className={cn(
-                        'ms-auto text-[9px] px-1 py-0.5 rounded uppercase tracking-wider shrink-0',
-                        file.format === 'skill_md'
-                          ? 'bg-purple-400/10 text-purple-400'
-                          : 'bg-cyan-400/10 text-cyan-400',
-                      )}
-                    >
-                      {file.format === 'skill_md' ? 'MD' : 'YAML'}
+                    <span className="ms-auto text-[9px] px-1 py-0.5 rounded tracking-wider shrink-0 bg-cyan-400/10 text-cyan-400">
+                      {file.steps_count} steps
                     </span>
                   </div>
                 </button>
@@ -342,23 +335,12 @@ export default function WorkflowEditorPage() {
                 <Copy className="h-3.5 w-3.5" />
               </button>
               <button
-                onClick={handleSave}
-                disabled={!selectedVenture || saveStatus === 'saving'}
-                className={cn(
-                  'flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg font-medium transition-colors',
-                  saveStatus === 'saved'
-                    ? 'bg-green-400/10 text-green-400 border border-green-400/20'
-                    : 'bg-brand-400 text-black hover:bg-brand-400/90 disabled:opacity-40',
-                )}
+                disabled
+                title="Saving from the editor isn't supported yet"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg font-medium bg-brand-400 text-black opacity-40"
               >
-                {saveStatus === 'saving' ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : saveStatus === 'saved' ? (
-                  <CheckCircle2 className="h-3.5 w-3.5" />
-                ) : (
-                  <Save className="h-3.5 w-3.5" />
-                )}
-                {saveStatus === 'saved' ? 'Saved' : 'Save'}
+                <Save className="h-3.5 w-3.5" />
+                Save{' '}
               </button>
             </div>
           </div>
@@ -476,12 +458,17 @@ export default function WorkflowEditorPage() {
             </div>
           )}
 
-          {saveStatus === 'error' && (
+          {loadError && (
             <div className="flex items-center gap-2 text-sm text-red-400 bg-red-400/10 border border-red-400/20 rounded-lg px-4 py-2">
               <AlertCircle className="h-4 w-4" />
-              Failed to save workflow
+              {loadError}
             </div>
           )}
+          <p className="text-xs text-muted-foreground">
+            This editor shows workflows and helps you draft new ones, but it can&apos;t save yet. To
+            add or change a workflow, edit its skill file in the venture&apos;s R-routines/skills
+            folder on the Knowledge page.
+          </p>
         </div>
       </div>
     </div>

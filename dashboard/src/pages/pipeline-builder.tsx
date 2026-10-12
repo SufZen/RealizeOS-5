@@ -196,6 +196,10 @@ export default function PipelineBuilderPage() {
 
   return (
     <div className="space-y-6 max-w-5xl rz-animate-fade-up">
+      <div className="rounded-lg border border-amber-400/30 bg-amber-400/10 p-3 text-xs text-amber-200">
+        Preview only: test runs are simulated, and no agent, tool, approval or condition runs. For
+        real runs, use a skill under Workflows.
+      </div>
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
