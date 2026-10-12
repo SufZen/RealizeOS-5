@@ -350,3 +350,92 @@ class TestMissionEngine:
         # The engine's event log is separate from this log instance
         # But the engine's own log should have the events
         assert engine._event_log.count(category="mission") >= 1
+
+
+# ─── Codex audit F11: approval events hold the mission ──────────────────────
+
+
+class _HoldingRuntime:
+    """A contract-conforming runtime: step s1 requests an approval, then ends 'success'."""
+
+    runtime_id = "fake"
+
+    def __init__(self):
+        self.invocations: list[str] = []
+
+    async def invoke(self, step, context):
+        from realize_core.runtimes.events import ApprovalRequestEvent, FinalResultEvent
+
+        self.invocations.append(step.step_id)
+        if step.step_id == "s1":
+            yield ApprovalRequestEvent(run_id="r", category="tool", proposed_action={"request_id": "apv-1"})
+        yield FinalResultEvent(run_id="r", output={"text": f"{step.step_id} done"}, status="success")
+
+
+class TestMissionApprovalHold:
+    @pytest.fixture
+    def setup(self, tmp_path):
+        from types import SimpleNamespace
+
+        registry = RuntimeRegistry()
+        runtime = _HoldingRuntime()
+        registry._runtimes["fake"] = SimpleNamespace(
+            runtime=runtime, status="ready", invocation_count=0, last_used=None, total_cost_eur=0.0
+        )
+        engine = MissionEngine(registry=registry, event_log=EventLog(tmp_path / "events.jsonl"))
+        mission = engine.create_mission(title="Pay and report", goal="g", venture="acme")
+        engine.plan_mission(
+            mission.mission_id,
+            steps=[
+                {"description": "Pay the contractor", "runtime": "fake"},
+                {"description": "Report the payment", "runtime": "fake", "inputs_from": ["s1"]},
+            ],
+        )
+        return engine, runtime, mission.mission_id
+
+    @pytest.mark.asyncio
+    async def test_held_step_holds_the_mission_and_its_dependants(self, setup):
+        engine, runtime, mission_id = setup
+
+        mission = await engine.execute_mission(mission_id)
+
+        assert mission.state == MissionState.AWAITING_APPROVAL
+        assert mission.plan[0].status == StepStatus.AWAITING_APPROVAL
+        assert mission.plan[1].status == StepStatus.PENDING
+        assert runtime.invocations == ["s1"]
+
+    @pytest.mark.asyncio
+    async def test_approval_continues_from_the_actual_outcome(self, setup):
+        import asyncio
+
+        from realize_core.missions import engine as engine_mod
+
+        engine, runtime, mission_id = setup
+        await engine.execute_mission(mission_id)
+
+        assert await engine_mod.on_approval_decided("apv-1", True, {"success": True, "output": "paid"})
+        await asyncio.gather(*engine_mod._continuations)
+
+        mission = engine._get_mission(mission_id)
+        assert mission.state == MissionState.COMPLETED
+        assert mission.plan[0].output["approved_output"] == "paid"
+        assert runtime.invocations == ["s1", "s2"]
+
+    @pytest.mark.asyncio
+    async def test_rejection_fails_the_step_and_blocks_dependants(self, setup):
+        from realize_core.missions import engine as engine_mod
+
+        engine, runtime, mission_id = setup
+        await engine.execute_mission(mission_id)
+
+        import asyncio
+
+        await engine_mod.on_approval_decided("apv-1", False)
+        await asyncio.gather(*engine_mod._continuations)
+
+        mission = engine._get_mission(mission_id)
+        assert mission.state == MissionState.FAILED
+        assert "blocked" in mission.outcome_summary
+        assert mission.plan[0].status == StepStatus.FAILED
+        assert mission.plan[1].status == StepStatus.PENDING
+        assert runtime.invocations == ["s1"]

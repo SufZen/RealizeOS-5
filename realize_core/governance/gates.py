@@ -393,30 +393,45 @@ async def execute_approved_action(approval_id: str, db_path=None) -> dict:
     return {"executed": True, "success": result_ok, "output": output, "error": error}
 
 
-async def _resume_skill_from_approval(record: dict, answer: str) -> str | None:
-    """Resume the skill paused at the human step this approval item belongs to."""
+def _skill_runtime(record: dict) -> dict | None:
+    """kb_path / system config / shared config for resuming a skill in the item's venture."""
     from realize_core.governance.context import parse_session_ref
-    from realize_core.skills.executor import peek_skill_resume_context, resume_pending_skill
 
     parsed = parse_session_ref(record.get("session_ref"))
-    if not parsed:
-        return None
-    system_key, user_id = parsed
-    pending = peek_skill_resume_context(user_id)
-    if not pending or pending.get("approval_id") != record.get("id"):
-        return None  # already answered in chat, or the server restarted
-
+    system_key = parsed[0] if parsed else record.get("venture_key", "")
     from realize_core.engine import load_runtime
 
     runtime = load_runtime()
+    return {
+        "kb_path": runtime["kb_path"],
+        "system_config": runtime["systems"].get(system_key, {}),
+        "shared_config": runtime["shared_config"],
+    }
+
+
+async def _resume_skill_from_approval(record: dict, answer: str) -> str | None:
+    """Resume the skill paused at the human step this approval item belongs to."""
+    from realize_core.skills.executor import resume_pending_skill, skill_run_for_approval
+
+    pending = skill_run_for_approval(record.get("id", ""))
+    if not pending or pending.get("kind") != "human":
+        return None  # already answered in chat, or no skill waits on this item
     output = await resume_pending_skill(
-        user_id,
-        answer,
-        kb_path=runtime["kb_path"],
-        system_config=runtime["systems"].get(system_key, {}),
-        shared_config=runtime["shared_config"],
-        channel="dashboard",
+        pending.get("user_id", ""), answer, channel="dashboard", run_id=pending["id"], **_skill_runtime(record)
     )
+    if output:
+        report_to_conversation(record.get("session_ref"), output)
+    return output
+
+
+async def _resume_skill_after_tool(record: dict, execution: dict) -> str | None:
+    """Continue the skill whose tool step this approved action was (F10)."""
+    from realize_core.skills.executor import resume_after_held_tool, skill_run_for_approval
+
+    pending = skill_run_for_approval(record.get("id", ""))
+    if not pending or pending.get("kind") != "tool":
+        return None
+    output = await resume_after_held_tool(pending["id"], execution, channel="dashboard", **_skill_runtime(record))
     if output:
         report_to_conversation(record.get("session_ref"), output)
     return output
@@ -434,17 +449,15 @@ def _action_type(approval_id: str, db_path=None) -> str | None:
 
 
 def _stop_paused_skill(record: dict) -> None:
-    """Drop the paused skill this question belongs to: a rejected question stops the skill."""
-    from realize_core.governance.context import parse_session_ref
-    from realize_core.skills.executor import peek_skill_resume_context, pop_skill_resume_context
+    """Drop the paused skill waiting on this item: a rejected question or action stops the skill."""
+    from realize_core.skills.executor import claim_skill_run, skill_run_for_approval
 
-    parsed = parse_session_ref(record.get("session_ref"))
-    if not parsed:
-        return
-    pending = peek_skill_resume_context(parsed[1])
-    if pending and pending.get("approval_id") == record.get("id"):
-        pop_skill_resume_context(parsed[1])
-        report_to_conversation(record.get("session_ref"), "The skill was stopped: its question was rejected.")
+    pending = skill_run_for_approval(record.get("id", ""))
+    if pending and claim_skill_run(pending["id"]):
+        what = "question" if pending.get("kind") == "human" else "action"
+        report_to_conversation(
+            record.get("session_ref"), f"The skill was stopped: its {what} was rejected, so nothing after it ran."
+        )
 
 
 async def decide_approval(
@@ -470,7 +483,12 @@ async def decide_approval(
     Returns ``{"approval": row, "execution": ..., "skill_output": ...}`` or
     None when the item doesn't exist, isn't pending or has expired.
     """
-    is_question = _action_type(approval_id, db_path) == "skill_input"
+    action_type = _action_type(approval_id, db_path)
+    is_question = action_type == "skill_input"
+    if action_type == "agent_credential":
+        # Never store or relay what was typed: a secret pasted here would land
+        # in the DB and the conversation. Credentials go in Setup.
+        decision_note = None
     if is_question and approve:
         record = answer_request(approval_id, decision_note or "yes", db_path, answered_by=decided_by, channel=channel)
     elif approve:
@@ -488,8 +506,41 @@ async def decide_approval(
             _stop_paused_skill(record)
     elif approve and record.get("action_name"):
         out["execution"] = await execute_approved_action(approval_id, db_path=db_path)
+        out["skill_output"] = await _resume_skill_after_tool(record, out["execution"])
+        await _notify_missions(approval_id, True, out["execution"])
     elif not approve and record.get("action_name"):
         report_to_conversation(
             record.get("session_ref"), f"`{record['action_name']}` was not approved, so it was not done."
         )
+        _stop_paused_skill(record)
+        await _notify_missions(approval_id, False, None)
+    elif action_type in _AGENT_REQUEST_OUTCOMES:
+        report_to_conversation(record.get("session_ref"), _agent_request_outcome(action_type, approve, decision_note))
     return out
+
+
+async def _notify_missions(approval_id: str, approved: bool, execution: dict | None) -> None:
+    """Let a mission step that waits on this approval continue (F11). Never raises."""
+    try:
+        from realize_core.missions.engine import on_approval_decided
+
+        await on_approval_decided(approval_id, approved, execution)
+    except Exception:
+        logger.warning("Mission update after approval %s failed", approval_id, exc_info=True)
+
+
+_AGENT_REQUEST_OUTCOMES = {"agent_decision", "agent_input", "agent_credential"}
+
+
+def _agent_request_outcome(action_type: str, approve: bool, note: str | None) -> str:
+    """What the requesting conversation is told about an agent's request."""
+    if action_type == "agent_credential":
+        return (
+            "The operator says the credential is set up; try again."
+            if approve
+            else "The operator declined to provide the credential."
+        )
+    verdict = "approved" if approve else "rejected"
+    if action_type == "agent_input":
+        verdict = "answered" if approve else "declined"
+    return f"The operator {verdict} your request." + (f" Note: {note}" if note else "")

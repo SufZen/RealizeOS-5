@@ -148,6 +148,7 @@ class InternalAdapter:
             # Execute through the existing pipeline; tool-loop progress arrives
             # on the queue and is re-emitted live as runtime events.
             loop_events: asyncio.Queue[dict] = asyncio.Queue()
+            held = False  # an action was held for approval: the step isn't done
             task = asyncio.create_task(
                 process_message(
                     system_key=venture_id,
@@ -168,12 +169,14 @@ class InternalAdapter:
                 if getter in done:
                     event = _to_runtime_event(run_id, getter.result())
                     if event is not None:
+                        held = held or event.kind == "approval_request"
                         yield event
                     continue
                 getter.cancel()
                 while not loop_events.empty():
                     event = _to_runtime_event(run_id, loop_events.get_nowait())
                     if event is not None:
+                        held = held or event.kind == "approval_request"
                         yield event
                 break
             response = task.result()
@@ -190,7 +193,7 @@ class InternalAdapter:
                     "actual_duration_sec": elapsed,
                     "actual_cost_eur": 0.0,  # tracked separately by LLM router
                 },
-                status="success",
+                status="partial" if held else "success",
             )
 
         except Exception as e:

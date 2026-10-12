@@ -11,6 +11,7 @@ Orchestrates mission lifecycle:
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import datetime
 
@@ -28,6 +29,30 @@ from realize_core.runtimes.contract import MissionStep as RuntimeMissionStep
 from realize_core.runtimes.registry import RuntimeRegistry
 
 logger = logging.getLogger(__name__)
+
+
+# Held approval id -> (engine, mission id, step id) waiting on it.
+_held_steps: dict[str, tuple] = {}
+# Continuations started after a decision (kept so they aren't garbage-collected).
+_continuations: set = set()
+
+
+async def on_approval_decided(approval_id: str, approved: bool, execution: dict | None = None) -> bool:
+    """Let the mission step waiting on ``approval_id`` continue from the real outcome.
+
+    Called by the approval decision path; a no-op for approvals no mission
+    waits on. When the mission has nothing left waiting it continues in the
+    background. Returns True when a mission step was updated.
+    """
+    entry = _held_steps.pop(approval_id, None)
+    if entry is None:
+        return False
+    engine, mission_id, step_id = entry
+    if engine.record_approval(mission_id, step_id, approval_id, approved, execution):
+        task = asyncio.ensure_future(engine.execute_mission(mission_id))
+        _continuations.add(task)
+        task.add_done_callback(_continuations.discard)
+    return True
 
 
 class MissionEngine:
@@ -143,7 +168,10 @@ class MissionEngine:
         """
         mission = self._get_mission(mission_id)
 
-        if mission.state not in (MissionState.PLANNED, MissionState.PAUSED):
+        resumable = mission.state == MissionState.AWAITING_APPROVAL and not any(
+            s.status == StepStatus.AWAITING_APPROVAL for s in mission.plan
+        )
+        if mission.state not in (MissionState.PLANNED, MissionState.PAUSED) and not resumable:
             raise ValueError(f"Mission {mission_id} cannot be executed from state {mission.state.value}")
 
         mission.transition(MissionState.IN_PROGRESS)
@@ -165,8 +193,21 @@ class MissionEngine:
 
                 await self._execute_step(mission, step)
 
+            awaiting = [s.step_id for s in mission.plan if s.status == StepStatus.AWAITING_APPROVAL]
+            if mission.state != MissionState.IN_PROGRESS:
+                pass  # already failed (budget)
+            elif awaiting:
+                mission.transition(MissionState.AWAITING_APPROVAL)
+                mission.outcome_summary = f"Waiting for operator approval: {', '.join(awaiting)}"
+                self._log_event(mission, "awaiting_approval", steps=awaiting)
+            elif not all(s.is_complete for s in mission.plan):
+                # Nothing can run: the remaining steps depend on steps that failed.
+                blocked = [s.step_id for s in mission.plan if not s.is_complete]
+                mission.transition(MissionState.FAILED)
+                mission.outcome_summary = f"Steps blocked by failed prerequisites: {', '.join(blocked)}"
+                self._log_event(mission, "failed", blocked_steps=blocked)
             # All steps completed
-            if all(s.is_complete for s in mission.plan):
+            elif all(s.is_complete for s in mission.plan):
                 all_succeeded = all(s.status == StepStatus.SUCCEEDED for s in mission.plan)
                 if all_succeeded:
                     mission.transition(MissionState.COMPLETED)
@@ -248,7 +289,12 @@ class MissionEngine:
 
         try:
             async for event in runtime_entry.runtime.invoke(runtime_step, context):
-                if event.kind == "final":
+                if event.kind == "approval_request":
+                    request_id = (getattr(event, "proposed_action", None) or {}).get("request_id")
+                    if request_id:
+                        step.pending_approvals.append(request_id)
+                        _held_steps[request_id] = (self, mission.mission_id, step.step_id)
+                elif event.kind == "final":
                     step.output = event.output
                     step.status = StepStatus.SUCCEEDED if event.status == "success" else StepStatus.FAILED
                     if hasattr(event, "cost_actual") and isinstance(event.cost_actual, dict):
@@ -261,6 +307,11 @@ class MissionEngine:
         except Exception as e:
             step.status = StepStatus.FAILED
             step.error = str(e)
+
+        if step.pending_approvals and step.status != StepStatus.FAILED:
+            # Whatever the runtime said, the step's work isn't done until the
+            # held actions are decided; its dependants must wait.
+            step.status = StepStatus.AWAITING_APPROVAL
 
         step.completed_at = datetime.now()
 
@@ -280,6 +331,29 @@ class MissionEngine:
             status=step.status.value,
             duration_sec=step.duration_sec,
             cost_eur=step.cost_eur,
+        )
+
+    def record_approval(self, mission_id: str, step_id: str, approval_id: str, approved: bool, execution: dict | None):
+        """Apply an operator decision to the step that was waiting on it.
+
+        A rejection, or an approved action that failed, fails the step. Once a
+        step has no undecided approvals left it succeeds, carrying the actual
+        outputs. Returns True when the mission can continue.
+        """
+        mission = self._get_mission(mission_id)
+        step = next((s for s in mission.plan if s.step_id == step_id), None)
+        if step is None or approval_id not in step.pending_approvals:
+            return False
+        step.pending_approvals.remove(approval_id)
+        if not approved or not (execution or {}).get("success"):
+            step.status = StepStatus.FAILED
+            step.error = "an action it needed was not approved" if not approved else (execution or {}).get("error", "")
+        elif not step.pending_approvals and step.status == StepStatus.AWAITING_APPROVAL:
+            step.output = {**(step.output or {}), "approved_output": (execution or {}).get("output", "")}
+            step.status = StepStatus.SUCCEEDED
+        self._log_event(mission, "approval_decided", step_id=step_id, approved=approved)
+        return mission.state == MissionState.AWAITING_APPROVAL and not any(
+            s.status == StepStatus.AWAITING_APPROVAL for s in mission.plan
         )
 
     def cancel_mission(self, mission_id: str) -> Mission:

@@ -317,6 +317,14 @@ class ApprovalStore:
 # ---------------------------------------------------------------------------
 
 
+#: approval_queue.action_type for each agent request (the dashboard labels these).
+AGENT_REQUEST_TYPES = {
+    ApprovalAction.REQUEST_DECISION: "agent_decision",
+    ApprovalAction.REQUEST_INPUT: "agent_input",
+    ApprovalAction.REQUEST_CREDENTIAL: "agent_credential",
+}
+
+
 class ApprovalTool(BaseTool):
     """
     Tool that allows agents to pause and request human intervention.
@@ -437,19 +445,55 @@ class ApprovalTool(BaseTool):
         if not description:
             return ToolResult.fail("Description is required")
 
+        # Who is asking comes from the trusted tool-call context (set by the
+        # tool loop / skill executor), never from model-written params, which
+        # could name another venture. Params are only a fallback outside one.
+        from realize_core.governance.context import current_tool_context
+
+        origin = current_tool_context()
+        system_key = origin.system_key or params.get("system_key") or "default"
+        agent_key = origin.agent_key or params.get("agent_key") or "unknown"
+        try:
+            timeout_seconds = max(60, int(params.get("timeout_seconds") or 3600))
+        except (TypeError, ValueError):
+            timeout_seconds = 3600
+
         request = ApprovalRequest(
             action=action_enum,
             description=description,
-            agent_key=params.get("agent_key", "unknown"),
-            system_key=params.get("system_key", "default"),
+            agent_key=agent_key,
+            system_key=system_key,
             session_id=params.get("session_id", ""),
             options=params.get("options", []),
-            timeout_seconds=params.get("timeout_seconds", 3600),
+            timeout_seconds=timeout_seconds,
             metadata={
                 "credential_type": params.get("credential_type"),
                 "prompt": params.get("prompt"),
             },
         )
+
+        # approval_queue is what the dashboard lists and decides; the request
+        # only exists for the operator once it is written there.
+        try:
+            from realize_core.governance.gates import create_approval_request
+
+            request.id = create_approval_request(
+                venture_key=system_key,
+                agent_key=agent_key,
+                action_type=AGENT_REQUEST_TYPES[action_enum],
+                payload={
+                    "question": description,
+                    "options": request.options,
+                    "prompt": params.get("prompt"),
+                    "credential_type": params.get("credential_type"),
+                },
+                expires_minutes=max(1, timeout_seconds // 60),
+                requested_by=origin.user_id or None,
+                session_ref=origin.session_ref or None,
+            )
+        except Exception as exc:
+            logger.error("Could not record approval request: %s", exc)
+            return ToolResult.fail("Could not reach the operator: the approval queue is unavailable.")
 
         self._store.create(request)
 
