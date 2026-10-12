@@ -75,7 +75,7 @@ class TestGwsCliTool:
             "gws sheets get {spreadsheet_id}",
             {"spreadsheet_id": "abc123"},
         )
-        assert result == "gws sheets get abc123"
+        assert result == ["gws", "sheets", "get", "abc123"]
 
     def test_render_command_with_extra_params(self):
         from realize_core.tools.gws_cli_tool import GwsCliTool
@@ -84,8 +84,7 @@ class TestGwsCliTool:
             "gws sheets get {spreadsheet_id}",
             {"spreadsheet_id": "abc", "range": "Sheet1!A1:D10"},
         )
-        assert "gws sheets get abc" in result
-        assert '--range "Sheet1!A1:D10"' in result
+        assert result == ["gws", "sheets", "get", "abc", "--range=Sheet1!A1:D10"]
 
     def test_render_command_no_extra_for_none(self):
         from realize_core.tools.gws_cli_tool import GwsCliTool
@@ -94,7 +93,85 @@ class TestGwsCliTool:
             "gws test {id}",
             {"id": "123", "optional": None},
         )
-        assert result == "gws test 123"
+        assert result == ["gws", "test", "123"]
+
+    def test_shell_metacharacters_stay_one_literal_argument(self):
+        """Codex audit F12: an agent-supplied value can't add a command."""
+        from realize_core.tools.gws_cli_tool import GwsCliTool
+
+        payload = "synthetic & echo AUDIT_COMMAND_INJECTION; rm -rf / | $(id)"
+        result = GwsCliTool._render_command("gws sheets get {spreadsheet_id}", {"spreadsheet_id": payload})
+        assert result == ["gws", "sheets", "get", payload]
+
+    def test_option_injection_is_refused(self):
+        import pytest
+        from realize_core.tools.gws_cli_tool import GwsCliTool
+
+        with pytest.raises(ValueError):
+            GwsCliTool._render_command("gws sheets get {spreadsheet_id}", {"spreadsheet_id": "--upload=/etc/passwd"})
+        with pytest.raises(ValueError):
+            GwsCliTool._render_command("gws sheets get {id}", {"id": "1", "x y": "z"})
+
+    def test_configured_binary_is_used(self):
+        from realize_core.tools.gws_cli_tool import GwsCliTool
+
+        result = GwsCliTool._render_command("gws drive ls", {}, binary="/opt/gws/bin/gws")
+        assert result[0] == "/opt/gws/bin/gws"
+
+    async def test_undeclared_params_are_refused(self):
+        """Security review: only declared params may reach the command line."""
+        from realize_core.tools.gws_base import GwsCommandConfig, GwsToolConfig
+        from realize_core.tools.gws_cli_tool import GwsCliTool
+
+        config = GwsToolConfig(
+            enabled=True,
+            commands=[
+                GwsCommandConfig(
+                    action="sheets_read",
+                    gws_command="gws sheets get {spreadsheet_id}",
+                    required_params=["spreadsheet_id"],
+                    optional_params=["range"],
+                )
+            ],
+        )
+        result = await GwsCliTool(config=config).execute(
+            "sheets_read", {"spreadsheet_id": "abc", "output": "/etc/cron.d/x"}
+        )
+        assert not result.success
+        assert "output" in result.error
+
+    def test_batch_shim_with_cmd_metacharacters_is_refused(self, monkeypatch):
+        """Security review: a .cmd wrapper runs through cmd.exe even with shell=False."""
+        import subprocess
+
+        from realize_core.tools.gws_cli_tool import GwsCliTool
+
+        ran = []
+        monkeypatch.setattr("shutil.which", lambda name: r"C:\npm\gws.cmd")
+        monkeypatch.setattr(subprocess, "run", lambda *a, **k: ran.append(a))
+
+        result = GwsCliTool._run_command(["gws", "sheets", "get", "x & calc"], 5)
+
+        assert not result.success
+        assert ran == []
+
+    def test_run_command_never_uses_a_shell(self, monkeypatch):
+        import subprocess
+
+        from realize_core.tools.gws_cli_tool import GwsCliTool
+
+        seen = {}
+
+        def fake_run(args, **kwargs):
+            seen.update(args=args, **kwargs)
+            return subprocess.CompletedProcess(args, 0, stdout="{}", stderr="")
+
+        monkeypatch.setattr("shutil.which", lambda name: f"/usr/bin/{name}")
+        monkeypatch.setattr(subprocess, "run", fake_run)
+        GwsCliTool._run_command(["gws", "sheets", "get", "a & b"], 5)
+
+        assert seen["shell"] is False
+        assert seen["args"] == ["/usr/bin/gws", "sheets", "get", "a & b"]
 
     def test_is_available_disabled(self):
         from realize_core.tools.gws_base import GwsToolConfig
@@ -140,14 +217,6 @@ class TestGwsCliTool:
 
         tool = get_tool()
         assert isinstance(tool, GwsCliTool)
-
-    def test_shell_escape(self):
-        from realize_core.tools.gws_cli_tool import _shell_escape
-
-        assert _shell_escape("simple") == "simple"
-        assert _shell_escape("has space") == '"has space"'
-        assert _shell_escape('has"quote') == '"has\\"quote"'
-        assert _shell_escape("") == '""'
 
     def test_try_parse_json(self):
         from realize_core.tools.gws_cli_tool import _try_parse_json

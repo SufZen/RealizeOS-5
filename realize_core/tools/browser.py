@@ -18,6 +18,7 @@ import base64
 import ipaddress
 import logging
 import os
+import re
 import time
 from urllib.parse import urlparse
 
@@ -33,10 +34,28 @@ _BLOCKED_SCHEMES = {"file", "ftp", "gopher", "data", "javascript"}
 
 def _validate_url(url: str) -> str | None:
     """
-    Validate URL for SSRF protection.
+    Validate URL for SSRF protection (scheme, host, and every resolved address).
 
     Returns error string if blocked, None if safe.
     """
+    error = _static_url_error(url)
+    if error:
+        return error
+
+    # Resolve the name and refuse it if any address is internal (Codex audit
+    # F13): a public-looking hostname can point at 10.x / 169.254.169.254.
+    from realize_core.security.url_guard import UnsafeURLError, check_url
+
+    parsed = urlparse(url)
+    try:
+        check_url(url if parsed.scheme else f"http://{url}")
+    except UnsafeURLError as exc:
+        return f"Blocked: {exc}"
+    return None
+
+
+def _static_url_error(url: str) -> str | None:
+    """Checks that need no DNS lookup: scheme, hostname blocklist, IP literals."""
     try:
         parsed = urlparse(url)
     except Exception:
@@ -64,10 +83,71 @@ def _validate_url(url: str) -> str | None:
         if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
             return f"Blocked private/internal IP: {hostname}"
     except ValueError:
-        # Not an IP literal — hostname is fine (DNS resolution is at browser level)
         pass
 
     return None
+
+
+#: Request URLs that never touch the network.
+_LOCAL_SCHEMES = ("data:", "blob:", "about:")
+
+
+#: Response headers the page must not receive from a refetched response.
+_DROP_RESPONSE_HEADERS = {"content-encoding", "content-length", "transfer-encoding", "connection"}
+
+
+async def _guard_request(route) -> None:
+    """Playwright route handler: vet and fetch every request the page makes.
+
+    Covers the first navigation, each redirect hop (a 3xx goes back to
+    Chromium, which re-requests through here), and subresources such as
+    images, iframes and fetch/XHR calls. Allowed requests are fetched by
+    :func:`pinned_fetch` against the vetted IP and handed to the page, so
+    Chromium never resolves the name itself (no DNS rebinding).
+    """
+    import httpx
+
+    from realize_core.security.url_guard import UnsafeURLError, pinned_fetch
+
+    request = route.request
+    url = request.url
+    if url.startswith(_LOCAL_SCHEMES):
+        await route.continue_()
+        return
+    error = await asyncio.to_thread(_static_url_error, url)
+    if error:
+        logger.warning("Browser request blocked: %s (%s)", url[:200], error)
+        await route.abort("blockedbyclient")
+        return
+    try:
+        resp = await pinned_fetch(
+            url,
+            method=request.method,
+            headers=await request.all_headers(),
+            content=request.post_data_buffer,
+            timeout=BROWSER_TIMEOUT,
+        )
+    except UnsafeURLError as exc:
+        logger.warning("Browser request blocked: %s (%s)", url[:200], exc)
+        await route.abort("blockedbyclient")
+        return
+    except (httpx.HTTPError, OSError) as exc:  # network failure: the page sees a failed load
+        logger.info("Browser request failed: %s (%s)", url[:200], exc)
+        await route.abort("failed")
+        return
+    headers = {k: v for k, v in resp.headers.items() if k.lower() not in _DROP_RESPONSE_HEADERS}
+    await route.fulfill(status=resp.status_code, headers=headers, body=resp.content)
+
+
+async def _guard_websocket(ws) -> None:
+    """Playwright WebSocket route: refuse sockets to internal addresses."""
+    http_url = "http" + ws.url[2:] if ws.url.startswith("ws") else ws.url
+    error = await asyncio.to_thread(_validate_url, http_url)
+    if error:
+        logger.warning("Browser WebSocket blocked: %s (%s)", ws.url[:200], error)
+        await ws.close()
+        return
+    ws.connect_to_server()
 
 
 # Browser context pool: {user_id: BrowserSession}
@@ -97,10 +177,19 @@ class BrowserSession:
                 args=["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage", "--disable-gpu"],
             )
             self.context = await self.browser.new_context(
+                # Service workers fetch outside the route handler: keep them off.
+                service_workers="block",
                 viewport={"width": 1280, "height": 720},
                 user_agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
                 "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             )
+            # Every request from every page in this context goes through the SSRF
+            # guard. WebSockets too; without that hook the guard is incomplete, so
+            # the browser refuses to start (fail closed).
+            if not hasattr(self.context, "route_web_socket"):
+                raise RuntimeError("the browser tool needs Playwright >= 1.48 for its network guard")
+            await self.context.route("**/*", _guard_request)
+            await self.context.route_web_socket(re.compile(".*"), _guard_websocket)
             self.page = await self.context.new_page()
             self.page.set_default_timeout(BROWSER_TIMEOUT * 1000)
             self._initialized = True
@@ -164,8 +253,8 @@ async def cleanup_all_sessions():
 
 
 async def browser_navigate(url: str, user_id: str = "0") -> dict:
-    # SSRF protection: validate URL before opening
-    url_error = _validate_url(url)
+    # SSRF protection: validate URL before opening (DNS lookup off the event loop)
+    url_error = await asyncio.to_thread(_validate_url, url)
     if url_error:
         return {"error": f"URL blocked: {url_error}", "url": url}
 

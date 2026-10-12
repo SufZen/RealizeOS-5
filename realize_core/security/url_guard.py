@@ -96,9 +96,15 @@ def check_url(url: str, *, allow_private: bool = False) -> IPAddress:
 
 
 def _pinned_request(
-    client: httpx.AsyncClient, url: str, ip: IPAddress, headers: dict[str, str] | None
+    client: httpx.AsyncClient,
+    url: str,
+    ip: IPAddress,
+    headers: dict[str, str] | None,
+    *,
+    method: str = "GET",
+    content: bytes | None = None,
 ) -> httpx.Request:
-    """Build a GET for *url* that connects to *ip* but presents the original host.
+    """Build a request for *url* that connects to *ip* but presents the original host.
 
     The Host header and TLS SNI keep the original name, so virtual hosting
     and certificate verification behave exactly as for a normal request.
@@ -106,9 +112,35 @@ def _pinned_request(
     original = httpx.URL(url)
     pinned = original.copy_with(host=str(ip))
     host_header = original.host if original.port is None else f"{original.host}:{original.port}"
-    merged = {**(headers or {}), "Host": host_header}
+    merged = {k: v for k, v in (headers or {}).items() if k.lower() != "host"}
+    merged["Host"] = host_header
     extensions = {"sni_hostname": original.host} if original.scheme == "https" else {}
-    return client.build_request("GET", pinned, headers=merged, extensions=extensions)
+    return client.build_request(method, pinned, headers=merged, content=content, extensions=extensions)
+
+
+async def pinned_fetch(
+    url: str,
+    *,
+    method: str = "GET",
+    headers: dict[str, str] | None = None,
+    content: bytes | None = None,
+    timeout: float = 30.0,
+    transport: httpx.AsyncBaseTransport | None = None,
+) -> httpx.Response:
+    """One request (no redirect following) to the address *url* was vetted for.
+
+    The name is resolved and checked once, and the connection goes to that
+    exact IP, so a second DNS answer (DNS rebinding) can't redirect it to an
+    internal address. Callers that follow redirects must call this again for
+    each hop.
+
+    Raises:
+        UnsafeURLError: The URL is not allowed.
+        httpx.HTTPError: Network or protocol failure.
+    """
+    ip = await asyncio.to_thread(check_url, url)
+    async with httpx.AsyncClient(timeout=timeout, follow_redirects=False, transport=transport) as client:
+        return await client.send(_pinned_request(client, url, ip, headers, method=method, content=content))
 
 
 async def guarded_get(
