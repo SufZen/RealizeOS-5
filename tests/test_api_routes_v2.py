@@ -315,6 +315,30 @@ class TestReleaseSurfaceRoutes:
         assert resp.status_code == 200
         assert resp.json()["ventures"]["test"] == 1
 
+    def test_fabric_reindex_skips_a_venture_without_a_directory(self, client, tmp_path):
+        """QA 5.14 F-1: one missing folder no longer 404s the whole reindex."""
+        from realize_core.fabric.crud import create_entity
+        from realize_core.fabric.synapse import Synapse
+
+        venture_dir = tmp_path / "systems" / "live"
+        (venture_dir / "I-insights").mkdir(parents=True)
+        create_entity(venture_dir=venture_dir, entity_type="insight", title="Still indexed")
+        client.app.state.kb_path = tmp_path
+        client.app.state.systems = {
+            "gone": {"system_dir": "systems/gone"},  # configured first, no folder
+            "live": {"system_dir": "systems/live"},
+        }
+        (tmp_path / ".synapse").mkdir()
+        client.app.state.synapse = Synapse(tmp_path / ".synapse" / "synapse.db")
+
+        resp = client.post("/api/fabric/reindex")
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["status"] == "partial"
+        assert body["missing"] == ["gone"]
+        assert body["ventures"] == {"live": 1}
+
     def test_fabric_reindex_without_configured_systems_is_noop(self, client, tmp_path):
         client.app.state.kb_path = tmp_path
         client.app.state.systems = {}
