@@ -54,14 +54,26 @@ def _jsonable(value: Any) -> Any:
     return value
 
 
+def _public_source(source: str | None) -> str | None:
+    """A source safe to show an outside caller: URLs as-is, local files by name only.
+
+    Pack documents and skills resolve to files on this server; their absolute
+    paths must not leave it.
+    """
+    if not source:
+        return None
+    if source.startswith(("https://", "http://")):
+        return source
+    return Path(source).name
+
+
 def _render(resolved: Resolved) -> dict[str, Any]:
     return {
         "value": _jsonable(resolved.value),
         "layer": resolved.layer,
         "pack": resolved.pack_id,
         "verification": resolved.verification,
-        # Firm files are named, not given as local paths.
-        "source": Path(resolved.source).name if resolved.layer == "firm" and resolved.source else resolved.source,
+        "source": _public_source(resolved.source),
         "provenance": resolved.label(),
     }
 

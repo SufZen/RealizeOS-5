@@ -273,3 +273,18 @@ def test_mcp_tools_are_registered_and_venture_guarded():
         assert reg.get(name).family == "kb"
         assert name in venture_guard.NEEDS_VENTURE
         assert venture_guard.TOOL_PERMISSIONS[name] == "system:read"
+
+
+def test_mcp_tools_never_return_local_paths(tmp_path, venture, packs_root, monkeypatch):
+    from realize_core.mcp_server.tools import pack_tools
+    from realize_core.packs import loader
+
+    monkeypatch.setattr(loader, "default_packs_root", lambda: packs_root)
+    state = _state(tmp_path, True)
+    for item_type, key in (("document", "investor-report"), ("skill", "payment_milestone_check")):
+        out = asyncio.run(
+            pack_tools.resolve_pack_item({"venture_key": "dev-co", "item_type": item_type, "key": key}, state, None)
+        )
+        assert out["found"]
+        assert str(tmp_path) not in str(out)
+        assert out["source"] in ("investor-report.md", "payment.yaml")
