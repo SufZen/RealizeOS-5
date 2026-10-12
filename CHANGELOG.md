@@ -4,6 +4,17 @@ All notable changes to RealizeOS are documented in this file.
 This changelog is automatically generated from [Conventional Commits](https://conventionalcommits.org).
 
 
+## [5.9.0](https://github.com/SufZen/RealizeOS-5/compare/v5.8.0...v5.9.0) (2026-10-12)
+
+### Features
+
+* **governance:** approvals hold, then execute (brief item 2) ([123d237](https://github.com/SufZen/RealizeOS-5/commit/123d237c19bb8c4541e96d812fa8b6b5d78dbe86))
+
+### Bug Fixes
+
+* **governance:** atomic decisions, expiry, decider, fail-closed writes ([8996005](https://github.com/SufZen/RealizeOS-5/commit/8996005d05c09daf3da475f3c27ab7a52a518f7d))
+* **security:** keep tool output out of conversations and MCP responses ([9a3a2fb](https://github.com/SufZen/RealizeOS-5/commit/9a3a2fbde3b1123b292e2bdede0a34a8cba84243))
+
 ## [5.8.0](https://github.com/SufZen/RealizeOS-5/compare/v5.7.0...v5.8.0) (2026-10-10)
 
 ### Features
