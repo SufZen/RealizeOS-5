@@ -243,15 +243,12 @@ def skill_env(monkeypatch, db, conversation):
     from realize_core.llm import router
     from realize_core.skills import executor
 
-    executor._pending_skill_contexts.clear()
-
     async def fake_llm(system_prompt, messages, task_type, system_key=""):
         return f"LLM saw: {messages[-1]['content'][-60:]}"
 
     monkeypatch.setattr(router, "route_to_llm", fake_llm)
     monkeypatch.setattr("realize_core.prompt.builder.build_system_prompt", lambda **_: "prompt")
-    yield executor
-    executor._pending_skill_contexts.clear()
+    return executor
 
 
 SKILL = {
@@ -612,3 +609,116 @@ def test_migration_007_rebuild_allows_answered_and_keeps_rows(tmp_path):
     m007.down(conn)  # 'answered' maps back to 'approved' under the old constraint
     assert conn.execute("SELECT status FROM approval_queue WHERE id = 'a1'").fetchone()[0] == "approved"
     conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Codex audit F10 / F17: a held tool step pauses the skill
+# ---------------------------------------------------------------------------
+
+HELD_SKILL = {
+    "name": "pay_and_report",
+    "steps": [
+        {"id": "pay", "type": "tool", "action": "ledger_append", "params": {"row": "Payment #9"}},
+        {
+            "id": "report",
+            "type": "agent",
+            "agent": "finance",
+            "inject_context": ["pay"],
+            "instructions": "Report the payment.",
+        },
+    ],
+}
+
+
+@pytest.fixture
+def runtime(monkeypatch):
+    from realize_core import engine
+
+    monkeypatch.setattr(
+        engine,
+        "load_runtime",
+        lambda: {"kb_path": None, "systems": {"tower-b": {}}, "shared_config": {}, "features": {}, "config": {}},
+    )
+
+
+class TestHeldToolStepPausesSkill:
+    @pytest.mark.asyncio
+    async def test_dependent_step_waits_for_the_approval(self, gated, skill_env, db):
+        registry, tool = gated
+        out = await skill_env._execute_v2_steps(HELD_SKILL, "pay #9", "tower-b", "dana", None, {}, {}, "api")
+
+        assert "waiting for operator approval" in out
+        assert "LLM saw" not in out  # the report step did not run
+        assert tool.calls == []
+        run = skill_env.skill_run_for_approval(_pending_id(db))
+        assert run["kind"] == "tool"
+        assert run["step_id"] == "pay"
+
+    @pytest.mark.asyncio
+    async def test_approval_runs_the_tool_once_then_the_dependants(self, gated, skill_env, db, conversation, runtime):
+        from realize_core.governance.gates import decide_approval
+
+        registry, tool = gated
+        await skill_env._execute_v2_steps(HELD_SKILL, "pay #9", "tower-b", "dana", None, {}, {}, "api")
+        approval_id = _pending_id(db)
+
+        out = await decide_approval(approval_id, approve=True, decided_by="owner@x", channel="dashboard")
+
+        assert tool.calls == [{"row": "Payment #9"}]
+        assert "appended Payment #9" in out["skill_output"]  # the report saw the real tool output
+        assert skill_env.skill_run_for_approval(approval_id) is None
+        assert await decide_approval(approval_id, approve=True) is None  # can't run twice
+
+    @pytest.mark.asyncio
+    async def test_failed_approved_action_stops_the_skill(self, gated, skill_env, db, conversation, runtime):
+        from realize_core.governance.gates import decide_approval
+
+        registry, tool = gated
+        tool.fail = True
+        await skill_env._execute_v2_steps(HELD_SKILL, "pay #9", "tower-b", "dana", None, {}, {}, "api")
+
+        out = await decide_approval(_pending_id(db), approve=True, decided_by="owner@x")
+
+        assert "stopped at step 'pay'" in out["skill_output"]
+        assert "LLM saw" not in out["skill_output"]
+
+    @pytest.mark.asyncio
+    async def test_rejection_stops_the_skill(self, gated, skill_env, db, conversation):
+        from realize_core.governance.gates import decide_approval
+
+        registry, tool = gated
+        await skill_env._execute_v2_steps(HELD_SKILL, "pay #9", "tower-b", "dana", None, {}, {}, "api")
+        approval_id = _pending_id(db)
+
+        await decide_approval(approval_id, approve=False, decided_by="owner@x")
+
+        assert tool.calls == []
+        assert skill_env.skill_run_for_approval(approval_id) is None
+        assert any("skill was stopped" in m[3] for m in conversation)
+
+
+class TestPausedSkillLifecycle:
+    @pytest.mark.asyncio
+    async def test_chat_answer_to_a_closed_question_does_not_resume(self, skill_env, db, monkeypatch):
+        """F17: an expired or already-decided question must not resume the skill from chat."""
+        import realize_core.base_handler as bh
+        from realize_core.governance.gates import reject_request
+
+        monkeypatch.setattr(bh, "add_message", lambda *a, **k: None)
+        await skill_env._execute_v2_steps(SKILL, "check payment", "tower-b", "dana", None, {}, {}, "api")
+        approval_id = skill_env.peek_skill_resume_context("dana")["approval_id"]
+        reject_request(approval_id, "no", decided_by="owner@x")  # decided outside the skill flow
+
+        reply = await bh.process_message("tower-b", "dana", "yes, pay it", system_config={}, features={})
+
+        assert "no longer open" in reply
+        assert "LLM saw" not in reply
+        assert skill_env.peek_skill_resume_context("dana") is None
+
+
+def _pending_id(db) -> str:
+    conn = sqlite3.connect(db)
+    try:
+        return conn.execute("SELECT id FROM approval_queue WHERE status = 'pending'").fetchone()[0]
+    finally:
+        conn.close()

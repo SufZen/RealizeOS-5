@@ -19,9 +19,6 @@ from datetime import date
 
 logger = logging.getLogger(__name__)
 
-# Storage for skill contexts awaiting user confirmation
-_pending_skill_contexts: dict[str, dict] = {}
-
 
 def store_skill_resume_context(
     user_id: str,
@@ -31,32 +28,75 @@ def store_skill_resume_context(
     *,
     step_id: str = "",
     approval_id: str | None = None,
-):
-    """Store skill context for resumption after the user answers a human step.
+    kind: str = "human",
+) -> str:
+    """Store a durable resume point for a paused skill and return its id.
 
-    ``step_id`` is the human step whose answer resumes the skill;
-    ``approval_id`` is the approval item created for it (dashboard answer).
+    ``kind`` is ``human`` (waiting for an answer, which chat or the dashboard
+    gives) or ``tool`` (a tool step the gate held; only the approval decision
+    resumes it). ``approval_id`` is the approval item that resumes it.
     """
-    _pending_skill_contexts[user_id] = {
-        "skill_name": skill_name,
-        "context": ctx,
-        "remaining_steps": remaining_steps,
-        "step_id": step_id,
-        "approval_id": approval_id,
-    }
-    logger.info(
-        f"Stored skill resume context for user {user_id}, skill={skill_name}, {len(remaining_steps)} steps remaining"
+    import uuid
+
+    from realize_core.skills import resume_store
+
+    run_id = approval_id or str(uuid.uuid4())
+    resume_store.save(
+        run_id,
+        approval_id=approval_id,
+        user_id=user_id,
+        system_key=ctx.system_key,
+        skill_name=skill_name,
+        step_id=step_id,
+        kind=kind,
+        context=ctx.to_dict(),
+        remaining_steps=remaining_steps,
     )
+    logger.info(
+        "Stored %s resume point %s for user %s, skill=%s, %d steps remaining",
+        kind,
+        run_id,
+        user_id,
+        skill_name,
+        len(remaining_steps),
+    )
+    return run_id
 
 
-def pop_skill_resume_context(user_id: str) -> dict | None:
-    """Pop and return the stored skill context for a user, if any."""
-    return _pending_skill_contexts.pop(user_id, None)
+def _as_pending(row: dict | None) -> dict | None:
+    """A resume_store row in the shape callers use (``context`` is a SkillContext)."""
+    if row is None:
+        return None
+    return {**row, "context": SkillContext.from_dict(row["context"])}
 
 
-def peek_skill_resume_context(user_id: str) -> dict | None:
-    """Return the stored skill context for a user without removing it."""
-    return _pending_skill_contexts.get(user_id)
+def peek_skill_resume_context(user_id: str, system_key: str | None = None) -> dict | None:
+    """The user's newest skill waiting for an answer (optionally in one venture), not removed."""
+    from realize_core.skills import resume_store
+
+    return _as_pending(resume_store.find(user_id=user_id, system_key=system_key, kind="human"))
+
+
+def pop_skill_resume_context(user_id: str, system_key: str | None = None) -> dict | None:
+    """Remove and return the user's newest skill waiting for an answer."""
+    from realize_core.skills import resume_store
+
+    pending = resume_store.find(user_id=user_id, system_key=system_key, kind="human")
+    return _as_pending(resume_store.claim(pending["id"])) if pending else None
+
+
+def claim_skill_run(run_id: str) -> dict | None:
+    """Remove and return one resume point by id (None if already resumed or stopped)."""
+    from realize_core.skills import resume_store
+
+    return _as_pending(resume_store.claim(run_id))
+
+
+def skill_run_for_approval(approval_id: str) -> dict | None:
+    """The resume point an approval item resumes, if a skill is waiting on it."""
+    from realize_core.skills import resume_store
+
+    return _as_pending(resume_store.find(approval_id=approval_id))
 
 
 async def resume_pending_skill(
@@ -66,18 +106,56 @@ async def resume_pending_skill(
     system_config=None,
     shared_config=None,
     channel: str = "api",
+    *,
+    run_id: str | None = None,
 ) -> str | None:
     """Continue a skill paused at a human step, using *answer* as that step's result.
 
-    Returns the skill's output, or None when the user has no paused skill.
+    Resumes ``run_id`` when given, else the user's newest skill waiting for an
+    answer. Returns the skill's output, or None when there is nothing to resume.
     """
-    pending = pop_skill_resume_context(user_id)
+    pending = claim_skill_run(run_id) if run_id else pop_skill_resume_context(user_id)
     if pending is None:
         return None
     ctx = pending["context"]
     step_id = pending.get("step_id") or "human"
     ctx.step_results[step_id] = answer
     logger.info("Resuming skill %s for %s after step %s", pending.get("skill_name"), user_id, step_id)
+    return await _run_v2_steps(
+        pending.get("remaining_steps", []),
+        ctx,
+        pending.get("skill_name", ""),
+        kb_path,
+        system_config,
+        shared_config,
+        channel,
+    )
+
+
+async def resume_after_held_tool(
+    run_id: str,
+    execution: dict,
+    kb_path=None,
+    system_config=None,
+    shared_config=None,
+    channel: str = "dashboard",
+) -> str | None:
+    """Continue a skill whose tool step was held, once the approved action has run.
+
+    The step's result is what the tool actually returned. If the approved
+    action failed, the skill stops there: nothing that depended on it runs.
+    Returns the skill's output (or the stop message), or None when nothing waits.
+    """
+    pending = claim_skill_run(run_id)
+    if pending is None:
+        return None
+    step_id = pending.get("step_id") or "tool"
+    if not execution.get("success"):
+        reason = execution.get("error") or "the approved action did not complete"
+        return f"⚠️ The workflow stopped at step '{step_id}': {reason}. Nothing after this step ran."
+    ctx = pending["context"]
+    ctx.step_results[step_id] = execution.get("output", "")
+    logger.info("Resuming skill %s after approved step %s", pending.get("skill_name"), step_id)
     return await _run_v2_steps(
         pending.get("remaining_steps", []),
         ctx,
@@ -100,6 +178,28 @@ class SkillContext:
         self.variables: dict[str, str] = {"doc_title": user_message}
         self.progress_messages: list[str] = []
         self.annotations: dict[str, dict] = {}
+
+    def to_dict(self) -> dict:
+        """Plain data for a durable resume point."""
+        return {
+            "user_message": self.user_message,
+            "system_key": self.system_key,
+            "user_id": self.user_id,
+            "step_results": self.step_results,
+            "variables": self.variables,
+            "progress_messages": self.progress_messages,
+            "annotations": self.annotations,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "SkillContext":
+        """Rebuild a context saved with :meth:`to_dict`."""
+        ctx = cls(data.get("user_message", ""), data.get("system_key", ""), data.get("user_id", ""))
+        ctx.step_results = dict(data.get("step_results") or {})
+        ctx.variables = dict(data.get("variables") or ctx.variables)
+        ctx.progress_messages = list(data.get("progress_messages") or [])
+        ctx.annotations = dict(data.get("annotations") or {})
+        return ctx
 
     def inject(self, template: str) -> str:
         """Replace {variable} placeholders in a template string."""
@@ -298,6 +398,19 @@ async def _run_v2_steps(
         elif step_type == "tool":
             try:
                 result = await _execute_tool_step(step, ctx, emit=emit)
+            except StepHeldError as held:
+                # Nothing after a held step may run before the operator decides:
+                # dependants would act on an operation that has not happened.
+                store_skill_resume_context(
+                    ctx.user_id,
+                    skill_name,
+                    ctx,
+                    steps[i + 1 :],
+                    step_id=step_id,
+                    approval_id=held.request_id,
+                    kind="tool",
+                )
+                return str(held)
             except StepFailedError as failure:
                 logger.warning("Skill %s stopped at step %s: %s", skill_name, step_id, failure)
                 return f"⚠️ The workflow stopped at step '{step_id}': {failure}. Nothing after this step ran."
@@ -442,6 +555,14 @@ class StepFailedError(Exception):
     """A skill step that can't produce a usable result; the workflow stops here."""
 
 
+class StepHeldError(Exception):
+    """A tool step the governance gate held for approval; the workflow pauses here."""
+
+    def __init__(self, request_id: str, message: str):
+        super().__init__(message)
+        self.request_id = request_id
+
+
 def _param_schema(registry, tool_name: str, key: str) -> dict:
     """The JSON schema of one input parameter of ``tool_name`` (empty when unknown)."""
     tool = registry.get_tool_for_action(tool_name)
@@ -546,7 +667,11 @@ async def _execute_tool_step(step, ctx, emit=None) -> str:
     )
 
     if held:
-        return f"⏳ '{tool_name}' was not run — it is waiting for operator approval (request {request_id})."
+        raise StepHeldError(
+            request_id,
+            f"⏳ '{tool_name}' was not run — it is waiting for operator approval (request {request_id}). "
+            "The rest of the workflow continues once it is approved.",
+        )
     if result.metadata.get("requires_human") or not result.success:
         reason = "blocked by governance policy" if result.metadata.get("requires_human") else (result.error or "")
         logger.warning("Tool step %s failed: %s", tool_name, reason)

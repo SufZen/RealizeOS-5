@@ -345,14 +345,15 @@ class TestSkillToolStep:
     @pytest.mark.asyncio
     async def test_held_tool_step_reports_pending_approval(self, registry):
         from realize_core.governance.tool_gate import ToolGate
-        from realize_core.skills.executor import SkillContext, _execute_tool_step
+        from realize_core.skills.executor import SkillContext, StepHeldError, _execute_tool_step
 
         reg, tool = registry
         reg.set_gate(ToolGate(config={}))
         ctx = SkillContext(user_message="q", system_key="acme", user_id="u1")
-        out = await _execute_tool_step({"action": "sheets_append", "params": {}}, ctx)
+        with pytest.raises(StepHeldError, match="waiting for operator approval") as held:
+            await _execute_tool_step({"action": "sheets_append", "params": {}}, ctx)
 
-        assert "waiting for operator approval" in out
+        assert held.value.request_id
         assert tool.calls == []
 
     @pytest.mark.asyncio

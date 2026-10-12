@@ -504,22 +504,33 @@ async def process_message(
 
 
 async def _resume_paused_skill(system_key, user_id, message, kb_path, system_config, shared_config, channel):
-    """If this user's skill is waiting on a human step in this venture, resume it."""
-    from realize_core.skills.executor import peek_skill_resume_context, resume_pending_skill
+    """If this user's skill is waiting on a human step in this venture, resume it.
 
-    pending = peek_skill_resume_context(user_id)
-    if not pending or getattr(pending.get("context"), "system_key", None) != system_key:
+    The answer must be accepted first: if the question's approval item is no
+    longer pending (expired, or already answered or rejected from the
+    dashboard), the paused run is dropped instead of resumed.
+    """
+    from realize_core.skills.executor import claim_skill_run, peek_skill_resume_context, resume_pending_skill
+
+    pending = peek_skill_resume_context(user_id, system_key)
+    if not pending:
         return None
     approval_id = pending.get("approval_id")
     if approval_id:
         # An answer is input, not an approval: the item becomes 'answered'.
-        try:
-            from realize_core.governance.gates import answer_request
+        from realize_core.governance.gates import answer_request
 
-            answer_request(approval_id, message[:200], answered_by=user_id, channel="chat")
-        except Exception:
-            logger.debug("Could not record the answer on item %s", approval_id, exc_info=True)
-    result = await resume_pending_skill(user_id, message, kb_path, system_config, shared_config, channel)
+        if answer_request(approval_id, message[:200], answered_by=user_id, channel="chat") is None:
+            claim_skill_run(pending["id"])
+            result = "That question is no longer open (it expired or was already decided), so the skill was stopped."
+            add_message(system_key, user_id, "user", message)
+            add_message(system_key, user_id, "assistant", result)
+            return result
+    result = await resume_pending_skill(
+        user_id, message, kb_path, system_config, shared_config, channel, run_id=pending["id"]
+    )
+    if result is None:
+        return None  # resumed from the dashboard in the meantime
     add_message(system_key, user_id, "user", message)
     add_message(system_key, user_id, "assistant", result)
     return result

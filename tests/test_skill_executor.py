@@ -25,7 +25,6 @@ if "realize_core.llm.claude_client" not in sys.modules:
 
 from realize_core.skills.executor import (
     SkillContext,
-    _pending_skill_contexts,
     execute_skill,
     pop_skill_resume_context,
     store_skill_resume_context,
@@ -96,8 +95,15 @@ class TestSkillContext:
 
 
 class TestResumeContext:
-    def setup_method(self):
-        _pending_skill_contexts.clear()
+    @pytest.fixture(autouse=True)
+    def ops_db(self, tmp_path):
+        """Resume points are durable rows now: each test gets its own DB."""
+        from realize_core.db.schema import init_schema, set_db_path
+
+        set_db_path(tmp_path / "ops.db")
+        init_schema(tmp_path / "ops.db")
+        yield
+        set_db_path(None)
 
     def test_store_and_pop(self):
         ctx = SkillContext("msg", "sys", "user1")
@@ -119,15 +125,33 @@ class TestResumeContext:
     def test_pop_nonexistent_user(self):
         assert pop_skill_resume_context("nonexistent_user") is None
 
-    def test_overwrite_previous_context(self):
+    def test_second_paused_skill_does_not_overwrite_the_first(self):
+        """Codex audit F17: one resume point per paused run, newest answered first."""
         ctx1 = SkillContext("first", "sys", "user1")
         ctx2 = SkillContext("second", "sys", "user1")
 
         store_skill_resume_context("user1", "skill_a", ctx1, [])
         store_skill_resume_context("user1", "skill_b", ctx2, [])
 
-        result = pop_skill_resume_context("user1")
-        assert result["skill_name"] == "skill_b"
+        assert pop_skill_resume_context("user1")["skill_name"] == "skill_b"
+        assert pop_skill_resume_context("user1")["skill_name"] == "skill_a"
+        assert pop_skill_resume_context("user1") is None
+
+    def test_context_survives_a_restart(self):
+        """The resume point is a DB row, not process memory."""
+        ctx = SkillContext("msg", "sys", "user1")
+        ctx.step_results["draft"] = "text"
+        store_skill_resume_context("user1", "skill", ctx, [{"id": "next"}], step_id="ask")
+
+        restored = pop_skill_resume_context("user1")
+        assert restored["context"].step_results == {"draft": "text"}
+        assert restored["remaining_steps"] == [{"id": "next"}]
+        assert restored["step_id"] == "ask"
+
+    def test_held_tool_runs_are_not_resumed_by_chat_answers(self):
+        ctx = SkillContext("msg", "sys", "user1")
+        store_skill_resume_context("user1", "skill", ctx, [], approval_id="apv-1", kind="tool")
+        assert pop_skill_resume_context("user1") is None
 
 
 # ---------------------------------------------------------------------------
