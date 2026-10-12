@@ -16,6 +16,14 @@ interface DecisionResponse extends Approval {
 
 type Tab = 'pending' | 'history'
 
+/** Placeholder for the note box; credentials must never be typed here. */
+function notePlaceholder(actionType: string): string {
+  if (actionType === 'agent_credential') return 'Add the credential in Setup, not here (not stored)'
+  if (actionType === 'skill_input' || actionType === 'agent_input')
+    return 'Your answer (optional)...'
+  return 'Optional note...'
+}
+
 export default function ApprovalsPage() {
   const [tab, setTab] = useState<Tab>('pending')
   const { data, loading, error, refetch } = useApi<ApprovalsResponse>(
@@ -112,11 +120,7 @@ export default function ApprovalsPage() {
                 <input
                   type="text"
                   dir="auto"
-                  placeholder={
-                    approval.action_type === 'skill_input'
-                      ? 'Your answer (optional)...'
-                      : 'Optional note...'
-                  }
+                  placeholder={notePlaceholder(approval.action_type)}
                   value={noteMap[approval.id] || ''}
                   onChange={(e) => setNoteMap((m) => ({ ...m, [approval.id]: e.target.value }))}
                   className="w-full rounded-lg border border-border bg-surface-800 px-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-brand-400"

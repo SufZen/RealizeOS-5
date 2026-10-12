@@ -221,8 +221,15 @@ class TestApprovalTool:
     """Test the ApprovalTool BaseTool implementation."""
 
     @pytest.fixture
-    def tool(self):
-        return ApprovalTool()
+    def tool(self, tmp_path):
+        """Requests now go to the durable approval_queue: give each test its own DB."""
+        from realize_core.db.schema import init_schema, set_db_path
+
+        path = tmp_path / "ops.db"
+        set_db_path(path)
+        init_schema(path)
+        yield ApprovalTool()
+        set_db_path(None)
 
     def test_tool_properties(self, tool):
         assert tool.name == "approval"
@@ -402,3 +409,73 @@ class TestMigrationV3:
         row = conn.execute("SELECT * FROM approval_requests WHERE id = 'test-1'").fetchone()
         assert row is not None
         conn.close()
+
+
+# ---------------------------------------------------------------------------
+#  Codex audit F09: agent requests reach the dashboard queue
+# ---------------------------------------------------------------------------
+
+
+class TestAgentRequestsReachTheQueue:
+    @pytest.fixture
+    def db(self, tmp_path, monkeypatch):
+        from realize_core.db.schema import init_schema, set_db_path
+
+        path = tmp_path / "ops.db"
+        set_db_path(path)
+        init_schema(path)
+        import realize_core.memory.conversation as conv
+
+        posted: list[tuple] = []
+        monkeypatch.setattr(conv, "add_message", lambda *a, **k: posted.append(a))
+        yield posted
+        set_db_path(None)
+
+    def _ask(self, action, **params):
+        from realize_core.governance.context import tool_call_context
+
+        async def go():
+            with tool_call_context(system_key="acme", agent_key="writer", user_id="dana@acme.io"):
+                return await ApprovalTool().execute(action, params)
+
+        return run_async(go())
+
+    def _row(self, request_id):
+        from realize_core.db.schema import get_connection
+
+        conn = get_connection()
+        try:
+            row = conn.execute("SELECT * FROM approval_queue WHERE id = ?", (request_id,)).fetchone()
+            return dict(row) if row else None
+        finally:
+            conn.close()
+
+    def test_request_is_in_the_durable_queue_with_trusted_origin(self, db):
+        # The model tries to file the request under another venture; the context wins.
+        result = self._ask("request_decision", description="Send the Q3 report?", system_key="globex")
+
+        row = self._row(result.metadata["request_id"])
+        assert row is not None
+        assert row["status"] == "pending"
+        assert row["venture_key"] == "acme"
+        assert row["agent_key"] == "writer"
+        assert row["action_type"] == "agent_decision"
+        assert row["session_ref"] == "acme|dana@acme.io"
+
+    def test_decision_is_reported_back_to_the_conversation(self, db):
+        from realize_core.governance.gates import decide_approval
+
+        result = self._ask("request_input", description="Which tower?")
+        out = run_async(decide_approval(result.metadata["request_id"], True, "Tower B", decided_by="owner"))
+
+        assert out["approval"]["status"] == "approved"
+        assert db == [("acme", "dana@acme.io", "assistant", "The operator answered your request. Note: Tower B")]
+
+    def test_credential_note_is_never_stored_or_relayed(self, db):
+        from realize_core.governance.gates import decide_approval
+
+        result = self._ask("request_credential", description="Need the Stripe key")
+        out = run_async(decide_approval(result.metadata["request_id"], True, "sk_live_SECRET", decided_by="owner"))
+
+        assert out["approval"]["decision_note"] is None
+        assert "SECRET" not in repr(db)

@@ -470,7 +470,12 @@ async def decide_approval(
     Returns ``{"approval": row, "execution": ..., "skill_output": ...}`` or
     None when the item doesn't exist, isn't pending or has expired.
     """
-    is_question = _action_type(approval_id, db_path) == "skill_input"
+    action_type = _action_type(approval_id, db_path)
+    is_question = action_type == "skill_input"
+    if action_type == "agent_credential":
+        # Never store or relay what was typed: a secret pasted here would land
+        # in the DB and the conversation. Credentials go in Setup.
+        decision_note = None
     if is_question and approve:
         record = answer_request(approval_id, decision_note or "yes", db_path, answered_by=decided_by, channel=channel)
     elif approve:
@@ -492,4 +497,23 @@ async def decide_approval(
         report_to_conversation(
             record.get("session_ref"), f"`{record['action_name']}` was not approved, so it was not done."
         )
+    elif action_type in _AGENT_REQUEST_OUTCOMES:
+        report_to_conversation(record.get("session_ref"), _agent_request_outcome(action_type, approve, decision_note))
     return out
+
+
+_AGENT_REQUEST_OUTCOMES = {"agent_decision", "agent_input", "agent_credential"}
+
+
+def _agent_request_outcome(action_type: str, approve: bool, note: str | None) -> str:
+    """What the requesting conversation is told about an agent's request."""
+    if action_type == "agent_credential":
+        return (
+            "The operator says the credential is set up; try again."
+            if approve
+            else "The operator declined to provide the credential."
+        )
+    verdict = "approved" if approve else "rejected"
+    if action_type == "agent_input":
+        verdict = "answered" if approve else "declined"
+    return f"The operator {verdict} your request." + (f" Note: {note}" if note else "")

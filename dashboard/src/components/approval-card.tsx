@@ -27,7 +27,13 @@ const actionTypeLabels: Record<string, string> = {
   create_event: 'Create Event',
   high_cost_llm: 'High-Cost LLM',
   skill_input: 'Question from a skill',
+  agent_decision: 'Decision requested by an agent',
+  agent_input: 'Question from an agent',
+  agent_credential: 'Credential requested by an agent',
 }
+
+/** Items whose payload carries a question for the operator. */
+const QUESTION_TYPES = new Set(['skill_input', 'agent_decision', 'agent_input', 'agent_credential'])
 
 function parseJson(text?: string | null): unknown {
   if (!text) return undefined
@@ -81,7 +87,7 @@ export function ApprovalCard({
   const params =
     (parseJson(approval.params_json) as Record<string, unknown> | undefined) ?? payload?.params
   const result = parseJson(approval.result_json) as { output?: string } | undefined
-  const question = approval.action_type === 'skill_input' ? payload?.question : undefined
+  const question = QUESTION_TYPES.has(approval.action_type) ? payload?.question : undefined
 
   return (
     <div
