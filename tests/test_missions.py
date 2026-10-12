@@ -439,3 +439,64 @@ class TestMissionApprovalHold:
         assert mission.plan[0].status == StepStatus.FAILED
         assert mission.plan[1].status == StepStatus.PENDING
         assert runtime.invocations == ["s1"]
+
+
+# ─── Codex audit F16: plans are validated before anything is stored ─────────
+
+
+class TestPlanValidation:
+    @pytest.mark.parametrize(
+        ("steps", "message"),
+        [
+            ([], "at least one step"),
+            ([{"runtime": "internal"}], "needs a description"),
+            ([{"description": "a", "step_id": "x"}, {"description": "b", "step_id": "x"}], "used twice"),
+            ([{"description": "a", "inputs_from": ["nope"]}], "unknown step"),
+            (
+                [
+                    {"description": "a", "step_id": "a", "inputs_from": ["b"]},
+                    {"description": "b", "step_id": "b", "inputs_from": ["a"]},
+                ],
+                "cycle",
+            ),
+            ([{"description": "a", "inputs_from": ["s1"]}], "cycle"),
+        ],
+    )
+    def test_bad_plans_are_refused(self, steps, message):
+        from realize_core.missions.engine import validate_plan
+
+        with pytest.raises(ValueError, match=message):
+            validate_plan(steps)
+
+    def test_valid_plan_passes(self):
+        from realize_core.missions.engine import validate_plan
+
+        steps = [{"description": "a"}, {"description": "b", "inputs_from": ["s1"]}]
+        assert validate_plan(steps) is steps
+
+    def test_failed_plan_leaves_the_mission_unchanged(self, tmp_path):
+        engine = MissionEngine(registry=RuntimeRegistry(), event_log=EventLog(tmp_path / "e.jsonl"))
+        mission = engine.create_mission(title="T", goal="g")
+
+        with pytest.raises(ValueError):
+            engine.plan_mission(mission.mission_id, [{"runtime": "internal"}])
+
+        assert mission.state == MissionState.PROPOSED
+        assert mission.plan == []
+
+    def test_rest_create_with_a_bad_plan_is_400_and_creates_nothing(self, tmp_path):
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+        from realize_api.routes import missions
+
+        app = FastAPI()
+        app.include_router(missions.router, prefix="/api")
+        app.state.mission_engine = MissionEngine(
+            registry=RuntimeRegistry(), event_log=EventLog(tmp_path / "events.jsonl")
+        )
+        client = TestClient(app)
+
+        res = client.post("/api/missions", json={"title": "T", "goal": "g", "steps": [{"runtime": "internal"}]})
+
+        assert res.status_code == 400
+        assert client.get("/api/missions").json()["count"] == 0

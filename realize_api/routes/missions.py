@@ -72,6 +72,14 @@ async def create_mission(body: CreateMissionBody, request: Request):
     if not visible_to(request, body.venture):
         raise HTTPException(status_code=403, detail=f"You don't have access to venture '{body.venture}'")
     engine = _get_mission_engine(request)
+    # Validate first: a bad plan must not leave a half-created mission behind.
+    if body.steps:
+        from realize_core.missions.engine import validate_plan
+
+        try:
+            validate_plan(body.steps)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
     mission = engine.create_mission(
         title=body.title,
         goal=body.goal,

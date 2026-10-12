@@ -55,6 +55,57 @@ async def on_approval_decided(approval_id: str, approved: bool, execution: dict 
     return True
 
 
+def validate_plan(steps: list[dict]) -> list[dict]:
+    """Check a mission plan before it is stored (Codex audit F16).
+
+    Every step needs a description; step ids (given or the default s1, s2,
+    ...) must be unique; ``inputs_from`` must name steps of this plan and the
+    dependencies must not form a cycle, or the mission could never finish.
+
+    Returns the steps unchanged.
+
+    Raises:
+        ValueError: what is wrong, in words a caller can show.
+    """
+    if not isinstance(steps, list) or not steps:
+        raise ValueError("A plan needs at least one step")
+    ids: list[str] = []
+    deps: dict[str, list[str]] = {}
+    for i, step in enumerate(steps, start=1):
+        if not isinstance(step, dict):
+            raise ValueError(f"Step {i} must be an object")
+        description = step.get("description")
+        if not isinstance(description, str) or not description.strip():
+            raise ValueError(f"Step {i} needs a description")
+        step_id = str(step.get("step_id") or f"s{i}")
+        if step_id in deps:
+            raise ValueError(f"Step id '{step_id}' is used twice")
+        inputs = step.get("inputs_from") or []
+        if not isinstance(inputs, list) or not all(isinstance(x, str) for x in inputs):
+            raise ValueError(f"Step '{step_id}': inputs_from must be a list of step ids")
+        ids.append(step_id)
+        deps[step_id] = inputs
+    for step_id, inputs in deps.items():
+        unknown = [x for x in inputs if x not in deps]
+        if unknown:
+            raise ValueError(f"Step '{step_id}' depends on unknown step(s): {', '.join(unknown)}")
+    # Kahn's algorithm: whatever can't be ordered is on a cycle.
+    remaining = {k: set(v) for k, v in deps.items()}
+    ready = [k for k, v in remaining.items() if not v]
+    while ready:
+        done = ready.pop()
+        for k, v in remaining.items():
+            if done in v:
+                v.discard(done)
+                if not v:
+                    ready.append(k)
+        remaining[done] = set()
+    cyclic = sorted(k for k, v in remaining.items() if v)
+    if cyclic:
+        raise ValueError(f"Steps depend on each other in a cycle: {', '.join(cyclic)}")
+    return steps
+
+
 class MissionEngine:
     """
     Core mission orchestrator.
@@ -137,6 +188,7 @@ class MissionEngine:
         Returns:
             The updated mission.
         """
+        steps = validate_plan(steps)  # before anything about the mission changes
         mission = self._get_mission(mission_id)
 
         plan: list[MissionStep] = []
