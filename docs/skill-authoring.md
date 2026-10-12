@@ -95,7 +95,40 @@ steps:
     count: 5
 ```
 
-Available tools: `web_search`, `web_fetch`, `gmail_search`, `gmail_read`, `gmail_send`, `calendar_list_events`, `calendar_create_event`, `drive_search`, `drive_read_content`, `browser_navigate`
+Available tools: `web_search`, `web_fetch`, `gmail_search`, `gmail_read`, `gmail_send`, `calendar_list_events`, `calendar_create_event`, `drive_search`, `drive_read_content`, `sheets_read`, `sheets_append`, `browser_navigate`
+
+Tool steps run through the tool registry, so governance applies: with `enforce_gates` on, a
+write (`sheets_append`, `gmail_send`, ...) is held as an approval and runs once it is approved.
+
+**Structured params (`json_params`).** A tool that needs a list or object (for example the rows
+for `sheets_append`) can take it from an agent step that writes JSON. List the param under
+`json_params`; its text is parsed as JSON after `{placeholders}` are filled. Code fences and
+prose around the JSON are tolerated. The parsed value must have the shape the tool's schema
+asks for (for `sheets_append`, a non-empty list of rows), so a flat list or an object is refused
+before anything is written.
+
+```yaml
+- id: rows
+  type: agent
+  agent: site_payments
+  prompt: 'Return ONLY a JSON array with one row: [["{today}", "contractor", "amount"]]'
+- id: record
+  type: tool
+  tool: sheets_append
+  params:
+    spreadsheet_id: "{payments_sheet_id}"
+    range: "Payments"
+    values: "{rows}"
+  json_params: [values]
+```
+
+**A failed tool step stops the workflow.** An unknown tool, unusable JSON, a wrong shape, a
+policy block or a tool error ends the skill at that step. The answer says which step stopped and
+why, and no later step runs, so a report is never written on top of a failed read. A write held
+for approval is not a failure: the skill continues and the write runs once it is approved.
+
+**Trail.** Tool steps show up in the answer's "What I used" trail like the chat tool loop: the
+call with its input, the approval request when the write is held, and the result.
 
 ### `condition` — Branch logic
 ```yaml
@@ -125,6 +158,21 @@ Use `{variable}` syntax in prompts and params:
 - `{today}` — Today's date (ISO format)
 - `{step_id}` — Result from a previous step (by its `id`)
 - `{doc_title}` — Extracted from user message
+- `{name}` — Any key from the skill's `variables:` block
+
+**Skill variables.** Values that differ per venture (a spreadsheet id, a Drive file id, a sheet
+tab) go in a top-level `variables:` block, so the steps stay the same everywhere:
+
+```yaml
+name: payment_milestone_check
+variables:
+  milestones_sheet_id: "1AbC..."
+  payments_sheet_id: "1XyZ..."
+steps: [...]
+```
+
+**Agent keys.** An agent's key is its file name with `-` turned into `_`
+(`A-agents/site-payments.md` → `site_payments`). Use that key in `agent:` fields and routing.
 
 ## Triggers
 

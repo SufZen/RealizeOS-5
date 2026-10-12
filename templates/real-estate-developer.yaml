@@ -1,5 +1,7 @@
 # RealizeOS Template: Real Estate Developer / Promoter
-# For property developers, promoters, and investment groups managing development projects.
+# For property developers, promoters and investment groups running development projects,
+# in Israel, Portugal or both. The team follows the project: tender → contractors and quotes
+# → site and payments → investors. FABRIC lives in templates/real-estate-developer/.
 
 name: "My Development Company"
 
@@ -7,37 +9,38 @@ systems:
   - key: my-business-1
     name: "Development Operations"
     directory: systems/my-business-1
+    # Content language; "he" turns the dashboard right-to-left for this venture.
+    locale: ""
 
     routing:
-      content: [writer, reviewer]
-      feasibility: [feasibility-analyst, orchestrator]
-      projects: [project-director, orchestrator]
-      capital: [capital-manager, orchestrator]
-      sales: [sales-coordinator, writer]
+      tenders: [tenders, reviewer]
+      procurement: [procurement, reviewer]
+      payments: [site_payments, reviewer]
+      investors: [finance_investors, reviewer]
       general: [orchestrator]
 
     agent_routing:
-      feasibility-analyst: [feasibility, roi, irr, acquisition, land, due diligence, worst case, sensitivity]
-      project-director: [project, construction, timeline, phase, milestone, permit, license, contractor]
-      capital-manager: [capital, funding, investor, equity, debt, structure, SPV, fund]
-      sales-coordinator: [sales, buyer, reservation, pipeline, launch, pricing, commission]
-      writer: [content, blog, post, brochure, marketing, proposal, report]
-      reviewer: [review, check, approve, quality, compliance]
-      orchestrator: [plan, help, think, prioritize, coordinate, strategy]
+      tenders: [tender, bid, requirements, submission, guarantee, מכרז, דרישות, הגשה, ערבות]
+      procurement: [quote, quotation, bill of quantities, boq, supplier, levelling, הצעת מחיר, הצעות מחיר, כתב כמויות, ספק]
+      site_payments: [payment request, milestone, contractor, site, progress, retention, דרישת תשלום, אבן דרך, קבלן, שלב, עיכבון]
+      finance_investors: [investor, budget, cash flow, report, cost to complete, irr, משקיע, משקיעים, תקציב, תזרים, דוח]
+      reviewer: [review, check figures, verify, בדיקה, לבדוק]
+      orchestrator: [plan, priorities, status, overview, coordinate, תכנון, סטטוס, סדר עדיפויות]
 
 example_tasks:
-  - "Run a feasibility analysis for a 20-unit development in Porto"
-  - "Prepare an investor presentation for a new project"
-  - "Track construction milestones and flag delays"
-  - "Generate a sales pipeline report with conversion metrics"
-  - "Draft a capital structure proposal for a mixed-use project"
-  - "Create marketing materials for a project launch"
-  - "Analyze worst-case financial scenarios for a new acquisition"
+  - "Build the requirements register from the tender document"
+  - "The contractor asked for payment 7 — does it match the milestone?"
+  - "Compare the three quotes for the structure works"
+  - "Draft the quarterly investor report"
+  - "How much is left in the budget, net?"
 
 features:
   review_pipeline: true
   auto_memory: true
   skills_v2: true
+  agent_tools: true       # agents read Drive and Sheets while answering
+  enforce_gates: true     # writes (sheets, mail) wait for approval; approving runs them
+  cite_sources: true      # answers cite knowledge-base sources as [S1]
 
 llm:
   default_model: claude-sonnet

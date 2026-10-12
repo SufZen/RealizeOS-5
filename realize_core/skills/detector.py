@@ -108,7 +108,7 @@ def _load_yaml_skills(skills_dir) -> dict[str, list[dict]]:
 
         for yaml_file in system_dir.glob("*.yaml"):
             try:
-                with open(yaml_file) as f:
+                with open(yaml_file, encoding="utf-8") as f:
                     skill = yaml.safe_load(f)
                 if skill and isinstance(skill, dict) and "name" in skill:
                     # Auto-detect v1 vs v2
@@ -187,7 +187,7 @@ def load_skills(skills_dir=None, kb_path=None):
 
                     for yaml_file in system_dir.glob("*.yaml"):
                         try:
-                            with open(yaml_file) as f:
+                            with open(yaml_file, encoding="utf-8") as f:
                                 skill = yaml.safe_load(f)
                             if skill and isinstance(skill, dict) and "name" in skill:
                                 skill["_version"] = 2 if "steps" in skill else 1

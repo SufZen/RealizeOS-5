@@ -56,9 +56,13 @@ async def check_and_execute_skill(
     system_config: dict = None,
     shared_config: dict = None,
     channel: str = "api",
+    emit=None,
 ) -> tuple[bool, str | None]:
     """
     Check for skill auto-trigger and execute if found.
+
+    ``emit`` receives the skill's trail (tool steps, held approvals) and then
+    ``message_saved`` with the stored answer's id, like plain chat.
 
     Returns (handled, result) where handled=True means the caller should
     use result as the response.
@@ -84,11 +88,14 @@ async def check_and_execute_skill(
         system_config=system_config,
         shared_config=shared_config,
         channel=channel,
+        emit=emit,
     )
 
     if result is not None:
         add_message(system_key, user_id, "user", message)
-        add_message(system_key, user_id, "assistant", result)
+        message_id = add_message(system_key, user_id, "assistant", result)
+        if message_id is not None:
+            await emit_event(emit, {"type": "message_saved", "message_id": message_id})
         return True, result
 
     return False, None
@@ -366,6 +373,7 @@ async def process_message(
         system_config=system_config,
         shared_config=shared_config,
         channel=channel,
+        emit=emit,
     )
     if handled:
         if features.get("activity_log"):

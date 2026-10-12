@@ -1,0 +1,66 @@
+# Contractor payment request → checked against the milestone sheet → recorded for approval.
+# The system never pays and never talks to the contractor: the payment row is a
+# governed write that waits for the developer's approval.
+name: payment_milestone_check
+description: Check a contractor's payment request against the milestones and hold it for approval
+agent: site_payments
+triggers:
+  - payment request
+  - contractor payment
+  - check the payment
+  - דרישת תשלום
+  - תשלום לקבלן
+  - חשבון חלקי
+variables:
+  milestones_sheet_id: "REPLACE_WITH_SHEET_ID"
+  milestones_range: "Milestones"
+  payments_sheet_id: "REPLACE_WITH_SHEET_ID"
+  payments_range: "Payments"
+steps:
+  - id: milestones
+    type: tool
+    tool: sheets_read
+    params:
+      spreadsheet_id: "{milestones_sheet_id}"
+      range: "{milestones_range}"
+
+  - id: check
+    type: agent
+    agent: site_payments
+    inject_context: [milestones]
+    prompt: |
+      The contractor's payment request: {user_message}
+
+      Compare it with the milestone schedule above. Give:
+      - Verdict: MATCHES / PARTIAL / DOES NOT MATCH
+      - the milestone it refers to, its % and amount, retention and advance deductions
+      - the amount the evidence supports
+      - evidence present and evidence missing (dated site photos, supervisor sign-off, measurement report)
+      Do not approve or pay. Answer in the language of the request.
+
+  - id: payment_row
+    type: agent
+    agent: site_payments
+    inject_context: [check]
+    prompt: |
+      Return ONLY a JSON array with one row, no other text:
+      [["{today}", "contractor", "milestone", "amount requested", "amount supported", "verdict", "missing evidence"]]
+
+  - id: record_for_approval
+    type: tool
+    tool: sheets_append
+    params:
+      spreadsheet_id: "{payments_sheet_id}"
+      range: "{payments_range}"
+      values: "{payment_row}"
+    json_params: [values]
+
+  - id: report
+    type: agent
+    agent: site_payments
+    inject_context: [check, record_for_approval]
+    prompt: |
+      Write a short message for the developer (WhatsApp length), in the language of: {user_message}
+      Verdict first, then what matches, what is missing, and that the payment row waits for
+      their approval in RealizeOS (see record_for_approval). The system does not pay or contact
+      the contractor.
