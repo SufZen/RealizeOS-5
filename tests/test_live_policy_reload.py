@@ -68,3 +68,30 @@ def test_turning_enforcement_off_and_on_installs_and_removes_the_gate(setup):
     assert client.put("/api/settings/features", json={"features": {"enforce_gates": True}}).status_code == 200
     assert registry.has_gate
     assert registry._gate is app.state.tool_gate
+
+
+def test_gate_that_cannot_be_built_fails_closed(setup, monkeypatch):
+    """Security review: a failed gate build must not leave enforcement silently off."""
+    app, registry = setup
+    import realize_core.governance.tool_gate as tg
+    from realize_core.config_runtime import FailClosedGate, sync_tool_gate
+
+    app.state.tool_gate = None
+    registry.set_gate(None)
+
+    real_gate = tg.ToolGate
+
+    def broken(*args, **kwargs):
+        raise RuntimeError("policy file unreadable")
+
+    monkeypatch.setattr(tg, "ToolGate", broken)
+    sync_tool_gate(app.state, {"features": {"enforce_gates": True}})
+
+    assert isinstance(registry._gate, FailClosedGate)
+    assert _decide(registry, "gmail_send") == "block"
+    assert registry._gate.decide("sheets_read", {}, is_destructive=False).outcome.value == "allow"
+
+    # A later successful sync replaces the stand-in with the real gate.
+    monkeypatch.setattr(tg, "ToolGate", real_gate)
+    sync_tool_gate(app.state, {"features": {"enforce_gates": True}, "trust": {"level": 5}})
+    assert not isinstance(registry._gate, FailClosedGate)

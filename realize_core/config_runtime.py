@@ -35,21 +35,57 @@ def reload_app_config(app_state: Any, kb_path: str | Path | None = None, config:
     return config
 
 
+class FailClosedGate:
+    """Stand-in installed when the real gate can't be built or updated.
+
+    Enforcement was asked for but its policy couldn't be loaded, so nothing
+    that may write runs: writes are blocked and reads still work (the same
+    rule the registry applies when a gate raises).
+    """
+
+    def __init__(self, reason: str):
+        self.reason = reason
+
+    def update_config(self, config: dict | None) -> None:
+        """Ignored: only a successful sync replaces this gate."""
+
+    def decide(self, action_name: str, params: dict | None = None, *, is_destructive: bool | None = None):
+        """Allow reads, block everything else."""
+        from realize_core.governance.tool_gate import GateDecision, GateOutcome
+
+        if is_destructive is False:
+            return GateDecision(GateOutcome.ALLOW, action_name)
+        return GateDecision(GateOutcome.BLOCK, action_name, reason=f"governance policy unavailable: {self.reason}")
+
+
 def sync_tool_gate(app_state: Any, config: dict) -> None:
     """Make the registry's governance gate match ``features.enforce_gates`` and the trust config.
 
     Installs a gate when enforcement is turned on, removes it when turned off,
     and hands an existing gate the new config so a trust-level change applies
-    to the next tool call, not the next restart.
+    to the next tool call, not the next restart. If the gate can't be built
+    or updated, a :class:`FailClosedGate` goes in instead: a failure never
+    leaves the system ungated while Settings say enforcement is on.
     """
-    from realize_core.config import get_features
     from realize_core.tools.tool_registry import get_tool_registry
 
     registry = get_tool_registry()
-    gate = getattr(app_state, "tool_gate", None)
+    try:
+        _apply_gate(app_state, config, registry)
+    except Exception as exc:
+        logger.error("Tool gate could not be applied; blocking writes until fixed: %s", exc, exc_info=True)
+        gate = FailClosedGate(str(exc)[:200])
+        app_state.tool_gate = gate
+        registry.set_gate(gate)
 
+
+def _apply_gate(app_state: Any, config: dict, registry: Any) -> None:
+    """Install, update or remove the gate for ``config`` (may raise)."""
+    from realize_core.config import get_features
+
+    gate = getattr(app_state, "tool_gate", None)
     if get_features(config).get("enforce_gates"):
-        if gate is None:
+        if gate is None or isinstance(gate, FailClosedGate):
             from realize_core.governance.tool_gate import ToolGate
             from realize_core.tools.approval import ApprovalStore
 
