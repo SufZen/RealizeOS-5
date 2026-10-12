@@ -4,6 +4,16 @@ All notable changes to RealizeOS are documented in this file.
 This changelog is automatically generated from [Conventional Commits](https://conventionalcommits.org).
 
 
+## [5.12.0](https://github.com/SufZen/RealizeOS-5/compare/v5.11.0...v5.12.0) (2026-10-12)
+
+### Features
+
+* **dashboard:** Hebrew right-to-left support (brief item 5) ([fe33307](https://github.com/SufZen/RealizeOS-5/commit/fe3330705d257d16e7cce818831594637ceef2f1))
+
+### Bug Fixes
+
+* **dashboard:** no deployment onboarding for venture-limited users ([c9dd85b](https://github.com/SufZen/RealizeOS-5/commit/c9dd85b35fa2ccde1d23168835ba0a9fa4894c6e))
+
 ## [5.11.0](https://github.com/SufZen/RealizeOS-5/compare/v5.10.0...v5.11.0) (2026-10-12)
 
 ### Features
