@@ -87,12 +87,36 @@ async def get_storage_config(request: Request):
     }
 
 
+_SECRET_FIELDS = ("s3_access_key", "s3_secret_key")
+
+
 @router.put("/storage/config")
 async def update_storage_config(request: Request, config: StorageConfig):
-    """Update storage configuration."""
-    _save_config(config.model_dump())
+    """Update storage configuration and apply it to the running storage layer.
+
+    GET returns the S3 keys masked ("***abcd"); a masked value sent back
+    keeps the stored key instead of overwriting it. The new provider is built
+    before the file is saved, so a configuration that can't be used is
+    refused and the old one stays in effect (Codex audit: saving used to
+    change only the file, not the provider the app was using).
+    """
+    from realize_core.storage import factory
+
+    previous = _load_config()
+    merged = config.model_dump()
+    for field in _SECRET_FIELDS:
+        value = merged.get(field) or ""
+        if value.startswith("***"):
+            merged[field] = previous.get(field, "")
+    try:
+        factory.reconfigure(merged)
+    except (ImportError, ValueError, OSError, RuntimeError) as exc:
+        logger.warning("Storage config refused: %s", exc)
+        factory.reconfigure(previous)
+        raise HTTPException(status_code=400, detail=f"Storage configuration can't be used: {exc}") from exc
+    _save_config(merged)
     logger.info(f"Storage config updated: provider={config.provider}")
-    return {"status": "ok", "message": "Storage configuration updated."}
+    return {"status": "ok", "message": "Storage configuration updated and applied."}
 
 
 @router.post("/storage/test")
@@ -128,57 +152,114 @@ async def test_storage_connection(request: Request, config: StorageConfig):
         raise HTTPException(status_code=500, detail=f"Connection test failed: {e!s}")
 
 
+#: What an export contains, relative to the KB root: the venture's brain and config.
+_EXPORT_TREES = ("systems", "shared")
+_EXPORT_FILES = ("realize-os.yaml",)
+
+
+def _sqlite_snapshot(source: Path, dest: Path) -> None:
+    """Copy a live SQLite database consistently (the backup API, not a file copy)."""
+    import sqlite3
+
+    src = sqlite3.connect(f"file:{source}?mode=ro", uri=True)
+    try:
+        out = sqlite3.connect(dest)
+        try:
+            src.backup(out)
+        finally:
+            out.close()
+    finally:
+        src.close()
+
+
+def _build_export(kb_path: Path, zip_path: Path) -> list[str]:
+    """Write the export ZIP and return the archive names it contains.
+
+    An explicit list, never "the whole working directory" (Codex audit: the
+    old export zipped cwd, including earlier exports and itself, and copied
+    live SQLite files). Secrets (.env, .credentials) are not included.
+    """
+    import tempfile
+    import zipfile
+
+    from realize_core.config import synapse_dir
+    from realize_core.db.schema import get_db_path
+    from realize_core.memory.store import _resolve_db_path as memory_db_path
+
+    names: list[str] = []
+    with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        for rel in _EXPORT_FILES:
+            path = kb_path / rel
+            if path.is_file():
+                zf.write(path, rel)
+                names.append(rel)
+        for tree in _EXPORT_TREES:
+            root = kb_path / tree
+            if not root.is_dir():
+                continue
+            for path in sorted(root.rglob("*")):
+                if path.is_file() and not any(part.startswith(".") for part in path.relative_to(root).parts):
+                    arcname = f"{tree}/{path.relative_to(root).as_posix()}"
+                    zf.write(path, arcname)
+                    names.append(arcname)
+
+        synapse = synapse_dir(kb_path)
+        databases = {
+            "data/memory.db": memory_db_path(),
+            "data/realize_data.db": get_db_path(),
+            "data/synapse/synapse.db": synapse / "synapse.db",
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            for arcname, source in databases.items():
+                if source and Path(source).is_file():
+                    snapshot = Path(tmp) / Path(arcname).name
+                    _sqlite_snapshot(Path(source), snapshot)
+                    zf.write(snapshot, arcname)
+                    names.append(arcname)
+        inbox = synapse / "dream-inbox.jsonl"
+        if inbox.is_file():
+            zf.write(inbox, "data/synapse/dream-inbox.jsonl")
+            names.append("data/synapse/dream-inbox.jsonl")
+    return names
+
+
 @router.post("/storage/export")
 async def export_data(request: Request):
-    """Export all user data as a downloadable zip."""
+    """Download the ventures' data as a ZIP.
+
+    Contains realize-os.yaml, systems/ and shared/, and consistent snapshots
+    of the databases. API keys and credentials (.env, .credentials) are not
+    included; copy them yourself when moving servers. The ZIP is built in a
+    temp folder and removed after the download.
+    """
+    import asyncio
+    import tempfile
+    from datetime import datetime
+
+    from fastapi.responses import FileResponse
+    from starlette.background import BackgroundTask
+
+    kb_path = Path(getattr(request.app.state, "kb_path", None) or os.getcwd())
+    tmp_dir = Path(tempfile.mkdtemp(prefix="realizeos-export-"))
+    zip_name = f"realizeos-export-{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip"
+    zip_path = tmp_dir / zip_name
     try:
-        base_dir = Path(os.getcwd())
-        export_items = []
+        names = await asyncio.to_thread(_build_export, kb_path, zip_path)
+    except (OSError, ValueError) as e:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+        logger.error("Export failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Export failed; see server logs") from e
+    if not names:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+        raise HTTPException(status_code=404, detail="No data to export.")
 
-        # Collect exportable items
-        for item_name in ["systems", ".credentials"]:
-            item_path = base_dir / item_name
-            if item_path.exists():
-                export_items.append((item_name, item_path))
-
-        for file_name in [".env", "realize-os.yaml"]:
-            file_path = base_dir / file_name
-            if file_path.exists():
-                export_items.append((file_name, file_path))
-
-        # Collect databases
-        for db_file in base_dir.glob("*.db"):
-            export_items.append((db_file.name, db_file))
-
-        if not export_items:
-            raise HTTPException(status_code=404, detail="No data to export.")
-
-        # Create zip
-        export_dir = base_dir / "backups"
-        export_dir.mkdir(exist_ok=True)
-
-        from datetime import datetime
-
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        zip_name = f"realizeos-export-{timestamp}"
-        zip_path = shutil.make_archive(
-            str(export_dir / zip_name),
-            "zip",
-            root_dir=str(base_dir),
-            base_dir=None,
-        )
-
-        return {
-            "status": "ok",
-            "message": "Data exported successfully.",
-            "path": zip_path,
-            "size_bytes": Path(zip_path).stat().st_size,
-        }
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Export failed: {e!s}")
+    return FileResponse(
+        zip_path,
+        media_type="application/zip",
+        filename=zip_name,
+        headers={"X-Export-Files": str(len(names))},
+        background=BackgroundTask(shutil.rmtree, tmp_dir, ignore_errors=True),
+    )
 
 
 @router.get("/storage/sync/status")
