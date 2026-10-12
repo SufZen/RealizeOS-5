@@ -55,12 +55,19 @@ async def on_approval_decided(approval_id: str, approved: bool, execution: dict 
     return True
 
 
+#: Upper bounds on a plan, so validating (and running) one stays cheap.
+MAX_PLAN_STEPS = 100
+MAX_STEP_INPUTS = 20
+
+
 def validate_plan(steps: list[dict]) -> list[dict]:
     """Check a mission plan before it is stored (Codex audit F16).
 
     Every step needs a description; step ids (given or the default s1, s2,
     ...) must be unique; ``inputs_from`` must name steps of this plan and the
     dependencies must not form a cycle, or the mission could never finish.
+    Plans are bounded (``MAX_PLAN_STEPS`` steps, ``MAX_STEP_INPUTS`` inputs
+    per step) and checked in linear time, so a request can't make this slow.
 
     Returns the steps unchanged.
 
@@ -69,7 +76,8 @@ def validate_plan(steps: list[dict]) -> list[dict]:
     """
     if not isinstance(steps, list) or not steps:
         raise ValueError("A plan needs at least one step")
-    ids: list[str] = []
+    if len(steps) > MAX_PLAN_STEPS:
+        raise ValueError(f"A plan can have at most {MAX_PLAN_STEPS} steps")
     deps: dict[str, list[str]] = {}
     for i, step in enumerate(steps, start=1):
         if not isinstance(step, dict):
@@ -83,26 +91,30 @@ def validate_plan(steps: list[dict]) -> list[dict]:
         inputs = step.get("inputs_from") or []
         if not isinstance(inputs, list) or not all(isinstance(x, str) for x in inputs):
             raise ValueError(f"Step '{step_id}': inputs_from must be a list of step ids")
-        ids.append(step_id)
-        deps[step_id] = inputs
+        if len(inputs) > MAX_STEP_INPUTS:
+            raise ValueError(f"Step '{step_id}' can depend on at most {MAX_STEP_INPUTS} steps")
+        deps[step_id] = list(dict.fromkeys(inputs))
     for step_id, inputs in deps.items():
         unknown = [x for x in inputs if x not in deps]
         if unknown:
             raise ValueError(f"Step '{step_id}' depends on unknown step(s): {', '.join(unknown)}")
-    # Kahn's algorithm: whatever can't be ordered is on a cycle.
-    remaining = {k: set(v) for k, v in deps.items()}
-    ready = [k for k, v in remaining.items() if not v]
+
+    # Kahn's algorithm in O(steps + dependencies): whatever can't be ordered is on a cycle.
+    waiting = {step_id: len(inputs) for step_id, inputs in deps.items()}
+    dependants: dict[str, list[str]] = {step_id: [] for step_id in deps}
+    for step_id, inputs in deps.items():
+        for dep in inputs:
+            dependants[dep].append(step_id)
+    ready = [step_id for step_id, count in waiting.items() if count == 0]
     while ready:
         done = ready.pop()
-        for k, v in remaining.items():
-            if done in v:
-                v.discard(done)
-                if not v:
-                    ready.append(k)
-        remaining[done] = set()
-    cyclic = sorted(k for k, v in remaining.items() if v)
+        for step_id in dependants[done]:
+            waiting[step_id] -= 1
+            if waiting[step_id] == 0:
+                ready.append(step_id)
+    cyclic = sorted(step_id for step_id, count in waiting.items() if count > 0)
     if cyclic:
-        raise ValueError(f"Steps depend on each other in a cycle: {', '.join(cyclic)}")
+        raise ValueError(f"Steps depend on each other in a cycle: {', '.join(cyclic[:10])}")
     return steps
 
 

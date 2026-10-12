@@ -468,6 +468,26 @@ class TestPlanValidation:
         with pytest.raises(ValueError, match=message):
             validate_plan(steps)
 
+    def test_oversized_plans_are_refused_quickly(self):
+        """Security review: a huge plan can't make validation slow."""
+        import time
+
+        from realize_core.missions.engine import MAX_PLAN_STEPS, validate_plan
+
+        huge = [{"description": "x"} for _ in range(50_000)]
+        started = time.perf_counter()
+        with pytest.raises(ValueError, match="at most"):
+            validate_plan(huge)
+        with pytest.raises(ValueError, match="at most"):
+            validate_plan([{"description": "x", "inputs_from": ["s1"] * 10_000}])
+        assert time.perf_counter() - started < 1.0
+
+        # A long chain at the limit is fine and checked in linear time.
+        chain = [{"description": "x"}] + [
+            {"description": "x", "inputs_from": [f"s{i}"]} for i in range(1, MAX_PLAN_STEPS)
+        ]
+        assert validate_plan(chain) is chain
+
     def test_valid_plan_passes(self):
         from realize_core.missions.engine import validate_plan
 
