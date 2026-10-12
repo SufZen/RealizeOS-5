@@ -37,9 +37,10 @@ def _fake_claude_client(**attrs) -> types.ModuleType:
 class _FakeProvider(BaseLLMProvider):
     """Provider stub that returns a fixed response and counts calls."""
 
-    def __init__(self, provider_name: str, ok: bool = True, usable: bool = True):
+    def __init__(self, provider_name: str, ok: bool = True, usable: bool = True, refuse: bool = False):
         self._name = provider_name
         self._ok = ok
+        self._refuse = refuse
         self._usable = usable
         self.calls = 0
 
@@ -49,6 +50,8 @@ class _FakeProvider(BaseLLMProvider):
 
     async def complete(self, system_prompt, messages, model=None, max_tokens=4096, temperature=0.7, timeout=60.0):
         self.calls += 1
+        if self._refuse:
+            return LLMResponse(text="declined", model=model or "m", provider=self._name, error="refusal")
         if self._ok:
             return LLMResponse(text=f"from {self._name}", model=model or "m", provider=self._name)
         return LLMResponse(text="", model=model or "m", provider=self._name, error="boom")
@@ -94,6 +97,19 @@ class TestFallbackChain:
         assert result == "from gemini"
         assert claude.calls == 1
         assert gemini.calls == 1
+
+    async def test_refusal_is_final_and_not_retried_elsewhere(self, no_limits):
+        from realize_core.llm.router import route_to_llm
+
+        claude = _FakeProvider("claude", refuse=True)
+        gemini = _FakeProvider("gemini")
+        reg = _registry(claude, gemini, primary="claude")
+
+        with patch("realize_core.llm.registry.get_registry", return_value=reg):
+            result = await route_to_llm("sys", [{"role": "user", "content": "hi"}], task_type="content")
+
+        assert result == "declined"
+        assert gemini.calls == 0
 
     async def test_skips_unusable_primary_model(self, no_limits):
         from realize_core.llm.router import route_to_llm
@@ -235,7 +251,7 @@ class TestRequestShape:
         assert "temperature" not in sent
         assert sent["max_tokens"] >= 16000
 
-    async def test_refusal_is_an_error_so_routing_falls_back(self, claude_provider):
+    async def test_refusal_is_reported_as_refused(self, claude_provider):
         reply = SimpleNamespace(
             content=[],
             stop_reason="refusal",
@@ -251,5 +267,5 @@ class TestRequestShape:
                 "sys", [{"role": "user", "content": "hi"}], model="claude-sonnet-5-5"
             )
 
-        assert response.error == "refusal"
+        assert response.refused
         assert not response.ok

@@ -10,6 +10,7 @@ from typing import Any, ClassVar, Protocol, cast
 
 from realize_core.config import DEFAULT_CLAUDE_OPUS_MODEL, DEFAULT_CLAUDE_SONNET_MODEL
 from realize_core.llm.base_provider import (
+    REFUSAL_ERROR,
     BaseLLMProvider,
     Capability,
     LLMResponse,
@@ -146,7 +147,7 @@ class ClaudeProvider(BaseLLMProvider):
             _log_usage(model, response.usage)
 
             if is_refusal(response):
-                # Reported as an error so the router can try the next provider.
+                # Final: the router returns this as-is and does not retry another provider.
                 return LLMResponse(
                     text="I can't help with that request.",
                     model=model,
@@ -154,7 +155,7 @@ class ClaudeProvider(BaseLLMProvider):
                     input_tokens=input_tokens,
                     output_tokens=output_tokens,
                     cost_usd=cost,
-                    error="refusal",
+                    error=REFUSAL_ERROR,
                 )
 
             return LLMResponse(

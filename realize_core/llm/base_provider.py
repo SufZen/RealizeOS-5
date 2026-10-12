@@ -46,6 +46,10 @@ class ModelInfo:
     context_window: int = 128000
 
 
+# LLMResponse.error value for a safety refusal (see LLMResponse.refused).
+REFUSAL_ERROR = "refusal"
+
+
 @dataclass
 class LLMResponse:
     """Standardized response from any LLM provider.
@@ -74,6 +78,15 @@ class LLMResponse:
     def ok(self) -> bool:
         """True if the response completed without errors."""
         return self.error is None
+
+    @property
+    def refused(self) -> bool:
+        """True if the model declined the request on safety grounds.
+
+        A refusal is a final answer: callers must not retry it on another
+        provider, which would route around the model's safety decision.
+        """
+        return self.error == REFUSAL_ERROR
 
 
 class BaseLLMProvider(ABC):

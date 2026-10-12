@@ -448,7 +448,8 @@ async def route_to_llm(
                     messages=messages,
                     model=model_id,
                 )
-                if response.ok:
+                if response.ok or response.refused:
+                    # A refusal is final: retrying it elsewhere would bypass the model's safety decision.
                     _record_cost(response.cost_usd)
                     return response.text
                 logger.warning(f"Provider {provider.name} error: {response.error}")
@@ -478,9 +479,9 @@ async def route_to_llm(
                     system_prompt=system_prompt,
                     messages=messages,
                 )
-                if fb_response.ok:
+                if fb_response.ok or fb_response.refused:
                     _record_cost(fb_response.cost_usd)
-                    logger.info(f"Fallback succeeded with {fallback_name}")
+                    logger.info(f"Fallback answered with {fallback_name}")
                     return fb_response.text
                 logger.warning(f"Fallback {fallback_name} error: {fb_response.error}")
             except Exception as e:
