@@ -55,17 +55,28 @@ async def realize_chat(args: dict[str, Any], app_state: Any, user: CurrentUser) 
     from realize_api.routes.chat import ChatRequest
     from realize_api.routes.chat import chat as chat_handler
 
+    from realize_core.security.chat_access import chat_user_for
+
+    principal, role = _caller(user)
     body = ChatRequest(
         message=args["message"],
         system_key=args["system_key"],
-        user_id=args.get("user_id") or user.user_id,
+        user_id=chat_user_for(principal, role, args.get("user_id") or user.user_id),
         agent_key=args.get("agent_key"),
         channel=args.get("channel", "mcp"),
     )
 
     request = _ProxyRequest(app_state)
     response = await chat_handler(body, request)
-    return response.model_dump() if hasattr(response, "model_dump") else response
+    if not hasattr(response, "model_dump"):
+        return response
+    from realize_core.agents.trail import trail_summary
+
+    out = response.model_dump()
+    # Sources and which tools ran, but no tool inputs/outputs: those can carry
+    # third-party text and are not echoed to MCP callers.
+    out["trail"] = trail_summary(out.get("trail") or {})
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -238,7 +249,26 @@ CLEAR_HISTORY_SCHEMA = {
 }
 
 
+def _caller(user: CurrentUser | None) -> tuple[str | None, str | None]:
+    """The MCP caller as ``(user_id, role)``; ``(None, None)`` when no user is bound."""
+    if user is None:
+        return None, None
+    return user.user_id, getattr(user, "role", None)
+
+
+def _conversation_denied(args: dict[str, Any], user: CurrentUser | None) -> dict[str, Any] | None:
+    """MCP_FORBIDDEN unless the caller may access ``args['user_id']``'s conversation."""
+    from realize_core.security.chat_access import may_access_conversation
+
+    if may_access_conversation(*_caller(user), args["user_id"]):
+        return None
+    return {"error": "You can only access your own conversations", "code": "MCP_FORBIDDEN"}
+
+
 async def get_history(args: dict[str, Any], app_state: Any, user: CurrentUser) -> Any:
+    denied = _conversation_denied(args, user)
+    if denied:
+        return denied
     try:
         from realize_core.memory.conversation import get_history as _get_history
 
@@ -254,6 +284,9 @@ async def get_history(args: dict[str, Any], app_state: Any, user: CurrentUser) -
 
 
 async def clear_history(args: dict[str, Any], app_state: Any, user: CurrentUser) -> Any:
+    denied = _conversation_denied(args, user)
+    if denied:
+        return denied
     try:
         from realize_core.memory.conversation import clear_history as _clear_history
 
@@ -280,6 +313,9 @@ GET_SESSION_SCHEMA = {
 
 
 async def get_session(args: dict[str, Any], app_state: Any, user: CurrentUser) -> Any:
+    denied = _conversation_denied(args, user)
+    if denied:
+        return denied
     try:
         from realize_core.pipeline.session import get_session as _get_session
 

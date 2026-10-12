@@ -296,6 +296,9 @@ def get_features(config: dict) -> dict:
         # agent_tools: agents may call registry tools (Google, Sheets, MCP, ...)
         #   while answering. Without enforce_gates only read-only tools are offered.
         "agent_tools": False,
+        # cite_sources: tell the model to cite numbered KB sources inline ([S1])
+        #   on channels that show them as footnotes (api, dashboard, mcp).
+        "cite_sources": False,
     }
     features = config.get("features", {})
     merged = {**defaults, **features}

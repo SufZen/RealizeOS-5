@@ -150,10 +150,10 @@ async def execute_pipeline_step(
     )
 
     # Get conversation history
-    from realize_core.memory.conversation import get_history
+    from realize_core.memory.conversation import get_history, to_llm_messages
 
     history = get_history(system_key, str(user_id))
-    messages = history + [{"role": "user", "content": message}]
+    messages = to_llm_messages(history) + [{"role": "user", "content": message}]
 
     # Route to LLM
     task_type = session.task_type or "content"

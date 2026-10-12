@@ -63,23 +63,58 @@ Send a message and receive an AI response.
 |-------|------|----------|-------------|
 | message | string | yes | The user's message |
 | system_key | string | yes | Target system key |
-| user_id | string | no | User identifier (default: "api-user") |
+| user_id | string | no | User identifier (default: "api-user"). With auth on, only `owner`/`admin` callers (including API-key integrations) may name another user; anyone else always chats as themselves |
 | agent_key | string | no | Force a specific agent |
 | channel | string | no | Channel for formatting (default: "api") |
 
 **Response:**
 ```json
 {
-  "response": "Here's my analysis of Q2 strategy...",
+  "response": "Tower B has 900k EUR left [S1].",
   "system_key": "consulting",
   "agent_key": "analyst",
-  "user_id": "user-123"
+  "user_id": "user-123",
+  "message_id": 412,
+  "trail": {
+    "sources": [{"id": "S1", "title": "Budget", "path": "systems/consulting/B-brain/budget.md"}],
+    "steps": [
+      {"type": "tool_call", "id": "toolu_01", "name": "sheets_read", "input": {"range": "A1:D20"}},
+      {"type": "tool_result", "id": "toolu_01", "name": "sheets_read", "success": true, "held": false,
+       "output": "spent: 300k", "error": null, "duration_ms": 412.3}
+    ]
+  }
 }
 ```
 
+`trail` is the "what I used" record of the answer (since 5.7.0): the knowledge-base sources its
+prompt included, numbered `[S1]…[Sn]`, and the tool steps it took, in order. Step types are
+`tool_call`, `tool_result` and `approval_requested` (an action held for approval, with its
+`request_id`). `message_id` is the stored assistant message. With `features.cite_sources` on,
+answers on the `api`, `dashboard` and `mcp` channels cite sources inline as `[S1]`.
+
+### POST /api/chat/stream
+
+Same request as `POST /api/chat`; the answer arrives as Server-Sent Events. Each event is a
+`data:` line with a JSON object and a `type`:
+
+| `type` | When |
+|--------|------|
+| `source` | A numbered KB source the prompt includes (`id`, `title`, `path`) |
+| `tool_call` | The agent calls a tool (`id`, `name`, `input`) |
+| `tool_result` | The tool finished (`success`, `held`, `output` preview, `error`, `duration_ms`) |
+| `approval_requested` | The action is held for approval (`request_id`) |
+| `text` | The model's final answer text (before output cleanup) |
+| `final` | Last event: the full `POST /api/chat` response, including `trail` and `message_id` |
+| `error` | Last event on failure: `detail` (no internal information) |
+
+Lines starting with `:` are keepalives. An unknown `system_key` returns a plain HTTP 404 before the
+stream starts.
+
 ### GET /api/conversations/{system_key}/{user_id}
 
-Get conversation history.
+Get conversation history. Each message has its stored `id`; assistant messages that used sources or
+tools also carry their `trail`. With auth on, callers other than `owner`/`admin` get 403 for any
+`user_id` but their own (this also applies to `DELETE`).
 
 **Query params:** `limit` (int, default 50)
 

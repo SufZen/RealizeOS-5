@@ -6,6 +6,7 @@ Uses SQLite write-through with in-memory cache for persistence across restarts.
 Supports thread/topic scoping via optional topic_id parameter.
 """
 
+import json
 import logging
 from collections import defaultdict
 from datetime import datetime
@@ -38,15 +39,16 @@ def _hydrate_if_needed(system_key: str, user_id: str, topic_id: str = ""):
     try:
         with _db_ctx() as conn:
             rows = conn.execute(
-                "SELECT role, content, created_at FROM conversations "
+                "SELECT id, role, content, created_at FROM conversations "
                 "WHERE bot_name = ? AND user_id = ? AND COALESCE(topic_id, '') = ? "
-                "ORDER BY created_at DESC LIMIT ?",
+                "ORDER BY created_at DESC, id DESC LIMIT ?",
                 (system_key, user_id, topic_id, MAX_CONVERSATION_HISTORY),
             ).fetchall()
 
         if rows:
             _conversations[key] = [
-                {"role": r["role"], "content": r["content"], "created_at": r["created_at"]} for r in reversed(rows)
+                {"id": r["id"], "role": r["role"], "content": r["content"], "created_at": r["created_at"]}
+                for r in reversed(rows)
             ]
             logger.info(f"Hydrated {len(rows)} messages for {system_key}:{user_id}:{topic_id}")
     except Exception as e:
@@ -66,7 +68,9 @@ def get_history(system_key: str, user_id: str, topic_id: str = "", limit: int | 
         limit: Maximum number of messages to return (most recent). None = all.
 
     Returns:
-        List of message dicts: [{"role": "user"/"assistant", "content": "..."}]
+        List of message dicts: ``{"id", "role", "content", "created_at"}``.
+        ``id`` is the stored row id (None if the write failed). Pass the list
+        through :func:`to_llm_messages` before sending it to a model.
     """
     _hydrate_if_needed(system_key, user_id, topic_id)
     key = (system_key, user_id, topic_id)
@@ -76,30 +80,87 @@ def get_history(system_key: str, user_id: str, topic_id: str = "", limit: int | 
     return history
 
 
-def add_message(system_key: str, user_id: str, role: str, content: str, topic_id: str = ""):
+def to_llm_messages(history: list[dict]) -> list[dict]:
+    """Reduce stored history to what a model API accepts: ``role`` and ``content`` only.
+
+    Stored entries also carry ``id`` and ``created_at``; provider SDKs pass
+    unknown keys through to the API, which rejects them.
+    """
+    return [{"role": m["role"], "content": m["content"]} for m in history]
+
+
+def add_message(system_key: str, user_id: str, role: str, content: str, topic_id: str = "") -> int | None:
     """
     Add a message to the conversation history.
     Writes to both in-memory cache and SQLite.
+
+    Returns:
+        The stored row id, or None if the SQLite write failed.
     """
     _hydrate_if_needed(system_key, user_id, topic_id)
     key = (system_key, user_id, topic_id)
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    _conversations[key].append({"role": role, "content": content, "created_at": now})
+
+    # Write-through to SQLite
+    message_id = None
+    try:
+        with _db_ctx() as conn:
+            cursor = conn.execute(
+                "INSERT INTO conversations (bot_name, user_id, role, content, topic_id, created_at) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                (system_key, user_id, role, content, topic_id, now),
+            )
+            message_id = cursor.lastrowid
+    except Exception as e:
+        logger.warning(f"Failed to persist message for {system_key}:{user_id}: {e}")
+
+    _conversations[key].append({"id": message_id, "role": role, "content": content, "created_at": now})
 
     # Trim to max history length
     if len(_conversations[key]) > MAX_CONVERSATION_HISTORY:
         _conversations[key] = _conversations[key][-MAX_CONVERSATION_HISTORY:]
 
-    # Write-through to SQLite
+    return message_id
+
+
+def save_trail(message_id: int, trail: dict) -> None:
+    """Store the "what I used" trail of one assistant message (STORY-17).
+
+    The trail is shown to people (dashboard, API); it is never read back into
+    a model call, so tool output in it cannot steer later answers.
+    """
     try:
         with _db_ctx() as conn:
             conn.execute(
-                "INSERT INTO conversations (bot_name, user_id, role, content, topic_id, created_at) "
-                "VALUES (?, ?, ?, ?, ?, ?)",
-                (system_key, user_id, role, content, topic_id, now),
+                "INSERT OR REPLACE INTO chat_trail (message_id, trail_json, created_at) VALUES (?, ?, ?)",
+                (message_id, json.dumps(trail, ensure_ascii=False, default=str), datetime.now().isoformat()),
             )
     except Exception as e:
-        logger.warning(f"Failed to persist message for {system_key}:{user_id}: {e}")
+        logger.warning("Failed to store trail for message %s: %s", message_id, e)
+
+
+def get_trails(message_ids: list[int]) -> dict[int, dict]:
+    """Return stored trails keyed by message id (missing ids are skipped)."""
+    ids = [i for i in message_ids if isinstance(i, int)]
+    if not ids:
+        return {}
+    placeholders = ",".join("?" for _ in ids)
+    try:
+        with _db_ctx() as conn:
+            rows = conn.execute(
+                f"SELECT message_id, trail_json FROM chat_trail WHERE message_id IN ({placeholders})",
+                ids,
+            ).fetchall()
+    except Exception as e:
+        logger.warning("Failed to load trails: %s", e)
+        return {}
+    trails = {}
+    for row in rows:
+        try:
+            trails[row["message_id"]] = json.loads(row["trail_json"])
+        except (TypeError, ValueError):
+            logger.warning("Unreadable trail for message %s", row["message_id"])
+    return trails
 
 
 def clear_history(system_key: str, user_id: str, topic_id: str = ""):

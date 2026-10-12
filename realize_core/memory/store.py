@@ -113,6 +113,15 @@ def init_db():
             CREATE INDEX IF NOT EXISTS idx_conv_lookup
             ON conversations(bot_name, user_id, created_at)
         """)
+        # "What I used" trail per assistant message (STORY-17). Deleted with
+        # its message; never read back into model calls.
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS chat_trail (
+                message_id INTEGER PRIMARY KEY REFERENCES conversations(id) ON DELETE CASCADE,
+                trail_json TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )
+        """)
         conn.execute("""
             CREATE TABLE IF NOT EXISTS sessions (
                 id TEXT PRIMARY KEY,

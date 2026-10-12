@@ -100,6 +100,7 @@ To add a new agent, create a `.md` file in `A-agents/` and add routing keywords 
 | `enforce_gates` | `false` | Enforce the trust ladder at the tool-dispatch chokepoint (see below) |
 | `enforce_guardrails` | `false` | Reserved placeholder; guardrail post-response enforcement is deferred (no-op) |
 | `agent_tools` | `false` | Agents call registry tools (Google, Sheets, ClickUp, MCP) while answering. Without `enforce_gates`, only read-only tools are offered (see below) |
+| `cite_sources` | `false` | Answers cite knowledge-base sources inline as `[S1]` on the `api`, `dashboard` and `mcp` channels; the trail lists the sources (see below) |
 
 Custom flags are passed through without error — the engine ignores unknown flags.
 
@@ -113,6 +114,20 @@ a sheet, creating tasks, any MCP tool not listed as read-only) are offered **onl
 `tools_allowlist` / `tools_denylist` in `A-agents/<agent>.persona.yaml`. MCP tools are writes
 unless listed under `read_only_tools` for their server in `mcp-servers.yaml`. Agent Drive
 uploads/downloads are confined to `REALIZE_AGENT_FILES_DIR` (default `<KB_PATH>/data/agent-files`).
+
+### "What I used" trail and citations (`cite_sources`)
+
+Every chat answer carries a trail: the knowledge-base sources its prompt included, numbered
+`[S1]…[Sn]`, and the tools it called, in order. The dashboard shows the trail live under each
+answer and again in history; the API returns it as `trail` (see the
+[API reference](api-reference.md#post-apichat)). Trails are stored per message in `memory.db` and
+deleted with the conversation. They are never sent back to a model.
+
+With `features.cite_sources: true`, the model is also told to cite those markers inline after each
+fact or figure, and the dashboard renders them as footnotes. Citations are requested only on the
+`api`, `dashboard` and `mcp` channels; Telegram, Slack and other text channels get answers
+without markers. New installs from `realize_lite` ship with `cite_sources: true`; the engine
+default stays `false`.
 
 ### Governance Enforcement (`enforce_gates`)
 

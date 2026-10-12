@@ -9,8 +9,9 @@ shared functions to process messages through the standard flow.
 import logging
 from pathlib import Path
 
+from realize_core.agents.tool_loop import emit_event
 from realize_core.llm.router import classify_task, route_to_llm
-from realize_core.memory.conversation import add_message, get_history
+from realize_core.memory.conversation import add_message, get_history, to_llm_messages
 from realize_core.pipeline.creative import (
     execute_pipeline_step,
 )
@@ -112,9 +113,13 @@ async def standard_llm_handling(
 
     This is the main message processing function for non-skill, non-session messages.
     With ``features.agent_tools`` on, the agent answers through the tool loop
-    (it may call registry tools, governed by the approval gate); ``emit``
-    receives the loop's progress events for a live "what I used" trail.
+    (it may call registry tools, governed by the approval gate).
+
+    ``emit`` receives the "what I used" trail as it happens: one ``source``
+    event per numbered KB source in the prompt, the tool loop's events, and
+    finally ``message_saved`` with the stored assistant message id.
     """
+    sources: list[dict] = []
     system_prompt = build_system_prompt(
         kb_path=kb_path,
         system_config=system_config or {},
@@ -126,11 +131,14 @@ async def standard_llm_handling(
         channel=channel,
         features=features,
         all_systems=all_systems,
+        sources_out=sources,
     )
+    for source in sources:
+        await emit_event(emit, {"type": "source", **source})
 
     history = get_history(system_key, user_id)
     add_message(system_key, user_id, "user", message)
-    messages = history + [{"role": "user", "content": message}]
+    messages = to_llm_messages(history) + [{"role": "user", "content": message}]
 
     response = None
     if (features or {}).get("agent_tools"):
@@ -144,7 +152,9 @@ async def standard_llm_handling(
         task_class = classify_task(message, system_key=system_key)
         response = await route_to_llm(system_prompt, messages, task_class)
 
-    add_message(system_key, user_id, "assistant", response)
+    message_id = add_message(system_key, user_id, "assistant", response)
+    if message_id is not None:
+        await emit_event(emit, {"type": "message_saved", "message_id": message_id})
     return response
 
 
