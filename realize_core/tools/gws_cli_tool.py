@@ -25,6 +25,8 @@ Example config::
 import asyncio
 import json
 import logging
+import re
+import shlex
 import shutil
 import subprocess
 from typing import Any
@@ -38,6 +40,11 @@ from realize_core.tools.base_tool import (
 from realize_core.tools.gws_base import GwsToolConfig
 
 logger = logging.getLogger(__name__)
+
+#: ``{name}`` placeholders in a command template.
+_PLACEHOLDER = re.compile(r"\{([A-Za-z_][A-Za-z0-9_]*)\}")
+#: Parameter names allowed to become ``--flag`` options.
+_FLAG_NAME = re.compile(r"[A-Za-z][A-Za-z0-9_]*")
 
 # Default timeout for gws commands (seconds)
 _DEFAULT_TIMEOUT = 30
@@ -122,16 +129,18 @@ class GwsCliTool(BaseTool):
         if missing:
             return ToolResult.fail(f"Missing required parameters for '{action}': {', '.join(missing)}")
 
-        # Build the command string
+        # Build the argument list (never a shell string: values are agent-controlled)
         try:
-            cmd_str = self._render_command(cmd_config.gws_command, params)
+            argv = self._render_command(cmd_config.gws_command, params, binary=self._config.binary_path)
         except KeyError as e:
             return ToolResult.fail(f"Missing template parameter: {e}")
+        except ValueError as e:
+            return ToolResult.fail(f"Refused parameters for '{action}': {e}")
 
         timeout = cmd_config.timeout_seconds or self._config.default_timeout
 
         # Execute in a thread to avoid blocking the event loop
-        return await asyncio.to_thread(self._run_command, cmd_str, timeout)
+        return await asyncio.to_thread(self._run_command, argv, timeout)
 
     def is_available(self) -> bool:
         """Check if the gws binary is installed and the tool is enabled."""
@@ -144,43 +153,62 @@ class GwsCliTool(BaseTool):
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _render_command(template: str, params: dict[str, Any]) -> str:
+    def _render_command(template: str, params: dict[str, Any], binary: str | None = None) -> list[str]:
         """
-        Render a command template with the given parameters.
+        Render a command template into an argument list (Codex audit F12).
 
-        Supports ``{param_name}`` placeholders. Parameters that are not
-        in the template are appended as ``--param_name value`` flags.
+        The template is operator configuration and is split once with
+        ``shlex``; each ``{param}`` value is substituted inside its token, so
+        a value is always one argument and shell metacharacters stay literal.
+        Parameters not in the template are appended as ``--flag=value``. A
+        leading ``gws`` is replaced by the configured ``binary``.
+
+        Raises:
+            KeyError: a placeholder has no value.
+            ValueError: a flag name isn't a plain identifier, or a positional
+                value starts with "-" (it would be read as an option).
         """
-        # First, substitute placeholders in the template
-        rendered = template
-        used_params: set[str] = set()
+        tokens = shlex.split(template, posix=True)
+        used: set[str] = set()
+        argv: list[str] = []
+        for token in tokens:
+            names = _PLACEHOLDER.findall(token)
+            for name in names:
+                if name not in params or params[name] is None:
+                    raise KeyError(name)
+                value = str(params[name])
+                if token == f"{{{name}}}" and value.startswith("-"):
+                    raise ValueError(f"'{name}' may not start with '-'")
+                token = token.replace(f"{{{name}}}", value)
+                used.add(name)
+            argv.append(token)
 
         for key, value in params.items():
-            placeholder = f"{{{key}}}"
-            if placeholder in rendered:
-                rendered = rendered.replace(placeholder, str(value))
-                used_params.add(key)
+            if key in used or value is None:
+                continue
+            if not _FLAG_NAME.fullmatch(key):
+                raise ValueError(f"'{key}' is not a valid option name")
+            argv.append(f"--{key.replace('_', '-')}={value}")
 
-        # Append unused params as CLI flags
-        for key, value in params.items():
-            if key not in used_params and value is not None:
-                flag = key.replace("_", "-")
-                rendered += f" --{flag} {_shell_escape(str(value))}"
-
-        return rendered
+        if binary and argv and argv[0] == "gws":
+            argv[0] = binary
+        return argv
 
     @staticmethod
-    def _run_command(cmd_str: str, timeout: int) -> ToolResult:
+    def _run_command(argv: list[str], timeout: int) -> ToolResult:
         """
-        Run a shell command and return a ToolResult.
+        Run the command (no shell) and return a ToolResult.
 
         Captures stdout and stderr. Returns success if exit code is 0.
         """
-        logger.info("Executing gws command: %s", cmd_str)
+        logger.info("Executing gws command: %s", argv)
+        resolved = shutil.which(argv[0]) if argv else None
+        if not resolved:
+            return ToolResult.fail(error="gws binary not found. Install with: pip install gws-cli")
         try:
             result = subprocess.run(
-                cmd_str,
-                shell=True,
+                [resolved, *argv[1:]],
+                shell=False,
                 capture_output=True,
                 text=True,
                 timeout=timeout,
@@ -206,14 +234,10 @@ class GwsCliTool(BaseTool):
                 )
 
         except subprocess.TimeoutExpired:
-            return ToolResult.fail(
-                error=f"Command timed out after {timeout}s: {cmd_str[:100]}",
-            )
+            return ToolResult.fail(error=f"Command timed out after {timeout}s: {argv[:3]}")
         except FileNotFoundError:
-            return ToolResult.fail(
-                error="gws binary not found. Install with: pip install gws-cli",
-            )
-        except Exception as e:
+            return ToolResult.fail(error="gws binary not found. Install with: pip install gws-cli")
+        except OSError as e:
             logger.error("gws command execution error: %s", e, exc_info=True)
             return ToolResult.fail(error=f"Command execution failed: {str(e)[:300]}")
 
@@ -221,23 +245,6 @@ class GwsCliTool(BaseTool):
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-
-def _shell_escape(value: str) -> str:
-    """
-    Basic shell escaping for parameter values.
-
-    Wraps values with spaces or special characters in double quotes.
-    """
-    if not value:
-        return '""'
-    # If the value contains spaces or shell metacharacters, quote it
-    needs_quoting = any(c in value for c in " \t\n\"'\\|&;$(){}[]<>!#*?~`")
-    if needs_quoting:
-        # Escape existing double quotes and backslashes
-        escaped = value.replace("\\", "\\\\").replace('"', '\\"')
-        return f'"{escaped}"'
-    return value
 
 
 def _try_parse_json(text: str) -> Any:
