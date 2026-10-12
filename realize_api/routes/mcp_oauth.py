@@ -23,9 +23,15 @@ from starlette.routing import Route
 
 logger = logging.getLogger(__name__)
 
-#: Failed sign-ins allowed per client IP inside :data:`_FAIL_WINDOW` seconds.
+#: Failed sign-ins allowed per client IP, and separately per account, inside
+#: :data:`_FAIL_WINDOW` seconds. The per-account limit stops a slow guess
+#: spread over many IPs; the per-IP one stops one source trying many accounts.
+#: Behind a reverse proxy, run uvicorn with ``--proxy-headers`` (and
+#: ``--forwarded-allow-ips``) so the IP is the real client, not the proxy.
 MAX_FAILED_SIGNINS = 10
 _FAIL_WINDOW = 15 * 60
+#: Cap on tracked keys so a flood of made-up emails can't grow memory forever.
+_MAX_TRACKED = 10_000
 _failures: dict[str, deque[float]] = defaultdict(deque)
 
 _HEADERS = {
@@ -47,12 +53,42 @@ def _client_ip(request: Request) -> str:
     return request.client.host if request.client else "unknown"
 
 
-def _too_many_failures(ip: str) -> bool:
-    attempts = _failures[ip]
+def _keys(ip: str, email: str) -> list[str]:
+    keys = [f"ip:{ip}"]
+    if email:
+        keys.append(f"account:{email.strip().lower()}")
+    return keys
+
+
+def _recent(key: str) -> int:
+    """Failures for ``key`` still inside the window (expired ones are dropped)."""
+    attempts = _failures.get(key)
+    if not attempts:
+        return 0
     cutoff = time.monotonic() - _FAIL_WINDOW
     while attempts and attempts[0] < cutoff:
         attempts.popleft()
-    return len(attempts) >= MAX_FAILED_SIGNINS
+    if not attempts:
+        del _failures[key]
+        return 0
+    return len(attempts)
+
+
+def _too_many_failures(ip: str, email: str) -> bool:
+    return any(_recent(key) >= MAX_FAILED_SIGNINS for key in _keys(ip, email))
+
+
+def _record_failure(ip: str, email: str) -> None:
+    keys = _keys(ip, email)
+    if len(_failures) + len(keys) > _MAX_TRACKED:
+        for key in list(_failures):
+            _recent(key)
+        # Still full of live entries: drop the keys that failed longest ago.
+        while _failures and len(_failures) + len(keys) > _MAX_TRACKED:
+            del _failures[min(_failures, key=lambda k: _failures[k][-1])]
+    now = time.monotonic()
+    for key in keys:
+        _failures[key].append(now)
 
 
 def _audit(user_id: str, action: str, outcome: str, ip: str, client_id: str) -> None:
@@ -95,20 +131,23 @@ async def oauth_login(request: Request) -> Response:
         _audit("anonymous", "mcp_oauth_denied", "denied", ip, client_id)
         return RedirectResponse(provider.deny(pending), status_code=302, headers=_HEADERS)
 
-    if _too_many_failures(ip):
-        logger.warning("MCP OAuth sign-in locked for %s: too many failed attempts", ip)
+    email = str(form.get("email", "")).strip()
+    if _too_many_failures(ip, email):
+        logger.warning("MCP OAuth sign-in locked for %s / %s: too many failed attempts", ip, email.lower())
+        _audit((email or "unknown").lower(), "mcp_oauth_login_locked", "denied", ip, client_id)
         return _form(pending, error="Too many failed sign-ins. Try again in 15 minutes.", status=429)
 
     from realize_core.security.users import verify_password
 
-    email = str(form.get("email", "")).strip()
     user = verify_password(email, str(form.get("password", "")))
     if user is None:
-        _failures[ip].append(time.monotonic())
+        _record_failure(ip, email)
         _audit((email or "unknown").lower(), "mcp_oauth_login_failed", "error", ip, client_id)
         return _form(pending, error="Email or password is wrong.", email=email, status=401)
 
-    _failures.pop(ip, None)
+    # A success clears the account's count, not the IP's: one valid account
+    # mustn't reset the limit for an IP that is guessing at others.
+    _failures.pop(f"account:{user.email}", None)
     redirect = await provider.approve(pending, user.email)
     if redirect is None:
         return _expired()
@@ -128,7 +167,7 @@ def _expired() -> Response:
 def _form(pending, *, error: str = "", email: str = "", status: int = 200) -> Response:
     client = pending.client
     name = html.escape(client.client_name or "An MCP client")
-    redirect_host = html.escape(urlparse(str(pending.params.redirect_uri)).netloc or str(pending.params.redirect_uri))
+    redirect_host = html.escape(urlparse(str(pending.params.redirect_uri)).hostname or str(pending.params.redirect_uri))
     error_html = f'<p class="error" role="alert">{html.escape(error)}</p>' if error else ""
     body = f"""
       <p><strong>{name}</strong> wants to connect to RealizeOS as you.</p>

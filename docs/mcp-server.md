@@ -27,6 +27,7 @@ mcp:
   public_url: ""               # https://your-host — needed for OAuth
   oauth:
     enabled: false             # Claude.ai custom connectors (see below)
+    redirect_hosts: []         # empty = claude.ai, claude.com and loopback
 ```
 
 Start RealizeOS as usual. The server logs:
@@ -82,7 +83,8 @@ Rules:
 
 - **Tokens map to a `users.yaml` user.** On every request the user is looked up again, like cookie sessions. RBAC roles (owner/admin/operator/user/viewer) and venture scope apply exactly as for that user on the REST API and the SSE transport. If you remove the user, their tokens stop working at once.
 - Access tokens last 1 hour and refresh tokens 30 days. Codes are single-use and last 5 minutes. Codes and tokens are stored only as SHA-256 hashes (migration 009).
-- After 10 failed sign-ins from one IP in 15 minutes, sign-in is refused for that IP. Every sign-in, failure and denial is audit-logged (channel `mcp`).
+- **Only allowed redirect hosts.** Registration and `/authorize` refuse a `redirect_uri` outside `mcp.oauth.redirect_hosts` (env `MCP_OAUTH_REDIRECT_HOSTS`, comma-separated). The default is `claude.ai`, `claude.com` and loopback (`localhost`, `127.0.0.1`, `[::1]`, for local clients such as Claude Code). Non-loopback hosts need `https`. Without this list, anyone could register a client called "Claude" that sends codes to their own site. Add a host only for a client you trust, for example `chatgpt.com`. Setting the list replaces the defaults.
+- **Sign-in limits.** After 10 failed sign-ins in 15 minutes, sign-in is refused for that IP, and separately for that account, whatever IP the attempts come from. Behind a reverse proxy, start uvicorn with `--proxy-headers --forwarded-allow-ips=<proxy ip>`, so the limit sees real client IPs rather than the proxy's. Every sign-in, failure, lockout and denial is audit-logged (channel `mcp`).
 - API keys and JWTs keep working on both transports for service integrations (Hermes, cron, bots).
 - OAuth stays off unless `MCP_PUBLIC_URL` is set and auth is on (`REALIZE_API_KEY` or JWT). The issuer must be `https://`; plain `http://` is allowed only for `localhost`.
 

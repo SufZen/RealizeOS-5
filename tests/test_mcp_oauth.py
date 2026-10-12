@@ -222,6 +222,25 @@ class TestSignIn:
         # The request is gone once answered.
         assert client.get("/oauth/login", params={"request": request_id}).status_code == 400
 
+    def test_account_lock_holds_across_ips(self, client):
+        """Guessing one account from many IPs still hits the per-account limit."""
+        from realize_api.routes import mcp_oauth
+
+        request_id = _start_authorize(client, _register(client), _pkce()[1])
+        for n in range(mcp_oauth.MAX_FAILED_SIGNINS):
+            mcp_oauth._record_failure(f"10.0.0.{n}", "dana@acme.io")
+        assert _sign_in(client, request_id, "dana@acme.io").status_code == 429
+        # Another account from the test client's IP is unaffected.
+        assert _sign_in(client, request_id, "owner@realization.co.il").status_code == 302
+
+    def test_failure_tracking_is_bounded(self, monkeypatch):
+        from realize_api.routes import mcp_oauth
+
+        monkeypatch.setattr(mcp_oauth, "_MAX_TRACKED", 50)
+        for n in range(200):
+            mcp_oauth._record_failure(f"10.1.0.{n}", f"user{n}@x.io")
+        assert len(mcp_oauth._failures) <= 50
+
     def test_unknown_request_is_expired(self, client):
         assert client.get("/oauth/login", params={"request": "nope"}).status_code == 400
 
@@ -232,6 +251,45 @@ class TestSignIn:
         for _ in range(MAX_FAILED_SIGNINS):
             assert _sign_in(client, request_id, "dana@acme.io", password="nope").status_code == 401
         assert _sign_in(client, request_id, "dana@acme.io").status_code == 429
+
+
+class TestRedirectAllowlist:
+    def test_registration_refuses_foreign_redirect(self, client):
+        r = client.post(
+            "/register",
+            json={
+                "redirect_uris": ["https://evil.example.com/callback"],
+                "token_endpoint_auth_method": "none",
+                "client_name": "Claude",
+            },
+        )
+        assert r.status_code == 400
+        assert r.json()["error"] == "invalid_redirect_uri"
+
+    @pytest.mark.parametrize(
+        ("uri", "allowed"),
+        [
+            ("https://claude.ai/api/mcp/auth_callback", True),
+            ("https://claude.com/api/mcp/auth_callback", True),
+            ("http://localhost:33418/callback", True),
+            ("http://127.0.0.1:5000/cb", True),
+            ("http://claude.ai/api/mcp/auth_callback", False),
+            ("https://claude.ai.evil.com/cb", False),
+            ("https://evil.com/claude.ai", False),
+        ],
+    )
+    def test_default_hosts(self, uri, allowed):
+        from realize_core.mcp_server.oauth import RealizeOAuthProvider
+
+        assert RealizeOAuthProvider(PUBLIC_URL).redirect_allowed(uri) is allowed
+
+    def test_configured_hosts_replace_defaults(self, oauth_env, monkeypatch):
+        from realize_api.main import create_app
+
+        monkeypatch.setenv("MCP_OAUTH_REDIRECT_HOSTS", "chatgpt.com, Example.org")
+        provider = create_app().state.mcp_oauth
+        assert provider.redirect_allowed("https://example.org/cb")
+        assert not provider.redirect_allowed(REDIRECT_URI)
 
 
 # ---------------------------------------------------------------------------

@@ -27,11 +27,13 @@ import secrets
 import time
 import uuid
 from dataclasses import dataclass
+from urllib.parse import urlparse
 
 from mcp.server.auth.provider import (
     AccessToken,
     AuthorizationCode,
     AuthorizationParams,
+    AuthorizeError,
     RefreshToken,
     RegistrationError,
     TokenError,
@@ -55,6 +57,12 @@ AUTH_CODE_TTL = 5 * 60
 AUTH_REQUEST_TTL = 10 * 60
 #: Dynamic registration is open by design; this caps how many rows it can add.
 MAX_CLIENTS = 500
+#: Hosts a client may send users back to, unless ``mcp.oauth.redirect_hosts``
+#: overrides it: Claude.ai / Claude Desktop connectors, plus loopback for local
+#: clients such as Claude Code. Open registration with any redirect would let
+#: anyone register a look-alike client and collect codes on their own domain.
+DEFAULT_REDIRECT_HOSTS = ("claude.ai", "claude.com", "localhost", "127.0.0.1", "[::1]")
+_LOOPBACK_HOSTS = frozenset({"localhost", "127.0.0.1", "[::1]"})
 
 
 def _hash(value: str) -> str:
@@ -93,8 +101,22 @@ class PendingAuthorization:
 class RealizeOAuthProvider:
     """SQLite-backed ``OAuthAuthorizationServerProvider`` for the MCP endpoint."""
 
-    def __init__(self, issuer_url: str):
+    def __init__(self, issuer_url: str, redirect_hosts: tuple[str, ...] = DEFAULT_REDIRECT_HOSTS):
         self.issuer_url = issuer_url.rstrip("/")
+        self.redirect_hosts = frozenset(h.strip().lower() for h in redirect_hosts if h.strip())
+
+    def redirect_allowed(self, redirect_uri: str) -> bool:
+        """True when ``redirect_uri`` points at an allowed host.
+
+        Loopback hosts may use ``http`` on any port; every other host needs ``https``.
+        """
+        parsed = urlparse(str(redirect_uri))
+        host = (parsed.hostname or "").lower()
+        if host == "::1":
+            host = "[::1]"
+        if host not in self.redirect_hosts:
+            return False
+        return parsed.scheme == "https" or (parsed.scheme == "http" and host in _LOOPBACK_HOSTS)
 
     # ------------------------------------------------------------- clients
 
@@ -109,6 +131,13 @@ class RealizeOAuthProvider:
 
     async def register_client(self, client_info: OAuthClientInformationFull) -> None:
         """Store a dynamically registered client."""
+        refused = [str(uri) for uri in client_info.redirect_uris or [] if not self.redirect_allowed(str(uri))]
+        if refused:
+            logger.warning("MCP OAuth client registration refused: redirect %s is not allowed", refused[0])
+            raise RegistrationError(
+                "invalid_redirect_uri",
+                "redirect_uri host is not allowed on this server (see mcp.oauth.redirect_hosts)",
+            )
         conn = get_connection()
         try:
             count = conn.execute("SELECT COUNT(*) AS n FROM mcp_oauth_clients").fetchone()["n"]
@@ -128,6 +157,8 @@ class RealizeOAuthProvider:
 
     async def authorize(self, client: OAuthClientInformationFull, params: AuthorizationParams) -> str:
         """Park the request and send the user to the sign-in page."""
+        if not self.redirect_allowed(str(params.redirect_uri)):
+            raise AuthorizeError("invalid_request", "redirect_uri host is not allowed on this server")
         request_id = secrets.token_urlsafe(32)
         conn = get_connection()
         try:

@@ -104,7 +104,11 @@ def _mount_oauth(app: Any, mcp_config: McpConfig) -> None:
         return
 
     issuer = AnyHttpUrl(mcp_config.public_url)
-    provider = RealizeOAuthProvider(mcp_config.public_url)
+    provider = (
+        RealizeOAuthProvider(mcp_config.public_url, mcp_config.oauth_redirect_hosts)
+        if mcp_config.oauth_redirect_hosts
+        else RealizeOAuthProvider(mcp_config.public_url)
+    )
     try:
         routes = create_auth_routes(
             provider,
