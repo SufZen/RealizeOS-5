@@ -317,9 +317,16 @@ async def process_message(
     features: dict = None,
     all_systems: dict = None,
     emit=None,
+    requested_agent: str | None = None,
+    selected: dict | None = None,
 ) -> str:
     """
     Main entry point: process an incoming message through the full pipeline.
+
+    ``requested_agent`` is an agent the caller chose (the chat page's agent
+    picker); it replaces keyword routing when it is one of this venture's
+    agents. ``selected``, when given, receives ``agent_key``: the agent that
+    actually answered (after the missing-file and paused-agent fallbacks).
 
     Flow:
     1. Log message_received (activity log)
@@ -400,7 +407,13 @@ async def process_message(
                 keywords = agent_key.replace("_", " ").split()
                 agent_routing[agent_key] = keywords
 
-    agent_key = select_agent(agent_routing, message)
+    venture_agents = (system_config or {}).get("agents", {})
+    if requested_agent and (requested_agent == "orchestrator" or requested_agent in venture_agents):
+        agent_key = requested_agent
+    else:
+        if requested_agent:
+            logger.warning("Requested agent %r is not in %s; routing automatically", requested_agent, system_key)
+        agent_key = select_agent(agent_routing, message)
 
     # --- Safety: verify agent definition exists, fallback to orchestrator ---
     if system_config and agent_key != "orchestrator":
@@ -422,6 +435,9 @@ async def process_message(
                 # If orchestrator is also paused, still proceed (don't block)
         except Exception:
             pass
+
+    if selected is not None:
+        selected["agent_key"] = agent_key
 
     # --- Activity: log agent routing ---
     if features.get("activity_log"):

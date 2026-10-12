@@ -59,27 +59,35 @@ export default function ChatPage() {
   // Stop a running stream when leaving the page
   useEffect(() => () => abortRef.current?.abort(), [])
 
-  // A different venture (global switcher) starts from its own agents and history
+  // A different venture (global switcher) starts from its own agents and history.
+  // A reply still streaming for the previous venture is stopped, not shown here.
   useEffect(() => {
+    abortRef.current?.abort()
     setSelectedAgent('')
     setMessages([])
   }, [selectedVenture])
 
-  // Load agents when venture changes
+  // Load agents when venture changes (a late answer for another venture is dropped)
   useEffect(() => {
     if (!selectedVenture) return
+    let current = true
     api
       .get<AgentsResponse>(`/ventures/${selectedVenture}/agents`)
-      .then((data) => setAgents(data.agents || []))
-      .catch(() => setAgents([]))
+      .then((data) => current && setAgents(data.agents || []))
+      .catch(() => current && setAgents([]))
+    return () => {
+      current = false
+    }
   }, [selectedVenture])
 
-  // Load conversation history when venture changes
+  // Load conversation history when venture changes (same rule)
   useEffect(() => {
     if (!selectedVenture) return
+    let current = true
     api
       .get<ConversationResponse>(`/conversations/${selectedVenture}/${userId}`)
       .then((data) => {
+        if (!current) return
         const msgs: ChatMsg[] = (data.messages || []).map((m) => ({
           role: m.role === 'user' ? ('user' as const) : ('assistant' as const),
           content: m.content,
@@ -89,7 +97,10 @@ export default function ChatPage() {
         }))
         setMessages(msgs)
       })
-      .catch(() => setMessages([]))
+      .catch(() => current && setMessages([]))
+    return () => {
+      current = false
+    }
   }, [selectedVenture, userId])
 
   // Scroll to bottom on new messages

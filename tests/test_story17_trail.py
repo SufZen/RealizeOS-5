@@ -629,3 +629,78 @@ async def test_mcp_chat_cannot_act_as_someone_else(memory_db, monkeypatch):
 
     assert seen == ["dana@acme.io"]
     assert out["user_id"] == "dana@acme.io"
+
+
+# ---------------------------------------------------------------------------
+# Codex audit F18: the chosen agent is the agent that runs
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def agent_client(memory_db, monkeypatch):
+    from realize_api.main import create_app
+
+    app = create_app()
+    app.state.systems = {"acme": {"name": "Acme", "agents": {"writer": "w.md", "analyst": "a.md"}}}
+    app.state.config = {"features": {}}
+    return TestClient(app)
+
+
+def test_chosen_agent_reaches_the_engine_and_the_reply_names_who_ran(agent_client, monkeypatch):
+    import realize_core.base_handler as bh
+
+    seen = {}
+    scripted = _scripted_process([], reply="drafted")
+
+    async def fake(**kwargs):
+        seen.update(kwargs)
+        kwargs["selected"]["agent_key"] = "orchestrator"  # e.g. the writer was paused
+        return await scripted(**kwargs)
+
+    monkeypatch.setattr(bh, "process_message", fake)
+    body = agent_client.post(
+        "/api/chat", json={"message": "hi", "system_key": "acme", "user_id": "u1", "agent_key": "writer"}
+    ).json()
+
+    assert seen["requested_agent"] == "writer"
+    assert body["agent_key"] == "orchestrator"  # the agent that actually answered, not the request
+
+
+def test_agent_outside_the_venture_is_refused(agent_client, monkeypatch):
+    import realize_core.base_handler as bh
+
+    monkeypatch.setattr(bh, "process_message", _scripted_process([]))
+    for path in ("/api/chat", "/api/chat/stream"):
+        resp = agent_client.post(
+            path, json={"message": "hi", "system_key": "acme", "user_id": "u1", "agent_key": "globex-cfo"}
+        )
+        assert resp.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_engine_uses_the_requested_agent_over_keyword_routing(memory_db, monkeypatch):
+    import realize_core.base_handler as bh
+
+    ran = {}
+
+    async def fake_standard(**kwargs):
+        ran["agent_key"] = kwargs["agent_key"]
+        return "ok"
+
+    async def no_skill(**kwargs):
+        return False, None
+
+    monkeypatch.setattr(bh, "standard_llm_handling", fake_standard)
+    monkeypatch.setattr(bh, "check_and_execute_skill", no_skill)
+    system_config = {
+        "agents": {"writer": "w.md", "analyst": "a.md"},
+        "agent_routing": {"analyst": ["analyze"], "writer": ["write"]},
+    }
+    selected: dict = {}
+
+    await bh.process_message(
+        "acme", "u1", "please analyze this", system_config=system_config, requested_agent="writer", selected=selected
+    )
+
+    assert ran["agent_key"] == "writer"
+    assert selected["agent_key"] == "writer"
