@@ -137,7 +137,7 @@ async def login(body: LoginRequest, request: Request, response: Response):
     except Exception as exc:
         logger.debug("Audit log for login skipped: %s", exc)
 
-    return {"user_id": user.email, "role": user.role}
+    return {"user_id": user.email, "role": user.role, "ventures": list(user.ventures) or None}
 
 
 @router.post("/logout")
@@ -176,11 +176,16 @@ async def get_session_info(request: Request):
     if record is None:
         return {"authenticated": False}
 
+    from realize_core.security.venture_scope import allowed_ventures
+
+    allowed = allowed_ventures(record.user_id)
     return {
         "authenticated": True,
         "user_id": record.user_id,
         "role": record.role,
         "expires_at": record.expires_at,
+        # Ventures this user is limited to; null = every venture (STORY-18).
+        "ventures": sorted(allowed) if allowed is not None else None,
     }
 
 

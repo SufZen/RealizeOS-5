@@ -12,6 +12,16 @@ dashboard is effectively read-locked.
 
 Passwords are stored as bcrypt hashes only. Plaintext is never persisted.
 
+A user may be limited to some ventures with ``ventures: [key, ...]``. Leave
+the key out for every venture; an empty or malformed list skips the user
+(see ``security/venture_scope.py``)::
+
+    users:
+      - email: dana@acme.io
+        role: operator
+        ventures: [tower-b]
+        password_hash: "$2b$12$..."
+
 Public API:
     get_user(email) -> User | None
     list_users() -> list[User]
@@ -29,7 +39,7 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 USERS_FILE = "users.yaml"
-VALID_ROLES = ("owner", "admin", "viewer")
+VALID_ROLES = ("owner", "admin", "operator", "user", "viewer")
 
 
 @dataclass(frozen=True)
@@ -39,9 +49,10 @@ class User:
     email: str
     role: str
     password_hash: str
+    ventures: tuple[str, ...] = ()  # empty = every venture
 
     def __repr__(self) -> str:  # pragma: no cover - debug aid
-        return f"User(email={self.email!r}, role={self.role!r}, password_hash=<redacted>)"
+        return f"User(email={self.email!r}, role={self.role!r}, ventures={self.ventures!r}, password_hash=<redacted>)"
 
 
 def _load_yaml_users(path: Path) -> list[User]:
@@ -85,7 +96,22 @@ def _load_yaml_users(path: Path) -> list[User]:
             )
             continue
 
-        users.append(User(email=email, role=role, password_hash=password_hash))
+        ventures: tuple[str, ...] = ()
+        if "ventures" in entry:
+            raw_ventures = entry["ventures"]
+            valid = (
+                isinstance(raw_ventures, list)
+                and raw_ventures
+                and all(isinstance(v, str) and v.strip() for v in raw_ventures)
+            )
+            if not valid:
+                # Fail closed: a present-but-empty or malformed scope must
+                # never turn into "every venture".
+                logger.warning("%s[%d]: 'ventures' must be a non-empty list of venture keys, skipped", path, idx)
+                continue
+            ventures = tuple(v.strip() for v in raw_ventures)
+
+        users.append(User(email=email, role=role, password_hash=password_hash, ventures=ventures))
 
     return users
 

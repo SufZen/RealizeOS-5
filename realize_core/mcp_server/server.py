@@ -35,6 +35,7 @@ class MCPErrorCode:
     NOT_FOUND = "MCP_TOOL_NOT_FOUND"
     DISABLED = "MCP_TOOL_DISABLED"
     INSUFFICIENT_SCOPE = "MCP_INSUFFICIENT_SCOPE"
+    FORBIDDEN = "MCP_FORBIDDEN"
     ADMIN_DISABLED = "MCP_ADMIN_DISABLED"
     INTERNAL = "MCP_INTERNAL"
 
@@ -94,15 +95,31 @@ async def _dispatch(
         code = MCPErrorCode.ADMIN_DISABLED if tool.family == "admin" else MCPErrorCode.DISABLED
         return _error(code, f"Tool '{name}' is not enabled on this RealizeOS instance.")
 
-    if not role_meets_scope(user.role, tool.scope):
+    from realize_core.mcp_server.venture_guard import is_rbac_role, permission_refusal
+
+    # RBAC roles get the same per-tool permissions as the REST API; the
+    # MCP-only roles (e.g. "editor") keep the tool-family scope check.
+    refusal = permission_refusal(name, user.role)
+    if refusal:
+        _audit_call(tool, user, status="forbidden", duration_ms=0, mcp_config=mcp_config)
+        return _error(MCPErrorCode.INSUFFICIENT_SCOPE, refusal)
+    if not is_rbac_role(user.role) and not role_meets_scope(user.role, tool.scope):
         _audit_call(tool, user, status="forbidden", duration_ms=0, mcp_config=mcp_config)
         return _error(
             MCPErrorCode.INSUFFICIENT_SCOPE,
             f"Tool '{name}' requires scope '{tool.scope}'; caller has role '{user.role}'.",
         )
 
+    from realize_core.mcp_server import venture_guard
+
+    allowed = venture_guard.caller_ventures(user)
+    refusal = venture_guard.check_call(name, arguments, allowed)
+    if refusal:
+        _audit_call(tool, user, status="forbidden", duration_ms=0, mcp_config=mcp_config)
+        return _error(MCPErrorCode.FORBIDDEN, refusal)
+
     try:
-        result = await tool.handler(arguments, app_state, user)
+        result = venture_guard.filter_result(name, await tool.handler(arguments, app_state, user), allowed)
     except Exception as exc:
         logger.exception("MCP tool '%s' raised an exception", name)
         _audit_call(

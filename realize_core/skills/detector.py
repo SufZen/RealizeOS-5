@@ -342,21 +342,44 @@ def _get_candidates(system_key: str | None) -> list[dict]:
 
 
 def get_all_skills() -> list[dict]:
-    """Return all loaded skills across all systems as a flat list."""
+    """Return all loaded skills across all systems as a flat list.
+
+    Each entry's ``system_key`` is the system the skill was loaded under (its
+    owner), which is also what skill detection uses; a ``system_key`` written
+    inside the skill's own definition never overrides it.
+    """
     all_skills = []
     for sys_key, skills in _loaded_skills.items():
         for skill in skills:
-            entry = dict(skill)
-            entry.setdefault("system_key", sys_key)
-            all_skills.append(entry)
+            all_skills.append({**skill, "system_key": sys_key})
     # Include defaults if nothing loaded
     if not all_skills:
         for sys_key, skills in _DEFAULT_SKILLS.items():
             for skill in skills:
-                entry = dict(skill)
-                entry.setdefault("system_key", sys_key)
-                all_skills.append(entry)
+                all_skills.append({**skill, "system_key": sys_key})
     return all_skills
+
+
+#: Skill owners that are not ventures: built-ins and skills registered without one.
+GLOBAL_SKILL_OWNERS = frozenset({"", "_default", "_runtime"})
+
+
+def find_skill(name: str) -> tuple[str, dict] | None:
+    """Look up a skill by name with its owner (same skill as :func:`get_skill_by_name`).
+
+    The owner is the system key the skill was loaded under. Skills loaded from
+    a venture's YAML don't carry it in their dict, so access checks must use
+    this owner, never ``skill.get("system_key")``.
+    """
+    for owner, skills in _loaded_skills.items():
+        for skill in skills:
+            if skill.get("name") == name:
+                return owner, skill
+    for owner, skills in _DEFAULT_SKILLS.items():
+        for skill in skills:
+            if skill.get("name") == name:
+                return owner, skill
+    return None
 
 
 def get_skill_by_name(name: str) -> dict | None:

@@ -56,6 +56,10 @@ Auth: same as the REST API. Pass `Authorization: Bearer <jwt>` (from `POST /api/
 * Tool inputs, outputs and errors are left out of the summary. They can carry third-party text (email bodies, web pages, sheet cells), so, like approval results, they are not echoed to MCP clients. The full trail is in the dashboard and `GET /api/conversations`.
 * Same rule as the REST chat routes: callers act for themselves. Only `owner`/`admin` may pass another `user_id` to `realize_chat`, `get_history`, `clear_history` or `get_session`; anyone else chats as themselves and gets `MCP_FORBIDDEN` for another user's history or session.
 
+### Venture scope
+
+A caller limited to some ventures (a `users.yaml` user with `ventures`, or a JWT with `venture:<key>` scopes) gets a fail-closed subset: chat, agents, skills, history, session, KB search and approvals tools work only when they name one of those ventures; `approve_request` / `reject_request` only for approvals in them; `list_systems` / `list_ventures` are filtered; anything that spans every venture (admin, evolution, cross-venture KB) returns `MCP_FORBIDDEN`. Callers without a venture limit are unaffected.
+
 ### Admin tool behaviour
 
 * Off by default. To expose, set `mcp.allow_admin: true` (or `MCP_ALLOW_ADMIN=true`).

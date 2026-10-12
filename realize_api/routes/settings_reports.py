@@ -7,6 +7,8 @@ from pathlib import Path
 
 from fastapi import APIRouter, Request
 
+from realize_api.dependencies import visible_systems
+
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
@@ -15,7 +17,7 @@ logger = logging.getLogger(__name__)
 async def trigger_morning_briefing(request: Request):
     """Generate a morning briefing on demand."""
     config = getattr(request.app.state, "config", {})
-    systems = getattr(request.app.state, "systems", {})
+    systems = visible_systems(request)
     kb_path = getattr(request.app.state, "kb_path", Path("."))
     features = config.get("features", {})
 
@@ -29,7 +31,7 @@ async def trigger_morning_briefing(request: Request):
 async def trigger_weekly_review(request: Request):
     """Generate a weekly review on demand."""
     config = getattr(request.app.state, "config", {})
-    systems = getattr(request.app.state, "systems", {})
+    systems = visible_systems(request)
     kb_path = getattr(request.app.state, "kb_path", Path("."))
     features = config.get("features", {})
 

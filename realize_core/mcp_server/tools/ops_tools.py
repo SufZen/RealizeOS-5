@@ -55,6 +55,7 @@ async def list_workflows(args: dict[str, Any], app_state: Any, user: CurrentUser
         logger.warning("list_workflows failed: %s", exc)
         return {"workflows": [], "total": 0, "error": str(exc)[:200], "code": "MCP_INTERNAL"}
 
+    # system_key is each skill's owner (the venture it was loaded under).
     system_key = args.get("system_key") or None
     if system_key:
         skills = [s for s in skills if (s.get("system_key", "") or "") in (system_key, "")]
@@ -126,8 +127,12 @@ async def _run_skill(args: dict[str, Any], app_state: Any, user: CurrentUser) ->
     if not skill:
         return {"error": f"Workflow '{name}' not found", "code": "MCP_NOT_FOUND"}
 
+    from realize_core.security.chat_access import chat_user_for
+
     system_key = (args.get("system_key") or skill.get("system_key") or "").strip() or "default"
-    user_id = (args.get("user_id") or user.user_id or "mcp-user").strip()
+    # Same rule as chat: callers act for themselves unless owner/admin.
+    requested = (args.get("user_id") or user.user_id or "mcp-user").strip()
+    user_id = chat_user_for(user.user_id, getattr(user, "role", None), requested)
 
     systems = getattr(app_state, "systems", {}) or {}
     system_config = systems.get(system_key)

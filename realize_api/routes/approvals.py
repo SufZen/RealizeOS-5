@@ -12,6 +12,8 @@ import logging
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
+from realize_api.dependencies import get_allowed_ventures, visible_to
+
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
@@ -22,10 +24,11 @@ class DecisionBody(BaseModel):
 
 @router.get("/approvals")
 async def list_approvals(
+    request: Request,
     venture_key: str = None,
     status: str = "pending",
 ):
-    """List approvals, defaulting to pending."""
+    """List approvals, defaulting to pending (only the caller's ventures)."""
     from realize_core.db.schema import get_connection
 
     conn = get_connection()
@@ -39,6 +42,11 @@ async def list_approvals(
         if venture_key:
             clauses.append("venture_key = ?")
             params.append(venture_key)
+        allowed = get_allowed_ventures(request)
+        if allowed is not None:
+            keys = sorted(allowed) or [""]
+            clauses.append(f"venture_key IN ({','.join('?' for _ in keys)})")
+            params.extend(keys)
 
         where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
         rows = conn.execute(
@@ -57,10 +65,25 @@ def _decider(request: Request) -> tuple[str | None, str]:
     return getattr(state, "user_id", None), channel
 
 
+def _require_visible(request: Request, approval_id: str) -> None:
+    """404 unless the approval exists in a venture the caller may see."""
+    from realize_core.db.schema import get_connection
+
+    conn = get_connection()
+    try:
+        row = conn.execute("SELECT venture_key FROM approval_queue WHERE id = ?", (approval_id,)).fetchone()
+    finally:
+        conn.close()
+    if row is None or not visible_to(request, row["venture_key"]):
+        raise HTTPException(status_code=404, detail="Approval not found or not pending")
+
+
 @router.post("/approvals/{approval_id}/approve")
 async def approve(approval_id: str, request: Request, body: DecisionBody = None):
     """Approve a pending request — a held tool action is dispatched now (once)."""
     from realize_core.governance.gates import decide_approval
+
+    _require_visible(request, approval_id)
 
     note = body.decision_note if body else None
     decided_by, channel = _decider(request)
@@ -78,6 +101,8 @@ async def approve(approval_id: str, request: Request, body: DecisionBody = None)
 async def reject(approval_id: str, request: Request, body: DecisionBody = None):
     """Reject a pending request."""
     from realize_core.governance.gates import decide_approval
+
+    _require_visible(request, approval_id)
 
     note = body.decision_note if body else None
     decided_by, channel = _decider(request)

@@ -16,6 +16,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request
 
+from realize_api.dependencies import visible_systems
 from realize_api.routes.route_helpers import get_agents_with_status
 
 router = APIRouter()
@@ -25,7 +26,7 @@ logger = logging.getLogger(__name__)
 @router.get("/ventures/{venture_key}/agents")
 async def list_venture_agents(venture_key: str, request: Request):
     """List agents for a venture with current status from DB."""
-    systems: dict = getattr(request.app.state, "systems", {})
+    systems: dict = visible_systems(request)
 
     if venture_key not in systems:
         raise HTTPException(status_code=404, detail=f"Venture '{venture_key}' not found")
@@ -39,7 +40,7 @@ async def list_venture_agents(venture_key: str, request: Request):
 @router.get("/ventures/{venture_key}/agents/{agent_key}")
 async def get_agent_detail(venture_key: str, agent_key: str, request: Request):
     """Get detailed agent info including config, status, and recent activity."""
-    systems: dict = getattr(request.app.state, "systems", {})
+    systems: dict = visible_systems(request)
     kb_path: Path = getattr(request.app.state, "kb_path", Path("."))
 
     if venture_key not in systems:
@@ -99,7 +100,7 @@ async def get_agent_detail(venture_key: str, agent_key: str, request: Request):
 @router.post("/ventures/{venture_key}/agents/{agent_key}/pause")
 async def pause_agent(venture_key: str, agent_key: str, request: Request):
     """Pause an agent — it will be skipped during message routing."""
-    systems: dict = getattr(request.app.state, "systems", {})
+    systems: dict = visible_systems(request)
     if venture_key not in systems:
         raise HTTPException(status_code=404, detail=f"Venture '{venture_key}' not found")
     if agent_key not in systems[venture_key].get("agents", {}):
@@ -133,7 +134,7 @@ async def pause_agent(venture_key: str, agent_key: str, request: Request):
 @router.post("/ventures/{venture_key}/agents/{agent_key}/resume")
 async def resume_agent(venture_key: str, agent_key: str, request: Request):
     """Resume a paused agent — sets status back to idle."""
-    systems: dict = getattr(request.app.state, "systems", {})
+    systems: dict = visible_systems(request)
     if venture_key not in systems:
         raise HTTPException(status_code=404, detail=f"Venture '{venture_key}' not found")
     if agent_key not in systems[venture_key].get("agents", {}):
@@ -167,7 +168,7 @@ async def resume_agent(venture_key: str, agent_key: str, request: Request):
 @router.put("/ventures/{venture_key}/agents/{agent_key}/schedule")
 async def set_agent_schedule(venture_key: str, agent_key: str, request: Request):
     """Set or update an agent's schedule (cron or interval)."""
-    systems: dict = getattr(request.app.state, "systems", {})
+    systems: dict = visible_systems(request)
     if venture_key not in systems:
         raise HTTPException(status_code=404, detail=f"Venture '{venture_key}' not found")
     if agent_key not in systems[venture_key].get("agents", {}):
@@ -250,7 +251,7 @@ async def set_agent_schedule(venture_key: str, agent_key: str, request: Request)
 @router.delete("/ventures/{venture_key}/agents/{agent_key}/schedule")
 async def clear_agent_schedule(venture_key: str, agent_key: str, request: Request):
     """Remove an agent's schedule."""
-    systems: dict = getattr(request.app.state, "systems", {})
+    systems: dict = visible_systems(request)
     if venture_key not in systems:
         raise HTTPException(status_code=404, detail=f"Venture '{venture_key}' not found")
     if agent_key not in systems[venture_key].get("agents", {}):

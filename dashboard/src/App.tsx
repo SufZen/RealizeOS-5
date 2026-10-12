@@ -28,6 +28,8 @@ import { TourProvider } from '@/components/tour-provider'
 import { ToastProvider } from '@/components/ui/toast'
 import { Skeleton, SkeletonCard } from '@/components/ui/skeleton'
 import { AuthProvider, useAuth } from '@/hooks/use-auth'
+import { VentureProvider } from '@/hooks/use-venture'
+import { VentureSwitcher } from '@/components/venture-switcher'
 import AuthGuard from '@/components/auth-guard'
 
 const OverviewPage = lazy(() => import('@/pages/overview'))
@@ -100,10 +102,29 @@ const navGroups = [
   },
 ]
 
+/** Pages that work on what every venture shares; hidden from venture-limited users (STORY-18). */
+const SYSTEM_WIDE_PAGES = new Set([
+  '/pipelines',
+  '/evolution',
+  '/tools',
+  '/integrations',
+  '/setup',
+  '/settings',
+])
+
 function NavContent({ onNavigate }: { onNavigate?: () => void }) {
+  const { user } = useAuth()
+  const scoped = Array.isArray(user?.ventures)
+  const groups = navGroups
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) => !(scoped && SYSTEM_WIDE_PAGES.has(item.to))),
+    }))
+    .filter((group) => group.items.length > 0)
+
   return (
     <nav className="flex flex-col gap-1 flex-1" data-tour="sidebar">
-      {navGroups.map((group) => (
+      {groups.map((group) => (
         <div key={group.label} className="mb-3">
           <span className="px-3 mb-1 block text-[10px] uppercase tracking-widest text-muted-foreground/60 font-semibold">
             {group.label}
@@ -149,6 +170,7 @@ function DesktopSidebar() {
   return (
     <aside className="hidden md:flex w-64 flex-col border-r border-border bg-surface-950 fx-glass p-4">
       <Logo />
+      <VentureSwitcher />
       <NavContent />
       <div className="mt-auto pt-4 border-t border-border" data-tour="theme-toggle">
         <ThemeToggle />
@@ -210,6 +232,7 @@ function MobileSheet({ open, onClose }: { open: boolean; onClose: () => void }) 
             <X className="h-5 w-5" />
           </button>
         </div>
+        <VentureSwitcher />
         <NavContent onNavigate={onClose} />
       </div>
     </>
@@ -314,7 +337,7 @@ function AuthenticatedShell() {
   }
 
   return (
-    <>
+    <VentureProvider>
       <a
         href="#main-content"
         className="sr-only focus:not-sr-only focus:absolute focus:z-[60] focus:top-4 focus:left-4 focus:px-4 focus:py-2 focus:rounded-lg focus:bg-brand-400 focus:text-black focus:text-sm focus:font-medium"
@@ -357,7 +380,7 @@ function AuthenticatedShell() {
           </main>
         </div>
       </div>
-    </>
+    </VentureProvider>
   )
 }
 

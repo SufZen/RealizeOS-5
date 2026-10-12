@@ -17,6 +17,7 @@ import logging
 import uuid
 from collections import OrderedDict
 from datetime import datetime
+from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
@@ -24,6 +25,8 @@ from realize_core.agents.base import HandoffType, PipelineStage
 from realize_core.agents.personas import list_personas, persona_keys
 from realize_core.agents.registry import AgentRegistry
 from realize_core.agents.schema import V1AgentDef, V2AgentDef
+
+from realize_api.dependencies import get_allowed_ventures, visible_systems
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -117,6 +120,31 @@ def _get_registry(request: Request) -> AgentRegistry:
     return registry
 
 
+def _visible_agents(request: Request, agents: list) -> list:
+    """Agents whose definition file lives in a venture the caller may see.
+
+    The registry merges every venture's agents; a caller limited to some
+    ventures sees only theirs (agents without a file are hidden from them).
+    """
+    if get_allowed_ventures(request) is None:
+        return agents
+    kb_path = getattr(request.app.state, "kb_path", None)
+    if kb_path is None:
+        return []
+    dirs = [
+        (Path(kb_path) / conf.get("agents_dir", f"systems/{key}/A-agents")).resolve()
+        for key, conf in visible_systems(request).items()
+    ]
+
+    def inside(agent) -> bool:
+        if not agent.file_path:
+            return False
+        path = Path(agent.file_path).resolve()
+        return any(path.is_relative_to(d) for d in dirs)
+
+    return [a for a in agents if inside(a)]
+
+
 def _agent_to_dict(agent: V1AgentDef | V2AgentDef) -> dict:
     """Serialize an agent definition to a JSON-safe dict."""
     if isinstance(agent, V1AgentDef):
@@ -189,6 +217,7 @@ async def list_agents(
 
     if persona:
         agents = [a for a in agents if isinstance(a, V2AgentDef) and a.persona == persona]
+    agents = _visible_agents(request, agents)
 
     return {
         "agents": [_agent_to_dict(a) for a in agents],
@@ -219,7 +248,7 @@ async def get_agent(agent_key: str, request: Request):
     """Get detailed info for a specific agent."""
     registry = _get_registry(request)
     agent = registry.get(agent_key)
-    if not agent:
+    if not agent or not _visible_agents(request, [agent]):
         raise HTTPException(status_code=404, detail=f"Agent '{agent_key}' not found")
     return _agent_to_dict(agent)
 

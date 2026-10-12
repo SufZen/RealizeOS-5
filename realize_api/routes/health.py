@@ -8,6 +8,8 @@ import os
 from fastapi import APIRouter, Request
 from realize_core import __version__
 
+from realize_api.dependencies import visible_systems
+
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
@@ -21,7 +23,7 @@ async def health():
 @router.get("/status")
 async def status(request: Request):
     """Detailed system status."""
-    systems = request.app.state.systems
+    systems = visible_systems(request)
 
     # Check LLM availability
     llm_status = {}

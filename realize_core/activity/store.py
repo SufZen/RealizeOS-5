@@ -16,11 +16,13 @@ def query_events(
     limit: int = 50,
     offset: int = 0,
     db_path=None,
+    venture_keys=None,
 ) -> list[dict]:
     """
     Query activity events with optional filters.
 
-    Returns events newest-first.
+    ``venture_keys`` (any iterable) limits results to those ventures; an empty
+    one matches nothing. Returns events newest-first.
     """
     conn = get_connection(db_path)
     try:
@@ -30,6 +32,12 @@ def query_events(
         if venture_key:
             clauses.append("venture_key = ?")
             params.append(venture_key)
+        if venture_keys is not None:
+            keys = sorted(venture_keys)
+            if not keys:
+                return []
+            clauses.append(f"venture_key IN ({','.join('?' for _ in keys)})")
+            params.extend(keys)
         if actor_id:
             clauses.append("actor_id = ?")
             params.append(actor_id)

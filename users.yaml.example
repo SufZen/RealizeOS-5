@@ -8,10 +8,17 @@
 # To generate a bcrypt hash for a password:
 #   python scripts/hash_password.py
 #
-# Roles:
-#   owner   — full read/write on every endpoint
-#   admin   — read/write except global config and user management
-#   viewer  — read-only
+# Roles (RBAC, enforced on every write since 5.7.0):
+#   owner    — everything
+#   admin    — everything except security settings and user management
+#   operator — work in ventures: chat, edit venture files, approve held actions
+#   user     — chat and edit venture files; cannot approve
+#   viewer   — read-only (cannot chat)
+#
+# Ventures (optional): `ventures: [key, ...]` limits a user to those ventures.
+# They see only those ventures everywhere (dashboard, API, MCP) and cannot
+# change anything shared by every venture (settings, integrations, ...).
+# Leave it out for access to every venture.
 #
 # If `users.yaml` is absent, the API falls back to the single-owner env vars:
 #   REALIZE_ADMIN_USER=owner@example.com
@@ -28,4 +35,9 @@ users:
 
   # - email: stakeholder@example.com
   #   role: viewer
+  #   password_hash: $2b$12$...
+
+  # - email: project-manager@client.example
+  #   role: operator
+  #   ventures: [tower-b]
   #   password_hash: $2b$12$...

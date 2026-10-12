@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { BookOpen, Download, Check, AlertCircle, Loader2, Zap } from 'lucide-react'
 import { useApi } from '@/hooks/use-api'
+import { useVenture } from '@/hooks/use-venture'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
 
@@ -19,26 +20,13 @@ interface LibraryData {
   categories: string[]
 }
 
-interface VenturesData {
-  ventures: Array<{ key: string; name: string }>
-}
-
 export default function SkillsPage() {
   const { data, loading, error } = useApi<LibraryData>('/skills/library')
-  const { data: venturesData } = useApi<VenturesData>('/ventures')
   const [filter, setFilter] = useState('')
   const [installing, setInstalling] = useState<string | null>(null)
   const [installed, setInstalled] = useState<Set<string>>(new Set())
-  const [selectedVenture, setSelectedVenture] = useState('')
+  const { selected: selectedVenture, ventures } = useVenture()
   const [installError, setInstallError] = useState<string | null>(null)
-
-  // Auto-select when only one venture exists
-  useEffect(() => {
-    if (!selectedVenture && venturesData?.ventures.length === 1) {
-      const first = venturesData.ventures[0]
-      if (first) setSelectedVenture(first.key)
-    }
-  }, [venturesData, selectedVenture])
 
   async function handleInstall(skillId: string) {
     if (!selectedVenture) {
@@ -115,18 +103,9 @@ export default function SkillsPage() {
 
         <div className="ml-auto flex items-center gap-2">
           <span className="text-xs text-muted-foreground">Install to:</span>
-          <select
-            value={selectedVenture}
-            onChange={(e) => setSelectedVenture(e.target.value)}
-            className="appearance-none bg-surface-800 border border-border rounded-lg px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-brand-400"
-          >
-            <option value="">Select venture...</option>
-            {venturesData?.ventures.map((v) => (
-              <option key={v.key} value={v.key}>
-                {v.name || v.key}
-              </option>
-            ))}
-          </select>
+          <span className="text-sm text-foreground" dir="auto">
+            {ventures.find((v) => v.key === selectedVenture)?.name ?? 'No venture yet'}
+          </span>
         </div>
       </div>
 

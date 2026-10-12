@@ -1,22 +1,12 @@
 import { useState, useRef, useEffect } from 'react'
 import { Send, Trash2, AlertCircle, ChevronDown } from 'lucide-react'
-import { useApi } from '@/hooks/use-api'
 import { useAuth } from '@/hooks/use-auth'
+import { useVenture } from '@/hooks/use-venture'
 import { api } from '@/lib/api'
 import { emptyTrail, streamChat, withEvent, type Trail } from '@/lib/chat-stream'
 import { ChatMessage, type ChatMsg } from '@/components/chat-message'
 import { cn } from '@/lib/utils'
 import { safeRandomUUID } from '@/lib/uuid'
-
-interface Venture {
-  key: string
-  name: string
-  agent_count: number
-}
-
-interface VenturesResponse {
-  ventures: Venture[]
-}
 
 interface AgentsResponse {
   agents: Array<{ key: string }>
@@ -55,8 +45,7 @@ function toIso(created?: string): string | undefined {
 export default function ChatPage() {
   const { user } = useAuth()
   const userId = user?.user_id ?? FALLBACK_USER_ID
-  const { data: venturesData } = useApi<VenturesResponse>('/ventures')
-  const [selectedVenture, setSelectedVenture] = useState('')
+  const { selected: selectedVenture } = useVenture()
   const [selectedAgent, setSelectedAgent] = useState('')
   const [agents, setAgents] = useState<Array<{ key: string }>>([])
   const [messages, setMessages] = useState<ChatMsg[]>([])
@@ -70,13 +59,11 @@ export default function ChatPage() {
   // Stop a running stream when leaving the page
   useEffect(() => () => abortRef.current?.abort(), [])
 
-  // Auto-select first venture
+  // A different venture (global switcher) starts from its own agents and history
   useEffect(() => {
-    if (venturesData?.ventures.length && !selectedVenture) {
-      const first = venturesData.ventures[0]
-      if (first) setSelectedVenture(first.key)
-    }
-  }, [venturesData, selectedVenture])
+    setSelectedAgent('')
+    setMessages([])
+  }, [selectedVenture])
 
   // Load agents when venture changes
   useEffect(() => {
@@ -195,35 +182,12 @@ export default function ChatPage() {
     }
   }
 
-  const ventures = venturesData?.ventures || []
-
   return (
     <div className="flex flex-col h-[calc(100vh-3rem)] -m-6 p-6">
       {/* Header */}
       <div className="flex items-center justify-between gap-4 pb-4 border-b border-border shrink-0">
         <h1 className="text-2xl font-bold text-foreground">Chat</h1>
         <div className="flex items-center gap-3">
-          {/* Venture selector */}
-          <div className="relative">
-            <select
-              value={selectedVenture}
-              onChange={(e) => {
-                setSelectedVenture(e.target.value)
-                setSelectedAgent('')
-                setMessages([])
-              }}
-              className="appearance-none bg-surface-800 border border-border rounded-lg px-3 py-1.5 pr-8 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-brand-400"
-            >
-              <option value="">Select venture...</option>
-              {ventures.map((v) => (
-                <option key={v.key} value={v.key}>
-                  {v.name}
-                </option>
-              ))}
-            </select>
-            <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
-          </div>
-
           {/* Agent selector */}
           {agents.length > 0 && (
             <div className="relative">

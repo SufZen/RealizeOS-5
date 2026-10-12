@@ -92,8 +92,13 @@ class ChatResponse(BaseModel):
 
 
 def _resolve_system(body: ChatRequest, request: Request) -> tuple[dict, dict]:
-    """Return ``(systems, system_config)`` or raise the matching HTTP error."""
-    systems = getattr(request.app.state, "systems", {})
+    """Return ``(systems, system_config)`` or raise the matching HTTP error.
+
+    Only ventures the caller may see count: another venture is "not found".
+    """
+    from realize_api.dependencies import visible_systems
+
+    systems = visible_systems(request)
     if not systems:
         raise HTTPException(status_code=503, detail="No systems configured. Run setup first.")
     if body.system_key not in systems:
