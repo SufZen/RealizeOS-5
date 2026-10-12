@@ -292,10 +292,11 @@ class TestBrowserSSRF:
             assert _validate_url("http://audit-internal.example.test/admin") is not None
 
     @pytest.mark.asyncio
-    async def test_route_guard_blocks_redirects_and_subrequests(self, monkeypatch):
-        """Every request the page makes (redirect hop, iframe, fetch) is vetted, not just the first URL."""
+    async def test_route_guard_fetches_pinned_and_blocks_internal(self, monkeypatch):
+        """Every request (redirect hop, iframe, fetch) is vetted and fetched against the vetted IP."""
         import ipaddress
 
+        import httpx
         from realize_core.security import url_guard
         from realize_core.tools.browser import _guard_request
 
@@ -303,10 +304,29 @@ class TestBrowserSSRF:
         monkeypatch.setattr(
             url_guard, "_resolve", lambda host: [ipaddress.ip_address(addresses.get(host, "93.184.216.34"))]
         )
+        sent = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            sent.append(request)
+            return httpx.Response(200, content=b"ok", headers={"content-type": "text/plain"})
+
+        real_fetch = url_guard.pinned_fetch
+
+        async def fetch(url, **kwargs):
+            return await real_fetch(url, transport=httpx.MockTransport(handler), **kwargs)
+
+        monkeypatch.setattr(url_guard, "pinned_fetch", fetch)
+
+        class Request:
+            def __init__(self, url):
+                self.url, self.method, self.post_data_buffer = url, "GET", None
+
+            async def all_headers(self):
+                return {"user-agent": "test"}
 
         class Route:
             def __init__(self, url):
-                self.request = type("Req", (), {"url": url})()
+                self.request = Request(url)
                 self.outcome = None
 
             async def continue_(self):
@@ -315,8 +335,11 @@ class TestBrowserSSRF:
             async def abort(self, reason):
                 self.outcome = f"aborted:{reason}"
 
+            async def fulfill(self, status, headers, body):
+                self.outcome = f"fulfilled:{status}:{body.decode()}"
+
         for url, expected in (
-            ("https://public.example/page", "continued"),
+            ("https://public.example/page", "fulfilled:200:ok"),
             ("http://internal.example/admin", "aborted:blockedbyclient"),
             ("http://169.254.169.254/latest/meta-data/", "aborted:blockedbyclient"),
             ("data:image/png;base64,AAAA", "continued"),
@@ -324,6 +347,34 @@ class TestBrowserSSRF:
             route = Route(url)
             await _guard_request(route)
             assert route.outcome == expected, url
+
+        # The connection went to the vetted IP, presenting the original host.
+        assert len(sent) == 1
+        assert sent[0].url.host == "93.184.216.34"
+        assert sent[0].headers["host"] == "public.example"
+
+    @pytest.mark.asyncio
+    async def test_websocket_to_internal_address_is_closed(self, monkeypatch):
+        import ipaddress
+
+        from realize_core.security import url_guard
+        from realize_core.tools.browser import _guard_websocket
+
+        monkeypatch.setattr(url_guard, "_resolve", lambda host: [ipaddress.ip_address("10.0.0.9")])
+
+        class WS:
+            url = "ws://intranet.example/socket"
+            closed = connected = False
+
+            async def close(self):
+                WS.closed = True
+
+            def connect_to_server(self):
+                WS.connected = True
+
+        await _guard_websocket(WS())
+        assert WS.closed
+        assert not WS.connected
 
     def test_blocks_gopher_protocol(self):
         from realize_core.tools.browser import _validate_url
