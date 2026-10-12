@@ -23,6 +23,24 @@ _DEFAULT_SHARED = {
 }
 
 
+def load_runtime() -> dict:
+    """Load what the pipeline needs, as the API server does at startup.
+
+    Returns a dict with ``config``, ``kb_path``, ``systems``, ``shared_config``
+    and ``features``.
+    """
+    from realize_core.config import KB_PATH, build_systems_dict, get_features, load_config
+
+    config = load_config()
+    return {
+        "config": config,
+        "kb_path": KB_PATH,
+        "systems": build_systems_dict(config, KB_PATH),
+        "shared_config": config.get("shared", _DEFAULT_SHARED),
+        "features": get_features(config),
+    }
+
+
 def _resolve_system_key(requested: str, systems: dict) -> str | None:
     """Pick the venture for a channel message.
 
@@ -60,10 +78,9 @@ async def process_message(
         The response text to send back on the channel.
     """
     from realize_core.base_handler import process_message as _process
-    from realize_core.config import KB_PATH, build_systems_dict, get_features, load_config
 
-    config = load_config()
-    systems = build_systems_dict(config, KB_PATH)
+    runtime = load_runtime()
+    systems = runtime["systems"]
     resolved = _resolve_system_key(system_key, systems)
     if resolved is None:
         if not systems:
@@ -79,10 +96,10 @@ async def process_message(
         system_key=resolved,
         user_id=user_id,
         message=text,
-        kb_path=KB_PATH,
+        kb_path=runtime["kb_path"],
         system_config=systems[resolved],
-        shared_config=config.get("shared", _DEFAULT_SHARED),
+        shared_config=runtime["shared_config"],
         channel=channel,
-        features=get_features(config),
+        features=runtime["features"],
         all_systems=systems,
     )

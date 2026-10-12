@@ -94,7 +94,12 @@ def get_trust_level(config: dict = None) -> int:
     if config:
         trust_config = config.get("trust", {})
         level = trust_config.get("level", trust_config.get("proactivity_level", 3))
-        return max(1, min(5, int(level)))
+        try:
+            return max(1, min(5, int(level)))
+        except (TypeError, ValueError):
+            # A broken setting must not loosen governance: use the strictest level.
+            logger.warning("Invalid trust level %r — using level 1 (most approvals)", level)
+            return 1
     return 3  # Default to tier 3
 
 

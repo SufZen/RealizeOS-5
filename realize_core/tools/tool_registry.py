@@ -131,13 +131,15 @@ class ToolRegistry:
         if self._gate is not None:
             try:
                 decision = self._decide(action_name, params)
-            except Exception as gate_exc:  # a raising gate must fail OPEN, never block tools
-                logger.error(
-                    "Tool gate raised for '%s' — failing open (allow): %s",
-                    action_name,
-                    gate_exc,
-                    exc_info=True,
-                )
+            except Exception as gate_exc:
+                # Fail closed for anything that may write; reads keep working.
+                if self.is_destructive(action_name) is not False:
+                    logger.error("Tool gate raised for '%s' — blocking: %s", action_name, gate_exc, exc_info=True)
+                    return ToolResult.fail(
+                        f"Action '{action_name}' is blocked: governance check failed",
+                        requires_human=True,
+                    )
+                logger.error("Tool gate raised for read '%s' — allowing: %s", action_name, gate_exc, exc_info=True)
                 decision = None
             if decision is not None and not decision.allowed:
                 outcome = getattr(decision, "outcome", None)
@@ -157,6 +159,24 @@ class ToolRegistry:
             return await tool.execute(action_name, params)
         except Exception as e:
             logger.error(f"Tool execution error: {action_name}: {e}", exc_info=True)
+            return ToolResult.fail(f"Execution failed: {str(e)[:300]}")
+
+    async def execute_approved(self, action_name: str, params: dict[str, Any]) -> ToolResult:
+        """Execute an action an operator has explicitly approved, skipping the gate.
+
+        Only :func:`realize_core.governance.gates.execute_approved_action` should
+        call this, after atomically claiming an approved ``approval_queue`` row
+        for exactly this action and these parameters.
+        """
+        tool = self.get_tool_for_action(action_name)
+        if not tool:
+            return ToolResult.fail(f"Unknown action: '{action_name}'")
+        if not tool.is_available():
+            return ToolResult.fail(f"Tool '{tool.name}' is not available (missing API key or dependency)")
+        try:
+            return await tool.execute(action_name, params)
+        except Exception as e:
+            logger.error("Approved tool execution error: %s", action_name, exc_info=True)
             return ToolResult.fail(f"Execution failed: {str(e)[:300]}")
 
     def get_all_schemas(self, available_only: bool = True) -> list[dict]:

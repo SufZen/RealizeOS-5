@@ -134,11 +134,23 @@ CREATE TABLE IF NOT EXISTS approval_queue (
     action_type TEXT NOT NULL,
     payload TEXT,
     status TEXT NOT NULL DEFAULT 'pending'
-        CHECK(status IN ('pending', 'approved', 'rejected', 'expired')),
+        CHECK(status IN ('pending', 'approved', 'rejected', 'expired', 'answered')),
     decision_note TEXT,
     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%f', 'now')),
     decided_at TEXT,
-    expires_at TEXT
+    expires_at TEXT,
+    -- execution and decision (migration 007, v5.7.0)
+    action_name TEXT,
+    params_json TEXT,
+    requested_by TEXT,
+    session_ref TEXT,
+    updated_at TEXT,
+    executed_at TEXT,
+    result_json TEXT,
+    error TEXT,
+    decided_by TEXT,
+    decision_channel TEXT,
+    execution_status TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_approval_venture_status
