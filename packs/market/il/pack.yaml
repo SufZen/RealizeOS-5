@@ -1,0 +1,32 @@
+id: il
+kind: market
+version: 0.1.0
+title: Israel
+requires:
+  core: '>=0.1'
+languages:
+- he
+- en
+defaults:
+  country: IL
+  currency: ILS
+  units: metric
+  locale: he-IL
+  work_week:
+  - sun
+  - mon
+  - tue
+  - wed
+  - thu
+verification:
+  level: 1
+  reviewed_by: null
+  reviewed_at: null
+  review_by: '2027-04-13'
+limits:
+- Drafted from public sources and not yet reviewed by an Israeli professional (verification 1).
+- Does not replace a lawyer, an appraiser or a licensed engineer.
+- Rates, thresholds and forms change; check the source and the as-of date before relying on a rule.
+authors:
+- Realization
+license: BSL-1.1

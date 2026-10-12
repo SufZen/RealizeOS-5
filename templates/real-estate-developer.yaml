@@ -5,6 +5,12 @@
 
 name: "My Development Company"
 
+# Packs (spec 010): written to the venture's packs.yaml, active with features.packs on.
+# Add the market pack for where the projects are, e.g. market: [il] or [pt].
+packs:
+  profession: [developer]
+  market: []
+
 systems:
   - key: my-business-1
     name: "Development Operations"

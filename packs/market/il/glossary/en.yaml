@@ -1,0 +1,12 @@
+- term: Form 4
+  family: milestone
+  kind: handover
+- term: Sale Law guarantee
+  family: requirement
+  kind: covenant
+- term: accompanying bank
+  family: contact
+  kind: lender
+- term: construction input index
+  family: money-event
+  field: indexation

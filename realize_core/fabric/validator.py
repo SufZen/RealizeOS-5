@@ -107,6 +107,10 @@ class SchemaRegistry:
             Human-readable problems, such as an extension retyping a core property.
             Registration happens regardless; validation stays soft.
         """
+        props = schema.get("properties", {})
+        if "allOf" in schema and "type" not in props:
+            # An extension validates entities of its own type, not the core family's.
+            schema = {**schema, "properties": {**props, "type": {"type": "string", "const": name}}}
         self._schemas[name] = schema
         return self.check_extension(schema)
 

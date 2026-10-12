@@ -30,6 +30,7 @@ realize-os-cli/node_modules/
 
 # Documentation & metadata (not needed at runtime)
 docs/
+!docs/fabric-schemas/
 developer_resources/
 *.md
 !requirements.txt

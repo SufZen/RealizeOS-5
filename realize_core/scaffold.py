@@ -257,6 +257,7 @@ def scaffold_venture(
             raise FileNotFoundError(f"Venture template is empty: {template_src}")
 
         _customize_venture_template(venture_dir, name)
+        _write_template_packs(venture_dir, template)
 
         # Register in realize-os.yaml inside the rollback block, so a failed
         # config write doesn't leave an orphan directory behind.
@@ -502,6 +503,31 @@ def list_ventures(project_root: str | Path) -> list[dict]:
         )
 
     return ventures
+
+
+def _write_template_packs(venture_dir: Path, template: str) -> None:
+    """Write ``packs.yaml`` when the template names profession or market packs (spec 010 §7).
+
+    The packs only take effect with ``features.packs`` on. Market packs are
+    usually left out of templates, because the market depends on the client.
+    """
+    if not template:
+        return
+    import yaml
+
+    config_path = Path(__file__).parent.parent / "templates" / f"{template}.yaml"
+    if not config_path.is_file():
+        return
+    data = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
+    packs = data.get("packs") if isinstance(data, dict) else None
+    if not isinstance(packs, dict):
+        return
+    out = {kind: list(packs.get(kind) or []) for kind in ("profession", "market")}
+    (venture_dir / "packs.yaml").write_text(
+        "# Profession and market packs for this venture (spec 010). Active when features.packs is on.\n"
+        + yaml.safe_dump(out, allow_unicode=True, sort_keys=False),
+        encoding="utf-8",
+    )
 
 
 def _find_venture_template(template: str = "") -> Path | None:

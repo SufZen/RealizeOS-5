@@ -1,0 +1,12 @@
+- id: tender_items_registered
+  label: Tender requirements registered
+  skill: tender_requirements_register
+- id: payment_claims_checked
+  label: Payment claims checked line by line
+  skill: payment_milestone_check
+- id: claim_lines_flagged
+  label: Claim lines flagged against the milestone
+  skill: payment_milestone_check
+- id: investor_reports_drafted
+  label: Investor reports drafted with sources
+  skill: investor_report
