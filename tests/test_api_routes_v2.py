@@ -199,7 +199,11 @@ class TestPipelineRoutes:
             },
         )
         assert resp.status_code == 200
-        assert "Pipeline test" in resp.json()["result"]
+        # Codex audit F07: nothing runs, and the response must say so.
+        body = resp.json()
+        assert body["simulated"] is True
+        assert "Simulated run" in body["result"]
+        assert "completed" not in body["result"]
 
     def test_execute_pipeline(self, client):
         resp = client.post(
