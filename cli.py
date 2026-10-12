@@ -378,7 +378,7 @@ def cmd_venture(args):
             print(f"  {stats['dirs_created']} directories, {stats['files_created']} files")
             print("\nThe venture has been added to realize-os.yaml.")
             print(f"Next: customize systems/{args.key}/F-foundations/venture-identity.md")
-        except (FileExistsError, FileNotFoundError, ValueError) as e:
+        except (FileExistsError, FileNotFoundError, ValueError, OSError) as e:
             print(f"Error: {e}")
             sys.exit(1)
 
@@ -391,9 +391,11 @@ def cmd_venture(args):
             print(f"To delete venture '{args.key}', pass --confirm {args.key}")
             sys.exit(1)
         try:
-            delete_venture(project_root, args.key, confirm_name=confirm)
+            result = delete_venture(project_root, args.key, confirm_name=confirm)
             print(f"Deleted venture '{args.key}' and removed from realize-os.yaml.")
-        except (FileNotFoundError, ValueError) as e:
+            for warning in result.get("warnings", []):
+                print(f"Warning: {warning}")
+        except (FileNotFoundError, ValueError, OSError) as e:
             print(f"Error: {e}")
             sys.exit(1)
 

@@ -62,7 +62,10 @@ async def list_ventures(request: Request):
             }
         )
 
-    return {"ventures": ventures}
+    from realize_core.scaffold import config_writable
+
+    # The dashboard hides create/delete when realize-os.yaml can't be edited.
+    return {"ventures": ventures, "config_writable": config_writable(kb_path)}
 
 
 @router.get("/ventures/{venture_key}")
@@ -137,24 +140,22 @@ async def create_venture(body: CreateVentureBody, request: Request):
         raise HTTPException(status_code=400, detail="Venture key is required")
     if len(key) > 50:
         raise HTTPException(status_code=400, detail="Key must be 50 characters or less")
-    if not key.replace("-", "").replace("_", "").isalnum():
-        raise HTTPException(status_code=400, detail="Key must be alphanumeric (hyphens and underscores allowed)")
 
     kb_path: Path = getattr(request.app.state, "kb_path", Path("."))
 
     from realize_core.scaffold import scaffold_venture
 
-    result = scaffold_venture(str(kb_path), key, name=name, description=description)
+    try:
+        scaffold_venture(str(kb_path), key, name=name, description=description)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except FileExistsError as exc:
+        raise HTTPException(status_code=409, detail=f"Venture '{key}' already exists") from exc
+    except OSError as exc:
+        logger.warning("Venture create '%s' failed: %s", key, exc)
+        raise HTTPException(status_code=503, detail=f"Could not create venture: {exc}") from exc
 
-    if not result.get("created"):
-        raise HTTPException(status_code=409, detail=result.get("error", "Venture already exists"))
-
-    # Reload config to pick up the new venture
-    from realize_core.config import build_systems_dict, load_config
-
-    config = load_config()
-    request.app.state.config = config
-    request.app.state.systems = build_systems_dict(config, kb_path)
+    _reload_systems(request, kb_path)
 
     try:
         from realize_core.activity.logger import log_event
@@ -184,19 +185,28 @@ async def delete_venture(venture_key: str, request: Request):
 
     from realize_core.scaffold import delete_venture as _delete
 
-    success = _delete(str(kb_path), venture_key, confirm_name=venture_key)
+    try:
+        result = _delete(str(kb_path), venture_key, confirm_name=venture_key)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except OSError as exc:
+        logger.warning("Venture delete '%s' failed, nothing changed: %s", venture_key, exc)
+        raise HTTPException(status_code=503, detail=f"Could not delete venture; nothing was changed. {exc}") from exc
 
-    if not success:
-        raise HTTPException(status_code=500, detail="Failed to delete venture")
+    _reload_systems(request, kb_path)
 
-    # Reload config
+    return {"status": "deleted", "key": venture_key, "warnings": result.get("warnings", [])}
+
+
+def _reload_systems(request: Request, kb_path: Path) -> None:
+    """Reload realize-os.yaml into app state after a venture was added or removed."""
     from realize_core.config import build_systems_dict, load_config
 
     config = load_config()
     request.app.state.config = config
-    request.app.state.systems = build_systems_dict(config)
-
-    return {"status": "deleted", "key": venture_key}
+    request.app.state.systems = build_systems_dict(config, kb_path)
 
 
 @router.get("/ventures/{venture_key}/export")
