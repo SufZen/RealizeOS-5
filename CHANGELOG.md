@@ -4,6 +4,15 @@ All notable changes to RealizeOS are documented in this file.
 This changelog is automatically generated from [Conventional Commits](https://conventionalcommits.org).
 
 
+## [5.15.3](https://github.com/SufZen/RealizeOS-5/compare/v5.15.2...v5.15.3) (2026-10-12)
+
+### Bug Fixes
+
+* **approvals:** agent approval requests reach the dashboard queue ([ff64d99](https://github.com/SufZen/RealizeOS-5/commit/ff64d99d748dac9b0c120d636b255773cec794f8))
+* **missions:** a held action holds the mission instead of completing it ([f5e184c](https://github.com/SufZen/RealizeOS-5/commit/f5e184cef305e3df884a22905bb6944e639a0216))
+* **skills:** a held tool step pauses the skill; paused runs are durable ([4f72f31](https://github.com/SufZen/RealizeOS-5/commit/4f72f31aa74c3197a29c2a3a7cd865de9fb5ba76))
+* **skills:** don't relay third-party tool text when resuming after approval ([bebcb05](https://github.com/SufZen/RealizeOS-5/commit/bebcb05cf6fdba685c213aa844fa1d09c82b5633))
+
 ## [5.15.2](https://github.com/SufZen/RealizeOS-5/compare/v5.15.1...v5.15.2) (2026-10-12)
 
 ### Bug Fixes
