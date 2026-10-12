@@ -439,6 +439,16 @@ async def lifespan(app: FastAPI):
         logger.debug("MCP shutdown failed: %s", exc)
 
 
+def _is_api_path(full_path: str) -> bool:
+    """True for paths under /api or /mcp, which must never fall through to the dashboard."""
+    return full_path in ("api", "mcp") or full_path.startswith(("api/", "mcp/"))
+
+
+def _api_not_found(full_path: str) -> JSONResponse:
+    """A JSON 404 for an unknown API path (Codex audit: it used to return the SPA with 200)."""
+    return JSONResponse(status_code=404, content={"detail": f"Not found: /{full_path}"})
+
+
 def create_app() -> FastAPI:
     """Create and configure the FastAPI application."""
     from realize_core.utils.rate_limiter import build_rate_limiter
@@ -596,7 +606,9 @@ def create_app() -> FastAPI:
             # and security scanners.
             if full_path.startswith(".") or "/." in full_path:
                 return JSONResponse(status_code=404, content={"error": "Not found"})
-            if full_path and not full_path.startswith("api/"):
+            if _is_api_path(full_path):
+                return _api_not_found(full_path)
+            if full_path:
                 file_path = (static_dir / full_path).resolve()
                 # Ensure resolved path is still under static_dir (prevents traversal)
                 if file_path.is_relative_to(static_dir.resolve()) and file_path.is_file():
@@ -613,10 +625,10 @@ def create_app() -> FastAPI:
 
         @app.get("/{full_path:path}")
         async def dashboard_not_built(full_path: str):
+            if _is_api_path(full_path):
+                return _api_not_found(full_path)
             if full_path.startswith(".") or "/." in full_path:
                 return JSONResponse(status_code=404, content={"error": "Not found"})
-            if full_path.startswith("api/"):
-                return  # Let API routes handle this
             return HTMLResponse(
                 content=(
                     "<!DOCTYPE html><html><head><title>RealizeOS</title>"
