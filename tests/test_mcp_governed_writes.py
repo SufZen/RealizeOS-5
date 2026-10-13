@@ -14,6 +14,7 @@ from types import SimpleNamespace
 
 import pytest
 from fastapi.testclient import TestClient
+from realize_core.tools.base_tool import BaseTool, ToolCategory, ToolResult, ToolSchema
 
 API_KEY = "test-api-key-1234567890abcdef"
 MCP_HEADERS = {"Accept": "application/json, text/event-stream", "Content-Type": "application/json"}
@@ -472,6 +473,159 @@ async def test_held_write_is_audited(world, monkeypatch):
     assert by_action[("mcp.run_workflow", "held")]["metadata"]["approval_id"] == held["approval_id"]
     assert by_action[("mcp.run_workflow", "held")]["user_id"] == agent.user_id
     assert ("mcp.approve_request", "denied") in by_action
+
+
+# ---------------------------------------------------------------------------
+# Chat can't be used to get around the hold
+# ---------------------------------------------------------------------------
+
+
+class LedgerTool(BaseTool):
+    """A write tool the internal agent could call while answering."""
+
+    name = "ledger"
+    description = "test ledger"
+    category = ToolCategory.DATA
+
+    def __init__(self) -> None:
+        self.calls: list[dict] = []
+
+    def get_schemas(self):
+        obj = {"type": "object", "properties": {}}
+        return [
+            ToolSchema("ledger_append", "append a row", obj, is_destructive=True),
+            ToolSchema("ledger_read", "read rows", obj, is_destructive=False),
+        ]
+
+    def is_available(self):
+        return True
+
+    async def execute(self, action, params):
+        self.calls.append({"action": action, **params})
+        return ToolResult.ok(output="done")
+
+
+@pytest.fixture
+def ledger(world, monkeypatch):
+    """A registry with the ledger tool and a gate at trust level 5 (writes run automatically)."""
+    import realize_core.tools.tool_registry as tr
+    from realize_core.governance.tool_gate import ToolGate
+
+    monkeypatch.setattr(tr, "_registry", None)
+    registry = tr.get_tool_registry()
+    tool = LedgerTool()
+    registry.register(tool)
+    registry.set_gate(ToolGate(config={"trust": {"level": 5}}))
+    return registry, tool
+
+
+@pytest.fixture
+def chat_calls_a_write(monkeypatch):
+    """The internal agent's answer calls ledger_append (as the tool loop would)."""
+    from realize_core import base_handler
+    from realize_core.governance.context import tool_call_context
+    from realize_core.security.agent_access import outside_agent_active
+    from realize_core.tools.tool_registry import get_tool_registry
+
+    seen: list[dict] = []
+
+    async def fake_process(**kwargs):
+        with tool_call_context(system_key=kwargs["system_key"], user_id=kwargs["user_id"], channel="mcp"):
+            result = await get_tool_registry().execute("ledger_append", {"row": "x"})
+        seen.append({"agent": outside_agent_active(), "result": result, "user_id": kwargs["user_id"]})
+        return "ok"
+
+    monkeypatch.setattr(base_handler, "process_message", fake_process)
+    return seen
+
+
+async def test_agent_chat_holds_writes_the_trust_ladder_would_run(world, ledger, chat_calls_a_write):
+    registry, tool = ledger
+    agent = _agent()
+    await _call(world, agent, "realize_chat", {"message": "Add the row", "system_key": "acme"})
+    assert chat_calls_a_write[-1]["agent"] is True
+    assert chat_calls_a_write[-1]["result"].metadata.get("requires_human") is True
+    assert tool.calls == []  # held, not executed
+    request_id = chat_calls_a_write[-1]["result"].metadata["request_id"]
+    assert _row(request_id)["requested_by"] == agent.user_id
+
+    # A person's chat is unchanged: at trust level 5 the write runs.
+    await _call(world, _person(), "realize_chat", {"message": "Add the row", "system_key": "acme"})
+    assert chat_calls_a_write[-1]["agent"] is False
+    assert tool.calls == [{"action": "ledger_append", "row": "x"}]
+
+
+async def test_without_a_gate_an_agents_write_never_runs(world, monkeypatch):
+    import realize_core.tools.tool_registry as tr
+    from realize_core.security.agent_access import acting_for_outside_agent
+
+    monkeypatch.setattr(tr, "_registry", None)
+    registry = tr.get_tool_registry()
+    tool = LedgerTool()
+    registry.register(tool)
+    with acting_for_outside_agent("agent:0123456789ab"):
+        refused = await registry.execute("ledger_append", {"row": "x"})
+        read = await registry.execute("ledger_read", {})
+    assert refused.success is False
+    assert read.success is True
+    assert tool.calls == [{"action": "ledger_read"}]
+
+
+async def test_trigger_phrases_dont_run_skills_for_agents(world, monkeypatch):
+    from realize_core.skills import detector
+
+    monkeypatch.setattr(detector, "detect_skill", lambda message, system_key: {"name": "acme-report", "_version": 2})
+    agent = _agent()
+    out = await _call(world, agent, "realize_chat", {"message": "monthly report please", "system_key": "acme"})
+    assert "trigger_skill" in out["response"]
+    assert world.runs == []
+    # A person's trigger phrase still runs the skill.
+    await _call(world, _person(), "realize_chat", {"message": "monthly report please", "system_key": "acme"})
+    assert len(world.runs) == 1
+
+
+async def test_an_agent_cannot_answer_a_paused_skills_question(world, monkeypatch):
+    from realize_core import base_handler
+    from realize_core.skills import detector
+
+    calls: list = []
+
+    async def fake_resume(*args, **kwargs):
+        calls.append(args)
+
+    monkeypatch.setattr(base_handler, "_resume_paused_skill", fake_resume)
+    monkeypatch.setattr(detector, "detect_skill", lambda message, system_key: {"name": "acme-report", "_version": 2})
+    await _call(world, _agent(), "realize_chat", {"message": "yes, go ahead", "system_key": "acme"})
+    assert calls == []
+    await _call(world, _person(), "realize_chat", {"message": "yes, go ahead", "system_key": "acme"})
+    assert len(calls) == 1
+
+
+def test_rest_chat_and_stream_hold_an_agents_writes(world, ledger, chat_calls_a_write, monkeypatch):
+    from realize_api.main import create_app
+    from realize_core.security.agent_tokens import create_token
+
+    monkeypatch.setenv("REALIZE_API_KEY", API_KEY)
+    monkeypatch.delenv("REALIZE_JWT_ENABLED", raising=False)
+    _token, secret = create_token(name="claude-acme", user_email="dana@acme.io", ventures=["acme"])
+    app = create_app()
+    app.state.systems = dict(SYSTEMS)
+    app.state.config = {"features": {}}
+    client = TestClient(app)
+    body = {"message": "Add the row", "system_key": "acme"}
+    agent_headers = {"Authorization": f"Bearer {secret}"}
+    _registry, tool = ledger
+
+    assert client.post("/api/chat", json=body, headers=agent_headers).status_code == 200
+    with client.stream("POST", "/api/chat/stream", json=body, headers=agent_headers) as r:
+        assert r.status_code == 200
+        r.read()
+    assert [c["agent"] for c in chat_calls_a_write] == [True, True]
+    assert tool.calls == []
+
+    assert client.post("/api/chat", json=body, headers={"X-API-Key": API_KEY}).status_code == 200
+    assert chat_calls_a_write[-1]["agent"] is False
+    assert len(tool.calls) == 1
 
 
 # ---------------------------------------------------------------------------

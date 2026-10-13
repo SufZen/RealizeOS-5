@@ -35,7 +35,9 @@ tool, or a name that differs in case or spacing) is refused.
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
 from typing import Any
 
 ALLOW = "allow"
@@ -78,7 +80,9 @@ MCP_TOOL_RULES: dict[str, str] = {
         ALLOW,
     ),
     # Self-contained or already governed.
-    "realize_chat": ALLOW,  # tools run through the ToolGate, as this agent
+    # Chat runs with acting_for_outside_agent(): write tools are always held by the
+    # ToolGate, and trigger phrases don't auto-run skills.
+    "realize_chat": ALLOW,
     "clear_history": ALLOW,  # the agent's own conversation only
     "log_decision": ALLOW,  # a proposal: a person confirms it in the approval queue
     "tender_register_method": ALLOW,
@@ -103,27 +107,64 @@ MCP_TOOL_RULES: dict[str, str] = {
 #: Methods that only read. Every other method (POST, PUT, PATCH, DELETE, and
 #: any method nobody listed) is a write.
 _READ_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
-#: The only REST writes an agent may make, by method and routed path template:
-#: chatting, and clearing its own conversation. Everything else is refused,
-#: including POST routes that read (search, export, reindex).
+#: The only REST writes an agent may make, by method and the routed endpoint
+#: (``module.function``): chatting, and clearing its own conversation.
+#: Everything else is refused, including POST routes that read (search,
+#: export). Matching the endpoint the router chose, never the URL, means
+#: trailing slashes, ``//``, ``%2F``, ``..``, query strings and look-alike
+#: prefixes can't change a rule, whatever the framework's path layout.
 REST_AGENT_WRITES = frozenset(
     {
-        ("POST", "/api/chat"),
-        ("POST", "/api/chat/stream"),
-        ("DELETE", "/api/conversations/{system_key}/{user_id}"),
+        ("POST", "realize_api.routes.chat.chat"),
+        ("POST", "realize_api.routes.chat.chat_stream"),
+        ("DELETE", "realize_api.routes.chat.clear_conversations"),
     }
 )
-#: REST decisions on held actions and proposals, by routed path template.
-REST_DECISION_ROUTES = frozenset(
+#: REST decisions on held actions and proposals, by routed endpoint.
+REST_DECISION_ENDPOINTS = frozenset(
     {
-        "/api/approvals/{approval_id}/approve",
-        "/api/approvals/{approval_id}/reject",
-        "/api/dreams/{proposal_id}/approve",
-        "/api/dreams/{proposal_id}/reject",
-        "/api/evolution/suggestions/{suggestion_id}/approve",
-        "/api/evolution/suggestions/{suggestion_id}/dismiss",
+        "realize_api.routes.approvals.approve",
+        "realize_api.routes.approvals.reject",
+        "realize_api.routes.dreams.approve_dream",
+        "realize_api.routes.dreams.reject_dream",
+        "realize_api.routes.evolution.approve_suggestion",
+        "realize_api.routes.evolution.dismiss_suggestion",
     }
 )
+
+#: The outside agent a piece of work is being done for (its ``requested_by``
+#: id), while it runs. See :func:`acting_for_outside_agent`.
+_OUTSIDE_AGENT: ContextVar[str | None] = ContextVar("realize_outside_agent", default=None)
+
+
+@contextmanager
+def acting_for_outside_agent(principal: str | None) -> Iterator[None]:
+    """Mark everything inside as done for an outside agent.
+
+    While it is active, the ``ToolGate`` holds every write tool for a person
+    even when the trust ladder would run it automatically, the tool registry
+    refuses writes when no gate is installed, and chat doesn't auto-run
+    skills from trigger phrases or answer a paused skill's question. Set by
+    the MCP dispatcher around an agent's tool call and by the REST chat
+    routes for an agent caller.
+    """
+    token = _OUTSIDE_AGENT.set(principal or "agent")
+    try:
+        yield
+    finally:
+        _OUTSIDE_AGENT.reset(token)
+
+
+def outside_agent_active() -> bool:
+    """True while work is being done for an outside agent."""
+    return _OUTSIDE_AGENT.get() is not None
+
+
+def endpoint_name(endpoint: Any) -> str | None:
+    """``module.function`` of a routed endpoint, or None."""
+    module = getattr(endpoint, "__module__", None)
+    name = getattr(endpoint, "__qualname__", None)
+    return f"{module}.{name}" if module and name else None
 
 
 def is_agent(user_id: str | None, scopes: Iterable[str] | None = None) -> bool:
@@ -143,24 +184,23 @@ def tool_rule(name: str) -> str:
     return MCP_TOOL_RULES.get(name, REFUSE) if isinstance(name, str) else REFUSE
 
 
-def rest_rule(method: str, route_path: str | None) -> str:
+def rest_rule(method: str, endpoint: str | None) -> str:
     """The rule for a REST request (``hold`` never applies: REST can't hold).
 
     Args:
         method: The HTTP method.
-        route_path: The routed path *template* (``request.scope["route"].path``,
-            e.g. ``/api/approvals/{approval_id}/approve``), never the raw URL,
-            so trailing slashes, ``//``, ``%2F``, ``..`` and query strings can't
-            change the rule. None (no route matched) is refused.
+        endpoint: The routed endpoint as ``module.function``
+            (:func:`endpoint_name` of ``request.scope["endpoint"]``), never the
+            raw URL. None (no route matched) is refused.
     """
-    if not isinstance(route_path, str) or not route_path:
+    if not isinstance(endpoint, str) or not endpoint:
         return REFUSE
     method = (method or "").upper()
     if method in _READ_METHODS:
         return ALLOW  # venture scope still applies
-    if (method, route_path) in REST_AGENT_WRITES:
+    if (method, endpoint) in REST_AGENT_WRITES:
         return ALLOW
-    if route_path in REST_DECISION_ROUTES:
+    if endpoint in REST_DECISION_ENDPOINTS:
         return PEOPLE_DECIDE
     return REFUSE
 
@@ -175,9 +215,9 @@ def tool_refusal(name: str) -> tuple[str, str] | None:
     return None
 
 
-def rest_refusal(method: str, route_path: str | None) -> str | None:
+def rest_refusal(method: str, endpoint: str | None) -> str | None:
     """Why an agent may not make this REST request, or None when it may (see :func:`rest_rule`)."""
-    rule = rest_rule(method, route_path)
+    rule = rest_rule(method, endpoint)
     if rule == PEOPLE_DECIDE:
         return PEOPLE_DECIDE_MESSAGE
     if rule == REFUSE:

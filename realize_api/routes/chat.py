@@ -128,6 +128,22 @@ async def _process(
 
     ``selected`` receives the agent that actually answered.
     """
+    from realize_core.security.agent_access import acting_for_outside_agent, is_agent_subject
+    from realize_core.security.agent_tokens import principal_id_for
+
+    state = getattr(request, "state", None)
+    if is_agent_subject(state):
+        # An outside agent's chat: write tools are held for a person and
+        # trigger phrases don't run skills (STORY-37).
+        with acting_for_outside_agent(principal_id_for(state.user_id, getattr(state, "scopes", None))):
+            return await _run_pipeline(body, request, systems, system_config, recorder, selected)
+    return await _run_pipeline(body, request, systems, system_config, recorder, selected)
+
+
+async def _run_pipeline(
+    body: ChatRequest, request: Request, systems: dict, system_config: dict, recorder, selected: dict
+) -> str:
+    """The message through ``base_handler.process_message``."""
     from realize_core import base_handler
     from realize_core.config import get_features
 

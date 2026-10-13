@@ -303,50 +303,47 @@ class TestRestAccess:
         assert r.json()["decided_by"] == "api-key"
 
     @pytest.mark.parametrize(
-        ("method", "path", "rule"),
+        ("method", "endpoint", "rule"),
         [
-            ("GET", "/api/ventures", "allow"),
-            ("HEAD", "/api/approvals", "allow"),
-            ("OPTIONS", "/api/approvals", "allow"),
-            ("POST", "/api/chat", "allow"),
-            ("POST", "/api/chat/stream", "allow"),
-            ("DELETE", "/api/conversations/{system_key}/{user_id}", "allow"),
-            ("PUT", "/api/conversations/{system_key}/{user_id}", "refuse"),  # only DELETE
-            ("PATCH", "/api/chat", "refuse"),
-            ("POST", "/api/approvals/{approval_id}/approve", "people_decide"),
-            ("POST", "/api/dreams/{proposal_id}/reject", "people_decide"),
-            ("POST", "/api/evolution/suggestions/{suggestion_id}/dismiss", "people_decide"),
-            ("POST", "/api/auth/logout", "refuse"),
-            ("DELETE", "/api/auth/sessions", "refuse"),
-            ("POST", "/api/workflows/{skill_name}/test", "refuse"),
-            ("PUT", "/api/fabric/entities/{entity_id}", "refuse"),
-            ("POST", "/api/ventures/{venture_key}/kb/search", "refuse"),  # POST that reads is still a write
-            ("POST", "/api/ventures/{venture_key}/export", "refuse"),
-            ("POST", "/api/agent-tokens", "refuse"),
-            ("PATCH", "/api/some-future-route", "refuse"),  # deny by default
-            ("PROPFIND", "/api/ventures", "refuse"),  # unknown methods are writes
+            ("GET", "realize_api.routes.ventures.list_ventures", "allow"),
+            ("HEAD", "realize_api.routes.approvals.list_approvals", "allow"),
+            ("OPTIONS", "realize_api.routes.approvals.list_approvals", "allow"),
+            ("POST", "realize_api.routes.chat.chat", "allow"),
+            ("POST", "realize_api.routes.chat.chat_stream", "allow"),
+            ("DELETE", "realize_api.routes.chat.clear_conversations", "allow"),
+            ("PUT", "realize_api.routes.chat.clear_conversations", "refuse"),  # only DELETE
+            ("PATCH", "realize_api.routes.chat.chat", "refuse"),
+            ("POST", "realize_api.routes.approvals.approve", "people_decide"),
+            ("POST", "realize_api.routes.dreams.reject_dream", "people_decide"),
+            ("POST", "realize_api.routes.evolution.dismiss_suggestion", "people_decide"),
+            ("POST", "realize_api.routes.auth.logout", "refuse"),
+            ("POST", "realize_api.routes.workflows.test_workflow", "refuse"),
+            ("POST", "realize_api.routes.venture_kb.search_kb", "refuse"),  # POST that reads is still a write
+            ("POST", "realize_api.routes.ventures.export_venture", "refuse"),
+            ("POST", "realize_api.routes.agent_tokens.create_agent_token", "refuse"),
+            ("PATCH", "realize_api.routes.some_future.route", "refuse"),  # deny by default
+            ("PROPFIND", "realize_api.routes.ventures.list_ventures", "refuse"),  # unknown methods are writes
             ("GET", None, "refuse"),  # no route matched
             ("POST", "", "refuse"),
-            # Raw URLs are not templates: they never match the allow or decide lists.
-            ("POST", "/api/chat/", "refuse"),
+            # URLs are never rules: only the endpoint the router chose counts.
+            ("POST", "/api/chat", "refuse"),
             ("POST", "/api/approvals/a1/approve", "refuse"),
-            ("POST", "/api/approvals-x/a1/approve", "refuse"),
-            ("POST", "/api/agent-tokens/../chat", "refuse"),
         ],
     )
-    def test_rest_rules(self, method, path, rule):
+    def test_rest_rules(self, method, endpoint, rule):
         from realize_core.security.agent_access import rest_rule
 
-        assert rest_rule(method, path) == rule
+        assert rest_rule(method, endpoint) == rule
 
-    def test_rule_templates_match_real_routes(self):
-        """The allow and decide lists name routes that exist, so a rename can't silently drop a rule."""
-        from realize_api.main import create_app
-        from realize_core.security.agent_access import REST_AGENT_WRITES, REST_DECISION_ROUTES
+    def test_rule_endpoints_exist(self):
+        """The allow and decide lists name real route functions, so a rename can't silently drop a rule."""
+        import importlib
 
-        routes = {(m, r.path) for r in create_app().routes for m in getattr(r, "methods", None) or ()}
-        assert routes >= REST_AGENT_WRITES
-        assert {("POST", p) for p in REST_DECISION_ROUTES} <= routes
+        from realize_core.security.agent_access import REST_AGENT_WRITES, REST_DECISION_ENDPOINTS, endpoint_name
+
+        for name in {e for _m, e in REST_AGENT_WRITES} | REST_DECISION_ENDPOINTS:
+            module, func = name.rsplit(".", 1)
+            assert endpoint_name(getattr(importlib.import_module(module), func)) == name
 
     @pytest.mark.parametrize(
         ("method", "url"),

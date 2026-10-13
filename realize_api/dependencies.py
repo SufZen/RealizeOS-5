@@ -325,7 +325,7 @@ async def enforce_access(request: Request) -> None:
     # Only the REST API; MCP checks scope per tool in its dispatcher.
     if not getattr(request.state, "user_id", None) or not request.url.path.startswith("/api/"):
         return
-    from realize_core.security.agent_access import is_agent_subject, rest_refusal
+    from realize_core.security.agent_access import endpoint_name, is_agent_subject, rest_refusal
     from realize_core.security.users import is_pilot_user
     from realize_core.security.venture_scope import (
         has_permission,
@@ -344,9 +344,8 @@ async def enforce_access(request: Request) -> None:
     method, path = request.method.upper(), request.url.path
     if is_agent_subject(request.state):
         # Outside agents: the same rules as the MCP dispatcher (agent_access),
-        # matched on the routed path template, never on the raw URL.
-        route = request.scope.get("route")
-        refusal = rest_refusal(method, getattr(route, "path", None))
+        # matched on the endpoint the router chose, never on the raw URL.
+        refusal = rest_refusal(method, endpoint_name(request.scope.get("endpoint")))
         if refusal:
             raise _deny(request, refusal, "agent_access")
     if allowed is not None:

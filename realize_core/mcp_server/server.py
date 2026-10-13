@@ -178,7 +178,16 @@ async def _dispatch(
                 approval_id=held_id,
             )
             return [mcp_types.TextContent(type="text", text=_to_text(result))]
-        result = venture_guard.filter_result(name, await tool.handler(arguments, app_state, user), allowed)
+        if agent:
+            # Everything the tool sets off (chat, its tool calls) is done for the agent:
+            # writes are held for a person, trigger phrases don't run skills.
+            from realize_core.security.agent_tokens import principal_id_for
+
+            with agent_access.acting_for_outside_agent(principal_id_for(user.user_id, user.scopes)):
+                raw = await tool.handler(arguments, app_state, user)
+        else:
+            raw = await tool.handler(arguments, app_state, user)
+        result = venture_guard.filter_result(name, raw, allowed)
         if agent:
             from realize_core.mcp_server.held_writes import agent_result
 
