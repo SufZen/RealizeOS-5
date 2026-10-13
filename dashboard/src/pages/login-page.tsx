@@ -5,7 +5,8 @@
 
 import { useEffect, useState, type FormEvent } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { Bot, LogIn } from 'lucide-react'
+import { LogIn } from 'lucide-react'
+import { BrandMark } from '@/components/ui/brand-mark'
 import { useAuth } from '@/hooks/use-auth'
 import { ApiError } from '@/lib/api'
 
@@ -49,19 +50,15 @@ export default function LoginPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4 relative overflow-hidden">
-      {/* Design system ambient effects */}
-      <div className="fx-dot-grid absolute inset-0 pointer-events-none" />
-      <div className="fx-radial-halo" />
+      {/* The drafting grid fades out from the centre: the one ambient surface */}
+      <div className="rz-drafting-grid absolute inset-0 pointer-events-none [mask-image:radial-gradient(ellipse_at_center,black_10%,transparent_65%)]" />
 
       <div
-        className="w-full max-w-sm rounded-2xl border border-border p-8 fx-glass-card relative z-10 rz-animate-fade-up"
+        className="w-full max-w-sm rounded-[14px] border border-border bg-card p-8 relative z-10 rz-enter"
         style={{ boxShadow: 'var(--rz-shadow-3)' }}
       >
-        <div className="mb-6 flex items-center gap-2">
-          <Bot className="h-8 w-8 text-brand-400" />
-          <span className="text-xl font-bold tracking-tight fx-gradient-text fx-text-glow">
-            RealizeOS
-          </span>
+        <div className="mb-7">
+          <BrandMark size={28} />
         </div>
         <h1 className="mb-1 text-lg font-semibold text-foreground">Sign in</h1>
         <p className="mb-6 text-sm text-muted-foreground">Access your operations dashboard.</p>

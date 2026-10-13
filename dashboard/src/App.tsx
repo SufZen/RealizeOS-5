@@ -42,6 +42,7 @@ import { useTheme } from '@/components/theme-provider'
 import { useLocale } from '@/components/locale-provider'
 import { CommandPalette, type Command } from '@/components/ui/command-palette'
 import { Kbd } from '@/components/ui/badge'
+import { BrandMark } from '@/components/ui/brand-mark'
 
 const OverviewPage = lazy(() => import('@/pages/overview'))
 const ChatPage = lazy(() => import('@/pages/chat-page'))
@@ -216,33 +217,8 @@ function NavContent({ onNavigate }: { onNavigate?: () => void }) {
   )
 }
 
-/** The mark: a hi-vis sheet with its corner folded like a drawing tab, and the wordmark. */
 function Logo() {
-  return (
-    <div className="flex items-center gap-2.5 px-1.5">
-      <svg viewBox="0 0 24 24" className="h-6 w-6 shrink-0" aria-hidden>
-        <path d="M3 3h18v13l-5 5H3z" fill="var(--rz-accent)" />
-        <path
-          d="M16 21v-5h5"
-          fill="none"
-          stroke="var(--rz-accent-fg)"
-          strokeWidth="1.5"
-          strokeOpacity=".5"
-        />
-        <path
-          d="M7.5 16V8h4.2a2.4 2.4 0 0 1 0 4.8H7.5m4.2 0L14.5 16"
-          fill="none"
-          stroke="var(--rz-accent-fg)"
-          strokeWidth="1.8"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </svg>
-      <span className="font-brand text-[17px] font-semibold tracking-tight text-foreground">
-        RealizeOS
-      </span>
-    </div>
-  )
+  return <BrandMark size={24} className="px-1.5" />
 }
 
 function SearchButton({ onOpen }: { onOpen: () => void }) {
