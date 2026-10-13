@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { SkeletonCard } from '@/components/ui/skeleton'
 import { useAuth } from '@/hooks/use-auth'
+import { useLocale } from '@/components/locale-provider'
 import { editKnowledgeGate } from '@/lib/permissions'
 
 interface FabricDir {
@@ -146,6 +147,7 @@ export default function VentureDetailPage() {
   const navigate = useNavigate()
   const { data, loading, error } = useApi<VentureData>(`/ventures/${key}`)
   const { user } = useAuth()
+  const { language } = useLocale()
 
   if (loading) {
     return (
@@ -265,7 +267,7 @@ export default function VentureDetailPage() {
           <h2 id="vd-kb" className="mb-3 text-[15px] font-semibold text-foreground">
             Knowledge base
           </h2>
-          <KBBrowser ventureKey={data.key} readOnlyReason={editKnowledgeGate(user)} />
+          <KBBrowser ventureKey={data.key} readOnlyReason={editKnowledgeGate(user, language)} />
         </section>
       </div>
     </div>

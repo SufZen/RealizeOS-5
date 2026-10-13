@@ -7,8 +7,59 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { LogIn } from 'lucide-react'
 import { BrandMark } from '@/components/ui/brand-mark'
+import { readOverride } from '@/components/locale-provider'
 import { useAuth } from '@/hooks/use-auth'
-import { ApiError } from '@/lib/api'
+import { signedOutLanguage } from '@/lib/locale'
+import {
+  CONNECT_AGENT_GUIDE_URL,
+  loginProblem,
+  pilotSentence,
+  type LoginProblem,
+} from '@/lib/login-text'
+
+/** The browser's language, when there is a browser. */
+function browserLanguage(): string {
+  return typeof navigator === 'undefined' ? 'en' : navigator.language
+}
+
+/**
+ * Why sign-in failed. A pilot account gets a sentence in the person's language
+ * (their saved choice, else the browser's) and the guide to connect their
+ * agent, never the server's code.
+ */
+export function LoginError({ problem, language }: { problem: LoginProblem; language: string }) {
+  const pilot = problem.kind === 'pilot' ? pilotSentence(language) : null
+  return (
+    <div
+      role="alert"
+      data-login-error={problem.kind}
+      lang={pilot?.lang}
+      dir={pilot?.dir ?? 'auto'}
+      className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-400"
+    >
+      {pilot ? (
+        <>
+          {pilot.before}
+          <a
+            href={CONNECT_AGENT_GUIDE_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline underline-offset-2"
+          >
+            {pilot.link}
+          </a>
+          {pilot.after}
+        </>
+      ) : problem.kind === 'credentials' ? (
+        'Email or password is incorrect.'
+      ) : problem.kind === 'other' && problem.detail ? (
+        problem.detail
+      ) : (
+        'Login failed.'
+      )}
+    </div>
+  )
+}
 
 export default function LoginPage() {
   const { user, login, loading } = useAuth()
@@ -19,7 +70,8 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [rememberMe, setRememberMe] = useState(false)
   const [submitting, setSubmitting] = useState(false)
-  const [error, setError] = useState('')
+  const [error, setError] = useState<LoginProblem | null>(null)
+  const [language] = useState(() => signedOutLanguage(readOverride(), browserLanguage()))
 
   const next = new URLSearchParams(location.search).get('next') || '/'
 
@@ -30,19 +82,13 @@ export default function LoginPage() {
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
-    setError('')
+    setError(null)
     setSubmitting(true)
     try {
       await login(email.trim(), password, rememberMe)
       navigate(next, { replace: true })
     } catch (err) {
-      if (err instanceof ApiError && err.status === 401) {
-        setError('Email or password is incorrect.')
-      } else if (err instanceof Error) {
-        setError(err.message || 'Login failed.')
-      } else {
-        setError('Login failed.')
-      }
+      setError(loginProblem(err))
     } finally {
       setSubmitting(false)
     }
@@ -109,11 +155,7 @@ export default function LoginPage() {
             Remember me for 30 days
           </label>
 
-          {error && (
-            <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-400">
-              {error}
-            </div>
-          )}
+          {error && <LoginError problem={error} language={language} />}
 
           <button
             type="submit"
