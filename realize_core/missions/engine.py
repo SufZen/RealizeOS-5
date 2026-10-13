@@ -55,6 +55,43 @@ async def on_approval_decided(approval_id: str, approved: bool, execution: dict 
     return True
 
 
+def _settle_step(step: MissionStep, final_status: str | None, requested: list[str]) -> None:
+    """Set a step's status from how its runtime run ended (Codex audit N02).
+
+    Runtimes end with ``success``, ``partial`` or ``failed``. The internal
+    runtime reports ``partial`` when an action was held for an operator, so:
+
+    - an error, a rejection that arrived while the step ran, or ``failed``: FAILED;
+    - approvals still undecided (``success`` or ``partial``): AWAITING_APPROVAL,
+      and the step's dependants wait for the decision;
+    - every requested approval was granted while the step ran: SUCCEEDED;
+    - ``success`` with nothing held: SUCCEEDED;
+    - ``partial`` with nothing held, no final result, or an unknown status:
+      FAILED. An error is never turned into a wait.
+    """
+    if step.status == StepStatus.FAILED:
+        return  # an error event, an exception, or a rejection decided mid-run
+    if final_status == "failed":
+        step.status = StepStatus.FAILED
+        step.error = step.error or "The runtime reported that the step failed"
+    elif final_status in ("success", "partial", None) and step.pending_approvals:
+        # Whatever the runtime said, the step's work isn't done until the
+        # held actions are decided; its dependants must wait.
+        step.status = StepStatus.AWAITING_APPROVAL
+    elif final_status in ("success", "partial") and requested:
+        step.status = StepStatus.SUCCEEDED  # everything it asked for was approved and done
+    elif final_status == "success":
+        step.status = StepStatus.SUCCEEDED
+    else:
+        step.status = StepStatus.FAILED
+        if final_status == "partial":
+            step.error = step.error or "The runtime returned a partial result with nothing waiting for approval"
+        elif final_status is None:
+            step.error = step.error or "The runtime ended without a result"
+        else:
+            step.error = step.error or f"The runtime returned an unknown status: {final_status}"
+
+
 #: Upper bounds on a plan, so validating (and running) one stays cheap.
 MAX_PLAN_STEPS = 100
 MAX_STEP_INPUTS = 20
@@ -351,16 +388,20 @@ class MissionEngine:
             ),
         )
 
+        requested: list[str] = []  # approvals this run asked for
+        final_status: str | None = None
         try:
             async for event in runtime_entry.runtime.invoke(runtime_step, context):
                 if event.kind == "approval_request":
                     request_id = (getattr(event, "proposed_action", None) or {}).get("request_id")
                     if request_id:
+                        requested.append(request_id)
                         step.pending_approvals.append(request_id)
                         _held_steps[request_id] = (self, mission.mission_id, step.step_id)
                 elif event.kind == "final":
-                    step.output = event.output
-                    step.status = StepStatus.SUCCEEDED if event.status == "success" else StepStatus.FAILED
+                    # Merge: an approval decided while the step ran may already have added its output.
+                    step.output = {**(event.output or {}), **step.output}
+                    final_status = event.status
                     if hasattr(event, "cost_actual") and isinstance(event.cost_actual, dict):
                         step.cost_eur = event.cost_actual.get("actual_cost_eur", 0)
                         step.cost_tokens = event.cost_actual.get("actual_tokens", 0)
@@ -372,10 +413,7 @@ class MissionEngine:
             step.status = StepStatus.FAILED
             step.error = str(e)
 
-        if step.pending_approvals and step.status != StepStatus.FAILED:
-            # Whatever the runtime said, the step's work isn't done until the
-            # held actions are decided; its dependants must wait.
-            step.status = StepStatus.AWAITING_APPROVAL
+        _settle_step(step, final_status, requested)
 
         step.completed_at = datetime.now()
 
@@ -412,9 +450,11 @@ class MissionEngine:
         if not approved or not (execution or {}).get("success"):
             step.status = StepStatus.FAILED
             step.error = "an action it needed was not approved" if not approved else (execution or {}).get("error", "")
-        elif not step.pending_approvals and step.status == StepStatus.AWAITING_APPROVAL:
+        else:
             step.output = {**(step.output or {}), "approved_output": (execution or {}).get("output", "")}
-            step.status = StepStatus.SUCCEEDED
+            if not step.pending_approvals and step.status == StepStatus.AWAITING_APPROVAL:
+                step.status = StepStatus.SUCCEEDED
+            # A step still running settles itself when its runtime finishes (_settle_step).
         self._log_event(mission, "approval_decided", step_id=step_id, approved=approved)
         return mission.state == MissionState.AWAITING_APPROVAL and not any(
             s.status == StepStatus.AWAITING_APPROVAL for s in mission.plan

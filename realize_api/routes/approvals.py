@@ -127,4 +127,9 @@ async def reject(approval_id: str, request: Request, body: DecisionBody = None):
 
 def _flatten(result: dict) -> dict:
     """Keep the historical response shape (the approval row) and add outcomes."""
-    return {**result["approval"], "execution": result["execution"], "skill_output": result["skill_output"]}
+    return {
+        **result["approval"],
+        "execution": result["execution"],
+        "skill_output": result["skill_output"],
+        "decision_log": result.get("decision_log"),
+    }

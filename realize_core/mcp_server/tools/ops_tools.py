@@ -443,6 +443,7 @@ def _decision_summary(result: dict) -> dict:
     """
     approval = result["approval"]
     execution = result.get("execution")
+    decision_log = result.get("decision_log") or {}
     return {
         "id": approval.get("id"),
         "status": approval.get("status"),
@@ -453,6 +454,8 @@ def _decision_summary(result: dict) -> dict:
         "executed": bool(execution and execution.get("executed")),
         "success": bool(execution and execution.get("success")),
         "skill_resumed": result.get("skill_output") is not None,
+        "decision_logged": bool(decision_log.get("logged")),
+        "decision_log_pending": bool(decision_log.get("pending")),
     }
 
 
