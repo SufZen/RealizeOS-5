@@ -4,6 +4,12 @@ All notable changes to RealizeOS are documented in this file.
 This changelog is automatically generated from [Conventional Commits](https://conventionalcommits.org).
 
 
+## [5.26.0](https://github.com/SufZen/RealizeOS-5/compare/v5.25.0...v5.26.0) (2026-10-13)
+
+### Features
+
+* **packs:** reviewer kit for market packs (STORY-45) ([c647e31](https://github.com/SufZen/RealizeOS-5/commit/c647e316ec7872b3986c706e8469f1cfd972ddf5))
+
 ## [5.25.0](https://github.com/SufZen/RealizeOS-5/compare/v5.24.0...v5.25.0) (2026-10-13)
 
 ### Features
