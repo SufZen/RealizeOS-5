@@ -43,6 +43,8 @@ class McpConfig:
     #: A hosted profile uses it to serve one workflow, e.g. the self-serve tender register.
     #: An empty tuple serves nothing: that's what a malformed value resolves to.
     tools: tuple[str, ...] | None = None
+    #: Tool calls each principal may make per minute; None = ``API_RATE_LIMIT_PER_MINUTE``.
+    rate_limit_per_minute: int | None = None
 
     @property
     def resource_url(self) -> str:
@@ -88,14 +90,32 @@ def _tool_allowlist(raw: object) -> tuple[str, ...] | None:
     return names or None
 
 
+def _rate_limit(raw: object) -> int | None:
+    """``MCP_RATE_LIMIT_PER_MINUTE`` / ``mcp.rate_limit_per_minute``: a whole number of 1 or more.
+
+    Unset means the API limit applies. Anything else (0, a negative number,
+    text) is logged and also falls back to the API limit, never to no limit.
+    """
+    if raw is None or raw == "":
+        return None
+    try:
+        value = int(str(raw).strip())
+    except ValueError:
+        value = 0
+    if value < 1:
+        logger.warning("Ignoring MCP rate limit %r: use a whole number of 1 or more; the API limit applies", raw)
+        return None
+    return value
+
+
 def mcp_config_from_env(config: dict | None = None) -> McpConfig:
     """Resolve effective MCP config from ``realize-os.yaml`` + env vars.
 
     Env vars (``MCP_ENABLED``, ``MCP_EXPOSE_KB``, ``MCP_EXPOSE_OPS``,
     ``MCP_ALLOW_ADMIN``, ``MCP_AUDIT_FULL_PAYLOAD``,
     ``MCP_BEARER_TOKEN_OVERRIDE``, ``MCP_STREAMABLE_HTTP``,
-    ``MCP_OAUTH_ENABLED``, ``MCP_OAUTH_REDIRECT_HOSTS``, ``MCP_PUBLIC_URL``, ``MCP_TOOLS``) take precedence
-    over the yaml block.
+    ``MCP_OAUTH_ENABLED``, ``MCP_OAUTH_REDIRECT_HOSTS``, ``MCP_PUBLIC_URL``, ``MCP_TOOLS``,
+    ``MCP_RATE_LIMIT_PER_MINUTE``) take precedence over the yaml block.
     """
     raw = (config or {}).get("mcp", {}) if isinstance(config, dict) else {}
     raw = raw if isinstance(raw, dict) else {}
@@ -121,4 +141,7 @@ def mcp_config_from_env(config: dict | None = None) -> McpConfig:
         ),
         public_url=os.environ.get("MCP_PUBLIC_URL", str(raw.get("public_url", "") or "")).strip().rstrip("/"),
         tools=_tool_allowlist(os.environ.get("MCP_TOOLS") or raw.get("tools")),
+        rate_limit_per_minute=_rate_limit(
+            os.environ.get("MCP_RATE_LIMIT_PER_MINUTE") or raw.get("rate_limit_per_minute")
+        ),
     )

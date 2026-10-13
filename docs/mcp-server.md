@@ -31,6 +31,7 @@ mcp:
     enabled: false             # Claude.ai custom connectors (see below)
     redirect_hosts: []         # empty = claude.ai, claude.com and loopback
   tools: []                    # only serve these tools; empty = every tool of the exposed families
+  rate_limit_per_minute: null  # tool calls per caller per minute; empty = API_RATE_LIMIT_PER_MINUTE
 ```
 
 `tools` (env `MCP_TOOLS`, comma-separated) narrows what a server offers. It can't widen it: a tool is served only when its family is exposed and the list names it. A hosted profile uses it to serve one workflow, for example the [self-serve tender register](self-serve-wedge.md#host-the-pilot). Names that match no tool are logged as a warning at startup. A value that is neither a list of names nor a comma-separated string (a mapping, a number) serves no tools at all, rather than every tool.
@@ -267,6 +268,28 @@ Client configs for Claude Code, Claude Desktop and Cursor are in [connect-your-a
 - Scope hierarchy: `read` < `editor` < `owner`. Chat-family tools require `read`; `clear_history` requires `editor`; admin tools (Story 5) require `owner`.
 - `tools/list` shows each caller only the tools it may call: an RBAC role sees the tools its permissions cover (a viewer doesn't see `realize_chat` or `run_workflow`), the MCP-only roles the tools within their scope, outside agents the tools their rules allow or hold, pilot accounts the pilot tools, and a venture-limited caller no tool that spans every venture. Hiding is a courtesy, not the control: a call to an unlisted tool is refused as before.
 - Audit log: every tool call goes through `realize_core/security/audit.py` (same retention + log file as REST).
+- Rate limits: see [below](#rate-limits).
+
+## Rate limits
+
+The HTTP rate limiter lets `/mcp` and `/mcp/*` through untouched (buffering them would break the SSE and Streamable HTTP transports), so the MCP dispatcher limits tool calls itself. Each `tools/call` counts against the caller's bucket for one minute, whether it runs, is refused or names an unknown tool:
+
+| Caller | Bucket |
+|---|---|
+| Agent token | `agent:<token id>`, apart from the person it acts for |
+| Local stdio session | `agent:stdio:<email>` |
+| Anyone else signed in (API key, JWT, OAuth connector, dashboard user) | `user:<id>` |
+| Anonymous (auth off) | `ip:<client address>` |
+
+These are the same buckets as the HTTP limiter, but MCP calls are counted on their own, so a person's dashboard traffic doesn't use up their agent's calls. The limit is `MCP_RATE_LIMIT_PER_MINUTE` (or `mcp.rate_limit_per_minute`), else `API_RATE_LIMIT_PER_MINUTE` (120). A value that isn't a whole number of 1 or more is logged and the API limit applies; there is no "unlimited".
+
+Only tool calls are limited. The connection (the SSE stream, the Streamable HTTP session), `initialize`, `tools/list` and pings are never cut off. A limited call gets an ordinary tool result:
+
+```json
+{ "error": "Too many tool calls; try again in 60 seconds.", "code": "MCP_RATE_LIMITED", "retry_after_seconds": 60 }
+```
+
+and is audit-logged with outcome `rate_limited` (channel `mcp`, the bucket in `metadata.bucket`). The limiter keeps its counts in memory, per process.
 - Production guard: in `REALIZE_ENV=production`, enabling `mcp.allow_admin` requires `REALIZE_JWT_ENABLED=true` and a 32+ char `REALIZE_JWT_SECRET`. The server refuses to start otherwise.
 
 ## Error model
@@ -290,6 +313,7 @@ Stable `code` values:
 | `MCP_AGENT_CANNOT_DECIDE` | An outside agent tried to approve, reject or dismiss. People decide. |
 | `MCP_AGENT_REFUSED` | The tool isn't available to an outside agent. |
 | `MCP_TOO_MANY_PENDING` | The agent already has 25 writes waiting for approval. |
+| `MCP_RATE_LIMITED` | The caller made too many tool calls this minute; `retry_after_seconds` says when to try again. See [Rate limits](#rate-limits). |
 
 ## Roadmap
 

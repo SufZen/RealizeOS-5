@@ -42,6 +42,8 @@ class MCPErrorCode:
     AGENT_CANNOT_DECIDE = "MCP_AGENT_CANNOT_DECIDE"
     #: An outside agent may not call this tool (STORY-37).
     AGENT_REFUSED = "MCP_AGENT_REFUSED"
+    #: The caller made too many tool calls this minute (see :mod:`realize_core.mcp_server.rate_limit`).
+    RATE_LIMITED = "MCP_RATE_LIMITED"
 
 
 def build_mcp_server(
@@ -155,9 +157,21 @@ async def _dispatch(
     name: str,
     arguments: dict[str, Any],
 ) -> list[mcp_types.TextContent]:
-    """Look up + scope-check + invoke a tool, returning MCP TextContent."""
+    """Rate-limit + look up + scope-check + invoke a tool, returning MCP TextContent."""
     user = current_mcp_user()
     started = time.monotonic()
+
+    from realize_core.mcp_server.rate_limit import RETRY_AFTER_SECONDS, allow_call
+
+    # Every tools/call counts, refused or not; the connection itself is never limited.
+    allowed_now, bucket = allow_call(app_state, user, mcp_config.rate_limit_per_minute)
+    if not allowed_now:
+        _audit_rate_limited(name, user, bucket)
+        return _error(
+            MCPErrorCode.RATE_LIMITED,
+            f"Too many tool calls; try again in {RETRY_AFTER_SECONDS} seconds.",
+            retry_after_seconds=RETRY_AFTER_SECONDS,
+        )
 
     tool = registry.get(name)
     if tool is None:
@@ -249,13 +263,33 @@ def _to_text(value: Any) -> str:
         return repr(value)
 
 
-def _error(code: str, message: str) -> list[mcp_types.TextContent]:
+def _error(code: str, message: str, **extra: Any) -> list[mcp_types.TextContent]:
     return [
         mcp_types.TextContent(
             type="text",
-            text=json.dumps({"error": message, "code": code}, ensure_ascii=False),
+            text=json.dumps({"error": message, "code": code, **extra}, ensure_ascii=False),
         )
     ]
+
+
+def _audit_rate_limited(name: str, user: Any, bucket: str) -> None:
+    """Record a tool call refused by the MCP rate limit (outcome ``rate_limited``)."""
+    logger.warning("MCP rate limit hit for %s calling '%s'", bucket, name)
+    try:
+        from realize_core.security.audit import get_audit_logger
+
+        get_audit_logger().log(
+            user_id=getattr(user, "user_id", None) or "anonymous",
+            action=f"mcp.{name}",
+            outcome="rate_limited",
+            channel="mcp",
+            resource_type="mcp_tool",
+            resource_id=name,
+            severity="warning",
+            metadata={"bucket": bucket, "code": MCPErrorCode.RATE_LIMITED},
+        )
+    except Exception as exc:
+        logger.debug("Audit log emit failed for rate-limited MCP call '%s': %s", name, exc)
 
 
 def _audit_call(
