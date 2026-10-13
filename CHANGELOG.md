@@ -4,6 +4,77 @@ All notable changes to RealizeOS are documented in this file.
 This changelog is automatically generated from [Conventional Commits](https://conventionalcommits.org).
 
 
+## [5.30.0](https://github.com/SufZen/RealizeOS-5/compare/v5.29.1...v5.30.0) (2026-10-13)
+
+### Features
+
+* **api:** approvals name the outside agent that asked ([c22154a](https://github.com/SufZen/RealizeOS-5/commit/c22154a52dd18ebd937a855bae751a5d1247829c))
+* **api:** cap the approvals list and list decided items by decision time ([6bfe95b](https://github.com/SufZen/RealizeOS-5/commit/6bfe95b1f5442a3672ddb85ab621334fc62713f6))
+* **api:** POST /api/workflows/{name}/run, the REST twin of MCP run_workflow ([12170e0](https://github.com/SufZen/RealizeOS-5/commit/12170e0ff4d17ae988e671feb0eea3de75b626ce))
+* **dashboard:** agent tokens page under Configure ([5ef4bc4](https://github.com/SufZen/RealizeOS-5/commit/5ef4bc45941421fdaffb27f0a18fe605d1e1d120))
+* **dashboard:** onboarding wizard in Hebrew, right to left ([96286a2](https://github.com/SufZen/RealizeOS-5/commit/96286a2a190b90e54beb08aab3485b2f9a5cdbbd))
+* **dashboard:** outside-agent badge on approval cards ([9752ba7](https://github.com/SufZen/RealizeOS-5/commit/9752ba70c984123fce6eeef37d2402d3ee69d168))
+* **dashboard:** trust ladder shows each venture's pack tightenings ([77e25c7](https://github.com/SufZen/RealizeOS-5/commit/77e25c701e1a687a5c3f2081c5cc7fa16bbb612f))
+* **mcp:** get_history returns each answer's trail ([2fce27d](https://github.com/SufZen/RealizeOS-5/commit/2fce27d9155f90dc02a9e73bd4000dcd17b9b29c))
+* **mcp:** tools/list hides tools the caller would be refused ([9d26de5](https://github.com/SufZen/RealizeOS-5/commit/9d26de525f05d3b1ecb8885d0d0883d04d0c8055))
+* **packs:** pack agents in the agent registry, with provenance, read-only ([840f46a](https://github.com/SufZen/RealizeOS-5/commit/840f46ac28218dfd0380447bee844476191b4413))
+* **packs:** trust matrix shows each venture's pack tightenings ([d129c36](https://github.com/SufZen/RealizeOS-5/commit/d129c363f14bc5bc1e910f4c6785df723ef3a4f2))
+* **storage:** restore an export into a new, empty folder ([dbf5463](https://github.com/SufZen/RealizeOS-5/commit/dbf5463ba2a7aff74b9e27486b0df42d94289ec4))
+
+### Bug Fixes
+
+* **agents:** a named venture scopes registry edits to its own agents ([3be905b](https://github.com/SufZen/RealizeOS-5/commit/3be905b044da158e6b389d25f908df0993b51697))
+* **api:** never return an absolute definition_path for venture agents ([1f41e18](https://github.com/SufZen/RealizeOS-5/commit/1f41e184e8490d6e3876160d48ff2762302c929f))
+* **approvals:** never cap the pending list by default ([129eca8](https://github.com/SufZen/RealizeOS-5/commit/129eca822467622829b0a1a3943174c1781ae67b))
+* **cli:** `workflow run` calls the real route and names the venture ([1112a54](https://github.com/SufZen/RealizeOS-5/commit/1112a54c21b1bc75091b9ffdab009763386b8430))
+* **dashboard:** 5.30 review findings on approvals, setup, Hebrew and sign-out ([6cd560f](https://github.com/SufZen/RealizeOS-5/commit/6cd560f16682a0bd18e0c6f224a50f6c4541621d))
+* **dashboard:** agent detail controls follow the role ([07e9a76](https://github.com/SufZen/RealizeOS-5/commit/07e9a76081227e3188c58dd22462da71ce4e8063)), closes [#51](https://github.com/SufZen/RealizeOS-5/issues/51)
+* **dashboard:** signing out doesn't hand the next person this page ([ab4e21f](https://github.com/SufZen/RealizeOS-5/commit/ab4e21f71c73f7a6ee05805a573b10db2d810778))
+* **dashboard:** the workflow editor opens the listed venture's copy ([0efa4ea](https://github.com/SufZen/RealizeOS-5/commit/0efa4ea6662c2eff4e341891a534e780da18a275))
+* **deps:** keep dashboard lockfile within pnpm's release-age policy ([931c49e](https://github.com/SufZen/RealizeOS-5/commit/931c49ea8a14595153de49c53dfdb708d3c58835))
+* **deps:** patch dashboard advisories within declared ranges ([c0c6857](https://github.com/SufZen/RealizeOS-5/commit/c0c6857d42dada0cd5300c3b88a1dc8a9692c772))
+* **deps:** patch npm CLI advisories, bump vitest 2 -> 4 (dev) ([a5799ae](https://github.com/SufZen/RealizeOS-5/commit/a5799ae9d70cee219386094daf74e7c233dd52ef))
+* **deps:** raise Python floors past published advisories ([6e090ac](https://github.com/SufZen/RealizeOS-5/commit/6e090ac151f9a2a655418e6ac1181aaef63bb947))
+* **governance:** run an approval decided just before expiry ([621821d](https://github.com/SufZen/RealizeOS-5/commit/621821deb28dda340c1239cb37bbe70fb463f981))
+* **governance:** store the decision-log intent with the decision ([5a2d80b](https://github.com/SufZen/RealizeOS-5/commit/5a2d80b8379879e3e5e1c581a9aab24e4bf58f09))
+* **packs:** a broken custom pack fails closed instead of reverting to the shipped one ([dc8622f](https://github.com/SufZen/RealizeOS-5/commit/dc8622fbc4f2c6af2a16816fcb89d6e9d983b809))
+* **packs:** a new review sets the next review date; register shows the lowest card level ([6261da9](https://github.com/SufZen/RealizeOS-5/commit/6261da9c3b24781e4a03a9501ce188b09f9916f1))
+* **packs:** accept unquoted YAML dates in cards, overrides and skill settings ([bd8a9a4](https://github.com/SufZen/RealizeOS-5/commit/bd8a9a4bac8961dcbdf4609b54d24b0483570986))
+* **packs:** bind an approved level to the card's content, not only its id ([2355acb](https://github.com/SufZen/RealizeOS-5/commit/2355acbbb14ee62192d5187ffcf672394fc67db3))
+* **packs:** compare disable.yaml ids case-insensitively everywhere ([06ef061](https://github.com/SufZen/RealizeOS-5/commit/06ef06150255265bacb06cf42e0eabf09c73828c))
+* **packs:** inventory content hash ignores line endings and a byte-order mark ([e5bba36](https://github.com/SufZen/RealizeOS-5/commit/e5bba366a99e8e6113dc70f80411e6695d406526))
+* **packs:** show outside values escaped in the new pack warnings ([fe55327](https://github.com/SufZen/RealizeOS-5/commit/fe553270b7c702f2a1fae7c666d6f04052a76aa2))
+* **packs:** the developer template links the Israel market pack ([0661a81](https://github.com/SufZen/RealizeOS-5/commit/0661a81802ba3d89844a0f160cb34eb6673d5275))
+* **packs:** warn when a venture relies on packs and features.packs is off ([c136554](https://github.com/SufZen/RealizeOS-5/commit/c1365546c74932efb3e6bf22cf145b0506988dea))
+* **release:** release notes since the last published release; review fixes for docs and tooling ([0e13428](https://github.com/SufZen/RealizeOS-5/commit/0e134285808cc08f110e25a08d6b3fa4baf274dc))
+* **skills:** load every venture's skills at startup, by configured key ([b07a222](https://github.com/SufZen/RealizeOS-5/commit/b07a2222bc94e1c9e17bf630fc73b498c760b686))
+* **skills:** look up a skill by name for the venture a run is for ([94bd1a8](https://github.com/SufZen/RealizeOS-5/commit/94bd1a804fc199f0a276aecb4df76c3b5465beb1))
+* **stdio:** refuse stdio sessions for pilot accounts ([04bdde7](https://github.com/SufZen/RealizeOS-5/commit/04bdde756ac956b0bf56ad6bf6ed56c0c41cf0cf))
+* **storage:** leave dashboard sign-in sessions out of the export ([fbaf561](https://github.com/SufZen/RealizeOS-5/commit/fbaf561fc14288ba5b1f1a5d6ca88d46b79166e1))
+* **storage:** restore names that are only unsafe on Windows, skip them there ([87ce28d](https://github.com/SufZen/RealizeOS-5/commit/87ce28d46785be3fe5f67a303393fe0f4380b2a4))
+* **tests:** reset base_handler's conversation helpers between tests ([8a0feb3](https://github.com/SufZen/RealizeOS-5/commit/8a0feb3b43aaf540ba1f292e2b9d2ab4031b4e24))
+* **wedge:** only known markets outside Israel count toward the pass signal ([3ec6d9e](https://github.com/SufZen/RealizeOS-5/commit/3ec6d9ee07ba03d9ad7718d5a3510dc14a32066b))
+* **workflows:** keep API-created workflows across a settings reload ([5546a10](https://github.com/SufZen/RealizeOS-5/commit/5546a1084c755a0d6b5ce3a37f301c564a714d88))
+
+### Security
+
+* **api:** scope memory search and creative sessions to the caller ([52e431f](https://github.com/SufZen/RealizeOS-5/commit/52e431f3140c81d774470c3282296f7e0258bc16))
+* **auth:** cap everything an outside agent has waiting for a person ([3c2bd81](https://github.com/SufZen/RealizeOS-5/commit/3c2bd81a7d607d7731a69e640cc92cd04643e7dd))
+* **auth:** record a stdio session's requests as the agent's ([3b21ba9](https://github.com/SufZen/RealizeOS-5/commit/3b21ba92426ea1a9415756847053f87dfca1ccce))
+* **auth:** stop an agent's paused or running skill once the agent is gone ([4f8f7cd](https://github.com/SufZen/RealizeOS-5/commit/4f8f7cd8bd19f7a93842b322c3689453165ace76))
+* **auth:** stop held agent writes when agent tokens are turned off ([8b285e4](https://github.com/SufZen/RealizeOS-5/commit/8b285e4105562c385eccbff8ac7f576a75621c88))
+* **auth:** withdraw and re-check everything a revoked agent asked for ([f79bb36](https://github.com/SufZen/RealizeOS-5/commit/f79bb36c309697c75cabe4d14662912243ab1eb6))
+* **mcp:** keep an approved agent run governed as the agent's ([45692dc](https://github.com/SufZen/RealizeOS-5/commit/45692dc7e1435056551c17fdb3345e397757055f))
+* **mcp:** per-principal rate limits on MCP tool calls ([c96328d](https://github.com/SufZen/RealizeOS-5/commit/c96328d03be9f5ad594a74e4a44f9dcbe9a962e0))
+* **packs:** apostrophe formula guard and escaped sheet values in review CLI ([7f245c6](https://github.com/SufZen/RealizeOS-5/commit/7f245c693657d830720d359714392ac5bd30bda8))
+* **skills:** never fall back to a venture's skill copy without naming it ([32975c6](https://github.com/SufZen/RealizeOS-5/commit/32975c699e10b76fe006702fbf72c641d1df636e))
+* **storage:** harden storage restore against zip-slip and zip bombs ([3608228](https://github.com/SufZen/RealizeOS-5/commit/360822814fa4c2ce2a5bd951f3ccbcf4eb389316))
+* **storage:** refuse names Windows rewrites, clean staging, restore colon names ([1d53350](https://github.com/SufZen/RealizeOS-5/commit/1d53350f1f92d3ff759e4eb9d2a21711a066ca47))
+
+### Performance
+
+* **mcp:** read users.yaml once per tools/list ([f87ce70](https://github.com/SufZen/RealizeOS-5/commit/f87ce707547c31ce5cf8bb1d06ef7ada21ee968d))
+
 ## [5.29.1](https://github.com/SufZen/RealizeOS-5/compare/v5.29.0...v5.29.1) (2026-10-13)
 
 ### Security
