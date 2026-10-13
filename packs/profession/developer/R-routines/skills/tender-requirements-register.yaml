@@ -1,0 +1,53 @@
+# Tender document (Google Drive) → requirements register (Google Sheets).
+# Each venture sets the ids in F-foundations/overrides/skill-settings.yaml.
+# The register write is a governed action: with enforce_gates on, it waits for
+# an approval and runs once approved.
+name: tender_requirements_register
+description: Read the tender document and build one requirements register in the project sheet
+agent: tenders
+triggers:
+  - tender register
+  - requirements register
+  - tender requirements
+variables:
+  tender_doc_id: "REPLACE_WITH_DRIVE_FILE_ID"
+  register_sheet_id: "REPLACE_WITH_SHEET_ID"
+  register_range: "Requirements"
+steps:
+  - id: tender_text
+    type: tool
+    tool: drive_read_content
+    params:
+      file_id: "{tender_doc_id}"
+
+  - id: requirements
+    type: agent
+    agent: tenders
+    inject_context: [tender_text]
+    prompt: |
+      Request: {user_message}
+
+      From the tender document above, extract every requirement a bidder must meet.
+      Return ONLY a JSON array of rows, no other text. Each row:
+      ["section", "requirement (original wording)", "mandatory: yes/no/check", "owner", "due date or ''", "source: document + section"]
+      Keep the tender's language; add a short translation in brackets only if the user asked.
+
+  - id: write_register
+    type: tool
+    tool: sheets_append
+    params:
+      spreadsheet_id: "{register_sheet_id}"
+      range: "{register_range}"
+      values: "{requirements}"
+    json_params: [values]
+
+  - id: summary
+    type: agent
+    agent: tenders
+    inject_context: [requirements, write_register]
+    prompt: |
+      Write a short summary for the developer, in the language of this request: {user_message}
+      - how many requirements, how many mandatory
+      - the deadlines in date order
+      - anything marked "check" or contradictory between documents
+      - whether the register was written or is waiting for approval (see write_register)

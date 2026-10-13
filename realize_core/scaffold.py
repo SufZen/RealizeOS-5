@@ -240,6 +240,10 @@ def scaffold_venture(
     if not template_src:
         raise FileNotFoundError("Venture template not found. Expected realize_lite/systems/my-business-1/")
 
+    # With features.packs on, a template that names packs links them: the
+    # agents and skills those packs provide are not copied (spec 010 §7).
+    linked = _linked_template_packs(root, template) if template_src.name == template else []
+
     # Copy the full FABRIC structure
     try:
         for item in template_src.rglob("*"):
@@ -249,6 +253,9 @@ def scaffold_venture(
                 dest.mkdir(parents=True, exist_ok=True)
                 stats["dirs_created"] += 1
             elif item.is_file():
+                if _provided_by_pack(relative, linked):
+                    stats["files_linked"] = stats.get("files_linked", 0) + 1
+                    continue
                 dest.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(item, dest)
                 stats["files_created"] += 1
@@ -258,6 +265,8 @@ def scaffold_venture(
 
         _customize_venture_template(venture_dir, name)
         _write_template_packs(venture_dir, template)
+        if linked:
+            _write_skill_settings_starter(venture_dir, linked)
 
         # Register in realize-os.yaml inside the rollback block, so a failed
         # config write doesn't leave an orphan directory behind.
@@ -557,6 +566,106 @@ def _write_template_packs(venture_dir: Path, template: str) -> None:
         + yaml.safe_dump(out, allow_unicode=True, sort_keys=False),
         encoding="utf-8",
     )
+
+
+#: Template folders whose files a linked pack provides instead (spec 010 §7).
+_PACK_PROVIDED = (("A-agents",), ("R-routines", "skills"))
+
+#: Top of the ``skill-settings.yaml`` starter written for a venture that links packs.
+SKILL_SETTINGS_HEADER = (
+    "# Settings for the skills this venture gets from its packs (spec 010).\n"
+    "# Replace the ids with your project's sheet and document ids. You can also add\n"
+    '# triggers in your own words, e.g.  triggers: ["payment claim"]\n'
+)
+
+
+def _linked_template_packs(root: Path, template: str) -> list[Path]:
+    """Folders of the packs a template links, when ``features.packs`` is on in ``root``'s config.
+
+    Empty with the flag off (the template's agents and skills are copied, as
+    before packs) or when the template names no installed pack.
+    """
+    if not template:
+        return []
+    features = _load_config_file(root).get("features")
+    if not (isinstance(features, dict) and features.get("packs")):
+        return []
+    import yaml
+
+    config_path = Path(__file__).parent.parent / "templates" / f"{template}.yaml"
+    if not config_path.is_file():
+        return []
+    data = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
+    packs = data.get("packs") if isinstance(data, dict) else None
+    if not isinstance(packs, dict):
+        return []
+    from realize_core.packs.loader import find_pack
+
+    roots: list[Path] = []
+    for kind in ("profession", "market"):
+        for pack_id in packs.get(kind) or []:
+            pack = find_pack(kind, str(pack_id))
+            if pack is None:
+                logger.warning("Template %s names %s pack '%s', which is not installed", template, kind, pack_id)
+                continue
+            roots.append(pack.root)
+    return roots
+
+
+def _provided_by_pack(relative: Path, pack_roots: list[Path]) -> bool:
+    """True for a template agent or skill file that one of the linked packs has at the same path."""
+    parts = relative.parts
+    if not any(parts[: len(prefix)] == prefix for prefix in _PACK_PROVIDED):
+        return False
+    return any((pack_root / relative).is_file() for pack_root in pack_roots)
+
+
+def _write_skill_settings_starter(venture_dir: Path, pack_roots: list[Path]) -> None:
+    """Write ``F-foundations/overrides/skill-settings.yaml`` with the ids the linked pack skills need.
+
+    The skills stay in the pack; the venture's own sheet and document ids go
+    in this file (the firm layer), so nothing in the pack is copied or edited.
+    """
+    import yaml
+
+    settings: dict[str, dict] = {}
+    for pack_root in pack_roots:
+        for skill_file in sorted((pack_root / "R-routines" / "skills").glob("*.yaml")):
+            try:
+                skill = yaml.safe_load(skill_file.read_text(encoding="utf-8")) or {}
+            except (OSError, ValueError, yaml.YAMLError) as exc:
+                logger.warning("Skipped %s while writing skill settings: %s", skill_file, exc)
+                continue
+            if not isinstance(skill, dict) or not isinstance(skill.get("variables"), dict):
+                continue
+            needed = {k: str(v) for k, v in skill["variables"].items() if "REPLACE_WITH_" in str(v)}
+            name = skill.get("name") or skill.get("id") or skill_file.stem
+            if needed:
+                settings[str(name)] = {"variables": needed}
+    if not settings:
+        return
+    path = venture_dir / "F-foundations" / "overrides" / "skill-settings.yaml"
+    if path.exists():
+        return
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        SKILL_SETTINGS_HEADER + _settings_yaml(settings),
+        encoding="utf-8",
+    )
+
+
+def _settings_yaml(settings: dict[str, dict]) -> str:
+    """Skill settings as YAML with every value in double quotes (``set-ids`` style edits keep working)."""
+    import json
+
+    def key(text: str) -> str:
+        return text if re.fullmatch(r"[A-Za-z0-9_.-]+", text) else json.dumps(text, ensure_ascii=False)
+
+    lines: list[str] = []
+    for name, entry in settings.items():
+        lines += [f"{key(name)}:", "  variables:"]
+        lines += [f"    {key(k)}: {json.dumps(v, ensure_ascii=False)}" for k, v in entry["variables"].items()]
+    return "\n".join(lines) + "\n"
 
 
 def _find_venture_template(template: str = "") -> Path | None:

@@ -1,0 +1,28 @@
+# Demo-only firm settings for the developer pack's skills (spec 010 §7).
+# The webinar is in Hebrew about a project in Portugal, so the Hebrew triggers
+# live here, in the demo venture, not in the Portugal pack. Used with
+# features.packs on, when the venture links the developer pack instead of
+# copying its skills. Set the Google ids with:
+#   python scripts/rehearse_webinar_demo.py set-ids --sheet <id> --tender-doc <id>
+tender_requirements_register:
+  triggers:
+    - רשימת דרישות
+    - דרישות המכרז
+    - תיק מכרז
+  variables:
+    tender_doc_id: "REPLACE_WITH_DRIVE_FILE_ID"
+    register_sheet_id: "REPLACE_WITH_SHEET_ID"
+payment_milestone_check:
+  triggers:
+    - דרישת תשלום
+    - תשלום לקבלן
+    - חשבון חלקי
+  variables:
+    milestones_sheet_id: "REPLACE_WITH_SHEET_ID"
+    payments_sheet_id: "REPLACE_WITH_SHEET_ID"
+investor_report:
+  triggers:
+    - דוח למשקיעים
+    - דוח רבעוני
+  variables:
+    budget_sheet_id: "REPLACE_WITH_SHEET_ID"

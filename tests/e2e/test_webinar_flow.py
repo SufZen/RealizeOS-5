@@ -4,6 +4,10 @@ Seed the Hebrew demo venture → Hebrew requests trigger the right skills →
 the tender becomes a requirements register, the contractor's payment request
 is checked against the milestones, and each sheet write waits for approval and
 runs exactly once when approved → the investor report is a reviewed draft.
+
+Every storyline test runs twice (STORY-43): with packs off, the venture is
+created from the template and has its own copies of the agents and skills;
+with ``features.packs`` on, it links the developer pack and gets them from it.
 """
 
 from __future__ import annotations
@@ -58,14 +62,46 @@ class FakeGoogle(BaseTool):
         return ToolResult.fail(f"unknown action {action}")
 
 
-@pytest.fixture
-def project(tmp_path):
+@pytest.fixture(params=["template", "packs"])
+def project(request, tmp_path):
     from realize_core.demo_seed import seed_webinar_demo
+    from realize_core.packs import clear_cache
 
+    clear_cache()
     root = tmp_path / "project"
     root.mkdir()
+    if request.param == "packs":
+        (root / "realize-os.yaml").write_text("features:\n  packs: true\nsystems: []\n", encoding="utf-8")
     seed_webinar_demo(root)
     return root
+
+
+def _packs_on(root) -> bool:
+    config = yaml.safe_load((root / "realize-os.yaml").read_text(encoding="utf-8")) or {}
+    return bool((config.get("features") or {}).get("packs"))
+
+
+def _reload(root) -> None:
+    """Load the project's skills the way the app does: with the packs' skills when packs are on."""
+    from realize_core.skills.detector import reload_skills
+
+    reload_skills(kb_path=root, packs=_packs_on(root))
+
+
+def _set_ids(root, skill: str, **ids) -> None:
+    """Set a skill's Google ids where the venture keeps them (its skill file, or skill-settings.yaml)."""
+    own = list((root / "systems" / DEMO / "R-routines" / "skills").glob("*.yaml"))
+    if own:
+        for path in own:
+            text = path.read_text(encoding="utf-8")
+            for name, value in ids.items():
+                text = text.replace(f'{name}: "REPLACE_WITH_SHEET_ID"', f'{name}: "{value}"')
+            path.write_text(text, encoding="utf-8")
+        return
+    path = root / "systems" / DEMO / "F-foundations" / "overrides" / "skill-settings.yaml"
+    settings = yaml.safe_load(path.read_text(encoding="utf-8"))
+    settings[skill]["variables"].update(ids)
+    path.write_text(yaml.safe_dump(settings, allow_unicode=True), encoding="utf-8")
 
 
 @pytest.fixture
@@ -142,9 +178,9 @@ def _systems(root):
 
 
 def _load_skill(root, name: str, **variables) -> dict:
-    from realize_core.skills.detector import find_skill, reload_skills
+    from realize_core.skills.detector import find_skill
 
-    reload_skills(kb_path=root)
+    _reload(root)
     owner, skill = find_skill(name)
     assert owner == DEMO
     return {**skill, "variables": {**skill.get("variables", {}), **variables}}
@@ -181,8 +217,15 @@ def _pending(db) -> list[dict]:
 
 def test_seed_creates_the_hebrew_demo_venture(project):
     venture = project / "systems" / DEMO
+    team = {"orchestrator", "tenders", "procurement", "site_payments", "finance_investors", "reviewer"}
     agents = {p.stem for p in (venture / "A-agents").glob("*.md")}
-    assert {"orchestrator", "tenders", "procurement", "site-payments", "finance-investors", "reviewer"} <= agents
+    if _packs_on(project):
+        # Linked, not copied: the team comes from the developer pack.
+        assert agents == set()
+        assert set(_systems(project)[DEMO]["agent_layers"].values()) == {"profession developer@0.1.0"}
+    else:
+        assert {"orchestrator", "tenders", "procurement", "site-payments", "finance-investors", "reviewer"} <= agents
+    assert team <= set(_systems(project)[DEMO]["agents"])
     assert len(list((venture / "B-brain" / "project").glob("*.md"))) == 6
     assert "נתוני הדגמה" in (venture / "B-brain" / "project" / "budget.md").read_text(encoding="utf-8")
 
@@ -192,9 +235,9 @@ def test_seed_creates_the_hebrew_demo_venture(project):
 
 
 def test_hebrew_requests_trigger_the_demo_skills(project):
-    from realize_core.skills.detector import detect_skill, reload_skills
+    from realize_core.skills.detector import detect_skill
 
-    reload_skills(kb_path=project)
+    _reload(project)
     assert detect_skill("קיבלנו דרישת תשלום 4 מהקבלן", DEMO)["name"] == "payment_milestone_check"
     assert detect_skill("תבנה רשימת דרישות מתיק המכרז", DEMO)["name"] == "tender_requirements_register"
     assert detect_skill("תכין דוח רבעוני למשקיעים", DEMO)["name"] == "investor_report"
@@ -255,11 +298,15 @@ async def test_investor_report_is_a_reviewed_draft(project, google, llm, ops_db)
 
 def test_every_agent_the_template_names_exists(project):
     """Routing and skill steps must use discovered agent keys (file stem, '-' → '_')."""
+    from realize_core.skills.detector import get_skills_for_system
+
     system = _systems(project)[DEMO]
     agents = set(system["agents"])
     named = set(system["agent_routing"]) | {a for chain in system["routing"].values() for a in chain}
-    for skill_file in (project / "systems" / DEMO / "R-routines" / "skills").glob("*.yaml"):
-        skill = yaml.safe_load(skill_file.read_text(encoding="utf-8"))
+    _reload(project)
+    skills = get_skills_for_system(DEMO)
+    assert {s["name"] for s in skills} == {"tender_requirements_register", "payment_milestone_check", "investor_report"}
+    for skill in skills:
         named |= {skill["agent"]} | {s["agent"] for s in skill["steps"] if s.get("type") == "agent"}
     assert named <= agents, f"unknown agents: {sorted(named - agents)}"
 
@@ -306,13 +353,12 @@ def memory_db(tmp_path, monkeypatch):
 def _api(project, user_id, scopes):
     from fastapi.testclient import TestClient
     from realize_api.main import create_app
-    from realize_core.skills.detector import reload_skills
 
-    reload_skills(kb_path=project)
+    _reload(project)
     app = create_app()
     app.state.systems = _systems(project)
     app.state.kb_path = project
-    app.state.config = {"features": {}}
+    app.state.config = {"features": {"packs": True} if _packs_on(project) else {}}
 
     @app.middleware("http")
     async def as_principal(request, call_next):
@@ -330,11 +376,7 @@ def test_payment_case_through_the_api(project, google, llm, ops_db, memory_db, m
     # The autouse fixture stubs add_message; this test stores real history.
     monkeypatch.setattr(conv, "add_message", _real_add_message)
 
-    for path in (project / "systems" / DEMO / "R-routines" / "skills").glob("payment*.yaml"):
-        text = path.read_text(encoding="utf-8")
-        text = text.replace('milestones_sheet_id: "REPLACE_WITH_SHEET_ID"', 'milestones_sheet_id: "sheet-m"')
-        text = text.replace('payments_sheet_id: "REPLACE_WITH_SHEET_ID"', 'payments_sheet_id: "sheet-p"')
-        path.write_text(text, encoding="utf-8")
+    _set_ids(project, "payment_milestone_check", milestones_sheet_id="sheet-m", payments_sheet_id="sheet-p")
 
     dana = _api(project, "dana@demo", [f"venture:{DEMO}"])
     body = dana.post(
