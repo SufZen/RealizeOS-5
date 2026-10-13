@@ -58,6 +58,11 @@ realize-os
 │   ├── status                                   Show MCP health
 │   └── token [--user USER] [--role ROLE]        Issue bearer token
 │
+├── wedge                                        Self-serve tender register pilot
+│   ├── invite EMAIL                             Add an invite-only pilot user
+│   ├── funnel [--days N] [--format json]        Runs, users and calls per market
+│   └── purge [--days N]                         Delete expired runs now
+│
 ├── config
 │   ├── show [KEY]                               Show config value(s)
 │   ├── set KEY VALUE                            Set a config value
@@ -166,6 +171,18 @@ realize-os mcp token --user admin --role admin
 ```
 
 Use the output token in Claude Desktop's `mcpServers` config or any MCP client.
+
+### `realize-os wedge`
+
+Host the [self-serve tender register](self-serve-wedge.md) pilot. Run these on the server, in the directory that holds `users.yaml` and the database.
+
+```bash
+realize-os wedge invite dana@example.com   # viewer limited to an empty sandbox venture; prints the password once
+realize-os wedge funnel --days 30          # runs, users and call requests per market, from recorded runs
+realize-os wedge purge                     # delete runs older than 30 days unless the user opted in
+```
+
+`invite` only works on a pilot host: `features.wedge` on and `mcp.tools` limited to the pilot tools, so it can't open the practice's own server to outsiders. It rewrites `users.yaml` (comments are not kept; the previous file is saved as `users.yaml.bak`). If the file is read-only, it prints the entry to add by hand. It refuses to create `users.yaml`: once that file exists it replaces a single-owner `REALIZE_ADMIN_USER` login, so create it with your own owner account first.
 
 ## Multi-Instance Profiles
 

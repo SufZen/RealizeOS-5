@@ -4,6 +4,7 @@ RealizeOS API Server — FastAPI application.
 Provides REST endpoints for chat, system management, and health checks.
 """
 
+import asyncio
 import logging
 import os
 from contextlib import AsyncExitStack, asynccontextmanager
@@ -397,6 +398,15 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Dream scheduler skipped: {e}")
 
+    # Self-serve pilot (STORY-46): delete expired runs daily while the pilot is on.
+    app.state.wedge_purge_task = None
+    from realize_core.config import get_features
+
+    if get_features(config).get("wedge"):
+        from realize_core.wedge.pilot import purge_loop
+
+        app.state.wedge_purge_task = asyncio.create_task(purge_loop(), name="wedge-purge")
+
     logger.info(f"RealizeOS API ready — {num_systems} system(s) loaded")
 
     # MCP Streamable HTTP transport (/mcp) runs for the app's lifetime.
@@ -408,6 +418,9 @@ async def lifespan(app: FastAPI):
 
     # Shutdown
     logger.info("RealizeOS API shutting down...")
+    wedge_purge_task = getattr(app.state, "wedge_purge_task", None)
+    if wedge_purge_task is not None:
+        wedge_purge_task.cancel()
     try:
         dream_scheduler = getattr(app.state, "dream_scheduler", None)
         if dream_scheduler is not None:

@@ -35,6 +35,7 @@ def register_commands(app: typer.Typer) -> None:
     from realize_core.cli_app.commands.status import status
     from realize_core.cli_app.commands.venture import venture_app
     from realize_core.cli_app.commands.version import version
+    from realize_core.cli_app.commands.wedge import wedge_app
     from realize_core.cli_app.commands.workflow import workflow_app
 
     # Plain commands
@@ -60,6 +61,7 @@ def register_commands(app: typer.Typer) -> None:
     app.add_typer(skill_app, name="skill", help="Skill management.")
     app.add_typer(evolution_app, name="evolution", help="Evolution engine and suggestions.")
     app.add_typer(mcp_app, name="mcp", help="MCP server management.")
+    app.add_typer(wedge_app, name="wedge", help="Self-serve tender register pilot: invites, funnel, purge.")
     # v5.5.0 — FABRIC Knowledge System
     app.add_typer(fabric_app, name="fabric", help="FABRIC knowledge system: lint, reindex, search, dream.")
     # STORY-37 — bring your own agent
