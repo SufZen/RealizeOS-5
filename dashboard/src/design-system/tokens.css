@@ -1,117 +1,163 @@
 /* ============================================================================
- * @realizeos/design-system — tokens.css
- * Single source of truth for color, type, spacing, radius, motion.
- * Both the marketing site and the product dashboard import this file.
- * Values anchored on realizeos-site/tailwind.config.js + src/index.css.
+ * @realizeos/design-system v2 — tokens.css   ("Drawing Set")
+ *
+ * Single source of truth for color, type, space, radius and elevation.
+ * Motion tokens live in motion.css. Every --rz-* name from v1 still exists
+ * (values changed), so existing components keep resolving.
+ *
+ * Language: RealizeOS is the governed engine of a field practice for
+ * real-estate, architecture and construction firms. The palette borrows from
+ * the drawing set on a site table: blueprint graphite ink, drafting paper,
+ * hi-vis survey yellow (the brand), redline markup, approval-stamp green and
+ * survey-pin blue. Every colour has one job; none is decorative.
+ *
+ * Modes:   <html data-mode="dark|light">   (dark = "night site", light = "paper")
+ * Density: <html data-density="compact|comfy">
  * ========================================================================= */
 
+/* ── Dark · night site ─────────────────────────────────────────────────── */
 :root,
 [data-mode='dark'] {
-  /* ── Surfaces ─────────────────────────────────────────────────────────── */
-  --rz-bg: #0a0a0f; /* page             ← site --background dark */
-  --rz-bg-sunken: #12121a; /* sidebar          ← site bg-elevated */
-  --rz-bg-raised: #1a1a24; /* cards            ← site --card */
-  --rz-surface: #2a2a36; /* inputs           ← site surface */
-  --rz-surface-hover: #22222e; /* hover            ← site bg-card-hover */
-  --rz-overlay: rgba(10, 10, 15, 0.72);
+  color-scheme: dark;
 
-  /* ── Borders ──────────────────────────────────────────────────────────── */
-  --rz-border: rgba(255, 255, 255, 0.08);
-  --rz-border-strong: rgba(255, 255, 255, 0.15);
-  --rz-border-accent: rgba(255, 204, 0, 0.25);
+  /* Surfaces — blueprint graphite: cool, never pure black */
+  --rz-bg: #0e1218; /* page */
+  --rz-bg-sunken: #0b0e13; /* sidebar · wells */
+  --rz-bg-raised: #151a22; /* panels */
+  --rz-surface: #1b212b; /* inputs · quiet buttons */
+  --rz-surface-hover: #222a36;
+  --rz-surface-active: #2a3341;
+  --rz-overlay: rgba(6, 9, 13, 0.66);
 
-  /* ── Foreground / text ────────────────────────────────────────────────── */
-  --rz-fg: #e8e8ed; /* body             ← site --foreground */
-  --rz-fg-muted: #9a9ab0; /* secondary        ← site text-secondary */
-  --rz-fg-subtle: #6b6b80; /* tertiary         ← site text-muted-custom */
-  --rz-fg-faint: #4a4a5e; /* disabled · placeholder */
+  /* Lines — alpha so they sit on any surface */
+  --rz-border: rgba(196, 214, 240, 0.09);
+  --rz-border-strong: rgba(196, 214, 240, 0.17);
+  --rz-border-accent: rgba(255, 204, 0, 0.32);
+  --rz-grid-line: rgba(196, 214, 240, 0.045);
 
-  /* ── Brand ────────────────────────────────────────────────────────────── */
-  --rz-accent: #ffcc00; /* CTA · accent     ← site brand-yellow */
-  --rz-accent-strong: #ffd633; /* hover            ← site brand-yellow-hover */
-  --rz-accent-soft: rgba(255, 204, 0, 0.1); /* ← site accent-subtle */
-  --rz-accent-fg: #0a0a0f;
-  --rz-accent-ring: rgba(255, 204, 0, 0.35);
+  /* Ink */
+  --rz-fg: #e8ecf2;
+  --rz-fg-muted: #a4aebd;
+  --rz-fg-subtle: #7b8696;
+  --rz-fg-faint: #636e80; /* placeholder, disabled — 3:1 */
 
-  /* ── Status ───────────────────────────────────────────────────────────── */
-  --rz-success: #4ade80;
-  --rz-success-soft: rgba(74, 222, 128, 0.12);
-  --rz-warning: #fbbf24;
-  --rz-warning-soft: rgba(251, 191, 36, 0.12);
-  --rz-danger: #f87171;
-  --rz-danger-soft: rgba(248, 113, 113, 0.12);
-  --rz-info: #93c5fd;
-  --rz-info-soft: rgba(147, 197, 253, 0.12);
+  /* Brand · hi-vis survey yellow */
+  --rz-accent: #ffcc00;
+  --rz-accent-strong: #ffd84a;
+  --rz-accent-text: #ffd23f; /* the accent when it is text */
+  --rz-accent-soft: rgba(255, 204, 0, 0.11);
+  --rz-accent-softer: rgba(255, 204, 0, 0.06);
+  --rz-accent-fg: #1a1500; /* ink on yellow */
+  --rz-accent-ring: rgba(255, 204, 0, 0.4);
 
-  /* ── Elevation ────────────────────────────────────────────────────────── */
-  --rz-shadow-1: 0 1px 2px rgba(0, 0, 0, 0.25);
-  --rz-shadow-2: 0 4px 15px rgba(0, 0, 0, 0.35);
-  --rz-shadow-3: 0 12px 40px rgba(0, 0, 0, 0.45);
-  --rz-shadow-glow: 0 0 20px rgba(255, 204, 0, 0.2), 0 0 60px rgba(255, 204, 0, 0.05);
+  /* Meaning — one job each */
+  --rz-success: #3ccf8e; /* stamp green: approved, done, healthy */
+  --rz-success-soft: rgba(60, 207, 142, 0.12);
+  --rz-warning: #ffa63d; /* caution orange: needs attention (not the brand) */
+  --rz-warning-soft: rgba(255, 166, 61, 0.12);
+  --rz-danger: #ff6b5c; /* redline: failed, rejected, destructive */
+  --rz-danger-soft: rgba(255, 107, 92, 0.12);
+  --rz-info: #6aa8ff; /* survey pin: links, sources */
+  --rz-info-soft: rgba(106, 168, 255, 0.12);
+  --rz-agent: #b69cff; /* agent and model activity */
+  --rz-agent-soft: rgba(182, 156, 255, 0.12);
+
+  /* Elevation — shadows only for things that float */
+  --rz-shadow-1: inset 0 1px 0 rgba(255, 255, 255, 0.03), 0 1px 2px rgba(0, 0, 0, 0.3);
+  --rz-shadow-2: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 8px 24px -6px rgba(0, 0, 0, 0.55);
+  --rz-shadow-3:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 24px 64px -12px rgba(0, 0, 0, 0.7),
+    0 0 0 1px rgba(196, 214, 240, 0.08);
+  --rz-shadow-glow: 0 0 0 1px rgba(255, 204, 0, 0.35), 0 6px 28px -6px rgba(255, 204, 0, 0.35);
 }
 
+/* ── Light · drafting paper ────────────────────────────────────────────── */
 [data-mode='light'] {
-  --rz-bg: #ffffff;
-  --rz-bg-sunken: #f5f5f7;
+  color-scheme: light;
+
+  --rz-bg: #f4f5f2; /* cool drafting paper, not cream */
+  --rz-bg-sunken: #eceee9;
   --rz-bg-raised: #ffffff;
-  --rz-surface: #f4f4f5;
-  --rz-surface-hover: #ebebed;
-  --rz-overlay: rgba(10, 10, 15, 0.4);
+  --rz-surface: #eff1ed;
+  --rz-surface-hover: #e5e8e2;
+  --rz-surface-active: #dadfd7;
+  --rz-overlay: rgba(20, 27, 36, 0.36);
 
-  --rz-border: #e5e5e8;
-  --rz-border-strong: #d4d4d8;
-  --rz-border-accent: rgba(204, 153, 0, 0.35);
+  --rz-border: rgba(24, 32, 43, 0.11);
+  --rz-border-strong: rgba(24, 32, 43, 0.2);
+  --rz-border-accent: rgba(196, 150, 0, 0.5);
+  --rz-grid-line: rgba(24, 32, 43, 0.05);
 
-  --rz-fg: #0a0a0f;
-  --rz-fg-muted: #6b6b80;
-  --rz-fg-subtle: #8a8a9c;
-  --rz-fg-faint: #b8b8c4;
+  --rz-fg: #17202b; /* blueprint ink */
+  --rz-fg-muted: #4b5565;
+  --rz-fg-subtle: #5f6979;
+  --rz-fg-faint: #858d99; /* placeholder, disabled — 3:1 */
 
-  --rz-accent: #cc9900; /* darker amber for AA on white */
-  --rz-accent-strong: #b38600;
-  --rz-accent-soft: rgba(255, 204, 0, 0.14);
-  --rz-accent-fg: #ffffff;
-  --rz-accent-ring: rgba(204, 153, 0, 0.35);
+  /* Fills keep the real brand yellow. On paper it is 1.4:1, so yellow is only
+     ever a fill under ink, never a signal on its own: focus rings, text and
+     borders switch to ink or --rz-accent-text in this mode. */
+  --rz-accent: #ffcc00;
+  --rz-accent-strong: #f2bf00;
+  --rz-accent-text: #7a5c00; /* yellow can't be text on paper; this is 6:1 */
+  --rz-accent-soft: rgba(255, 204, 0, 0.22);
+  --rz-accent-softer: rgba(255, 204, 0, 0.1);
+  --rz-accent-fg: #1a1500;
+  --rz-accent-ring: rgba(214, 160, 0, 0.5);
 
-  --rz-success: #16a34a;
-  --rz-success-soft: rgba(74, 222, 128, 0.14);
-  --rz-warning: #d97706;
-  --rz-warning-soft: rgba(251, 191, 36, 0.14);
-  --rz-danger: #dc2626;
-  --rz-danger-soft: rgba(248, 113, 113, 0.12);
-  --rz-info: #2563eb;
-  --rz-info-soft: rgba(147, 197, 253, 0.16);
+  --rz-success: #13784a;
+  --rz-success-soft: rgba(19, 120, 74, 0.1);
+  --rz-warning: #a35400;
+  --rz-warning-soft: rgba(230, 120, 0, 0.12);
+  --rz-danger: #c4311f;
+  --rz-danger-soft: rgba(196, 49, 31, 0.09);
+  --rz-info: #1f56c3;
+  --rz-info-soft: rgba(31, 86, 195, 0.09);
+  --rz-agent: #6544d0;
+  --rz-agent-soft: rgba(101, 68, 208, 0.09);
 
-  --rz-shadow-1: 0 1px 2px rgba(10, 10, 15, 0.06);
-  --rz-shadow-2: 0 4px 15px rgba(204, 163, 0, 0.15);
-  --rz-shadow-3: 0 12px 32px rgba(10, 10, 15, 0.1);
-  --rz-shadow-glow: 0 4px 15px rgba(204, 163, 0, 0.15);
+  --rz-shadow-1: 0 1px 2px rgba(23, 32, 43, 0.06);
+  --rz-shadow-2: 0 1px 2px rgba(23, 32, 43, 0.05), 0 8px 24px -8px rgba(23, 32, 43, 0.16);
+  --rz-shadow-3:
+    0 2px 4px rgba(23, 32, 43, 0.05), 0 24px 56px -12px rgba(23, 32, 43, 0.24),
+    0 0 0 1px rgba(23, 32, 43, 0.06);
+  --rz-shadow-glow: 0 0 0 1px rgba(214, 160, 0, 0.55), 0 6px 22px -8px rgba(214, 160, 0, 0.5);
 }
 
-/* ── Mode-independent ───────────────────────────────────────────────────── */
+/* ── Mode-independent ──────────────────────────────────────────────────── */
 :root {
-  /* Type scale (Tailwind-aligned) */
-  --rz-text-2xs: 0.6875rem; /* 11 — micro labels, telemetry */
-  --rz-text-xs: 0.75rem; /* 12 — help, captions */
-  --rz-text-sm: 0.875rem; /* 14 — table row, compact UI */
-  --rz-text-base: 0.9375rem; /* 15 — product body */
-  --rz-text-md: 1rem; /* 16 — site body */
-  --rz-text-lg: 1.125rem; /* 18 — lede */
-  --rz-text-xl: 1.25rem; /* 20 — card title */
-  --rz-text-2xl: 1.5rem; /* 24 — section subhead */
-  --rz-text-3xl: 1.875rem; /* 30 — section head */
-  --rz-text-4xl: 2.25rem; /* 36 */
-  --rz-text-5xl: 3rem; /* 48 */
-  --rz-text-6xl: 3.75rem; /* 60 — hero h1 */
+  /* Type — IBM Plex is an engineering family with a real Hebrew cut, so
+     Latin and Hebrew share one voice. Poppins stays only in the wordmark. */
+  --rz-font-sans:
+    'IBM Plex Sans', 'IBM Plex Sans Hebrew', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --rz-font-display: var(--rz-font-sans);
+  --rz-font-mono: 'IBM Plex Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  --rz-font-rtl: 'IBM Plex Sans Hebrew', 'IBM Plex Sans', system-ui, sans-serif;
+  --rz-font-brand: 'Poppins', var(--rz-font-sans);
 
-  /* Font families */
-  --rz-font-sans: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  --rz-font-display: 'Poppins', -apple-system, sans-serif;
-  --rz-font-mono: 'JetBrains Mono', 'Fira Code', ui-monospace, Consolas, monospace;
-  --rz-font-rtl: 'Rubik', 'Poppins', sans-serif;
+  /* Type scale — five sizes (12–18) do almost all product work. */
+  --rz-text-2xs: 0.6875rem; /* 11 — timestamps, table meta */
+  --rz-text-xs: 0.75rem; /* 12 — captions, chips */
+  --rz-text-sm: 0.8125rem; /* 13 — dense UI, tables */
+  --rz-text-base: 0.875rem; /* 14 — product body */
+  --rz-text-md: 1rem; /* 16 — reading text, chat */
+  --rz-text-lg: 1.125rem; /* 18 — panel titles */
+  --rz-text-xl: 1.375rem; /* 22 — page titles */
+  --rz-text-2xl: 1.75rem; /* 28 */
+  --rz-text-3xl: 2.25rem; /* 36 — key figures */
+  --rz-text-4xl: 3rem;
+  --rz-text-5xl: 3.75rem;
+  --rz-text-6xl: 4.5rem;
 
-  /* Spacing — 4px grid */
+  --rz-leading-tight: 1.2;
+  --rz-leading-snug: 1.4;
+  --rz-leading-normal: 1.55;
+  --rz-leading-relaxed: 1.7;
+  --rz-tracking-tight: -0.011em;
+  --rz-tracking-display: -0.022em;
+
+  /* Space — 4px grid */
   --rz-space-0: 0;
+  --rz-space-px: 1px;
   --rz-space-1: 4px;
   --rz-space-2: 8px;
   --rz-space-3: 12px;
@@ -125,57 +171,60 @@
   --rz-space-20: 80px;
   --rz-space-24: 96px;
 
-  /* Radius */
-  --rz-radius-xs: 0.25rem; /* 4px  */
-  --rz-radius-sm: 0.5rem; /* 8px  */
-  --rz-radius-md: 0.625rem; /* 10px */
-  --rz-radius-lg: 0.75rem; /* 12px — default (site) */
-  --rz-radius-xl: 1rem; /* 16px */
+  /* Radius — a hierarchy: the bigger and more object-like, the rounder.
+     Inline marks stay nearly sharp, like drafting. */
+  --rz-radius-xs: 3px; /* chips, kbd, inline code */
+  --rz-radius-sm: 5px; /* inputs, buttons */
+  --rz-radius-md: 7px; /* menus, toasts, list rows */
+  --rz-radius-lg: 10px; /* panels */
+  --rz-radius-xl: 14px; /* dialogs, sheets, palette */
   --rz-radius-full: 999px;
 
-  /* Motion */
-  --rz-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
-  --rz-ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
-  --rz-dur-fast: 120ms;
-  --rz-dur: 180ms;
-  --rz-dur-slow: 320ms;
+  /* Layout */
+  --rz-sidebar-w: 248px;
+  --rz-content-max: 1240px;
+  --rz-reading-max: 68ch;
 
-  /* Density — set at app root: site = comfy, product = compact */
+  /* Layers */
+  --rz-z-sticky: 20;
+  --rz-z-overlay: 40;
+  --rz-z-modal: 50;
+  --rz-z-toast: 60;
+  --rz-z-palette: 70;
+
+  /* Density (product = compact) */
   --rz-density-y: 8px;
   --rz-density-x: 12px;
+  --rz-control-h: 32px;
+  --rz-control-h-sm: 26px;
+  --rz-control-h-lg: 40px;
 }
 
 [data-density='comfy'] {
   --rz-density-y: 12px;
   --rz-density-x: 16px;
+  --rz-control-h: 36px;
+  --rz-control-h-sm: 30px;
+  --rz-control-h-lg: 44px;
 }
 
-/* Light/dark mirror for tools that prefer .dark / .light class hooks */
-.dark {
-  color-scheme: dark;
-}
-.light {
-  color-scheme: light;
+/* Hebrew reads better a little looser and untracked */
+[dir='rtl'] {
+  --rz-leading-normal: 1.65;
+  --rz-tracking-tight: 0;
+  --rz-tracking-display: 0;
 }
 
-/* Selection */
 ::selection {
   background: var(--rz-accent-soft);
   color: var(--rz-fg);
 }
 
-/* Focus ring — applied to any keyboard-focused interactive element */
+/* Focus — yellow on night, ink on paper (yellow on white is invisible) */
 :focus-visible {
   outline: 2px solid var(--rz-accent);
   outline-offset: 2px;
 }
-
-/* Reduce motion */
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.001ms !important;
-    transition-duration: 0.001ms !important;
-  }
+[data-mode='light'] :focus-visible {
+  outline-color: var(--rz-fg);
 }
