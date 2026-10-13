@@ -202,7 +202,7 @@ Only a verified agent token makes a caller an agent. A JWT whose subject or scop
 
 ## Governed writes from outside agents
 
-Outside agents go through the same approvals as internal ones. **People decide:** an agent never approves or rejects anything, including its own held writes. Each MCP tool has one rule for a caller with an agent token:
+Outside agents go through the same approvals as internal ones. **People decide:** an agent never approves or rejects anything, including its own held writes. Each MCP tool has one rule for an outside agent: a caller with an agent token, or a [local stdio session](#local-agents-stdio):
 
 | Rule | Tools | What happens |
 |---|---|---|
