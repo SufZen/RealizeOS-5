@@ -39,6 +39,9 @@ class McpConfig:
     public_url: str = ""
     #: Hosts OAuth clients may redirect to; empty = the built-in default list.
     oauth_redirect_hosts: tuple[str, ...] = ()
+    #: Only these tools are served (within the exposed families); empty = all of them.
+    #: A hosted profile uses it to serve one workflow, e.g. the self-serve tender register.
+    tools: tuple[str, ...] = ()
 
     @property
     def resource_url(self) -> str:
@@ -64,13 +67,20 @@ def _host_list(raw: object) -> tuple[str, ...]:
     return tuple(str(h).strip().lower() for h in items if str(h).strip())
 
 
+def _name_list(raw: object) -> tuple[str, ...]:
+    """Tool names from a comma-separated string or a YAML list, in order, without duplicates."""
+    items = raw.split(",") if isinstance(raw, str) else raw if isinstance(raw, list) else []
+    return tuple(dict.fromkeys(str(n).strip() for n in items if str(n).strip()))
+
+
 def mcp_config_from_env(config: dict | None = None) -> McpConfig:
     """Resolve effective MCP config from ``realize-os.yaml`` + env vars.
 
     Env vars (``MCP_ENABLED``, ``MCP_EXPOSE_KB``, ``MCP_EXPOSE_OPS``,
     ``MCP_ALLOW_ADMIN``, ``MCP_AUDIT_FULL_PAYLOAD``,
     ``MCP_BEARER_TOKEN_OVERRIDE``, ``MCP_STREAMABLE_HTTP``,
-    ``MCP_OAUTH_ENABLED``, ``MCP_OAUTH_REDIRECT_HOSTS``, ``MCP_PUBLIC_URL``) take precedence over the yaml block.
+    ``MCP_OAUTH_ENABLED``, ``MCP_OAUTH_REDIRECT_HOSTS``, ``MCP_PUBLIC_URL``, ``MCP_TOOLS``) take precedence
+    over the yaml block.
     """
     raw = (config or {}).get("mcp", {}) if isinstance(config, dict) else {}
     raw = raw if isinstance(raw, dict) else {}
@@ -95,4 +105,5 @@ def mcp_config_from_env(config: dict | None = None) -> McpConfig:
             os.environ.get("MCP_OAUTH_REDIRECT_HOSTS", oauth_raw.get("redirect_hosts") or "")
         ),
         public_url=os.environ.get("MCP_PUBLIC_URL", str(raw.get("public_url", "") or "")).strip().rstrip("/"),
+        tools=_name_list(os.environ.get("MCP_TOOLS", raw.get("tools") or "")),
     )
