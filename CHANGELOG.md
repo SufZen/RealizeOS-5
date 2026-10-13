@@ -4,6 +4,17 @@ All notable changes to RealizeOS are documented in this file.
 This changelog is automatically generated from [Conventional Commits](https://conventionalcommits.org).
 
 
+## [5.24.0](https://github.com/SufZen/RealizeOS-5/compare/v5.23.0...v5.24.0) (2026-10-13)
+
+### Features
+
+* **dashboard:** shared brand mark; v2 sign-in page (STORY-49) ([43111b3](https://github.com/SufZen/RealizeOS-5/commit/43111b31a7cc624c542c1dad5affbf9f232d9064))
+* **dashboard:** v2 app shell and approvals (STORY-49) ([ef5a96b](https://github.com/SufZen/RealizeOS-5/commit/ef5a96b563960d252c4f17205da205bec7455e11))
+* **dashboard:** v2 chat, messages and the 'What I used' trail (STORY-49) ([e60182f](https://github.com/SufZen/RealizeOS-5/commit/e60182f821d332a276ccd4b760e0e155ceb53e22))
+* **dashboard:** v2 overview, venture card and activity feed (STORY-49) ([0fa0202](https://github.com/SufZen/RealizeOS-5/commit/0fa02025eca3484e14037b4e79cea3def5986d53))
+* **dashboard:** v2 venture detail and agent status (STORY-49) ([1a56b3e](https://github.com/SufZen/RealizeOS-5/commit/1a56b3ee3fb26e6d873af2780669c8e6cbc3b75d))
+* **dashboard:** v2 ventures list (STORY-49) ([7b60f8c](https://github.com/SufZen/RealizeOS-5/commit/7b60f8c1b78eba42c5360ecc6d1c7afdf2060f43))
+
 ## [5.23.0](https://github.com/SufZen/RealizeOS-5/compare/v5.22.0...v5.23.0) (2026-10-13)
 
 ### Features
