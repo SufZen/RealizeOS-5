@@ -92,7 +92,7 @@ Rules:
 
 | Family | Gating | Tools |
 |---|---|---|
-| `chat` | always on | `realize_chat`, `realize_health`, `realize_status`, `list_systems`, `get_system`, `list_agents`, `list_skills`, `get_history`, `clear_history`, `get_session` |
+| `chat` | always on | `realize_chat`, `realize_health`, `realize_status`, `list_systems`, `get_system`, `list_agents`, `list_skills`, `get_history`, `clear_history`, `get_session`, `tender_register_method`, `tender_register_submit`, `request_audit_call` (only with `features.wedge`) |
 | `kb`   | `mcp.expose_kb` (on by default) | `kb_search`, `venture_kb_search`, `kb_get_document`, `list_ventures`, `list_packs`, `resolve_pack_item`, `glossary_lookup` |
 | `ops`  | `mcp.expose_ops` (on by default) | `list_workflows`, `run_workflow`, `trigger_skill`, `run_evolution`, `list_suggestions`, `approve_suggestion`, `dismiss_suggestion`, `list_approvals`, `approve_request`, `reject_request`, `log_decision` |
 | `admin`| `mcp.allow_admin` + `role=owner` + production JWT | `create_venture`, `delete_venture`, `update_setting`, `reload_agents` |
@@ -106,6 +106,10 @@ Rules:
 ### Venture scope
 
 A caller limited to some ventures (a `users.yaml` user with `ventures`, or a JWT with `venture:<key>` scopes) gets a fail-closed subset: chat, agents, skills, history, session, KB search and approvals tools work only when they name one of those ventures; `approve_request` / `reject_request` only for approvals in them; `list_systems` / `list_ventures` are filtered; anything that spans every venture (admin, evolution, cross-venture KB) returns `MCP_FORBIDDEN`. Callers without a venture limit are unaffected.
+
+### Self-serve tender register
+
+With `features.wedge` on, `tender_register_method`, `tender_register_submit` and `request_audit_call` let anyone's agent build a tender requirements register. The agent reads the document itself; RealizeOS supplies the method and the market's sourced rules, checks the register, and returns it as a finished document with its verification level. See [self-serve-wedge.md](self-serve-wedge.md).
 
 ### Decision log
 

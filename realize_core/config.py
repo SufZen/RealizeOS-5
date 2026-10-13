@@ -370,6 +370,9 @@ def get_features(config: dict) -> dict:
         # packs: resolve profession and market packs (ADR 0005, spec 010) on top
         #   of the core. When false only the firm layer and core apply.
         "packs": False,
+        # wedge: the free self-serve tender register MCP tools (STORY-46).
+        #   Configure booking_url and per-market partners under wedge: in the config.
+        "wedge": False,
     }
     features = config.get("features", {})
     merged = {**defaults, **features}
