@@ -164,7 +164,8 @@ def test_find_skill_resolves_a_custom_pack_skill(kb, skills):
     owner, skill = skills.find_skill("quote_check")
     assert owner == VENTURE
     assert skill["steps"][1]["tool"] == "ledger_append"
-    assert "system_key" not in skill and "_format" not in skill
+    assert "system_key" not in skill
+    assert "_format" not in skill
     assert skill["_layer"] == "profession"
     listed = [s for s in skills.get_all_skills() if s["name"] == "quote_check"]
     assert [s["system_key"] for s in listed] == [VENTURE]
