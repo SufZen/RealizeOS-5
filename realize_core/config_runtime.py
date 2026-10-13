@@ -37,24 +37,31 @@ def reload_app_config(app_state: Any, kb_path: str | Path | None = None, config:
 
 
 def sync_skill_cascade(app_state: Any, config: dict) -> None:
-    """Load the ventures' skills with their packs' skills when ``features.packs`` is on (spec 010).
+    """(Re)load every venture's skills, plus their packs' skills when ``features.packs`` is on.
 
-    With the flag on, every venture's own skills and the skills its packs add
-    are (re)loaded, so a reload picks up pack changes and a venture's own skill
-    always wins over a pack skill with the same id. With the flag off and never
-    on, nothing is loaded here: skill loading stays as it was before packs.
-    Turning the flag off reloads without the pack skills.
+    Runs at startup and on every config reload. Ventures are found through the
+    configured key-to-folder mapping (``systems[].directory``), so a venture
+    whose folder name differs from its key still finds its skills. Before 5.30
+    the API never loaded venture skills at startup (only the built-in defaults
+    were detected until a skill was installed); now they always load, and the
+    pack flag only decides whether pack skills are added (spec 010).
     """
     from realize_core.config import get_features
     from realize_core.skills import detector
 
     enabled = bool(get_features(config).get("packs"))
-    was_enabled = detector.pack_cascade_enabled()
     detector.configure_pack_cascade(enabled)
     kb = getattr(app_state, "kb_path", None)
-    if kb is None or not (enabled or was_enabled):
+    if kb is None:
         return
-    detector.reload_skills(kb_path=Path(kb))
+    kb_path = Path(kb)
+    systems = getattr(app_state, "systems", None) or {}
+    ventures = {
+        key: kb_path / str(conf.get("system_dir") or f"systems/{key}")
+        for key, conf in systems.items()
+        if isinstance(conf, dict)
+    }
+    detector.reload_skills(kb_path=kb_path, ventures=ventures or None)
 
 
 class FailClosedGate:

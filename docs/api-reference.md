@@ -333,6 +333,8 @@ Each row's `status` is its **effective** status, and every row carries `expired`
 
 The MCP `list_approvals` tool and the morning briefing use the same rule.
 
+Every row also carries `requested_by_agent`: `{"token_id", "name"}` when an outside agent asked for it (its [agent token](#agent-tokens)'s current name; `{"token_id": null, "name": "stdio"}` for a local stdio session), else `null`. The dashboard shows it as an "Outside agent" badge on the card, so the person deciding sees that the request crossed the approval boundary. A caller with an agent token gets its usual status summary instead, without this field.
+
 ### POST /api/approvals/{id}/approve
 
 Approve an approval request. The response is the decided row plus `execution` (`{executed, success, output, error}` for an action that ran, else `null`) and `skill_output`. Approved does not mean done: check `execution`, or later the row's `execution_status` (`succeeded`, `failed`, or `claimed`, which means started with no result recorded, so a person must check).

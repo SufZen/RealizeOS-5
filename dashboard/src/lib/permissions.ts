@@ -109,3 +109,42 @@ export function setupGate(actor: Actor | null | undefined): Gate {
   if (can(actor, 'system:manage') && isUnrestricted(actor)) return null
   return 'Ask an owner or admin to connect providers and create the first venture.'
 }
+
+/** Roles that may manage agent tokens (`realize_api/routes/agent_tokens.py` MANAGER_ROLES). */
+const TOKEN_MANAGER_ROLES = new Set(['owner', 'admin'])
+
+/**
+ * Issuing, listing and revoking agent tokens: an owner or admin who isn't
+ * limited to some ventures. The server matches the role by name, not by
+ * permission, so a custom role never manages tokens.
+ */
+export function canManageAgentTokens(actor: Actor | null | undefined): boolean {
+  return !!actor && TOKEN_MANAGER_ROLES.has(actor.role) && isUnrestricted(actor)
+}
+
+/** Pages that work on what every venture shares; hidden from venture-limited users (STORY-18). */
+const SYSTEM_WIDE_PAGES = new Set([
+  '/pipelines',
+  '/evolution',
+  '/tools',
+  '/integrations',
+  '/setup',
+  '/settings',
+  '/settings/agent-tokens',
+])
+
+/** Pages only an agent-token manager may open (STORY-37). */
+const TOKEN_MANAGER_PAGES = new Set(['/settings/agent-tokens'])
+
+/** True when the nav and the command palette offer this page to the actor. */
+export function canOpenPage(actor: Actor | null | undefined, path: string): boolean {
+  if (SYSTEM_WIDE_PAGES.has(path) && Array.isArray(actor?.ventures)) return false
+  if (TOKEN_MANAGER_PAGES.has(path) && !canManageAgentTokens(actor)) return false
+  return true
+}
+
+/** Pausing, resuming and rescheduling an agent: `system:write` (venture_scope.py). */
+export function agentControlsGate(actor: Actor | null | undefined): Gate {
+  if (can(actor, 'system:write')) return null
+  return `View only: your role (${roleName(actor)}) can see this agent but can’t pause, resume or reschedule it. Ask an owner, admin or operator.`
+}

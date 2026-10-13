@@ -25,6 +25,10 @@ _skills_loaded = False
 # Off by default: skill loading is then exactly what it was before packs.
 _pack_cascade = False
 
+# The ventures' folders by configured key (``systems[].directory`` in realize-os.yaml),
+# remembered so a later reload (e.g. after a library install) keeps the same mapping.
+_venture_dirs: dict[str, Path] | None = None
+
 
 def configure_pack_cascade(enabled: bool) -> None:
     """Turn the pack skill cascade on or off for later :func:`load_skills` calls.
@@ -175,7 +179,20 @@ def _load_md_skills(skills_dir) -> dict[str, list[dict]]:
     return skills_by_system
 
 
-def load_skills(skills_dir=None, kb_path=None, packs: bool | None = None):
+def _skill_dirs(kb_path: Path) -> list[tuple[str, Path]]:
+    """``(venture key, its R-routines/skills folder)`` for every venture.
+
+    Uses the configured key-to-folder mapping when one was given
+    (:func:`load_skills` ``ventures``), so a venture ``acme`` in
+    ``systems/acme-office`` finds its skills; otherwise each folder under
+    ``systems/`` is keyed by its name, as before.
+    """
+    if _venture_dirs is not None:
+        return [(key, Path(folder) / "R-routines" / "skills") for key, folder in sorted(_venture_dirs.items())]
+    return [(d.parent.parent.name, d) for d in sorted(kb_path.glob("systems/*/R-routines/skills"))]
+
+
+def load_skills(skills_dir=None, kb_path=None, packs: bool | None = None, ventures: dict | None = None):
     """
     Load all skills from YAML files + defaults.
 
@@ -185,8 +202,13 @@ def load_skills(skills_dir=None, kb_path=None, packs: bool | None = None):
         packs: Also add each venture's pack skills (spec 010): a venture's own
             skill wins over a pack skill with the same id or name. None uses
             the setting from :func:`configure_pack_cascade` (off by default).
+        ventures: The ventures' folders by configured key. Remembered for later
+            reloads; None keeps the last mapping (or keys folders by name).
     """
-    global _loaded_skills, _skills_loaded
+    global _loaded_skills, _skills_loaded, _venture_dirs
+
+    if ventures is not None:
+        _venture_dirs = {str(k): Path(v) for k, v in ventures.items()}
 
     # Load from dedicated skills directory
     if skills_dir:
@@ -201,9 +223,8 @@ def load_skills(skills_dir=None, kb_path=None, packs: bool | None = None):
     # Also load from each system's R-routines/skills/ directory
     if kb_path:
         kb_path = Path(kb_path)
-        for system_dir in kb_path.glob("systems/*/R-routines/skills"):
-            if system_dir.exists():
-                system_key = system_dir.parent.parent.name
+        for system_key, system_dir in _skill_dirs(kb_path):
+            if system_dir.is_dir():
                 try:
                     import yaml
 
@@ -233,7 +254,7 @@ def load_skills(skills_dir=None, kb_path=None, packs: bool | None = None):
     if kb_path and (_pack_cascade if packs is None else packs):
         from realize_core.packs.skills import load_venture_pack_skills
 
-        added = load_venture_pack_skills(Path(kb_path), _loaded_skills)
+        added = load_venture_pack_skills(Path(kb_path), _loaded_skills, ventures=_venture_dirs)
         logger.info("Loaded %d skill(s) from profession and market packs", added)
 
     _skills_loaded = True
@@ -241,12 +262,12 @@ def load_skills(skills_dir=None, kb_path=None, packs: bool | None = None):
     logger.info(f"Loaded {total} skills across {len(_loaded_skills)} systems")
 
 
-def reload_skills(skills_dir=None, kb_path=None, packs: bool | None = None):
+def reload_skills(skills_dir=None, kb_path=None, packs: bool | None = None, ventures: dict | None = None):
     """Hot-reload skills from YAML files (and, with ``packs``, from the ventures' packs)."""
     global _loaded_skills, _skills_loaded
     _loaded_skills = {}
     _skills_loaded = False
-    load_skills(skills_dir=skills_dir, kb_path=kb_path, packs=packs)
+    load_skills(skills_dir=skills_dir, kb_path=kb_path, packs=packs, ventures=ventures)
 
 
 def detect_skill(message: str, system_key: str = None) -> dict | None:
