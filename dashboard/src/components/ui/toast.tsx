@@ -1,8 +1,15 @@
 /* eslint-disable react-refresh/only-export-components */
-import { useState, useCallback, createContext, useContext, type ReactNode } from 'react'
+import {
+  useState,
+  useCallback,
+  useLayoutEffect,
+  useRef,
+  createContext,
+  useContext,
+  type ReactNode,
+} from 'react'
 import { createPortal } from 'react-dom'
 import { X, CheckCircle2, AlertCircle, Info, AlertTriangle } from 'lucide-react'
-import { cn } from '@/lib/utils'
 
 /* ------------------------------------------------------------------ */
 /* Types                                                               */
@@ -24,19 +31,11 @@ interface ToastCtx {
   warning: (message: string) => void
 }
 
-const TOAST_META: Record<ToastType, { icon: typeof Info; color: string; bg: string }> = {
-  success: {
-    icon: CheckCircle2,
-    color: 'text-green-400',
-    bg: 'border-green-400/20 bg-green-400/5',
-  },
-  error: { icon: AlertCircle, color: 'text-red-400', bg: 'border-red-400/20 bg-red-400/5' },
-  info: { icon: Info, color: 'text-blue-400', bg: 'border-blue-400/20 bg-blue-400/5' },
-  warning: {
-    icon: AlertTriangle,
-    color: 'text-amber-400',
-    bg: 'border-amber-400/20 bg-amber-400/5',
-  },
+const TOAST_META: Record<ToastType, { icon: typeof Info; color: string }> = {
+  success: { icon: CheckCircle2, color: 'text-success' },
+  error: { icon: AlertCircle, color: 'text-danger' },
+  info: { icon: Info, color: 'text-info' },
+  warning: { icon: AlertTriangle, color: 'text-warning' },
 }
 
 /* ------------------------------------------------------------------ */
@@ -51,6 +50,30 @@ const ToastContext = createContext<ToastCtx>({
 })
 
 export const useToast = () => useContext(ToastContext)
+
+/* ------------------------------------------------------------------ */
+/* Region                                                              */
+/* ------------------------------------------------------------------ */
+
+/**
+ * A manual popover, so toasts live in the browser's top layer and stay above
+ * an open modal <dialog>. The top layer stacks by most recently shown, so
+ * the region re-enters it whenever a toast arrives.
+ */
+function ToastRegion({ count, children }: { count: number; children: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (!el || typeof el.showPopover !== 'function') return
+    if (el.matches(':popover-open')) el.hidePopover()
+    el.showPopover()
+  }, [count])
+  return (
+    <div ref={ref} popover="manual" className="rz-toast-region" role="status" aria-live="polite">
+      {children}
+    </div>
+  )
+}
 
 /* ------------------------------------------------------------------ */
 /* Provider                                                            */
@@ -85,31 +108,25 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       {children}
       {toasts.length > 0 &&
         createPortal(
-          <div className="fixed bottom-4 end-4 z-[10001] flex flex-col gap-2 w-80">
+          <ToastRegion count={toasts.length}>
             {toasts.map((toast) => {
               const meta = TOAST_META[toast.type]
               const Icon = meta.icon
               return (
-                <div
-                  key={toast.id}
-                  className={cn(
-                    'flex items-start gap-3 rounded-xl border p-4 shadow-lg animate-in slide-in-from-right-full',
-                    meta.bg,
-                    'bg-card',
-                  )}
-                >
-                  <Icon className={cn('h-5 w-5 shrink-0 mt-0.5', meta.color)} />
-                  <p className="text-sm text-foreground flex-1">{toast.message}</p>
+                <div key={toast.id} className="rz-toast">
+                  <Icon className={meta.color} aria-hidden />
+                  <p className="m-0 flex-1">{toast.message}</p>
                   <button
                     onClick={() => remove(toast.id)}
-                    className="p-0.5 rounded text-muted-foreground hover:text-foreground transition-colors shrink-0"
+                    aria-label="Dismiss"
+                    className="rz-icon-btn rz-icon-btn--sm -my-1 -me-1"
                   >
                     <X className="h-3.5 w-3.5" />
                   </button>
                 </div>
               )
             })}
-          </div>,
+          </ToastRegion>,
           document.body,
         )}
     </ToastContext.Provider>

@@ -1,0 +1,327 @@
+/* ============================================================================
+ * @realizeos/design-system v2 — motion.css
+ *
+ * Two registers, after IBM Carbon's productive / expressive split:
+ *   Productive — the default. Fast, quiet and interruptible. Hover, press,
+ *                menus, tabs and toasts. 80–220ms. Nobody should notice it.
+ *   Expressive — reserved for moments that change something real: an
+ *                approval is stamped, a run completes, a page arrives.
+ *                280–560ms, springs allowed. At most one per screen at once.
+ *
+ * Rules
+ *  1. Motion answers an action or reports a state change. No ambient loops
+ *     except "live" indicators (an agent that is running right now).
+ *  2. Enter slower than exit. Exits use ease-in and the quick duration.
+ *  3. Move by the smallest distance that reads: 4–8px, scale 0.97–1.
+ *  4. Springs come from real physics (generated, see SPEC.md) through CSS
+ *     linear(), with cubic-bezier fallbacks. No JS animation library.
+ *  5. prefers-reduced-motion keeps opacity fades and drops all movement.
+ * ========================================================================= */
+
+:root {
+  /* Durations */
+  --rz-dur-instant: 80ms;
+  --rz-dur-quick: 140ms;
+  --rz-dur-base: 220ms;
+  --rz-dur-slow: 360ms;
+  --rz-dur-deliberate: 560ms;
+  /* v1 aliases */
+  --rz-dur-fast: var(--rz-dur-quick);
+  --rz-dur: var(--rz-dur-base);
+
+  /* Easing — curves */
+  --rz-ease-standard: cubic-bezier(0.2, 0, 0, 1); /* moves within the screen */
+  --rz-ease-out: cubic-bezier(0.16, 1, 0.3, 1); /* entering */
+  --rz-ease-in: cubic-bezier(0.4, 0, 1, 1); /* leaving */
+  --rz-ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --rz-ease-linear: linear; /* progress, live scans */
+
+  /* Easing — springs (fallbacks; real curves in @supports below) */
+  --rz-spring-settle: cubic-bezier(0.22, 1, 0.36, 1); /* critically damped */
+  --rz-spring-bounce: cubic-bezier(0.34, 1.36, 0.64, 1); /* ~5% overshoot */
+  --rz-spring-settle-dur: 300ms;
+  --rz-spring-bounce-dur: 480ms;
+
+  /* Choreography */
+  --rz-stagger: 28ms; /* per item, capped at 8 items */
+  --rz-distance-sm: 4px;
+  --rz-distance-md: 8px;
+}
+
+@supports (transition-timing-function: linear(0, 1)) {
+  :root {
+    /* stiffness 520, damping 42 — generated; settles without overshoot */
+    --rz-spring-settle: linear(
+      0,
+      0.029,
+      0.101,
+      0.194,
+      0.295,
+      0.396,
+      0.491,
+      0.577,
+      0.653,
+      0.719,
+      0.775,
+      0.822,
+      0.86,
+      0.892,
+      0.917,
+      0.937,
+      0.953,
+      0.965,
+      0.974,
+      0.982,
+      0.987,
+      0.991,
+      0.994,
+      0.996,
+      1
+    );
+    /* stiffness 380, damping 27 — generated; 4.9% overshoot */
+    --rz-spring-bounce: linear(
+      0,
+      0.063,
+      0.209,
+      0.386,
+      0.561,
+      0.713,
+      0.836,
+      0.926,
+      0.987,
+      1.024,
+      1.043,
+      1.049,
+      1.047,
+      1.04,
+      1.031,
+      1.023,
+      1.015,
+      1.009,
+      1.004,
+      1.001,
+      0.999,
+      0.998,
+      0.998,
+      0.998,
+      1
+    );
+  }
+}
+
+/* ── Keyframes ─────────────────────────────────────────────────────────── */
+@keyframes rz-enter {
+  from {
+    opacity: 0;
+    transform: translateY(var(--rz-distance-md));
+  }
+}
+@keyframes rz-enter-scale {
+  from {
+    opacity: 0;
+    transform: translateY(var(--rz-distance-sm)) scale(0.97);
+  }
+}
+@keyframes rz-exit-scale {
+  to {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+}
+@keyframes rz-fade {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes rz-sheet-in {
+  from {
+    transform: translateX(calc(-100% * var(--rz-dir, 1)));
+  }
+}
+@keyframes rz-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.96);
+  }
+}
+
+/* Live — an agent is working. A ring that breathes out, not a blink. */
+@keyframes rz-live {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, currentColor 45%, transparent);
+  }
+  70%,
+  100% {
+    box-shadow: 0 0 0 6px color-mix(in srgb, currentColor 0%, transparent);
+  }
+}
+
+/* Scan — indeterminate progress, a survey line sweeping across */
+@keyframes rz-scan {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(250%);
+  }
+}
+
+/* Shimmer — skeletons */
+@keyframes rz-shimmer {
+  from {
+    background-position: 150% 0;
+  }
+  to {
+    background-position: -50% 0;
+  }
+}
+
+/* Draw — strokes drawing themselves (trail leader lines, check marks) */
+@keyframes rz-draw {
+  from {
+    stroke-dashoffset: var(--rz-draw-length, 100);
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* Stamp — the signature moment. The approval stamp comes down from above,
+   overshoots into the paper and settles at its resting angle. */
+@keyframes rz-stamp {
+  0% {
+    opacity: 0;
+    transform: rotate(var(--rz-stamp-angle, -8deg)) scale(1.9);
+    filter: blur(2px);
+  }
+  55% {
+    opacity: 1;
+    transform: rotate(var(--rz-stamp-angle, -8deg)) scale(0.94);
+    filter: blur(0);
+  }
+  75% {
+    transform: rotate(var(--rz-stamp-angle, -8deg)) scale(1.03);
+  }
+  100% {
+    opacity: 1;
+    transform: rotate(var(--rz-stamp-angle, -8deg)) scale(1);
+  }
+}
+/* The ink spreads into the paper a beat after impact */
+@keyframes rz-ink {
+  from {
+    opacity: 0.55;
+    transform: scale(0.6);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.8);
+  }
+}
+
+/* Hatch — the "held" band slowly drifts, like caution tape in wind.
+   Only on items waiting for a person; stops on reduced motion. */
+@keyframes rz-hatch-drift {
+  to {
+    background-position: 24px 0;
+  }
+}
+
+/* Nudge — invalid input; one horizontal shake, small */
+@keyframes rz-nudge {
+  20%,
+  60% {
+    transform: translateX(-3px);
+  }
+  40%,
+  80% {
+    transform: translateX(3px);
+  }
+}
+
+/* ── Utilities ─────────────────────────────────────────────────────────── */
+.rz-enter {
+  animation: rz-enter var(--rz-dur-slow) var(--rz-ease-out) both;
+}
+.rz-enter-scale {
+  animation: rz-enter-scale var(--rz-dur-base) var(--rz-ease-out) both;
+}
+.rz-fade {
+  animation: rz-fade var(--rz-dur-base) var(--rz-ease-out) both;
+}
+.rz-nudge {
+  animation: rz-nudge 320ms var(--rz-ease-standard);
+}
+
+/* Stagger children on first render only: set --i on each child (0..7). */
+.rz-stagger > * {
+  animation: rz-enter var(--rz-dur-slow) var(--rz-ease-out) both;
+  animation-delay: calc(min(var(--i, 0), 8) * var(--rz-stagger));
+}
+
+/* Press feedback for anything clickable — scale, not colour flash */
+.rz-pressable {
+  transition: transform var(--rz-dur-instant) var(--rz-ease-standard);
+}
+.rz-pressable:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+/* v1 compatibility — these names are used across pages */
+.rz-animate-fade-up {
+  animation: rz-enter var(--rz-dur-slow) var(--rz-ease-out) both;
+}
+.rz-animate-fade-in {
+  animation: rz-fade var(--rz-dur-base) var(--rz-ease-out) both;
+}
+.rz-animate-popup-in,
+.rz-animate-zoom-in {
+  animation: rz-enter-scale var(--rz-dur-base) var(--rz-spring-settle) both;
+}
+.rz-animate-slide-in-right {
+  animation: rz-sheet-in var(--rz-dur-slow) var(--rz-ease-out) both;
+}
+[dir='rtl'] .rz-animate-slide-in-right {
+  --rz-dir: -1;
+}
+/* v1 "float" was ambient motion with no meaning; v2 keeps it still. */
+.rz-animate-float,
+.rz-animate-float-slow {
+  animation: none;
+}
+
+/* ── Route changes · View Transitions API ──────────────────────────────── */
+/* React Router's viewTransition flag wraps navigation in
+   document.startViewTransition; the main pane cross-fades with a short lift
+   while the sidebar stays put. */
+@media (prefers-reduced-motion: no-preference) {
+  ::view-transition-old(rz-main) {
+    animation: rz-exit-scale var(--rz-dur-quick) var(--rz-ease-in) both;
+  }
+  ::view-transition-new(rz-main) {
+    animation: rz-enter var(--rz-dur-base) var(--rz-ease-out) both;
+    animation-delay: 40ms;
+  }
+}
+::view-transition-group(root) {
+  animation-duration: var(--rz-dur-base);
+}
+
+/* ── Reduced motion ────────────────────────────────────────────────────── */
+/* Keep opacity (it carries meaning: "this appeared"); remove travel. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    animation-delay: 0ms !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
+}

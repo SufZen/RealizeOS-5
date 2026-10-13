@@ -1,47 +1,72 @@
 /* ============================================================================
  * RealizeOS-5/dashboard · src/index.css
- * Unified design system adapter — imports shared --rz-* tokens then
- * re-exports them under the names existing components already use.
+ * Tailwind v4 bridge for design system v2. Imports the --rz-* tokens, then
+ * maps every utility name the pages use onto them, so a page written with
+ * `text-red-400` or `bg-surface-700` follows the system in both modes.
+ * Fonts load in index.html (one request, preconnected).
  * ========================================================================= */
 
-@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Rubik:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
-
-/* Pull the shared design-system first */
-@import './design-system/index.css';
-
-/* Then Tailwind v4 */
+/* Layer order first: the design system lives in `components`, so Tailwind
+   utilities can still adjust any rz-* primitive and preflight sits below it. */
+@layer theme, base, components, utilities;
+@import './design-system/index.css' layer(components);
 @import 'tailwindcss';
 
 @theme {
-  /* ── Brand · single accent, no numeric ramp ─────────────────────────── */
-  --color-brand-400: var(--rz-accent);
-  --color-brand-500: var(--rz-accent-strong);
-  /* Legacy ramp names — kept so existing JSX (bg-brand-50, hover:bg-brand-600)
-     still resolves. They all flatten to the single brand color. */
-  --color-brand-50: var(--rz-accent-soft);
+  /* ── Brand · one accent, legacy ramp names flatten onto it ───────────── */
+  --color-brand-50: var(--rz-accent-softer);
   --color-brand-100: var(--rz-accent-soft);
   --color-brand-200: var(--rz-accent);
   --color-brand-300: var(--rz-accent);
+  --color-brand-400: var(--rz-accent);
+  --color-brand-500: var(--rz-accent-strong);
   --color-brand-600: var(--rz-accent-strong);
   --color-brand-700: var(--rz-accent-strong);
   --color-brand-800: var(--rz-accent-strong);
   --color-brand-900: var(--rz-accent-strong);
 
-  /* ── Surfaces · semantic names mapped to --rz-* ─────────────────────── */
+  /* ── Surfaces ────────────────────────────────────────────────────────── */
   --color-surface-50: var(--rz-surface);
   --color-surface-100: var(--rz-surface);
   --color-surface-200: var(--rz-surface-hover);
-  --color-surface-700: var(--rz-bg-raised);
-  --color-surface-800: var(--rz-bg-sunken);
+  --color-surface-600: var(--rz-surface-active);
+  --color-surface-700: var(--rz-surface);
+  --color-surface-800: var(--rz-bg-raised);
   --color-surface-900: var(--rz-bg);
-  --color-surface-950: var(--rz-bg);
+  --color-surface-950: var(--rz-bg-sunken);
 
-  /* ── shadcn-compatible aliases ──────────────────────────────────────── */
+  /* ── Meaning · raw Tailwind hues are remapped to their one job ──────── */
+  --color-red-200: var(--rz-danger);
+  --color-red-300: var(--rz-danger);
+  --color-red-400: var(--rz-danger);
+  --color-red-500: var(--rz-danger);
+  --color-red-600: var(--rz-danger);
+  --color-green-400: var(--rz-success);
+  --color-green-500: var(--rz-success);
+  --color-emerald-200: var(--rz-success);
+  --color-emerald-300: var(--rz-success);
+  --color-emerald-400: var(--rz-success);
+  --color-emerald-500: var(--rz-success);
+  --color-amber-200: var(--rz-warning);
+  --color-amber-400: var(--rz-warning);
+  --color-amber-500: var(--rz-warning);
+  --color-amber-600: var(--rz-warning);
+  --color-orange-400: var(--rz-warning);
+  --color-yellow-400: var(--rz-accent);
+  --color-blue-400: var(--rz-info);
+  --color-cyan-400: var(--rz-info);
+  --color-sky-400: var(--rz-info);
+  --color-violet-400: var(--rz-agent);
+  --color-purple-400: var(--rz-agent);
+  --color-gray-400: var(--rz-fg-subtle);
+  --color-gray-500: var(--rz-fg-faint);
+
+  /* ── shadcn-compatible aliases ───────────────────────────────────────── */
   --color-background: var(--rz-bg);
   --color-foreground: var(--rz-fg);
   --color-card: var(--rz-bg-raised);
   --color-card-foreground: var(--rz-fg);
-  --color-popover: var(--rz-bg-sunken);
+  --color-popover: var(--rz-bg-raised);
   --color-popover-foreground: var(--rz-fg);
   --color-primary: var(--rz-accent);
   --color-primary-foreground: var(--rz-accent-fg);
@@ -49,61 +74,100 @@
   --color-secondary-foreground: var(--rz-fg);
   --color-muted: var(--rz-bg-sunken);
   --color-muted-foreground: var(--rz-fg-muted);
-  --color-accent: var(--rz-bg-sunken);
+  --color-subtle-foreground: var(--rz-fg-subtle);
+  --color-accent: var(--rz-surface);
   --color-accent-foreground: var(--rz-fg);
   --color-destructive: var(--rz-danger);
   --color-destructive-foreground: #ffffff;
   --color-border: var(--rz-border);
-  --color-input: var(--rz-surface);
+  --color-border-strong: var(--rz-border-strong);
+  --color-input: var(--rz-border-strong);
   --color-ring: var(--rz-accent);
+  --color-success: var(--rz-success);
+  --color-warning: var(--rz-warning);
+  --color-danger: var(--rz-danger);
+  --color-info: var(--rz-info);
+  --color-agent: var(--rz-agent);
 
-  /* ── Radius · relaxed to site values ────────────────────────────────── */
-  --radius-xs: var(--rz-radius-xs);
-  --radius-sm: var(--rz-radius-sm);
-  --radius-md: var(--rz-radius-md);
-  --radius-lg: var(--rz-radius-lg);
-  --radius-xl: var(--rz-radius-xl);
-  --radius-full: var(--rz-radius-full);
-
-  /* ── Fonts · explicit JetBrains Mono · adds RTL stack ──────────────── */
+  /* ── Type ────────────────────────────────────────────────────────────── */
   --font-sans: var(--rz-font-sans);
   --font-display: var(--rz-font-display);
   --font-mono: var(--rz-font-mono);
   --font-rtl: var(--rz-font-rtl);
+  --font-brand: var(--rz-font-brand);
+  --text-2xs: var(--rz-text-2xs);
+  --text-xs: var(--rz-text-xs);
+  --text-sm: var(--rz-text-sm);
+  --text-base: var(--rz-text-base);
+  --text-md: var(--rz-text-md);
+  --text-lg: var(--rz-text-lg);
+  --text-xl: var(--rz-text-xl);
+
+  /* ── Radius ──────────────────────────────────────────────────────────── */
+  --radius-xs: var(--rz-radius-xs);
+  --radius-sm: var(--rz-radius-xs);
+  --radius-md: var(--rz-radius-sm);
+  --radius-lg: var(--rz-radius-md);
+  --radius-xl: var(--rz-radius-lg);
+  --radius-2xl: var(--rz-radius-xl);
+  --radius-full: var(--rz-radius-full);
+
+  /* ── Elevation · motion ──────────────────────────────────────────────── */
+  --shadow-sm: var(--rz-shadow-1);
+  --shadow-md: var(--rz-shadow-2);
+  --shadow-lg: var(--rz-shadow-2);
+  --shadow-xl: var(--rz-shadow-3);
+  --shadow-2xl: var(--rz-shadow-3);
+  --ease-out: var(--rz-ease-out);
+  --ease-in: var(--rz-ease-in);
+  --ease-in-out: var(--rz-ease-standard);
+  --default-transition-duration: var(--rz-dur-quick);
+  --default-transition-timing-function: var(--rz-ease-standard);
+}
+
+/* The accent is a fill; as text on paper it would be unreadable. Utility
+   classes that use the brand as *text* switch to the readable ink. */
+@layer utilities {
+  .text-brand-400,
+  .text-brand-500,
+  .text-yellow-400,
+  .text-primary {
+    color: var(--rz-accent-text);
+  }
+  [data-mode='light'] .border-brand-400,
+  [data-mode='light'] .border-brand-500 {
+    border-color: var(--rz-border-accent);
+  }
 }
 
 @layer base {
-  /* The product currently uses .light for light mode. Honor both. */
-  .light {
-    /* hooks into [data-mode="light"] cascade via tokens.css */
-  }
-
   * {
     border-color: var(--rz-border);
   }
 
+  html {
+    scrollbar-gutter: stable;
+    -webkit-text-size-adjust: 100%;
+  }
+
   body {
+    margin: 0;
     background: var(--rz-bg);
     color: var(--rz-fg);
     font-family: var(--rz-font-sans);
+    font-size: var(--rz-text-base);
     -webkit-font-smoothing: antialiased;
-    margin: 0;
+    -moz-osx-font-smoothing: grayscale;
   }
 
-  html {
-    scroll-behavior: smooth;
-    scrollbar-gutter: stable;
+  /* Quiet scrollbars that still show where you are */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--rz-surface-active) transparent;
   }
 
-  ::selection {
-    background-color: var(--rz-accent-soft);
-    color: inherit;
+  button,
+  [role='button'] {
+    -webkit-tap-highlight-color: transparent;
   }
-}
-
-/* Product runs at compact density by default — site stays comfy.
-   Set this on the root <html> or <body> of the dashboard app. */
-:root {
-  --rz-density-y: 8px;
-  --rz-density-x: 12px;
 }

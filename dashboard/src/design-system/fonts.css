@@ -1,18 +1,20 @@
 /* ============================================================================
- * @realizeos/design-system — fonts.css
- * Loads all brand fonts in a single Google Fonts call.
- * Applies Rubik automatically when the document/element direction is RTL.
+ * @realizeos/design-system v2 — fonts.css
+ * Families are loaded once in index.html (preconnect + one Google Fonts
+ * request): IBM Plex Sans (static weights, hinted for Windows), IBM Plex Sans Hebrew, IBM Plex Mono,
+ * and Poppins 600 for the wordmark only.
  * ========================================================================= */
 
-/* Body inherits sans by default; RTL contexts swap to Rubik */
 html {
   font-family: var(--rz-font-sans);
+  font-size: 16px;
+  line-height: var(--rz-leading-normal);
+  text-rendering: optimizeLegibility;
 }
 [dir='rtl'] {
   font-family: var(--rz-font-rtl);
 }
 
-/* Heading defaults — overridable per-component */
 h1,
 h2,
 h3,
@@ -21,14 +23,23 @@ h5,
 h6 {
   font-family: var(--rz-font-display);
   font-weight: 600;
-  line-height: 1.15;
-  letter-spacing: -0.015em;
+  line-height: var(--rz-leading-tight);
+  letter-spacing: var(--rz-tracking-tight);
+  text-wrap: balance;
+}
+p {
+  text-wrap: pretty;
 }
 
-/* Code defaults */
 code,
 kbd,
 samp,
 pre {
   font-family: var(--rz-font-mono);
+}
+
+/* Numbers in UI line up */
+table,
+.tabular {
+  font-variant-numeric: tabular-nums;
 }

@@ -56,6 +56,7 @@ const LoginPage = lazy(() => import('@/pages/login-page'))
 const MissionsPage = lazy(() => import('@/pages/missions-page'))
 const KnowledgeMapPage = lazy(() => import('@/pages/knowledge-map-page'))
 const DreamInboxPage = lazy(() => import('@/pages/dream-inbox-page'))
+const DesignPage = lazy(() => import('@/pages/design-page'))
 
 import OnboardingWizard, {
   isOnboardingComplete,
@@ -422,6 +423,8 @@ function AppRoutes() {
     <Suspense fallback={<PageSkeleton />}>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+        {/* Design system reference: static, no data, so it needs no sign-in */}
+        <Route path="/design" element={<DesignPage />} />
         <Route
           path="*"
           element={
