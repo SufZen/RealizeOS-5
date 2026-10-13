@@ -1,5 +1,5 @@
-import { useState, useEffect, lazy, Suspense, Component, type ReactNode } from 'react'
-import { BrowserRouter, Routes, Route, NavLink, useLocation } from 'react-router-dom'
+import { useState, useEffect, useMemo, lazy, Suspense, Component, type ReactNode } from 'react'
+import { BrowserRouter, Routes, Route, NavLink, useLocation, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard,
   Briefcase,
@@ -7,7 +7,6 @@ import {
   Sparkles,
   ShieldCheck,
   Settings,
-  Bot,
   Menu,
   X,
   MessageCircle,
@@ -20,6 +19,10 @@ import {
   Puzzle,
   Target,
   Brain,
+  Search,
+  Moon,
+  Sun,
+  Languages,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ThemeProvider } from '@/components/theme-provider'
@@ -34,6 +37,12 @@ import { VentureSwitcher } from '@/components/venture-switcher'
 import { LocaleProvider } from '@/components/locale-provider'
 import { LocaleToggle } from '@/components/locale-toggle'
 import AuthGuard from '@/components/auth-guard'
+import { useApi } from '@/hooks/use-api'
+import { useTheme } from '@/components/theme-provider'
+import { useLocale } from '@/components/locale-provider'
+import { CommandPalette, type Command } from '@/components/ui/command-palette'
+import { Kbd } from '@/components/ui/badge'
+import { BrandMark } from '@/components/ui/brand-mark'
 
 const OverviewPage = lazy(() => import('@/pages/overview'))
 const ChatPage = lazy(() => import('@/pages/chat-page'))
@@ -120,43 +129,88 @@ const SYSTEM_WIDE_PAGES = new Set([
   '/settings',
 ])
 
-function NavContent({ onNavigate }: { onNavigate?: () => void }) {
+/** Nav groups the signed-in user may see (venture-limited users lose system-wide pages). */
+function useVisibleNav() {
   const { user } = useAuth()
   const scoped = Array.isArray(user?.ventures)
-  const groups = navGroups
-    .map((group) => ({
-      ...group,
-      items: group.items.filter((item) => !(scoped && SYSTEM_WIDE_PAGES.has(item.to))),
-    }))
-    .filter((group) => group.items.length > 0)
+  return useMemo(
+    () =>
+      navGroups
+        .map((group) => ({
+          ...group,
+          items: group.items.filter((item) => !(scoped && SYSTEM_WIDE_PAGES.has(item.to))),
+        }))
+        .filter((group) => group.items.length > 0),
+    [scoped],
+  )
+}
+
+/** Approvals held for a person, shown on the nav so held work is never out of sight. */
+function useHeldCount(): number {
+  const { data } = useApi<{ approvals: { status: string }[] }>('/approvals?status=pending')
+  return (data?.approvals ?? []).filter((a) => a.status === 'pending').length
+}
+
+function NavContent({ onNavigate }: { onNavigate?: () => void }) {
+  const groups = useVisibleNav()
+  const held = useHeldCount()
 
   return (
-    <nav className="flex flex-col gap-1 flex-1" data-tour="sidebar">
+    <nav className="flex flex-col gap-4 flex-1" data-tour="sidebar" aria-label="Main">
       {groups.map((group) => (
-        <div key={group.label} className="mb-3">
-          <span className="px-3 mb-1 block text-[10px] uppercase tracking-widest text-muted-foreground/60 font-semibold">
+        <div key={group.label}>
+          <span className="px-2.5 mb-1 block text-xs font-medium text-subtle-foreground">
             {group.label}
           </span>
-          {group.items.map(({ to, icon: Icon, label }) => (
-            <NavLink
-              key={to}
-              to={to}
-              end={to === '/'}
-              onClick={onNavigate}
-              data-tour={`nav-${label.toLowerCase()}`}
-              className={({ isActive }) =>
-                cn(
-                  'flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors',
-                  isActive
-                    ? 'bg-brand-400/10 text-brand-400 font-medium'
-                    : 'text-muted-foreground hover:bg-surface-700 hover:text-foreground',
-                )
-              }
-            >
-              <Icon className="h-4 w-4" />
-              {label}
-            </NavLink>
-          ))}
+          <ul className="m-0 p-0 list-none grid gap-px">
+            {group.items.map(({ to, icon: Icon, label }) => (
+              <li key={to}>
+                <NavLink
+                  to={to}
+                  end={to === '/'}
+                  viewTransition
+                  onClick={onNavigate}
+                  data-tour={`nav-${label.toLowerCase()}`}
+                  className={({ isActive }) =>
+                    cn(
+                      'group relative flex items-center gap-2.5 rounded-[5px] h-8 px-2.5 text-[13px] no-underline transition-colors',
+                      isActive
+                        ? 'bg-surface-700 text-foreground font-medium'
+                        : 'text-muted-foreground hover:bg-surface-700/60 hover:text-foreground',
+                    )
+                  }
+                >
+                  {({ isActive }) => (
+                    <>
+                      {isActive && (
+                        <span
+                          aria-hidden
+                          className="absolute inset-y-1.5 -start-px w-[3px] rounded-full bg-brand-400"
+                        />
+                      )}
+                      <Icon
+                        className={cn(
+                          'h-4 w-4 shrink-0',
+                          isActive
+                            ? 'text-foreground'
+                            : 'text-subtle-foreground group-hover:text-foreground',
+                        )}
+                      />
+                      <span className="truncate">{label}</span>
+                      {to === '/approvals' && held > 0 && (
+                        <span
+                          className="ms-auto rz-badge rz-badge--accent tabular"
+                          aria-label={`${held} held for you`}
+                        >
+                          {held}
+                        </span>
+                      )}
+                    </>
+                  )}
+                </NavLink>
+              </li>
+            ))}
+          </ul>
         </div>
       ))}
     </nav>
@@ -164,49 +218,77 @@ function NavContent({ onNavigate }: { onNavigate?: () => void }) {
 }
 
 function Logo() {
+  return <BrandMark size={24} className="px-1.5" />
+}
+
+function SearchButton({ onOpen }: { onOpen: () => void }) {
   return (
-    <div className="flex items-center gap-2 px-2 mb-8">
-      <Bot className="h-8 w-8 text-brand-400" />
-      <span className="text-xl font-bold tracking-tight fx-gradient-text fx-text-glow">
-        RealizeOS
+    <button
+      type="button"
+      onClick={onOpen}
+      className="flex w-full items-center gap-2 h-8 rounded-[5px] border border-border bg-background/40 px-2.5 text-[13px] text-subtle-foreground transition-colors hover:border-border-strong hover:text-foreground"
+    >
+      <Search className="h-3.5 w-3.5" aria-hidden />
+      <span>Search</span>
+      <span className="ms-auto">
+        <Kbd>Ctrl K</Kbd>
       </span>
-    </div>
+    </button>
   )
 }
 
-function DesktopSidebar() {
+function SidebarBody({ onNavigate, onSearch }: { onNavigate?: () => void; onSearch: () => void }) {
   return (
-    <aside className="hidden md:flex w-64 flex-col overflow-y-auto border-e border-border bg-surface-950 fx-glass p-4">
-      <Logo />
+    <>
       <VentureSwitcher />
-      <NavContent />
-      <div className="mt-auto pt-4 border-t border-border" data-tour="theme-toggle">
+      <div className="mb-4 -mt-2">
+        <SearchButton onOpen={onSearch} />
+      </div>
+      <NavContent onNavigate={onNavigate} />
+      <div className="mt-6 pt-3 border-t border-border grid gap-px" data-tour="theme-toggle">
         <LocaleToggle />
         <ThemeToggle />
       </div>
+    </>
+  )
+}
+
+function DesktopSidebar({ onSearch }: { onSearch: () => void }) {
+  return (
+    <aside className="hidden md:flex w-[248px] shrink-0 flex-col overflow-y-auto border-e border-border bg-surface-950 px-3 py-4">
+      <div className="mb-5">
+        <Logo />
+      </div>
+      <SidebarBody onSearch={onSearch} />
     </aside>
   )
 }
 
-function MobileHeader({ onToggle }: { onToggle: () => void }) {
+function MobileHeader({ onToggle, onSearch }: { onToggle: () => void; onSearch: () => void }) {
   return (
-    <header className="flex md:hidden items-center justify-between border-b border-border bg-surface-950 fx-glass px-4 py-3">
-      <div className="flex items-center gap-2">
-        <Bot className="h-6 w-6 text-brand-400" />
-        <span className="text-lg font-bold fx-gradient-text">RealizeOS</span>
+    <header className="flex md:hidden items-center gap-1 border-b border-border bg-surface-950 fx-glass px-3 h-14">
+      <Logo />
+      <div className="ms-auto flex items-center">
+        <button onClick={onSearch} className="rz-icon-btn" aria-label="Search">
+          <Search />
+        </button>
+        <button onClick={onToggle} className="rz-icon-btn" aria-label="Open navigation">
+          <Menu />
+        </button>
       </div>
-      <button
-        onClick={onToggle}
-        className="rounded-lg p-2 text-muted-foreground hover:bg-surface-700 hover:text-foreground transition-colors"
-        aria-label="Toggle navigation"
-      >
-        <Menu className="h-5 w-5" />
-      </button>
     </header>
   )
 }
 
-function MobileSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+function MobileSheet({
+  open,
+  onClose,
+  onSearch,
+}: {
+  open: boolean
+  onClose: () => void
+  onSearch: () => void
+}) {
   useEffect(() => {
     if (!open) return
     function handleKeyDown(e: KeyboardEvent) {
@@ -221,30 +303,69 @@ function MobileSheet({ open, onClose }: { open: boolean; onClose: () => void }) 
   return (
     <>
       <div
-        className="fixed inset-0 z-40"
+        className="fixed inset-0 z-40 rz-fade"
         style={{ background: 'var(--rz-overlay)' }}
         onClick={onClose}
       />
       <div
-        className="fixed inset-y-0 start-0 z-50 w-72 bg-surface-950 fx-glass border-e border-border p-4 shadow-xl rz-animate-slide-in-right"
+        className="fixed inset-y-0 start-0 z-50 flex w-[280px] flex-col overflow-y-auto bg-surface-950 border-e border-border px-3 py-4 shadow-xl rz-animate-slide-in-right"
         role="dialog"
         aria-modal="true"
         aria-label="Navigation menu"
       >
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-between mb-5">
           <Logo />
-          <button
-            onClick={onClose}
-            className="rounded-lg p-1 text-muted-foreground hover:text-foreground"
-            aria-label="Close navigation"
-          >
-            <X className="h-5 w-5" />
+          <button onClick={onClose} className="rz-icon-btn" aria-label="Close navigation">
+            <X />
           </button>
         </div>
-        <VentureSwitcher />
-        <NavContent onNavigate={onClose} />
+        <SidebarBody
+          onNavigate={onClose}
+          onSearch={() => {
+            onClose()
+            onSearch()
+          }}
+        />
       </div>
     </>
+  )
+}
+
+/** Ctrl/Cmd K: every page this person may open, plus the few global preferences. */
+function useShellCommands(): Command[] {
+  const groups = useVisibleNav()
+  const navigate = useNavigate()
+  const { resolved, setTheme } = useTheme()
+  const { override, setOverride } = useLocale()
+  return useMemo(
+    () => [
+      ...groups.flatMap((g) =>
+        g.items.map((item) => ({
+          id: `go-${item.to}`,
+          group: 'Go to',
+          label: item.label,
+          icon: item.icon,
+          hint: g.label,
+          run: () => navigate(item.to, { viewTransition: true }),
+        })),
+      ),
+      {
+        id: 'theme',
+        group: 'Preferences',
+        label: resolved === 'dark' ? 'Switch to light mode' : 'Switch to dark mode',
+        icon: resolved === 'dark' ? Sun : Moon,
+        run: () => setTheme(resolved === 'dark' ? 'light' : 'dark'),
+      },
+      {
+        id: 'locale',
+        group: 'Preferences',
+        label: override === 'he' ? 'Switch to English' : 'Switch to Hebrew (עברית)',
+        keywords: 'language direction rtl עברית',
+        icon: Languages,
+        run: () => setOverride(override === 'he' ? 'en' : 'he'),
+      },
+    ],
+    [groups, navigate, resolved, setTheme, override, setOverride],
   )
 }
 
@@ -267,15 +388,16 @@ function PageSkeleton() {
 function NotFoundPage() {
   return (
     <div className="flex flex-1 items-center justify-center p-8 relative">
-      <div className="fx-dot-grid absolute inset-0 pointer-events-none" />
-      <div className="fx-radial-halo" />
-      <div className="text-center max-w-md relative z-10 rz-animate-fade-up">
-        <div className="text-6xl font-bold fx-gradient-text mb-4">404</div>
-        <h2 className="text-xl font-bold text-foreground mb-2">Page not found</h2>
-        <p className="text-sm text-muted-foreground mb-4">
-          The page you are looking for does not exist or has been moved.
+      <div className="rz-drafting-grid absolute inset-0 pointer-events-none [mask-image:radial-gradient(ellipse_at_center,black_20%,transparent_70%)]" />
+      <div className="text-center max-w-md relative z-10 rz-enter">
+        <div className="text-[3.5rem] leading-none font-medium tracking-tight tabular text-foreground mb-4">
+          404
+        </div>
+        <h2 className="text-lg font-semibold text-foreground mb-2">This page doesn’t exist</h2>
+        <p className="text-sm text-muted-foreground mb-5">
+          The link may be old, or the page was moved. Use Search to find what you need.
         </p>
-        <NavLink to="/" className="rz-btn rz-btn--primary fx-glow-hover">
+        <NavLink to="/" viewTransition className="rz-btn rz-btn--primary">
           Go to Overview
         </NavLink>
       </div>
@@ -305,20 +427,21 @@ class ErrorBoundary extends Component<
       return (
         <div className="flex flex-1 items-center justify-center p-8">
           <div className="text-center max-w-md">
-            <div className="text-4xl mb-4">:(</div>
-            <h2 className="text-xl font-bold text-foreground mb-2">Something went wrong</h2>
+            <h2 className="text-lg font-semibold text-foreground mb-2">
+              This page stopped working
+            </h2>
             <p className="text-sm text-muted-foreground mb-4">
               {this.state.error || 'An unexpected error occurred.'}
             </p>
             <div className="flex gap-3 justify-center">
               <button
                 onClick={() => this.setState({ hasError: false, error: '' })}
-                className="rz-btn rz-btn--primary fx-glow-hover"
+                className="rz-btn rz-btn--primary"
               >
                 Retry
               </button>
               <button onClick={() => window.location.reload()} className="rz-btn rz-btn--secondary">
-                Reload Page
+                Reload page
               </button>
             </div>
           </div>
@@ -334,8 +457,20 @@ function ErrorBoundaryWithLocation({ children }: { children: ReactNode }) {
   return <ErrorBoundary resetKey={location.pathname}>{children}</ErrorBoundary>
 }
 
+function ShellPalette({
+  open,
+  onOpenChange,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+}) {
+  const commands = useShellCommands()
+  return <CommandPalette commands={commands} open={open} onOpenChange={onOpenChange} />
+}
+
 function AuthenticatedShell() {
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [paletteOpen, setPaletteOpen] = useState(false)
   const { user } = useAuth()
   const [showOnboarding, setShowOnboarding] = useState(!isOnboardingComplete())
   // 'unknown' until the server says whether setup was already done (QA 5.14 D-1:
@@ -378,11 +513,21 @@ function AuthenticatedShell() {
           Skip to content
         </a>
         <div className="flex h-screen bg-background">
-          <DesktopSidebar />
-          <div className="flex flex-1 flex-col overflow-hidden">
-            <MobileHeader onToggle={() => setMobileOpen(true)} />
-            <MobileSheet open={mobileOpen} onClose={() => setMobileOpen(false)} />
-            <main id="main-content" className="flex-1 overflow-y-auto p-6">
+          <DesktopSidebar onSearch={() => setPaletteOpen(true)} />
+          <div className="flex flex-1 flex-col overflow-hidden min-w-0">
+            <MobileHeader
+              onToggle={() => setMobileOpen(true)}
+              onSearch={() => setPaletteOpen(true)}
+            />
+            <MobileSheet
+              open={mobileOpen}
+              onClose={() => setMobileOpen(false)}
+              onSearch={() => setPaletteOpen(true)}
+            />
+            <main
+              id="main-content"
+              className="flex-1 overflow-y-auto px-4 py-6 sm:px-8 sm:py-8 [view-transition-name:rz-main]"
+            >
               <ErrorBoundaryWithLocation>
                 <Suspense fallback={<PageSkeleton />}>
                   <Routes>
@@ -413,6 +558,7 @@ function AuthenticatedShell() {
             </main>
           </div>
         </div>
+        <ShellPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
       </LocaleProvider>
     </VentureProvider>
   )

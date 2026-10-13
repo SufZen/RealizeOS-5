@@ -160,7 +160,7 @@ function ProposalCard({
           <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
             <span
               className={cn(
-                'px-1.5 py-0.5 rounded text-[10px] uppercase font-semibold',
+                'px-1.5 py-0.5 rounded text-[11px] capitalize font-semibold',
                 cycleColor,
               )}
             >
@@ -294,12 +294,14 @@ export default function DreamInboxPage() {
   }
 
   return (
-    <div className="space-y-6 rz-animate-fade-up">
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Sparkles className="h-6 w-6 text-brand-400" />
-          <h1 className="text-2xl font-bold text-foreground">Dream Inbox</h1>
+          <Sparkles className="h-5 w-5 text-subtle-foreground" />
+          <h1 className="m-0 text-[1.375rem] font-semibold tracking-tight text-foreground">
+            Dream Inbox
+          </h1>
         </div>
         <div className="flex items-center gap-2">
           {stats.pending > 0 && (

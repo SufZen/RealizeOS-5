@@ -1,0 +1,1 @@
+import{r as e}from"./jsx-runtime-r5h3WR49.js";var t=e(`chevron-right`,[[`path`,{d:`m9 18 6-6-6-6`,key:`mthhwq`}]]);export{t};

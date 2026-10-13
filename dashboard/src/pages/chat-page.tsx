@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
-import { Send, Trash2, AlertCircle, ChevronDown } from 'lucide-react'
+import { Send, Trash2, AlertCircle } from 'lucide-react'
+import { EmptyState } from '@/components/ui/empty-state'
 import { useAuth } from '@/hooks/use-auth'
 import { useVenture } from '@/hooks/use-venture'
 import { api } from '@/lib/api'
@@ -194,37 +195,44 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-3rem)] -m-6 p-6">
+    // Fills <main> edge to edge: cancels main's padding at each breakpoint; the
+    // mobile header (3.5rem) only exists below md.
+    <div className="-mx-4 -my-6 flex h-[calc(100dvh-3.5rem)] flex-col sm:-mx-8 sm:-my-8 md:h-dvh">
       {/* Header */}
-      <div className="flex items-center justify-between gap-4 pb-4 border-b border-border shrink-0">
-        <h1 className="text-2xl font-bold text-foreground">Chat</h1>
-        <div className="flex items-center gap-3">
+      <div className="flex shrink-0 items-center justify-between gap-4 border-b border-border px-4 py-3 sm:px-8">
+        <div className="min-w-0">
+          <h1 className="m-0 text-lg font-semibold text-foreground">Chat</h1>
+          {selectedVenture && (
+            <p className="m-0 truncate text-xs text-subtle-foreground">
+              Talking to the <bdi>{selectedVenture}</bdi> agents
+            </p>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
           {/* Agent selector */}
           {agents.length > 0 && (
-            <div className="relative">
-              <select
-                value={selectedAgent}
-                onChange={(e) => setSelectedAgent(e.target.value)}
-                className="appearance-none bg-surface-800 border border-border rounded-lg px-3 py-1.5 pe-8 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-brand-400"
-              >
-                <option value="">Auto-route</option>
-                {agents.map((a) => (
-                  <option key={a.key} value={a.key}>
-                    {a.key}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="absolute end-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
-            </div>
+            <select
+              value={selectedAgent}
+              onChange={(e) => setSelectedAgent(e.target.value)}
+              aria-label="Agent"
+              className="rz-select rz-input--sm w-auto"
+            >
+              <option value="">Auto-route</option>
+              {agents.map((a) => (
+                <option key={a.key} value={a.key}>
+                  {a.key}
+                </option>
+              ))}
+            </select>
           )}
 
           {/* Clear button */}
           {messages.length > 0 && (
             <button
               onClick={handleClear}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-muted-foreground hover:text-red-400 border border-border rounded-lg hover:border-red-400/30 transition-colors"
+              className="rz-btn rz-btn--ghost rz-btn--sm hover:text-red-400"
             >
-              <Trash2 className="h-3.5 w-3.5" />
+              <Trash2 aria-hidden />
               Clear
             </button>
           )}
@@ -232,81 +240,88 @@ export default function ChatPage() {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto py-6 space-y-4">
-        {messages.length === 0 && !sending && (
-          <div className="flex flex-col items-center justify-center h-full text-center">
-            <div className="text-4xl mb-4 opacity-20 rz-animate-float">💬</div>
-            <h2 className="text-lg font-medium text-foreground mb-1">Start a conversation</h2>
-            <p className="text-sm text-muted-foreground max-w-md">
-              {selectedVenture
-                ? `Send a message to your ${selectedVenture} agents. They'll route it to the best agent automatically.`
-                : 'Select a venture to start chatting.'}
-            </p>
-          </div>
-        )}
+      <div className="flex-1 overflow-y-auto px-4 py-6 sm:px-8">
+        <div className="mx-auto grid max-w-3xl gap-5">
+          {messages.length === 0 && !sending && (
+            <div className="pt-[12vh]">
+              <EmptyState
+                art="search"
+                title="Start a conversation"
+                body={
+                  selectedVenture
+                    ? `Send a message to your ${selectedVenture} agents. They'll route it to the best agent automatically.`
+                    : 'Select a venture to start chatting.'
+                }
+              />
+            </div>
+          )}
 
-        {messages.map((msg, i) => {
-          const key =
-            msg.localKey ?? (msg.id != null ? `m-${msg.id}` : `${msg.timestamp}-${msg.role}-${i}`)
-          return <ChatMessage key={key} msg={msg} anchorPrefix={`trail-${key}`} />
-        })}
+          {messages.map((msg, i) => {
+            const key =
+              msg.localKey ?? (msg.id != null ? `m-${msg.id}` : `${msg.timestamp}-${msg.role}-${i}`)
+            return <ChatMessage key={key} msg={msg} anchorPrefix={`trail-${key}`} />
+          })}
 
-        {error && (
-          <div className="flex items-center gap-2 text-sm text-red-400 bg-red-400/10 border border-red-400/20 rounded-lg px-4 py-2 max-w-3xl">
-            <AlertCircle className="h-4 w-4 shrink-0" />
-            {error}
-          </div>
-        )}
+          {error && (
+            <div
+              role="alert"
+              className="flex items-center gap-2 rounded-[7px] border border-red-400/30 bg-red-400/10 px-4 py-2 text-sm text-red-400"
+            >
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              {error}
+            </div>
+          )}
 
-        <div ref={messagesEndRef} />
+          <div ref={messagesEndRef} />
+        </div>
       </div>
 
       {/* Input */}
-      <div
-        className="shrink-0 border-t border-border pt-4 fx-glass"
-        style={{ margin: '0 -24px', padding: '16px 24px 0' }}
-      >
-        <div className="flex gap-3 max-w-3xl">
+      <div className="shrink-0 border-t border-border bg-surface-950/60 px-4 py-3 sm:px-8">
+        <div className="mx-auto flex max-w-3xl items-end gap-2 rounded-[10px] border border-border-strong bg-card p-1.5 ps-3 transition-shadow focus-within:border-brand-400 focus-within:shadow-[0_0_0_3px_var(--rz-accent-soft)]">
           <textarea
             ref={inputRef}
             value={input}
             maxLength={4096}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={
-              selectedVenture
-                ? 'Type a message... (Enter to send, Shift+Enter for newline)'
-                : 'Select a venture first...'
-            }
+            aria-label="Message"
+            dir="auto"
+            placeholder={selectedVenture ? 'Type a message...' : 'Select a venture first...'}
             disabled={!selectedVenture || sending}
             rows={1}
             className={cn(
-              'flex-1 resize-none rounded-xl border border-border bg-surface-800 px-4 py-3 text-sm text-foreground',
-              'placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-brand-400',
-              'disabled:opacity-50 disabled:cursor-not-allowed',
+              'flex-1 resize-none border-0 bg-transparent py-2 text-[15px] text-foreground outline-none',
+              'placeholder:text-subtle-foreground disabled:cursor-not-allowed disabled:opacity-50',
             )}
-            style={{ minHeight: '44px', maxHeight: '120px' }}
+            style={{ minHeight: '40px', maxHeight: '160px' }}
             onInput={(e) => {
               const target = e.target as HTMLTextAreaElement
               target.style.height = 'auto'
-              target.style.height = Math.min(target.scrollHeight, 120) + 'px'
+              target.style.height = Math.min(target.scrollHeight, 160) + 'px'
             }}
           />
           <button
             onClick={handleSend}
             disabled={!input.trim() || !selectedVenture || sending}
-            className={cn(
-              'flex items-center justify-center rounded-xl px-4 py-3 text-sm font-medium transition-colors',
-              'bg-brand-400 text-black hover:bg-brand-400/90',
-              'disabled:opacity-40 disabled:cursor-not-allowed',
-            )}
+            className="rz-btn rz-btn--primary h-9 w-9 shrink-0 p-0"
+            aria-busy={sending || undefined}
             aria-label="Send message"
           >
-            <Send className="h-4 w-4" />
+            <Send className="rtl:-scale-x-100" />
           </button>
         </div>
+        <div className="mx-auto mt-1.5 hidden max-w-3xl justify-between text-xs text-subtle-foreground sm:flex">
+          <span>
+            <kbd className="rz-kbd">Enter</kbd> to send, <kbd className="rz-kbd">Shift</kbd> +{' '}
+            <kbd className="rz-kbd">Enter</kbd> for a new line
+          </span>
+          {input.length > 3500 && <span className="tabular">{input.length}/4096</span>}
+        </div>
         {input.length > 3500 && (
-          <div className="text-xs text-muted-foreground mt-1 text-end">{input.length}/4096</div>
+          <div className="mx-auto mt-1 max-w-3xl text-end text-xs tabular text-muted-foreground sm:hidden">
+            {input.length}/4096
+          </div>
         )}
       </div>
     </div>

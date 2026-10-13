@@ -67,11 +67,13 @@ export default function EvolutionPage() {
   const decided = suggestions.filter((s) => s.status !== 'pending')
 
   return (
-    <div className="space-y-6 rz-animate-fade-up">
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Sparkles className="h-6 w-6 text-brand-400" />
-          <h1 className="text-2xl font-bold text-foreground">Evolution Inbox</h1>
+          <Sparkles className="h-5 w-5 text-subtle-foreground" />
+          <h1 className="m-0 text-[1.375rem] font-semibold tracking-tight text-foreground">
+            Evolution Inbox
+          </h1>
           {data && data.pending > 0 && (
             <span className="rz-badge rz-badge--accent">{data.pending} pending</span>
           )}

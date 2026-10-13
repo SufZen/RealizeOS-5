@@ -188,12 +188,14 @@ export default function WorkflowEditorPage() {
   }, [content, format])
 
   return (
-    <div className="space-y-6 max-w-6xl rz-animate-fade-up">
+    <div className="space-y-6 max-w-6xl">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <FileCode2 className="h-6 w-6 text-brand-400" />
-          <h1 className="text-2xl font-bold text-foreground">Workflow Editor</h1>
+          <FileCode2 className="h-5 w-5 text-subtle-foreground" />
+          <h1 className="m-0 text-[1.375rem] font-semibold tracking-tight text-foreground">
+            Workflow Editor
+          </h1>
         </div>
         <div className="flex items-center gap-2">
           <select
@@ -385,7 +387,7 @@ export default function WorkflowEditorPage() {
                     <h2 className="text-lg font-semibold text-foreground">{preview.name}</h2>
                     <span
                       className={cn(
-                        'text-[10px] px-1.5 py-0.5 rounded uppercase tracking-wider',
+                        'text-[11px] px-1.5 py-0.5 rounded capitalize',
                         format === 'skill_md'
                           ? 'bg-purple-400/10 text-purple-400'
                           : 'bg-cyan-400/10 text-cyan-400',
@@ -401,9 +403,7 @@ export default function WorkflowEditorPage() {
 
                   {preview.triggers.length > 0 && (
                     <div>
-                      <h3 className="text-xs text-muted-foreground uppercase tracking-wider mb-2">
-                        Triggers
-                      </h3>
+                      <h3 className="text-xs text-muted-foreground mb-2 font-medium">Triggers</h3>
                       <div className="flex flex-wrap gap-1.5">
                         {preview.triggers.map((t: string) => (
                           <span
@@ -419,9 +419,7 @@ export default function WorkflowEditorPage() {
 
                   {preview.tags.length > 0 && (
                     <div>
-                      <h3 className="text-xs text-muted-foreground uppercase tracking-wider mb-2">
-                        Tags
-                      </h3>
+                      <h3 className="text-xs text-muted-foreground mb-2 font-medium">Tags</h3>
                       <div className="flex flex-wrap gap-1.5">
                         {preview.tags.map((t: string) => (
                           <span
@@ -437,7 +435,7 @@ export default function WorkflowEditorPage() {
 
                   {preview.body && (
                     <div>
-                      <h3 className="text-xs text-muted-foreground uppercase tracking-wider mb-2">
+                      <h3 className="text-xs text-muted-foreground mb-2 font-medium">
                         Instructions
                       </h3>
                       <div className="prose prose-invert prose-sm max-w-none">

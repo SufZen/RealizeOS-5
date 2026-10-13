@@ -303,11 +303,13 @@ export default function SetupPage() {
     .filter((g) => g.connections.length > 0)
 
   return (
-    <div className="space-y-6 max-w-4xl rz-animate-fade-up">
+    <div className="space-y-6 max-w-4xl">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Plug className="h-6 w-6 text-brand-400" />
-          <h1 className="text-2xl font-bold text-foreground">Setup & Connections</h1>
+          <Plug className="h-5 w-5 text-subtle-foreground" />
+          <h1 className="m-0 text-[1.375rem] font-semibold tracking-tight text-foreground">
+            Setup & Connections
+          </h1>
         </div>
         <span className="text-sm text-muted-foreground">
           {connectedCount}/{totalCount} connected
@@ -334,9 +336,7 @@ export default function SetupPage() {
           <div key={group.category}>
             <div className="flex items-center gap-2 mb-3">
               <CatIcon className="h-4 w-4 text-muted-foreground" />
-              <h2 className="text-sm font-semibold text-foreground uppercase tracking-wide">
-                {group.label}
-              </h2>
+              <h2 className="text-sm font-semibold text-foreground">{group.label}</h2>
             </div>
             <div className="grid gap-4 md:grid-cols-2">
               {group.connections.map((conn) => (

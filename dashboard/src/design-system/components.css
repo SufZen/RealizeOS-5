@@ -225,7 +225,7 @@
 }
 [data-mode='dark'] .rz-input,
 [data-mode='dark'] .rz-select {
-  background: var(--rz-bg-sunken);
+  background-color: var(--rz-bg-sunken); /* not the shorthand: it would drop the select chevron */
 }
 .rz-input::placeholder {
   color: var(--rz-fg-faint);
@@ -1265,7 +1265,7 @@ button.rz-card:hover,
 /* ── Held · waiting for a person. Caution-tape hatch on the leading edge. ─ */
 .rz-held {
   position: relative;
-  border-color: color-mix(in srgb, var(--rz-accent) 40%, var(--rz-border));
+  border-color: color-mix(in srgb, var(--rz-accent) 26%, var(--rz-border));
 }
 .rz-held::before {
   content: '';
