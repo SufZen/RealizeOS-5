@@ -161,6 +161,16 @@ def outside_agent_active() -> bool:
     return _OUTSIDE_AGENT.get() is not None
 
 
+def outside_agent_marker() -> str | None:
+    """The marker of the outside agent work is being done for now (its principal, or ``agent``), or None.
+
+    Stored with work that pauses (a skill's resume point), so resuming it
+    re-establishes the same marker from what was stored, never from whoever
+    resumes it; an unknown principal (``agent``) then fails every liveness check.
+    """
+    return _OUTSIDE_AGENT.get()
+
+
 def current_outside_agent() -> str | None:
     """The outside agent's principal id (``agent:...``) work is being done for now, or None.
 

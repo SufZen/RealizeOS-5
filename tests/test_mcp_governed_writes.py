@@ -736,6 +736,137 @@ async def test_an_approved_agent_run_still_holds_each_write(world, ledger, monke
     assert _pending_ledger_writes() == []
 
 
+def _run_skill_for(monkeypatch, steps: list[dict]) -> None:
+    """acme's 'agent-run' skill with these steps, run by the real skill runner."""
+    from realize_core.skills import detector
+
+    monkeypatch.setattr(_executor, "execute_skill", _REAL_EXECUTE_SKILL)
+    monkeypatch.setattr(detector, "_loaded_skills", {"acme": [{"name": "agent-run", "_version": 2, "steps": steps}]})
+
+
+async def _start_agent_run(world, agent) -> dict:
+    """The agent asks for the run and a person approves it."""
+    from realize_core.governance.gates import decide_approval
+
+    held = await _call(world, agent, "trigger_skill", {**RUN, "name": "agent-run", "input_text": "go"})
+    return await decide_approval(held["approval_id"], approve=True, decided_by="owner@realization.co.il")
+
+
+async def test_a_paused_agent_run_is_not_resumed_once_the_agent_is_gone(world, ledger, monkeypatch):
+    """A person answers the question of a run whose agent's token expired meanwhile: nothing more runs."""
+    from realize_core.db.schema import get_connection
+    from realize_core.governance.gates import decide_approval
+
+    registry, tool = ledger
+    _run_skill_for(
+        monkeypatch,
+        [
+            {"id": "ask", "type": "human", "question": "Which supplier?"},
+            {"id": "read", "type": "tool", "tool": "ledger_read", "params": {}},
+        ],
+    )
+    agent = _agent()
+    started = await _start_agent_run(world, agent)
+    assert started["execution"]["output"] == "Which supplier?"
+    conn = get_connection()
+    try:
+        question = conn.execute("SELECT id FROM approval_queue WHERE action_type = 'skill_input'").fetchone()["id"]
+    finally:
+        conn.close()
+
+    _expire_token(agent)
+    answered = await decide_approval(question, approve=True, decision_note="B", decided_by="owner@realization.co.il")
+    assert "stopped" in answered["skill_output"]
+    assert "expired" in answered["skill_output"]
+    assert tool.calls == []
+
+
+async def test_an_agent_run_stops_before_its_next_step_once_the_agent_is_gone(world, ledger, monkeypatch):
+    registry, tool = ledger
+    real_execute = tool.execute
+
+    async def read_then_tokens_off(action, params):
+        out = await real_execute(action, params)
+        world.state.config = {"features": {"agent_tokens": False}}  # an owner turns agent tokens off
+        return out
+
+    monkeypatch.setattr(tool, "execute", read_then_tokens_off)
+    _run_skill_for(
+        monkeypatch,
+        [
+            {"id": "first", "type": "tool", "tool": "ledger_read", "params": {}},
+            {"id": "second", "type": "tool", "tool": "ledger_read", "params": {}},
+        ],
+    )
+    started = await _start_agent_run(world, _agent())
+    assert tool.calls == [{"action": "ledger_read"}]
+    assert "stopped before step 'second'" in started["execution"]["output"]
+
+
+async def test_a_resumed_agent_run_is_marked_from_what_was_stored(world, ledger, monkeypatch):
+    """A person's approval resumes the run; its steps still run as the agent's, whoever resumed it."""
+    from realize_core.governance.gates import decide_approval
+    from realize_core.security.agent_access import outside_agent_active
+
+    registry, tool = ledger
+    marked: list[bool] = []
+    real_execute = tool.execute
+
+    async def record_marker(action, params):
+        marked.append(outside_agent_active())
+        return await real_execute(action, params)
+
+    monkeypatch.setattr(tool, "execute", record_marker)
+    _run_skill_for(
+        monkeypatch,
+        [
+            {"id": "write", "type": "tool", "tool": "ledger_append", "params": {"row": "x"}},
+            {"id": "read", "type": "tool", "tool": "ledger_read", "params": {}},
+        ],
+    )
+    await _start_agent_run(world, _agent())
+    [write] = _pending_ledger_writes()
+    assert not outside_agent_active()  # the person's context
+    await decide_approval(write["id"], approve=True, decided_by="owner@realization.co.il")
+    # The approved write itself runs as approved; the resumed read runs marked as the agent's.
+    assert marked == [False, True]
+
+
+def test_the_agent_marker_is_reset_after_an_error():
+    from realize_core.security.agent_access import acting_for_outside_agent, outside_agent_active
+
+    seen: list[bool] = []
+
+    def failing_agent_work() -> None:
+        with acting_for_outside_agent("agent:0123456789ab"):
+            seen.append(outside_agent_active())
+            raise RuntimeError("the tool failed")
+
+    with pytest.raises(RuntimeError):
+        failing_agent_work()
+    assert seen == [True]
+    assert not outside_agent_active()
+
+
+async def test_a_failed_agent_call_leaves_no_marker_for_the_next_person(world, monkeypatch):
+    from realize_core import base_handler
+    from realize_core.security.agent_access import outside_agent_active
+
+    seen: list[bool] = []
+
+    async def process(**kwargs):
+        seen.append(outside_agent_active())
+        if outside_agent_active():
+            raise RuntimeError("model unavailable")
+        return "ok"
+
+    monkeypatch.setattr(base_handler, "process_message", process)
+    failed = await _call(world, _agent(), "realize_chat", {"message": "hi", "system_key": "acme"})
+    assert "error" in failed
+    await _call(world, _person(), "realize_chat", {"message": "hi", "system_key": "acme"})
+    assert seen == [True, False]
+
+
 async def test_without_a_gate_an_agents_write_never_runs(world, monkeypatch):
     import realize_core.tools.tool_registry as tr
     from realize_core.security.agent_access import acting_for_outside_agent
