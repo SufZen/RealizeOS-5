@@ -4,6 +4,12 @@ All notable changes to RealizeOS are documented in this file.
 This changelog is automatically generated from [Conventional Commits](https://conventionalcommits.org).
 
 
+## [5.21.0](https://github.com/SufZen/RealizeOS-5/compare/v5.20.0...v5.21.0) (2026-10-13)
+
+### Features
+
+* **packs:** agent-drafted Portugal market pack and pack verification (STORY-45) ([43b5a51](https://github.com/SufZen/RealizeOS-5/commit/43b5a51de5ab490c0b90cd750c5635efed712414))
+
 ## [5.20.0](https://github.com/SufZen/RealizeOS-5/compare/v5.19.0...v5.20.0) (2026-10-13)
 
 ### Features
