@@ -439,7 +439,9 @@ def test_one_agent_scoped_reads_held_writes_approval_restart_export(install, llm
                 ("approve_request", {"approval_id": "placeholder"}),
             ],
         )
-        assert {"list_ventures", "venture_kb_search", "run_workflow", "list_approvals", "approve_request"} <= set(tools)
+        assert {"list_ventures", "venture_kb_search", "run_workflow", "list_approvals"} <= set(tools)
+        # tools/list doesn't offer an agent the decisions it can't make; calling one is still refused.
+        assert not {"approve_request", "reject_request", "delete_venture"} & set(tools)
         assert [v["key"] for v in ventures["ventures"]] == ["alpha"]
         assert found["results"], found
         assert all("alpha" in r["path"] for r in found["results"]), found
