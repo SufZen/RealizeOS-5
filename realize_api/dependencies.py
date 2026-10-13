@@ -226,6 +226,30 @@ def visible_to(request: Request, venture_key: str | None) -> bool:
     return allowed is None or (bool(venture_key) and venture_key in allowed)
 
 
+def require_own_conversation(request: Request, user_id: str) -> None:
+    """403 unless the caller may read or clear ``user_id``'s conversation, session or history.
+
+    The one rule for every REST route that names a user's conversation data
+    (:func:`realize_core.security.chat_access.may_access_conversation`, as the
+    MCP ``get_history`` / ``get_session`` / ``clear_history`` tools apply it): a
+    caller acts for themselves; only owner and admin people may name another
+    user; an outside agent never may, whoever its user is. With no
+    authenticated principal (auth off, or an MCP proxy request that carries no
+    ``state``) any user may be named.
+
+    Raises:
+        HTTPException: 403 when the caller may not access ``user_id``'s data.
+    """
+    from realize_core.security.chat_access import may_access_conversation
+
+    state = getattr(request, "state", None)
+    principal = getattr(state, "user_id", None)
+    role = getattr(state, "role", None) or ""
+    scopes = list(getattr(state, "scopes", None) or [])
+    if not may_access_conversation(principal, role, user_id, scopes=scopes):
+        raise HTTPException(status_code=403, detail="You can only access your own conversations")
+
+
 def visible_systems(request: Request) -> dict:
     """The configured ventures (systems) this caller may see."""
     systems: dict = getattr(request.app.state, "systems", None) or {}
