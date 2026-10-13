@@ -2,9 +2,11 @@
 
 A pilot user signs in from their own agent (OAuth connector) and may only use
 the tender-register tools. Each invite adds a ``viewer`` to ``users.yaml``,
-limited to a sandbox venture of their own that holds nothing, so even tools
-outside the pilot see no client data. The password is shown once and stored
-only as a bcrypt hash.
+marked ``pilot: true`` and limited to a sandbox venture of their own that holds
+nothing. The marker confines the account on the server, whatever the host's
+config: the MCP dispatcher offers it only :data:`PILOT_TOOLS`, and the REST API
+and dashboard sign-in refuse it. The password is shown once and stored only as
+a bcrypt hash.
 
 :func:`purge_loop` runs :func:`realize_core.wedge.store.purge_expired` once a
 day while the server runs with ``features.wedge`` on, so runs are deleted after
@@ -150,7 +152,13 @@ def invite(email: str, *, config: dict, users_file: Path | None = None) -> Pilot
     venture = sandbox_venture(address)
     if venture in {s.get("key") for s in config.get("systems") or [] if isinstance(s, dict)}:
         raise PilotInviteError(f"A venture named {venture} exists; a pilot sandbox must be empty")
-    entry = {"email": address, "role": PILOT_ROLE, "ventures": [venture], "password_hash": hash_password(password)}
+    entry = {
+        "email": address,
+        "role": PILOT_ROLE,
+        "ventures": [venture],
+        "pilot": True,
+        "password_hash": hash_password(password),
+    }
     entry_yaml = yaml.safe_dump({"users": [entry]}, sort_keys=False, allow_unicode=True)
 
     users.append(entry)

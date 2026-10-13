@@ -50,9 +50,14 @@ class User:
     role: str
     password_hash: str
     ventures: tuple[str, ...] = ()  # empty = every venture
+    #: A self-serve pilot account (STORY-46): only the pilot tools over MCP, no REST or dashboard.
+    pilot: bool = False
 
     def __repr__(self) -> str:  # pragma: no cover - debug aid
-        return f"User(email={self.email!r}, role={self.role!r}, ventures={self.ventures!r}, password_hash=<redacted>)"
+        return (
+            f"User(email={self.email!r}, role={self.role!r}, ventures={self.ventures!r}, "
+            f"pilot={self.pilot!r}, password_hash=<redacted>)"
+        )
 
 
 def _load_yaml_users(path: Path) -> list[User]:
@@ -111,7 +116,9 @@ def _load_yaml_users(path: Path) -> list[User]:
                 continue
             ventures = tuple(v.strip() for v in raw_ventures)
 
-        users.append(User(email=email, role=role, password_hash=password_hash, ventures=ventures))
+        # Fail closed: any value other than an explicit "no" keeps the account confined.
+        pilot = "pilot" in entry and entry["pilot"] not in (False, None, 0, "false", "no", "False", "No")
+        users.append(User(email=email, role=role, password_hash=password_hash, ventures=ventures, pilot=pilot))
 
     return users
 
@@ -148,6 +155,12 @@ def get_user(email: str) -> User | None:
         if user.email == target:
             return user
     return None
+
+
+def is_pilot_user(email: str | None) -> bool:
+    """True when ``email`` is a self-serve pilot account (``pilot: true`` in users.yaml)."""
+    user = get_user(email) if email else None
+    return bool(user and user.pilot)
 
 
 def hash_password(plaintext: str) -> str:

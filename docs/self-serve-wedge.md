@@ -83,7 +83,7 @@ Sign-in is by invitation for now; there is no public sign-up. `invite` refuses t
 realize-os wedge invite dana@example.com
 ```
 
-This adds a `viewer` limited to an empty sandbox venture of their own (`pilot-<hash>`) and prints a password once. Send them the password privately, with the connector URL (`https://pilot.example.com/mcp`) and the guide for their agent ([connect-your-agent.md](connect-your-agent.md)). Their agent signs in with OAuth and sees only the pilot tools. Inside Docker, run it with `docker compose -p realizeos-pilot exec api python cli.py wedge invite …`.
+This adds a `viewer` marked `pilot: true` and limited to an empty sandbox venture of their own (`pilot-<hash>`), and prints a password once. The marker confines the account on the server, whatever the host's config: over MCP it can only call the four pilot tools, and the REST API and dashboard sign-in refuse it. Send them the password privately, with the connector URL (`https://pilot.example.com/mcp`) and the guide for their agent ([connect-your-agent.md](connect-your-agent.md)). Their agent signs in with OAuth and sees only the pilot tools. Inside Docker, run it with `docker compose -p realizeos-pilot exec api python cli.py wedge invite …`.
 
 ### Retention
 
