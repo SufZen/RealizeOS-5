@@ -49,8 +49,9 @@ def _read_skill(path: Path) -> dict[str, Any] | None:
     if not isinstance(data, dict):
         warn_once("Pack skill %s skipped: a skill must be a mapping", path)
         return None
-    # Keys starting with "_" are the loader's own markers (format, provenance); a pack can't set them.
-    data = {k: v for k, v in data.items() if not str(k).startswith("_")}
+    # Keys starting with "_" are the loader's own markers (format, provenance), and the
+    # venture a skill belongs to is the one that links the pack: a pack sets neither.
+    data = {k: v for k, v in data.items() if not str(k).startswith("_") and k != "system_key"}
     for key in _TEXT_LISTS:
         value = data.get(key)
         if value is None:

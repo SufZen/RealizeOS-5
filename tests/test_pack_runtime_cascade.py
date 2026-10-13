@@ -38,6 +38,10 @@ def _yaml(path: Path, data) -> None:
 
 QUOTE_CHECK = {
     "name": "quote_check",
+    # A pack can't pick the venture a skill runs for, nor the loader's own markers.
+    "system_key": "plain",
+    "_format": "skill_md",
+    "_layer": "firm",
     "description": "Check a supplier quote and record it for approval",
     "agent": "estimator",
     "triggers": ["check the quote"],
@@ -160,6 +164,10 @@ def test_find_skill_resolves_a_custom_pack_skill(kb, skills):
     owner, skill = skills.find_skill("quote_check")
     assert owner == VENTURE
     assert skill["steps"][1]["tool"] == "ledger_append"
+    assert "system_key" not in skill and "_format" not in skill
+    assert skill["_layer"] == "profession"
+    listed = [s for s in skills.get_all_skills() if s["name"] == "quote_check"]
+    assert [s["system_key"] for s in listed] == [VENTURE]
 
 
 def test_the_ventures_own_skill_wins_and_is_listed_once(kb, skills):
