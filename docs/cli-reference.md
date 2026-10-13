@@ -63,6 +63,11 @@ realize-os
 │   ├── funnel [--days N] [--format json]        Runs, users and calls per market
 │   └── purge [--days N]                         Delete expired runs now
 │
+├── agent-token                                  Venture-scoped tokens for outside agents
+│   ├── create -n NAME -u USER -v VENTURE        Issue a token (printed once)
+│   ├── list                                     List tokens (no secrets)
+│   └── revoke ID                                Revoke now; withdraw its held writes
+│
 ├── config
 │   ├── show [KEY]                               Show config value(s)
 │   ├── set KEY VALUE                            Set a config value
@@ -171,6 +176,32 @@ realize-os mcp token --user admin --role admin
 ```
 
 Use the output token in Claude Desktop's `mcpServers` config or any MCP client.
+
+### `realize-os agent-token`
+
+Give an outside agent (Claude Desktop, Cursor, ChatGPT, n8n, ...) its own token, limited to one client's ventures, instead of the API key. Run these on the server, in the directory that holds `users.yaml` and the database (or pass `--directory`). `python cli.py agent-token ...` works the same.
+
+```bash
+# Issue: the agent acts for dana@acme.io (her role applies) and sees only the acme venture.
+realize-os agent-token create --name claude-desktop-acme --user dana@acme.io --venture acme --expires-in-days 90
+
+# More than one venture: repeat --venture or separate with commas.
+realize-os agent-token create -n cursor-olga -u olga@acme.io -v acme,globex
+
+realize-os agent-token list                  # id, name, user, ventures, status, last used
+realize-os --format json agent-token list
+realize-os agent-token revoke 3f9a0c1d2e4b   # stops now; withdraws its writes waiting for approval
+```
+
+| Option (`create`) | Description |
+|---|---|
+| `--name`, `-n` | Label for people, e.g. `claude-desktop-acme`. |
+| `--user`, `-u` | The `users.yaml` user the agent acts for. |
+| `--venture`, `-v` | A venture the agent may see (required; repeat or comma-separate). Each must be one the user may see. |
+| `--expires-in-days` | Optional lifetime, 1-3650 days. |
+| `--directory`, `-d` | Project root (default `.`). |
+
+`create` prints the token (`rzag_...`) once; it is stored only as a hash. The agent sends it as `Authorization: Bearer <token>` to `/mcp` (or the REST API). It warns when auth is off, since an open API makes the token meaningless. See [mcp-server.md](mcp-server.md#agent-tokens-one-agent-one-clients-brain) for what an agent may do and which writes wait for a person.
 
 ### `realize-os wedge`
 

@@ -160,6 +160,85 @@ With `features.wedge` on, `tender_register_method`, `tender_register_submit` and
 
 Clients that only speak HTTP+SSE can keep using `http://localhost:8080/mcp/sse`. For Claude.ai and Claude Desktop custom connectors, use OAuth (above).
 
+## Agent tokens (one agent, one client's brain)
+
+The API key is a service identity with access to every venture. Don't give it to an outside agent. Give each agent its own **agent token** instead: one agent, scoped to one client's ventures, that you can revoke on its own.
+
+Create one on the server, in the project folder (where `users.yaml` lives):
+
+```bash
+python cli.py agent-token create --name claude-desktop-acme --user dana@acme.io --venture acme --expires-in-days 90
+```
+
+or over REST as an owner or admin:
+
+```bash
+curl -X POST http://localhost:8080/api/agent-tokens \
+  -H "X-API-Key: $REALIZE_API_KEY" -H "Content-Type: application/json" \
+  -d '{"name": "claude-desktop-acme", "user": "dana@acme.io", "ventures": ["acme"], "expires_in_days": 90}'
+```
+
+The token (`rzag_<id>_<secret>`) is shown once. Use it like the API key: `Authorization: Bearer rzag_...` (or `X-API-Key`) on `/mcp`, `/mcp/sse` and the REST API. It is never accepted in the URL.
+
+What a token is:
+
+- **Bound to a `users.yaml` user.** Their role applies (a viewer's agent can only read). If you remove the user, their agents' tokens stop working at once.
+- **Limited to the ventures it names.** It must name at least one, each one the user may see. On every request the token's ventures are intersected with the user's current list, so a token never sees more than its user, and one whose ventures all fall away stops working.
+- **Its own identity.** Requests carry `agent:<id>` as the user: in the audit log, the approval queue (`requested_by`), conversation memory and the rate limiter. An agent always chats and reads history as itself, whatever its user's role.
+- **Stored as a SHA-256 hash** (migration 012) and compared in constant time. Optional expiry; `last_used_at` is recorded.
+- **Revocable:** `python cli.py agent-token revoke <id>` or `DELETE /api/agent-tokens/<id>`. It stops at once, and the agent's writes still waiting for approval are withdrawn.
+
+`python cli.py agent-token list` (or `GET /api/agent-tokens`) shows every token without secrets. Creating, revoking and every refused use are audit-logged (`agent_token.*`).
+
+Agent tokens are on by default (`features.agent_tokens: true`). Nothing changes until you create one; turning the flag off makes every agent token stop working at once. They need auth to be on (`REALIZE_API_KEY` or JWT): with auth off the API is open and a token limits nothing.
+
+Over REST an agent reads within its ventures and may chat (`/api/chat`, its own conversation). Every other REST write is refused with `403`: an outside agent changes things through MCP, where a person approves first. Approve, reject and dismiss return `403` with the same "People decide" rule as MCP. REST and MCP use one predicate and one rule set (`realize_core/security/agent_access.py`), so the two surfaces can't drift.
+
+Only a verified agent token makes a caller an agent. A JWT whose subject or scopes claim an agent identity is refused (`401`), `POST /api/auth/token` won't mint one, an `X-User-ID: agent:...` header is ignored, and `users.yaml` can't define an `agent:` user.
+
+## Governed writes from outside agents
+
+Outside agents go through the same approvals as internal ones. **People decide:** an agent never approves or rejects anything, including its own held writes. Each MCP tool has one rule for a caller with an agent token:
+
+| Rule | Tools | What happens |
+|---|---|---|
+| Allowed (read) | `realize_health`, `list_systems`, `get_system`, `list_agents`, `list_skills`, `get_history`, `get_session`, `kb_search`, `venture_kb_search`, `list_ventures`, `list_packs`, `resolve_pack_item`, `glossary_lookup`, `list_workflows`, `list_approvals` | Runs, within the agent's ventures. `realize_status`, `kb_get_document` and `list_suggestions` span every venture, so the venture guard refuses them. |
+| Allowed (already governed) | `realize_chat`, `clear_history`, `log_decision`, `tender_register_method`, `tender_register_submit`, `request_audit_call` | Chat runs tools through the `ToolGate` and trust ladder, with the agent as the actor. `clear_history` only clears the agent's own conversation. `log_decision` only proposes; a person confirms. |
+| **Held** | `run_workflow`, `trigger_skill` | Nothing runs. The call waits in the approval queue for a person. |
+| **People decide** | `approve_request`, `reject_request`, `approve_suggestion`, `dismiss_suggestion` | Refused: `MCP_AGENT_CANNOT_DECIDE`. |
+| Refused | `create_venture`, `delete_venture`, `update_setting`, `reload_agents`, `run_evolution` | Refused: `MCP_AGENT_REFUSED`. They change every venture or remove a client's brain, so an owner does them in the dashboard or CLI. Holding them in one venture's queue would let a person limited to that venture approve a change to all of them. |
+
+A tool with no rule is refused (deny by default, exact names only), so a new tool needs a decision before outside agents can call it. People (dashboard users, the API key, OAuth connectors, JWTs) keep today's behaviour. An OAuth connector acts as the person who signed in; to govern an outside agent as an agent, give it an agent token.
+
+A held call keeps only the arguments the tool declares and must name exactly one of the agent's ventures; that venture's queue gets the item.
+
+A held call answers:
+
+```json
+{ "status": "pending_approval", "approval_id": "…", "tool": "run_workflow", "venture_key": "acme",
+  "message": "Held for a person to approve. Nothing has run yet. …" }
+```
+
+It shows up in the dashboard's approval queue as `mcp:run_workflow`, from the agent (`requested_by: agent:<id>`), with its arguments. When a person approves it:
+
+- it runs **once**, as the agent with its own narrowed scope, never as the person who approved it: the row is claimed before anything runs, so a double click or a retry does nothing;
+- the token is checked again first: if it was revoked or expired, its user removed, or the venture taken away, nothing runs and the item records why. The stored call must still name the item's venture alone;
+- tool steps inside the workflow go through the `ToolGate` like any other run, recorded with the agent as the actor;
+- the outcome is posted into the agent's own conversation in that venture.
+
+Held writes expire after 24 hours, and at most 25 per agent wait at once (`MCP_TOO_MANY_PENDING`).
+
+Follow an item with `list_approvals` (`venture_key` and `approval_id`). An agent sees status, not other people's parameters or results, plus the result of its own writes:
+
+| `outcome` | Meaning |
+|---|---|
+| `pending_approval` | Waiting for a person. Nothing has run. |
+| `rejected` / `expired` | Nothing was done. |
+| `succeeded` | Approved and done; `result` has the output. |
+| `failed` | Approved, but it failed or was stopped before running (`error` says why). Not retried. |
+| `unknown_outcome` | Approved and started, but no result is recorded yet. If the server restarted while it ran, the outcome is unknown: it is never re-run automatically, and a person has to check. |
+| `approved_not_started` | Approved, but the server stopped before it started. It will not start on its own. |
+
 ## Security
 
 - No anonymous access — `/mcp`, the SSE handshake and every JSON-RPC POST go through the existing auth middleware.
@@ -185,10 +264,13 @@ Stable `code` values:
 | `MCP_INSUFFICIENT_SCOPE` | Caller's role doesn't meet the tool's required scope. |
 | `MCP_NOT_FOUND` | Referenced resource (system, venture, …) doesn't exist. |
 | `MCP_INTERNAL` | Tool raised an exception. |
+| `MCP_AGENT_CANNOT_DECIDE` | An outside agent tried to approve, reject or dismiss. People decide. |
+| `MCP_AGENT_REFUSED` | The tool isn't available to an outside agent. |
+| `MCP_TOO_MANY_PENDING` | The agent already has 25 writes waiting for approval. |
 
 ## Roadmap
 
 - stdio transport (local install without network) — STORY-37.
-- Venture-scoped agent tokens and governed MCP writes — STORY-37.
+- ~~Venture-scoped agent tokens and governed MCP writes~~ — done: see [Agent tokens](#agent-tokens-one-agent-one-clients-brain) and [Governed writes](#governed-writes-from-outside-agents).
 - Remove HTTP+SSE after a deprecation window, once existing clients have moved to `/mcp`.
 - ~~Per-tool feature flags inside `mcp:` config~~ — done: `mcp.tools`.
