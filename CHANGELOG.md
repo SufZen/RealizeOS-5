@@ -4,6 +4,12 @@ All notable changes to RealizeOS are documented in this file.
 This changelog is automatically generated from [Conventional Commits](https://conventionalcommits.org).
 
 
+## [5.23.0](https://github.com/SufZen/RealizeOS-5/compare/v5.22.0...v5.23.0) (2026-10-13)
+
+### Features
+
+* **packs:** level-1 market packs for Greece, Cyprus, Spain, UK and US (STORY-47) ([f0a911b](https://github.com/SufZen/RealizeOS-5/commit/f0a911b0eea49925a112119b45d2c561a1c0d61d))
+
 ## [5.22.0](https://github.com/SufZen/RealizeOS-5/compare/v5.21.0...v5.22.0) (2026-10-13)
 
 ### Features
