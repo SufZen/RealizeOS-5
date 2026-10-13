@@ -186,10 +186,17 @@ def _skill_dirs(kb_path: Path) -> list[tuple[str, Path]]:
     (:func:`load_skills` ``ventures``), so a venture ``acme`` in
     ``systems/acme-office`` finds its skills; otherwise each folder under
     ``systems/`` is keyed by its name, as before.
+
+    A venture keyed like a shared or global owner (``shared``) is left out
+    with a warning: its skills would otherwise be handed to every venture.
     """
     if _venture_dirs is not None:
-        return [(key, Path(folder) / "R-routines" / "skills") for key, folder in sorted(_venture_dirs.items())]
-    return [(d.parent.parent.name, d) for d in sorted(kb_path.glob("systems/*/R-routines/skills"))]
+        pairs = [(key, Path(folder) / "R-routines" / "skills") for key, folder in sorted(_venture_dirs.items())]
+    else:
+        pairs = [(d.parent.parent.name, d) for d in sorted(kb_path.glob("systems/*/R-routines/skills"))]
+    for key in sorted({key for key, _folder in pairs if key in GLOBAL_SKILL_OWNERS}):
+        logger.warning("Skills of venture '%s' not loaded: that key is reserved for shared skills", key)
+    return [(key, folder) for key, folder in pairs if key not in GLOBAL_SKILL_OWNERS]
 
 
 def load_skills(skills_dir=None, kb_path=None, packs: bool | None = None, ventures: dict | None = None):
@@ -254,7 +261,9 @@ def load_skills(skills_dir=None, kb_path=None, packs: bool | None = None, ventur
     if kb_path and (_pack_cascade if packs is None else packs):
         from realize_core.packs.skills import load_venture_pack_skills
 
-        added = load_venture_pack_skills(Path(kb_path), _loaded_skills, ventures=_venture_dirs)
+        added = load_venture_pack_skills(
+            Path(kb_path), _loaded_skills, ventures=_venture_dirs, reserved=GLOBAL_SKILL_OWNERS
+        )
         logger.info("Loaded %d skill(s) from profession and market packs", added)
 
     _skills_loaded = True
@@ -466,20 +475,14 @@ def find_skill(name: str, system_key: str | None = None) -> tuple[str, dict] | N
 
     - with ``system_key``: that venture's own skill, else a shared or global
       one (:data:`GLOBAL_SKILL_OWNERS`); never another venture's;
-    - without one: the skill only when the name is unambiguous (one venture
-      has it, or no venture has it and a shared or global skill does). None
-      when several ventures have it: see :func:`ventures_with_skill`.
+    - without one: only a shared or global skill, never a venture's. A caller
+      that wants a venture's skill names the venture
+      (:func:`ventures_with_skill` says which ventures have one).
     """
     if system_key:
         skill = _named(_loaded_skills.get(system_key, []), name)
         if skill is not None:
             return system_key, skill
-        return find_shared_skill(name)
-    owners = ventures_with_skill(name)
-    if len(owners) > 1:
-        return None
-    if owners:
-        return owners[0], _named(_loaded_skills[owners[0]], name)
     return find_shared_skill(name)
 
 
@@ -490,11 +493,11 @@ def get_skill_by_name(name: str, system_key: str | None = None) -> dict | None:
 
 
 def _owned(name: str, system_key: str | None) -> tuple[str, dict] | None:
-    """The skill ``name`` of exactly ``system_key`` (any loaded owner), or the unambiguous one."""
+    """The skill ``name`` of exactly ``system_key`` (any loaded owner), or a shared or global one."""
     if system_key is not None:
         skill = _named(_loaded_skills.get(system_key, []), name)
         return (system_key, skill) if skill is not None else None
-    found = find_skill(name)
+    found = find_shared_skill(name)
     return found if found is not None and found[0] in _loaded_skills else None
 
 
@@ -508,8 +511,8 @@ def register_skill(skill_data: dict) -> None:
 def update_skill(name: str, updates: dict, system_key: str | None = None) -> bool:
     """Update a skill's fields. Returns True if found and updated.
 
-    ``system_key`` is the owner whose skill to change; without it the name
-    must be unambiguous (:func:`find_skill`).
+    ``system_key`` is the owner whose skill to change; without it only a
+    shared or global skill is changed, never a venture's.
     """
     found = _owned(name, system_key)
     if found is None:
@@ -523,8 +526,8 @@ def update_skill(name: str, updates: dict, system_key: str | None = None) -> boo
 def unregister_skill(name: str, system_key: str | None = None) -> bool:
     """Remove a skill. Returns True if found and removed.
 
-    ``system_key`` is the owner whose skill to remove; without it the name
-    must be unambiguous (:func:`find_skill`).
+    ``system_key`` is the owner whose skill to remove; without it only a
+    shared or global skill is removed, never a venture's.
     """
     found = _owned(name, system_key)
     if found is None:

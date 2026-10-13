@@ -360,7 +360,7 @@ Get a workflow's definition. Two ventures can each have a workflow with the same
 
 ### PUT /api/workflows/{name} · DELETE /api/workflows/{name}
 
-Change or delete a workflow. `?system_key=<venture>` says whose; when several ventures have one with that name and none is named, `409`. A caller limited to some ventures can't use these (`403`).
+Change or delete a workflow. `?system_key=<venture>` says whose; without it only a shared or global workflow is changed, and a venture's workflow returns `409`. A caller limited to some ventures can't use these (`403`).
 
 ### POST /api/workflows/{id}/execute
 

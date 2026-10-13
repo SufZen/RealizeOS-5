@@ -136,22 +136,22 @@ def _visible_skill(request: Request, skill_name: str, system_key: str | None) ->
 
 
 def _skill_to_change(skill_name: str, system_key: str | None) -> tuple[str, dict]:
-    """The skill an edit or delete addresses: ``system_key``'s, or the only one with that name.
+    """The skill an edit or delete addresses: ``system_key``'s, else a shared or global one.
+
+    Without ``system_key`` a venture's skill is never picked: each venture has
+    its own copy (for example of a pack skill), so the caller names the venture.
 
     Raises:
-        HTTPException: 404 when there is none; 409 when several ventures have
-            a skill with that name and ``system_key`` doesn't say which.
+        HTTPException: 404 when there is none; 409 when only ventures have a
+            skill with that name and ``system_key`` doesn't say which.
     """
     from realize_core.skills.detector import find_skill, ventures_with_skill
 
-    if not system_key:
-        owners = ventures_with_skill(skill_name)
-        if len(owners) > 1:
-            raise HTTPException(
-                status_code=409,
-                detail=f"Workflow '{skill_name}' exists in several ventures ({', '.join(owners)}); add ?system_key=",
-            )
     found = find_skill(skill_name, system_key or None)
+    if not found and not system_key and ventures_with_skill(skill_name):
+        raise HTTPException(
+            status_code=409, detail=f"Workflow '{skill_name}' belongs to a venture; add ?system_key=<venture>"
+        )
     if not found:
         raise HTTPException(status_code=404, detail=f"Workflow '{skill_name}' not found")
     return found

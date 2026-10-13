@@ -218,7 +218,7 @@ def _pack_skill(tmp_path: Path, monkeypatch) -> dict:
     venture.mkdir(parents=True)
     (venture / "packs.yaml").write_text("profession: [developer]\n", encoding="utf-8")
     detector.reload_skills(kb_path=tmp_path / "kb", packs=True)
-    owner, skill = detector.find_skill("tender_requirements_register")
+    owner, skill = detector.find_skill("tender_requirements_register", "dev-co")
     assert (owner, skill["_layer"], skill["_pack"]) == ("dev-co", "profession", "developer@0.1.0")
     return skill
 

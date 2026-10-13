@@ -246,6 +246,9 @@ async def run_approved_write(row: dict, params: dict[str, Any]) -> tuple[bool, s
     arguments = _declared(tool, params)
     if _named_ventures(arguments) != {venture}:
         return False, "", f"The stored call doesn't name venture '{venture}' alone; nothing was done"
+    if "system_key" in ((getattr(tool, "input_schema", None) or {}).get("properties") or {}):
+        # The skill is resolved in the approval's own venture, never one re-read from elsewhere.
+        arguments["system_key"] = venture
     refused = venture_guard.permission_refusal(name, principal.role) or venture_guard.check_call(
         name, arguments, principal.ventures
     )

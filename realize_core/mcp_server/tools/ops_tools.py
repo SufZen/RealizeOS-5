@@ -113,8 +113,8 @@ def resolve_run_skill(args: dict[str, Any]) -> tuple[str, dict] | dict[str, Any]
     The skill is looked up for the venture the call names (``system_key``):
     that venture's own copy, else a shared or global skill, never another
     venture's (each venture's copy carries its own ``variables``, such as its
-    sheet ids). Without a venture the name must be unambiguous; when several
-    ventures have it, the caller is asked to name one.
+    sheet ids). Without a venture only a shared or global skill runs; when a
+    venture has one by that name, the caller is asked to name the venture.
     """
     name = (args.get("name") or "").strip()
     venture = args.get("system_key")
@@ -123,14 +123,10 @@ def resolve_run_skill(args: dict[str, Any]) -> tuple[str, dict] | dict[str, Any]
         from realize_core.skills.detector import find_skill, ventures_with_skill
     except ImportError as exc:
         return {"error": f"Skills module unavailable: {exc}", "code": "MCP_INTERNAL"}
-    if not venture:
-        owners = ventures_with_skill(name)
-        if len(owners) > 1:
-            return {
-                "error": f"Workflow '{name}' exists in several ventures ({', '.join(owners)}); name one as system_key",
-                "code": "MCP_VALIDATION",
-            }
     found = find_skill(name, venture or None)
+    if not found and not venture and ventures_with_skill(name):
+        # Which ventures is left out: the caller may not see all of them.
+        return {"error": f"Workflow '{name}' belongs to a venture; name it as system_key", "code": "MCP_VALIDATION"}
     if not found:
         return {"error": f"Workflow '{name}' not found", "code": "MCP_NOT_FOUND"}
     return found
@@ -157,7 +153,30 @@ def validate_run_args(args: dict[str, Any]) -> dict[str, Any] | None:
     return resolved if isinstance(resolved, dict) else None
 
 
+def _venture_refusal(args: dict[str, Any], user: CurrentUser) -> dict[str, Any] | None:
+    """Refuse a run for a venture the caller can't see, before any skill is looked up.
+
+    A caller limited to some ventures must name one of them as ``system_key``
+    (exact text, never coerced). The MCP dispatcher's venture guard checks the
+    same; this keeps the handler safe on its own (held writes call it too).
+    """
+    from realize_core.mcp_server.venture_guard import caller_ventures
+
+    allowed = caller_ventures(user)
+    if allowed is None:
+        return None
+    venture = args.get("system_key")
+    if not isinstance(venture, str) or not venture:
+        return {"error": "Name one of your ventures as system_key", "code": "MCP_VALIDATION"}
+    if venture not in allowed:
+        return {"error": f"You don't have access to venture '{venture}'", "code": "MCP_FORBIDDEN"}
+    return None
+
+
 async def _run_skill(args: dict[str, Any], app_state: Any, user: CurrentUser) -> Any:
+    refused = _venture_refusal(args, user)
+    if refused:
+        return refused
     invalid = validate_run_args(args)
     if invalid:
         return invalid
@@ -177,10 +196,11 @@ async def _run_skill(args: dict[str, Any], app_state: Any, user: CurrentUser) ->
 
     from realize_core.security.chat_access import chat_user_for
 
-    # The named venture, else the skill's own venture (a shared or global skill
-    # runs for the venture written in it, else "default").
+    # The named venture (the one the skill was resolved in); a shared or global
+    # skill run without one runs for "default". A system_key written inside a
+    # skill's own definition never picks the venture.
     home = "" if owner in GLOBAL_SKILL_OWNERS else owner
-    system_key = (args.get("system_key") or home or skill.get("system_key") or "").strip() or "default"
+    system_key = (args.get("system_key") or home or "").strip() or "default"
     # Same rule as chat: callers act for themselves unless owner/admin.
     requested = (args.get("user_id") or user.user_id or "mcp-user").strip()
     user_id = chat_user_for(user.user_id, getattr(user, "role", None), requested, scopes=getattr(user, "scopes", None))

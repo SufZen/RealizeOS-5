@@ -168,7 +168,7 @@ async def test_a_run_for_beta_uses_betas_sheet(ventures, request, runs):
     # Without a venture the caller is asked to name one, never given the first venture's copy.
     out = await _mcp(_state(root), owner, "run_workflow", {"name": SKILL, "input_text": "claim"})
     assert out["code"] == "MCP_VALIDATION"
-    assert "alpha, beta" in out["error"]
+    assert "system_key" in out["error"]
     assert len(runs) == 1
 
 
@@ -235,3 +235,67 @@ def test_rest_edits_name_the_venture_when_the_name_is_shared(pack_ventures, skil
     assert owner.post("/api/workflows", json={**body, "system_key": "beta"}).status_code == 201
     assert owner.post("/api/workflows", json=body).status_code == 409
     assert skills.ventures_with_skill("site_diary") == ["alpha", "beta"]
+    # Even a name only one venture has is changed only when the venture is named.
+    assert owner.put("/api/workflows/site_diary?system_key=alpha", json={"enabled": False}).status_code == 200
+    assert owner.delete(f"/api/workflows/{SKILL}").status_code == 409
+
+
+# ---------------------------------------------------------------------------
+# No fallback to another venture's copy (security review of G-1)
+# ---------------------------------------------------------------------------
+
+
+def test_without_a_venture_only_shared_skills_are_found(skills, monkeypatch):
+    monkeypatch.setattr(
+        skills,
+        "_loaded_skills",
+        {"alpha": [{"name": "site_diary"}], "shared": [{"name": "weekly_summary"}]},
+    )
+    assert skills.find_skill("site_diary") is None  # even when only one venture has it
+    assert skills.get_skill_by_name("site_diary") is None
+    assert skills.find_skill("site_diary", "alpha")[0] == "alpha"
+    assert skills.find_skill("weekly_summary") == ("shared", {"name": "weekly_summary"})
+    assert skills.find_skill("weekly_summary", "beta")[0] == "shared"
+    assert skills.find_skill("site_diary", "beta") is None
+
+
+async def test_a_run_without_a_venture_never_uses_a_ventures_copy(skills, monkeypatch, runs, tmp_path):
+    from realize_core.mcp_server.tools.ops_tools import run_workflow
+
+    monkeypatch.setattr(skills, "_loaded_skills", {"alpha": [{"name": "site_diary", "variables": {"sheet": "a"}}]})
+    owner = _person("owner@realization.co.il", "owner")
+    for venture in ({}, {"system_key": ""}):
+        out = await run_workflow({"name": "site_diary", "input_text": "go", **venture}, _state(tmp_path), owner)
+        assert out["code"] == "MCP_VALIDATION"
+        assert "alpha" not in out["error"]  # which ventures have it is not told
+    assert runs == []
+
+
+async def test_an_unseen_venture_is_refused_before_any_lookup(skills, monkeypatch, runs, tmp_path):
+    from realize_core.mcp_server.tools.ops_tools import run_workflow
+
+    monkeypatch.chdir(tmp_path)
+    _project(tmp_path, packs=False)
+
+    def no_lookup(*args, **kwargs):
+        raise AssertionError("the skill must not be looked up")
+
+    monkeypatch.setattr(skills, "find_skill", no_lookup)
+    bea = _person("bea@beta.io", "operator")
+    out = await run_workflow({"name": SKILL, "input_text": "go", "system_key": "alpha"}, _state(tmp_path), bea)
+    assert out["code"] == "MCP_FORBIDDEN"
+    out = await run_workflow({"name": SKILL, "input_text": "go"}, _state(tmp_path), bea)
+    assert out["code"] == "MCP_VALIDATION"
+    assert runs == []
+
+
+def test_a_venture_keyed_like_the_shared_skills_does_not_share_its_own(tmp_path, skills, caplog):
+    for key, name in (("shared", "secret_payroll"), ("alpha", "site_diary")):
+        folder = tmp_path / "systems" / key / "R-routines" / "skills"
+        folder.mkdir(parents=True)
+        (folder / f"{name}.yaml").write_text(f"name: {name}\ntriggers: [{name}]\n", encoding="utf-8")
+    skills.reload_skills(kb_path=tmp_path)
+    assert skills.find_skill("secret_payroll", "alpha") is None
+    assert "secret_payroll" not in [s["name"] for s in skills.get_skills_for_system("alpha")]
+    assert "reserved for shared skills" in caplog.text
+    assert skills.find_skill("site_diary", "alpha") is not None
