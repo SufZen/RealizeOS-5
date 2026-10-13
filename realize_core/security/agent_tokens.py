@@ -295,6 +295,39 @@ def live_agent(principal_id: str | None, known_ventures: Iterable[str] | None = 
     return AgentPrincipal(None, "stdio", user.email, user.role, ventures)
 
 
+def describe_requesters(requested_by: Iterable[str | None]) -> dict[str, dict[str, str | None]]:
+    """The outside agents behind ``requested_by`` ids, for the people who decide.
+
+    Returns ``{requested_by: {"token_id", "name"}}`` for each id that is an
+    agent principal: a token's current name (its id when the token row is
+    gone), or ``stdio`` for a local stdio session (``token_id`` None). People
+    and service ids are left out. Only the names are read: no secret, hash,
+    user or venture list.
+    """
+    principals = {p for p in requested_by if isinstance(p, str)}
+    token_ids = {tid for tid in (token_id_of(p) for p in principals) if tid}
+    names: dict[str, str] = {}
+    if token_ids:
+        ordered = sorted(token_ids)
+        conn = _conn()
+        try:
+            rows = conn.execute(
+                f"SELECT id, name FROM agent_tokens WHERE id IN ({','.join('?' for _ in ordered)})",
+                ordered,
+            ).fetchall()
+        finally:
+            conn.close()
+        names = {row["id"]: row["name"] for row in rows}
+    described: dict[str, dict[str, str | None]] = {}
+    for principal in principals:
+        token_id = token_id_of(principal)
+        if token_id:
+            described[principal] = {"token_id": token_id, "name": names.get(token_id, token_id)}
+        elif principal.startswith(STDIO_PRINCIPAL_PREFIX):
+            described[principal] = {"token_id": None, "name": "stdio"}
+    return described
+
+
 def token_id_of(user_id: str | None) -> str | None:
     """The token id inside an agent principal id, or None."""
     if not is_agent_principal(user_id):
