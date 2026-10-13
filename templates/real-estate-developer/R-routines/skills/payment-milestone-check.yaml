@@ -44,8 +44,10 @@ steps:
     inject_context: [check]
     prompt: |
       Return ONLY a JSON array with one row, no other text:
-      [["{today}", "contractor", "milestone", "amount requested", "amount supported", "verdict", "missing evidence"]]
-      Every cell is plain text: never start a cell with =, +, - or @, and never write a formula.
+      [["{today}", "contractor", "milestone", 0, 0, "verdict", "missing evidence"]]
+      The two amounts (requested, then supported) are JSON numbers with no currency sign or thousands
+      separator, for example 120000.5, so the sheet can add them up.
+      Every other cell is plain text: never start a cell with =, +, - or @, and never write a formula.
 
   - id: record_for_approval
     type: tool

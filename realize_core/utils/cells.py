@@ -27,14 +27,25 @@ FORMULA_PREFIXES: tuple[str, ...] = ("=", "+", "-", "@", "\t", "\r", "\n", "\uff
 
 
 def neutralize_cell(value: Any) -> Any:
-    """``value``, with an apostrophe in front when it is text a spreadsheet would read as a formula."""
-    if isinstance(value, str) and value.startswith(FORMULA_PREFIXES) and not _SIGNED_NUMBER.fullmatch(value):
+    """``value``, with an apostrophe in front when it is text a spreadsheet would read as a formula.
+
+    Leading spaces are looked through (`` =IMPORTXML(...)``), since some
+    spreadsheets ignore them when deciding what a cell is.
+    """
+    if not isinstance(value, str):
+        return value
+    head = value.lstrip(" \u00a0\u3000")
+    if head.startswith(FORMULA_PREFIXES) and not _SIGNED_NUMBER.fullmatch(head):
         return "'" + value
     return value
 
 
 def neutralize_rows(rows: Any) -> Any:
-    """Every cell of a 2-D list through :func:`neutralize_cell` (anything else is returned unchanged)."""
+    """Every cell of a 2-D list through :func:`neutralize_cell` (anything else is returned unchanged).
+
+    Text is never turned into numbers here: ``"6.10"`` may be a clause, not 6.1.
+    A skill that writes amounts sends them as JSON numbers.
+    """
     if not isinstance(rows, list):
         return rows
     return [[neutralize_cell(cell) for cell in row] if isinstance(row, list) else neutralize_cell(row) for row in rows]

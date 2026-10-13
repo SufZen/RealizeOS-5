@@ -18,12 +18,13 @@ from realize_core.utils.cells import neutralize_rows
 
 logger = logging.getLogger(__name__)
 
-#: How appended values are read. USER_ENTERED parses numbers and dates, so
-#: amounts stay summable; RAW stores values exactly as given. Either way, text
-#: that would start a formula is written with a leading apostrophe first
-#: (:func:`realize_core.utils.cells.neutralize_rows`), so it stays text.
+#: How appended values are read. RAW (the default) stores values as given, so
+#: nothing a model wrote is ever evaluated: JSON numbers stay numbers (send
+#: amounts that way), text stays text. USER_ENTERED also parses numbers and
+#: dates written as text. Either way, text that would start a formula is written
+#: with a leading apostrophe (:func:`realize_core.utils.cells.neutralize_rows`).
 VALUE_INPUT_OPTIONS = ("RAW", "USER_ENTERED")
-DEFAULT_VALUE_INPUT_OPTION = "USER_ENTERED"
+DEFAULT_VALUE_INPUT_OPTION = "RAW"
 
 
 # =====================================================================
@@ -118,8 +119,8 @@ def _sheets_append_sync(
         spreadsheet_id: The ID of the spreadsheet.
         range: Target sheet/range (e.g. "Sheet1" or "Sheet1!A:D").
         values: 2D list of values to append (each inner list is a row).
-        value_input_option: How input data is interpreted: USER_ENTERED (the
-            default; an unknown value falls back to it) or RAW.
+        value_input_option: How input data is interpreted: RAW (the default;
+            an unknown value falls back to it) or USER_ENTERED.
         insert_data_option: How the input data should be inserted
             (OVERWRITE or INSERT_ROWS).
 
@@ -340,8 +341,9 @@ SHEETS_TOOL_SCHEMAS = [
                     "type": "string",
                     "enum": list(VALUE_INPUT_OPTIONS),
                     "description": (
-                        "USER_ENTERED (default: numbers and dates are parsed) or RAW (values are stored as "
-                        "given). Text that would start a formula is always stored as text."
+                        "RAW (default: values are stored as given; send amounts as JSON numbers) or "
+                        "USER_ENTERED (numbers and dates written as text are parsed). Text that would start "
+                        "a formula is always stored as text."
                     ),
                     "default": DEFAULT_VALUE_INPUT_OPTION,
                 },
