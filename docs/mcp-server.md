@@ -28,12 +28,15 @@ mcp:
   oauth:
     enabled: false             # Claude.ai custom connectors (see below)
     redirect_hosts: []         # empty = claude.ai, claude.com and loopback
+  tools: []                    # only serve these tools; empty = every tool of the exposed families
 ```
+
+`tools` (env `MCP_TOOLS`, comma-separated) narrows what a server offers. It can't widen it: a tool is served only when its family is exposed and the list names it. A hosted profile uses it to serve one workflow, for example the [self-serve tender register](self-serve-wedge.md#host-the-pilot). Names that match no tool are logged as a warning at startup.
 
 Start RealizeOS as usual. The server logs:
 
 ```
-MCP server mounted at /mcp/sse and /mcp (Streamable HTTP) — families=chat,kb,ops, allow_admin=False, oauth=False
+MCP server mounted at /mcp/sse and /mcp (Streamable HTTP) — families=chat,kb,ops, allow_admin=False, oauth=False, tools=all
 ```
 
 ## Endpoints
@@ -188,4 +191,4 @@ Stable `code` values:
 - stdio transport (local install without network) — STORY-37.
 - Venture-scoped agent tokens and governed MCP writes — STORY-37.
 - Remove HTTP+SSE after a deprecation window, once existing clients have moved to `/mcp`.
-- Per-tool feature flags inside `mcp:` config.
+- ~~Per-tool feature flags inside `mcp:` config~~ — done: `mcp.tools`.
