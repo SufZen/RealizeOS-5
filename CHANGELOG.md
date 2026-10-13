@@ -4,6 +4,12 @@ All notable changes to RealizeOS are documented in this file.
 This changelog is automatically generated from [Conventional Commits](https://conventionalcommits.org).
 
 
+## [5.17.0](https://github.com/SufZen/RealizeOS-5/compare/v5.16.0...v5.17.0) (2026-10-13)
+
+### Features
+
+* **fabric:** core language v0 schemas and allOf extensions (STORY-41) ([ebc5962](https://github.com/SufZen/RealizeOS-5/commit/ebc596234e60dd7325bf5169e2523146ef5c5fbc))
+
 ## [5.16.0](https://github.com/SufZen/RealizeOS-5/compare/v5.15.6...v5.16.0) (2026-10-13)
 
 ### Features
