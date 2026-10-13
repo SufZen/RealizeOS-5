@@ -81,6 +81,9 @@ realize-os
 ├── decisions                                    Decision log
 │   └── retry [--limit N]                        Write decisions whose earlier write failed
 │
+├── storage                                      Storage export
+│   └── restore ZIP --directory DIR              Restore an export into a new, empty folder
+│
 ├── config
 │   ├── show [KEY]                               Show config value(s)
 │   ├── set KEY VALUE                            Set a config value
@@ -281,6 +284,17 @@ python cli.py decisions retry           # same
 ```
 
 A decision whose file couldn't be written (disk full, read-only mount, venture folder missing) is queued, and the server retries it on its own at startup and after the next logged decision, up to 5 times. This command tries every queued write regardless, and never writes a decision twice. It exits with code 1 while some writes are still waiting.
+
+### `realize-os storage restore`
+
+Restore a storage export (**Settings → Storage & Backup → Export**, or `POST /api/storage/export`) on a new server.
+
+```bash
+realize-os storage restore realizeos-export-20261013_101500.zip --directory /srv/realizeos
+python cli.py storage restore realizeos-export-20261013_101500.zip --directory /srv/realizeos   # same
+```
+
+It unpacks the export as it is into the folder, which must be new or empty; it never overwrites anything. The whole archive is checked first: an entry outside an export's layout (an absolute, drive or UNC path, `..`, a backslash, a link or device file, a destination that resolves outside the folder, a name other than `realize-os.yaml`, `systems/`, `shared/`, `data/`, `custom-packs/` and `packs-inventory.json`) refuses the restore before anything is written, and so does an archive with more than 200,000 entries or that unpacks to more than `--max-size-gb` (default 20). Then it prints the next steps: copy `.env`, `users.yaml` and `.credentials/` by hand (they are never in an export), run RealizeOS from the folder with `DATA_PATH=<folder>/data` (and `REALIZE_PACKS_PATH=<folder>/custom-packs` when the export has custom packs), and check the packs with `packs inventory --compare <folder>/packs-inventory.json`. Exit code 1 when nothing was restored. See [self-hosting-guide.md](self-hosting-guide.md#move-to-another-server-export-and-restore).
 
 ## Multi-Instance Profiles
 

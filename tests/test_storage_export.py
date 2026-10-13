@@ -125,3 +125,38 @@ def test_unusable_storage_config_is_refused_and_not_saved(tmp_path, monkeypatch)
     assert res.status_code == 400
     assert not (tmp_path / ".storage-config.json").exists()
     assert calls[-1].get("provider", "local") == "local"  # the previous setup was put back
+
+
+def test_export_leaves_sign_in_sessions_and_deleted_rows_out(kb, tmp_path):
+    """A session cookie in the ZIP could sign in to the running server; deleted rows must not linger either."""
+    from realize_api.routes import storage_settings
+
+    ops = tmp_path / "data" / "realize_data.db"
+    conn = sqlite3.connect(ops)
+    conn.execute("CREATE TABLE user_sessions (session_id TEXT PRIMARY KEY, csrf_token TEXT, user_id TEXT)")
+    conn.execute("INSERT INTO user_sessions VALUES ('live-session-cookie-value', 'live-csrf-value', 'owner@x')")
+    conn.execute("INSERT INTO t VALUES ('erased-row-value')")
+    conn.commit()
+    conn.execute("DELETE FROM t WHERE v = 'erased-row-value'")
+    conn.commit()
+    conn.close()
+
+    app = FastAPI()
+    app.include_router(storage_settings.router, prefix="/api")
+    app.state.kb_path = kb
+    res = TestClient(app).post("/api/storage/export")
+
+    assert res.status_code == 200
+    snap = zipfile.ZipFile(io.BytesIO(res.content)).read("data/realize_data.db")
+    for value in (b"live-session-cookie-value", b"live-csrf-value", b"erased-row-value"):
+        assert value not in snap
+    path = tmp_path / "snap.db"
+    path.write_bytes(snap)
+    check = sqlite3.connect(path)
+    assert check.execute("SELECT COUNT(*) FROM user_sessions").fetchone() == (0,)
+    assert check.execute("SELECT v FROM t").fetchall() == [("kept",)]
+    check.close()
+    # The live database keeps its sessions: only the snapshot is cleaned.
+    live = sqlite3.connect(ops)
+    assert live.execute("SELECT COUNT(*) FROM user_sessions").fetchone() == (1,)
+    live.close()
