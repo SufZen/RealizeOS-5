@@ -7,6 +7,10 @@ name: "My Development Company"
 
 # Packs (spec 010): written to the venture's packs.yaml, active with features.packs on.
 # Add the market pack for where the projects are, e.g. market: [il] or [pt].
+# With features.packs on, a new venture links the developer pack: its agents and skills
+# come from packs/profession/developer/ and are not copied, and the venture's sheet and
+# document ids go in F-foundations/overrides/skill-settings.yaml. With the flag off, the
+# agents and skills in templates/real-estate-developer/ are copied as before.
 packs:
   profession: [developer]
   market: []

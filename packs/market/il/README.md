@@ -1,6 +1,6 @@
 # Israel market pack
 
-Hebrew and English terms, defaults (ILS, metric, Sunday to Thursday work week, he-IL) and six rule cards for developers and the people around them in Israel.
+Hebrew and English terms, defaults (ILS, metric, Sunday to Thursday work week, he-IL) and six rule cards for developers and the people around them in Israel. It also adds Hebrew triggers to the developer pack's three skills (`skill-settings.yaml`), so a request in Hebrew starts the tender register, the payment check or the investor report.
 
 **Verification: level 1 (drafted).** Every rule card links to its source and has an as-of date, but no Israeli professional has reviewed this pack yet. Raise it to level 2 through the `pack_verify` approval once a named lawyer, engineer or quantity surveyor has reviewed each card.
 

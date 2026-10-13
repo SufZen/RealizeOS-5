@@ -146,7 +146,7 @@ With `features.wedge` on, `tender_register_method`, `tender_register_submit` and
 * `kb_get_document` enforces path-traversal protection: the resolved path must live under `app.state.kb_path`. Absolute paths and `..` segments are rejected with `MCP_VALIDATION` / `MCP_FORBIDDEN`.
 * `venture_kb_search` is a convenience: it validates the venture exists, then delegates to `kb_search` with the venture as `system_key`.
 * `list_ventures` mirrors `GET /api/ventures` — venture key, name, agent count, skill count, FABRIC completeness.
-* `list_packs`, `resolve_pack_item` and `glossary_lookup` expose a venture's profession and market packs ([packs.md](packs.md)). Each needs `venture_key`; resolved items come back with their layer, pack and verification level. With `features.packs` off they show only the firm layer and core.
+* `list_packs`, `resolve_pack_item` and `glossary_lookup` expose a venture's profession and market packs ([packs.md](packs.md)). Each needs `venture_key`; resolved items (`term`, `rule`, `document`, `skill`, `agent`, `trust`, `measure`, `default`) come back with their layer, pack and verification level. With `features.packs` off they show only the firm layer and core. With it on, a venture's pack skills and agents are also listed by `list_skills`, `list_workflows` and `list_agents`, like its own.
 
 ## Plug into Claude Code or a header-based client
 
