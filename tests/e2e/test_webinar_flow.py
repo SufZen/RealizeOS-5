@@ -360,7 +360,7 @@ def test_payment_case_through_the_api(project, google, llm, ops_db, memory_db, m
     # The operator approves: the write runs once, and the decider is on the row.
     assert dana.post(f"/api/approvals/{held['request_id']}/approve", json={}).status_code == 200
     assert len(google.appended) == 1
-    assert dana.post(f"/api/approvals/{held['request_id']}/approve", json={}).status_code == 404
+    assert dana.post(f"/api/approvals/{held['request_id']}/approve", json={}).status_code == 409
     conn = sqlite3.connect(ops_db)
     decided_by, status = conn.execute(
         "SELECT decided_by, execution_status FROM approval_queue WHERE id = ?", (held["request_id"],)

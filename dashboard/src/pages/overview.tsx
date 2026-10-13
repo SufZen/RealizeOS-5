@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import { AlertCircle, Plug, ArrowRight, ShieldCheck } from 'lucide-react'
 import { useApi } from '@/hooks/use-api'
+import { useAuth } from '@/hooks/use-auth'
 import { Skeleton, SkeletonCard, SkeletonText } from '@/components/ui/skeleton'
 import { VentureHealthCard } from '@/components/venture-health-card'
 import { ActivityFeed, type ActivityEvent } from '@/components/activity-feed'
@@ -10,6 +11,8 @@ import { Panel } from '@/components/ui/panel'
 import { Stat } from '@/components/ui/stat'
 import { Button } from '@/components/ui/button'
 import { Badge, StatusDot } from '@/components/ui/badge'
+import { agentFigures, type AgentFigures } from '@/lib/dashboard-figures'
+import { setupGate } from '@/lib/permissions'
 
 interface DashboardData {
   ventures: Array<{
@@ -20,6 +23,9 @@ interface DashboardData {
   }>
   venture_count: number
   recent_activity: ActivityEvent[]
+  /** Configured agents (the headline); the sum of the ventures' agent counts. */
+  agent_total?: number
+  /** Configured agents by runtime state; one that never ran counts as idle. */
   agent_summary: Record<string, number>
 }
 
@@ -27,6 +33,7 @@ export default function OverviewPage() {
   // Poll every 30s
   const { data, loading, error } = useApi<DashboardData>('/dashboard', 30000, 30000)
   const navigate = useNavigate()
+  const { user } = useAuth()
 
   if (loading) {
     return (
@@ -67,9 +74,8 @@ export default function OverviewPage() {
 
   if (!data) return null
 
-  const totalAgents = Object.values(data.agent_summary).reduce((a, b) => a + b, 0)
-  const running = data.agent_summary.running || 0
-  const errors = data.agent_summary.error || 0
+  const figures = agentFigures(data)
+  const setupBlocked = setupGate(user)
 
   return (
     <div className="mx-auto max-w-[1240px]">
@@ -79,7 +85,7 @@ export default function OverviewPage() {
       />
 
       {/* First-run banner */}
-      {data.venture_count === 0 && totalAgents === 0 && (
+      {data.venture_count === 0 && figures.total === 0 && (
         <div className="rz-panel mb-6 flex flex-wrap items-center justify-between gap-4 p-5 fx-animated-border">
           <div>
             <div className="mb-1 flex items-center gap-2">
@@ -89,14 +95,16 @@ export default function OverviewPage() {
               </h2>
             </div>
             <p className="m-0 text-sm text-muted-foreground">
-              Start by connecting your LLM providers and integrations, then create your first
-              venture.
+              {setupBlocked ??
+                'Start by connecting your LLM providers and integrations, then create your first venture.'}
             </p>
           </div>
-          <Button variant="primary" onClick={() => navigate('/setup')}>
-            Set up connections
-            <ArrowRight className="rtl:rotate-180" />
-          </Button>
+          {!setupBlocked && (
+            <Button variant="primary" onClick={() => navigate('/setup')}>
+              Set up connections
+              <ArrowRight className="rtl:rotate-180" />
+            </Button>
+          )}
         </div>
       )}
 
@@ -104,27 +112,7 @@ export default function OverviewPage() {
         <div className="flex min-w-0 flex-col gap-6">
           <HeldForYou />
 
-          {/* Figures */}
-          <div className="rz-panel grid grid-cols-2 gap-6 p-5 sm:grid-cols-4">
-            <Stat label="Ventures" value={data.venture_count} />
-            <Stat label="Agents" value={totalAgents} />
-            <Stat
-              label={
-                <span className="inline-flex items-center gap-1.5">
-                  Running {running > 0 && <StatusDot state="agent" live />}
-                </span>
-              }
-              value={running}
-            />
-            <Stat
-              label={
-                <span className="inline-flex items-center gap-1.5">
-                  Errors {errors > 0 && <StatusDot state="error" />}
-                </span>
-              }
-              value={errors}
-            />
-          </div>
+          <OverviewFigures ventureCount={data.venture_count} figures={figures} />
 
           {/* Ventures */}
           <section aria-labelledby="ov-ventures">
@@ -159,6 +147,41 @@ export default function OverviewPage() {
           </Panel>
         </div>
       </div>
+    </div>
+  )
+}
+
+/**
+ * The headline figures. "Agents" counts configured agents (as the venture
+ * cards do), not runtime-state rows; running and errors come from runtime state.
+ */
+export function OverviewFigures({
+  ventureCount,
+  figures,
+}: {
+  ventureCount: number
+  figures: AgentFigures
+}) {
+  return (
+    <div className="rz-panel grid grid-cols-2 gap-6 p-5 sm:grid-cols-4">
+      <Stat label="Ventures" value={ventureCount} />
+      <Stat label="Agents" value={figures.total} />
+      <Stat
+        label={
+          <span className="inline-flex items-center gap-1.5">
+            Running {figures.running > 0 && <StatusDot state="agent" live />}
+          </span>
+        }
+        value={figures.running}
+      />
+      <Stat
+        label={
+          <span className="inline-flex items-center gap-1.5">
+            Errors {figures.errors > 0 && <StatusDot state="error" />}
+          </span>
+        }
+        value={figures.errors}
+      />
     </div>
   )
 }

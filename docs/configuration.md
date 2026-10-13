@@ -150,7 +150,10 @@ default stays `false`.
 > **Outcome.** `execution_status` moves `claimed` → `succeeded` or `failed`. A row left at `claimed`
 > means the process stopped while the action was running: the outcome is unknown, it is not retried
 > automatically, and a person should check the external system (for example the sheet) and note the
-> result. Expired approvals can't be approved or run.
+> result. Expired approvals can't be approved or run: lists report them as `expired` (never as
+> pending), and the dashboard shows them under **Expired** with no decision controls. In the
+> dashboard, a decided item shows what really happened (done, failed with the error, or unknown
+> after a restart), right after the decision and later under **Decided**.
 >
 > **Fails closed.** If the governance check itself fails (for example a malformed `trust.level`,
 > which also falls back to level 1) or the approval can't be saved, write actions are blocked; reads

@@ -380,6 +380,7 @@ async def list_approvals(args: dict[str, Any], app_state: Any, user: CurrentUser
     """List approval queue rows — mirrors ``GET /api/approvals``."""
     try:
         from realize_core.db.schema import get_connection
+        from realize_core.governance.approval_status import now_stamp, status_clause, with_effective_status
     except ImportError as exc:
         return {"error": f"DB module unavailable: {exc}", "code": "MCP_INTERNAL"}
 
@@ -388,12 +389,15 @@ async def list_approvals(args: dict[str, Any], app_state: Any, user: CurrentUser
     status = (args.get("status") or ("" if approval_id else "pending")).strip()
     venture_key = (args.get("venture_key") or "").strip() or None
 
+    # Same effective status as the REST list: pending = still decidable (N11).
+    now = now_stamp()
     conn = get_connection()
     try:
         clauses, params = [], []
         if status:
-            clauses.append("status = ?")
-            params.append(status)
+            clause, clause_params = status_clause(status, now)
+            clauses.append(clause)
+            params.extend(clause_params)
         if approval_id:
             clauses.append("id = ?")
             params.append(approval_id)
@@ -413,7 +417,7 @@ async def list_approvals(args: dict[str, Any], app_state: Any, user: CurrentUser
             f"SELECT * FROM approval_queue {where} ORDER BY created_at DESC",
             params,
         ).fetchall()
-        return {"approvals": [dict(r) for r in rows]}
+        return {"approvals": [with_effective_status(dict(r), now) for r in rows]}
     except Exception as exc:
         logger.warning("list_approvals failed: %s", exc)
         return {"approvals": [], "error": str(exc)[:200], "code": "MCP_INTERNAL"}

@@ -24,6 +24,7 @@ import os
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel
 from realize_core.security import session_store, users
+from realize_core.security.venture_scope import role_permissions
 
 from realize_api.dependencies import CurrentUser, get_current_user
 
@@ -140,7 +141,12 @@ async def login(body: LoginRequest, request: Request, response: Response):
     except Exception as exc:
         logger.debug("Audit log for login skipped: %s", exc)
 
-    return {"user_id": user.email, "role": user.role, "ventures": list(user.ventures) or None}
+    return {
+        "user_id": user.email,
+        "role": user.role,
+        "ventures": list(user.ventures) or None,
+        "permissions": role_permissions(user.role),
+    }
 
 
 @router.post("/logout")
@@ -200,6 +206,9 @@ async def get_session_info(request: Request):
         "expires_at": record.expires_at,
         # Ventures this user is limited to; null = every venture (STORY-18).
         "ventures": sorted(allowed) if allowed is not None else None,
+        # What the role may do, so the dashboard can hide controls it can't use.
+        # The server still checks every request.
+        "permissions": role_permissions(current_user.role),
     }
 
 

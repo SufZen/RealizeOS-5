@@ -10,6 +10,7 @@ import {
   Plus,
   Link,
   Loader2,
+  Info,
 } from 'lucide-react'
 import { useApi } from '@/hooks/use-api'
 import { api } from '@/lib/api'
@@ -65,7 +66,8 @@ function FabricDir({
   label: string
   data: { exists: boolean; files: KBFile[] }
   onFileClick: (path: string) => void
-  onCreateFile: (dir: string) => void
+  /** Absent when the person can't add files. */
+  onCreateFile?: (dir: string) => void
   selectedPath: string | null
 }) {
   const [open, setOpen] = useState(false)
@@ -100,7 +102,7 @@ function FabricDir({
           <span className="text-sm font-medium">{label}</span>
           <span className="text-xs text-muted-foreground">({data.files.length})</span>
         </button>
-        {open && (
+        {open && onCreateFile && (
           <button
             onClick={() => onCreateFile(label)}
             className="p-0.5 rounded text-muted-foreground/50 hover:text-brand-400 transition-colors"
@@ -139,7 +141,19 @@ function FabricDir({
   )
 }
 
-export function KBBrowser({ ventureKey }: { ventureKey: string }) {
+/**
+ * A venture's knowledge base: browse, search, and (when the role may change it)
+ * add, edit, delete and ingest. `readOnlyReason` turns the changes off and is
+ * shown in their place; the server refuses them anyway.
+ */
+export function KBBrowser({
+  ventureKey,
+  readOnlyReason,
+}: {
+  ventureKey: string
+  readOnlyReason?: string | null
+}) {
+  const readOnly = !!readOnlyReason
   const { data, loading, refetch } = useApi<KBFilesResponse>(`/ventures/${ventureKey}/kb/files`)
   const [selectedFile, setSelectedFile] = useState<KBFileContent | null>(null)
   const [fileLoading, setFileLoading] = useState(false)
@@ -249,21 +263,32 @@ export function KBBrowser({ ventureKey }: { ventureKey: string }) {
         >
           Search
         </button>
-        <button
-          onClick={() => setShowIngest(!showIngest)}
-          className={cn(
-            'flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border transition-colors',
-            showIngest
-              ? 'border-brand-400 text-brand-400'
-              : 'border-border text-muted-foreground hover:text-foreground',
-          )}
-          title="Ingest URL into knowledge base"
-        >
-          <Link className="h-4 w-4" />
-          Ingest
-        </button>
+        {!readOnly && (
+          <button
+            onClick={() => setShowIngest(!showIngest)}
+            className={cn(
+              'flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border transition-colors',
+              showIngest
+                ? 'border-brand-400 text-brand-400'
+                : 'border-border text-muted-foreground hover:text-foreground',
+            )}
+            title="Ingest URL into knowledge base"
+          >
+            <Link className="h-4 w-4" />
+            Ingest
+          </button>
+        )}
       </div>
-      {showIngest && (
+      {readOnly && (
+        <p
+          data-gate="knowledge"
+          className="m-0 flex items-start gap-2 border-b border-border px-4 py-2.5 text-[13px] text-muted-foreground"
+        >
+          <Info className="mt-0.5 h-4 w-4 shrink-0 text-blue-400" aria-hidden />
+          <span>{readOnlyReason}</span>
+        </p>
+      )}
+      {showIngest && !readOnly && (
         <div className="flex gap-2 px-4 pb-3">
           <input
             value={ingestUrl}
@@ -299,11 +324,11 @@ export function KBBrowser({ ventureKey }: { ventureKey: string }) {
               label={dir}
               data={dirData}
               onFileClick={openFile}
-              onCreateFile={(label) => setCreatingIn(label)}
+              onCreateFile={readOnly ? undefined : (label) => setCreatingIn(label)}
               selectedPath={selectedFile?.path || null}
             />
           ))}
-          {creatingIn && (
+          {creatingIn && !readOnly && (
             <div className="mt-2">
               <CreateFileDialog
                 ventureKey={ventureKey}
@@ -323,7 +348,7 @@ export function KBBrowser({ ventureKey }: { ventureKey: string }) {
         <div className="flex-1 p-4 overflow-y-auto" style={{ maxHeight: '600px' }}>
           {fileLoading && <p className="text-sm text-muted-foreground">Loading...</p>}
 
-          {selectedFile && !fileLoading && editMode && (
+          {selectedFile && !fileLoading && editMode && !readOnly && (
             <FileEditor
               ventureKey={ventureKey}
               filePath={selectedFile.path}
@@ -341,17 +366,19 @@ export function KBBrowser({ ventureKey }: { ventureKey: string }) {
             />
           )}
 
-          {selectedFile && !fileLoading && !editMode && (
+          {selectedFile && !fileLoading && (!editMode || readOnly) && (
             <div>
               <div className="flex items-center justify-between mb-3">
                 <span className="text-xs text-muted-foreground font-mono">{selectedFile.path}</span>
-                <button
-                  onClick={() => setEditMode(true)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-border text-muted-foreground hover:text-brand-400 hover:border-brand-400/30 transition-colors"
-                >
-                  <Pencil className="h-3.5 w-3.5" />
-                  Edit
-                </button>
+                {!readOnly && (
+                  <button
+                    onClick={() => setEditMode(true)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-border text-muted-foreground hover:text-brand-400 hover:border-brand-400/30 transition-colors"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                    Edit
+                  </button>
+                )}
               </div>
               <pre className="text-sm text-foreground whitespace-pre-wrap font-mono bg-surface-800 rounded-lg p-4 border border-border overflow-auto">
                 {selectedFile.content}
@@ -389,7 +416,9 @@ export function KBBrowser({ ventureKey }: { ventureKey: string }) {
 
           {!selectedFile && !searchResults && !fileLoading && (
             <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
-              Select a file to view or edit, or search the knowledge base
+              {readOnly
+                ? 'Select a file to view, or search the knowledge base'
+                : 'Select a file to view or edit, or search the knowledge base'}
             </div>
           )}
         </div>
