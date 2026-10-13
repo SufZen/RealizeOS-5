@@ -5,8 +5,11 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { MemoryRouter } from 'react-router-dom'
 import { describe, expect, it } from 'vitest'
+import DocsPage from '@/pages/docs-page'
 import { ApprovalCard } from './approval-card'
 import { ChatMessage, type ChatMsg } from './chat-message'
+import { ConnectStep, DoneStep, WelcomeStep, WizardSheet } from './onboarding-wizard'
+import { DEFAULT_TOUR_STEPS, TourPopover } from './tour-provider'
 
 /** Tailwind classes tied to a physical side, which would not flip in RTL. */
 const PHYSICAL_CLASS =
@@ -79,5 +82,53 @@ describe('RTL rendering', () => {
     expect(html).toContain('תשלום 7 לקבלן')
     for (const cls of classesOf(html)) expect(cls).not.toMatch(PHYSICAL_CLASS)
     expect(html).toMatchSnapshot()
+  })
+
+  it('onboarding wizard: every step mirrors, and its arrows turn in RTL', () => {
+    const noop = async () => {}
+    const html = render(
+      <>
+        <WizardSheet step={0} footer={null}>
+          <WelcomeStep />
+        </WizardSheet>
+        <WizardSheet step={1} footer={null}>
+          <ConnectStep connected={new Set(['ollama'])} onSave={noop} />
+        </WizardSheet>
+        <WizardSheet step={2} footer={null}>
+          <DoneStep providers={['Ollama (Local)']} animate={false} />
+        </WizardSheet>
+      </>,
+    )
+    expect(html).toContain('Welcome to RealizeOS')
+    expect(html).toContain('Connect an AI provider')
+    expect(html).toContain('You’re all set')
+    expect(html).toContain('aria-valuenow="2"') // the sheet's progress line
+    expect(html).toContain('dir="ltr"') // keys and URLs stay left-to-right inside RTL
+    expect(html).toContain('end-[3px]') // show/hide sits at the inline end of the key field
+    for (const cls of classesOf(html)) expect(cls).not.toMatch(PHYSICAL_CLASS)
+  })
+
+  it('tour popover: mirrors, and Back/Next point the reading direction', () => {
+    const html = render(
+      <TourPopover
+        step={DEFAULT_TOUR_STEPS[2]!}
+        stepIndex={2}
+        totalSteps={DEFAULT_TOUR_STEPS.length}
+        onNext={() => {}}
+        onPrev={() => {}}
+        onSkip={() => {}}
+      />,
+    )
+    expect(html).toContain('Step 3 of 16')
+    expect(html).toContain('aria-label="Close tour"')
+    expect(html.match(/rtl:rotate-180/g)?.length).toBe(2)
+    for (const cls of classesOf(html)) expect(cls).not.toMatch(PHYSICAL_CLASS)
+  })
+
+  it('docs page: logical sides only, and icons instead of emoji', () => {
+    const html = render(<DocsPage />)
+    expect(html).toContain('Welcome to RealizeOS V5')
+    expect(html).not.toMatch(/\p{Extended_Pictographic}/u)
+    for (const cls of classesOf(html)) expect(cls).not.toMatch(PHYSICAL_CLASS)
   })
 })
