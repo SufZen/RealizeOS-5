@@ -260,6 +260,7 @@ Both `realize-os` (pip-installed) and `python cli.py` (source checkout) work ide
 | [🚀 Self-Hosting](docs/self-hosting-guide.md) | Production deployment |
 | [✍️ Skill Authoring](docs/skill-authoring.md) | Create custom skills |
 | [📡 API Reference](docs/api-reference.md) | REST + MCP API documentation |
+| [📋 Upgrade to 5.30](docs/upgrade-to-5.30.md) | From 5.24 or 5.14: migrations, new settings, behaviour changes |
 | [📋 Upgrade from 5.0](docs/upgrade-from-v50.md) | Migration guide: 5.0.x → 5.1.0 |
 | [🤝 Contributing](CONTRIBUTING.md) | Developer guide |
 
