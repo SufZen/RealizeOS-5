@@ -18,6 +18,7 @@ def register_commands(app: typer.Typer) -> None:
     from realize_core.cli_app.commands.bot import bot
     from realize_core.cli_app.commands.chat import chat
     from realize_core.cli_app.commands.config import config_app
+    from realize_core.cli_app.commands.decisions import decisions_app
     from realize_core.cli_app.commands.devmode import devmode_app
     from realize_core.cli_app.commands.doctor import doctor
     from realize_core.cli_app.commands.evolution import evolution_app
@@ -67,5 +68,7 @@ def register_commands(app: typer.Typer) -> None:
     app.add_typer(fabric_app, name="fabric", help="FABRIC knowledge system: lint, reindex, search, dream.")
     # STORY-37 — bring your own agent
     app.add_typer(agent_token_app, name="agent-token", help="Venture-scoped tokens for outside agents.")
+    # Codex audit N05 — decision-log writes that failed are retried
+    app.add_typer(decisions_app, name="decisions", help="Decision log: retry writes that failed.")
     # STORY-45 — reviewer kit for market packs
     app.add_typer(packs_app, name="packs", help="Market packs: review sheets, review submission, desk checks.")

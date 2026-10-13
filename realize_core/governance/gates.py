@@ -491,8 +491,9 @@ async def decide_approval(
     Only one decision can win: the transition requires the item to be pending
     and unexpired. ``decided_by`` / ``channel`` are stored on the row.
 
-    Returns ``{"approval": row, "execution": ..., "skill_output": ...}`` or
-    None when the item doesn't exist, isn't pending or has expired.
+    Returns ``{"approval": row, "execution": ..., "skill_output": ...,
+    "decision_log": {"logged", "pending", "error", "decision_id"}}`` or None
+    when the item doesn't exist, isn't pending or has expired.
     """
     action_type = _action_type(approval_id, db_path)
     is_question = action_type == "skill_input"
@@ -509,7 +510,13 @@ async def decide_approval(
     if record is None:
         return None
 
-    out: dict = {"approval": record, "execution": None, "skill_output": None}
+    out: dict = {
+        "approval": record,
+        "execution": None,
+        "skill_output": None,
+        # Logged first, so a failure or crash below can't lose it; a failed write is retried (N05).
+        "decision_log": _record_decision(record, approve, action_type, db_path),
+    }
     if is_question:
         if approve:
             out["skill_output"] = await _resume_skill_from_approval(record, decision_note or "yes")
@@ -529,7 +536,6 @@ async def decide_approval(
         report_to_conversation(record.get("session_ref"), _agent_request_outcome(action_type, approve, decision_note))
     if approve and action_type == "pack_verify":
         out["execution"] = _apply_pack_verification(record)
-    _record_decision(record, approve, action_type)
     return out
 
 
@@ -545,14 +551,19 @@ def _apply_pack_verification(record: dict) -> dict:
         return {"error": str(exc)}
 
 
-def _record_decision(record: dict, approve: bool, action_type: str | None) -> None:
-    """Add the decision to the venture's decision log (STORY-44). Never raises."""
-    try:
-        from realize_core.governance.decision_log import record_approval_decision
+def _record_decision(record: dict, approve: bool, action_type: str | None, db_path=None) -> dict:
+    """Add the decision to the venture's decision log (STORY-44). Never raises.
 
-        record_approval_decision(record, approve, action_type=action_type)
-    except Exception:
+    The write is durable (N05): a failure stays queued and is retried. Returns
+    ``{"logged", "pending", "error", "decision_id"}`` for the decision result.
+    """
+    try:
+        from realize_core.governance.decision_log import log_decision
+
+        return log_decision(record, approve, action_type=action_type, db_path=db_path)
+    except Exception as exc:
         logger.warning("Decision log write failed for approval %s", record.get("id"), exc_info=True)
+        return {"logged": False, "pending": False, "error": str(exc) or type(exc).__name__, "decision_id": None}
 
 
 async def _notify_missions(approval_id: str, approved: bool, execution: dict | None) -> None:
