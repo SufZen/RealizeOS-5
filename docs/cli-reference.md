@@ -63,7 +63,8 @@ realize-os
 ├── packs
 │   ├── review-sheet MARKET [--format csv|md]    Export a review sheet for a market pack
 │   ├── review-submit MARKET --sheet --reviewer  Record a review; queue pack_verify
-│   └── desk-check MARKET [--on DATE]            Mechanical card checks (no network)
+│   ├── desk-check MARKET [--on DATE]            Mechanical card checks (no network)
+│   └── inventory [--compare FILE]               Installed packs, levels, resolved rules; check a restore
 │
 ├── wedge                                        Self-serve tender register pilot
 │   ├── invite EMAIL                             Add an invite-only pilot user
