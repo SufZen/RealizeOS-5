@@ -4,6 +4,13 @@ All notable changes to RealizeOS are documented in this file.
 This changelog is automatically generated from [Conventional Commits](https://conventionalcommits.org).
 
 
+## [5.25.0](https://github.com/SufZen/RealizeOS-5/compare/v5.24.0...v5.25.0) (2026-10-13)
+
+### Features
+
+* **mcp:** mcp.tools allowlist to serve only named tools ([38fb241](https://github.com/SufZen/RealizeOS-5/commit/38fb241384b337f5197a64340b277b4687700d6d))
+* **wedge:** host the self-serve pilot (STORY-46) ([7fdc80f](https://github.com/SufZen/RealizeOS-5/commit/7fdc80f5fea8f59e0f7130f737b8fc740c6adc66))
+
 ## [5.24.0](https://github.com/SufZen/RealizeOS-5/compare/v5.23.0...v5.24.0) (2026-10-13)
 
 ### Features
