@@ -42,26 +42,40 @@ What "verified" covered: the agent connected, listed the tools, and called them 
 
 ## Agent tokens (one agent, one client's brain)
 
-<!-- TODO(agent-tokens): confirm command/flags after the agent-token PR merges -->
-
-For an outside agent that connects over the network with a header, use an agent token limited to one venture. Create it on the RealizeOS server:
+For an outside agent that connects over the network with a header, use an agent token limited to one client's ventures. Create it on the RealizeOS server, in the RealizeOS folder (where `users.yaml` lives):
 
 ```bash
-python cli.py agent-token create --user dana@example.com --venture tower-b --name "Dana's Claude"
+python cli.py agent-token create --name dana-claude --user dana@example.com --venture tower-b --expires-in-days 90
 ```
 
-The agent sends it as `Authorization: Bearer <token>`. The token acts as that user, limited to that venture, and it can be revoked on its own without touching anyone else's access.
+- `--name` is a label for people (letters, digits, spaces, dots, dashes, underscores).
+- `--user` is the `users.yaml` person the agent works for. Their role applies, and the agent never sees more than their ventures.
+- `--venture` is required: repeat it, or separate with commas, for more than one. Each must be one of the user's ventures.
+- `--expires-in-days` is optional (1-3650).
+
+It prints the token (`rzag_<id>_<secret>`) once; RealizeOS keeps only a hash. The agent sends it as `Authorization: Bearer <token>` (or `X-API-Key: <token>`), never in the URL. An owner or admin can do the same over REST: `POST /api/agent-tokens` with `{"name", "user", "ventures", "expires_in_days"}` (see [api-reference.md](api-reference.md#agent-tokens)).
+
+`python cli.py agent-token list` shows every token without secrets, and `python cli.py agent-token revoke <id>` stops one at once. Revoking also withdraws that agent's writes still waiting for approval. Removing the user from `users.yaml`, or taking away all of the token's ventures, also stops it.
 
 Never give an agent the shared `REALIZE_API_KEY`. The API key is an owner with access to every venture, it can't be limited, and revoking it breaks every other integration that uses it.
 
-Local stdio connections don't use a token: they name the user with `--user` (see [Claude Code](#claude-code)).
+Agent tokens need auth on (`REALIZE_API_KEY` or JWT): with auth off the API is open and a token limits nothing. Pilot accounts (`pilot: true`) can't have one.
+
+Local stdio connections don't use a token: they name the user with `--user` (see [Claude Code](#claude-code)), and they are governed the same way (below).
 
 ## What the agent can and can't do
 
-- **Reads are limited to the person's ventures.** A user or token limited to some ventures gets only those. Tools that span every venture (evolution, cross-venture search, admin) return `MCP_FORBIDDEN`. Venture lists are filtered.
-- **The role decides the tools.** A `viewer` can only read. A `user` can also chat and run workflows. An `operator` can also decide approvals. Admin tools are off unless `mcp.allow_admin` is on, and then only for an owner.
-- **Writes wait for a person.** <!-- TODO(agent-tokens): confirm command/flags after the agent-token PR merges --> Changes an outside agent asks for (running a workflow that writes, logging a decision, anything touching money, contracts or people) are held as approval requests. A person approves or rejects them in the dashboard. The agent can't approve its own requests.
-- **Everything is on the record.** Every tool call is written to the audit log under the person's identity (channel `mcp`), including refusals.
+These rules apply to an **agent token** and to a **local stdio session**: the client of a stdio session is always an AI agent, so RealizeOS treats it as an outside agent too. OAuth connectors (Claude.ai, ChatGPT) act as the person who signed in and follow that person's rules; to govern such an agent as an agent, give it an agent token instead.
+
+- **Reads are limited to the agent's ventures.** A token sees the ventures it names (within its user's). A stdio session sees `--venture`, else the user's ventures, else every venture configured when it starts. Tools that span every venture (`realize_status`, `kb_get_document`, `list_suggestions`) return `MCP_FORBIDDEN`. Venture lists are filtered.
+- **The role is the upper bound.** A `viewer`'s agent can only read. A `user`'s or `operator`'s agent can chat and ask for workflow runs.
+- **Writes wait for a person.** `run_workflow` and `trigger_skill` don't run: they come back as `{"status": "pending_approval", "approval_id": "…"}` and wait in the dashboard's approval queue (as `mcp:run_workflow`, from `agent:<id>` or `agent:stdio:<email>`). When a person approves, the run happens once, as the agent and within its ventures; a held write expires after 24 hours. `log_decision` only proposes a decision for a person to confirm. When the agent chats (`realize_chat`, or `/api/chat` with a token), every write tool the internal agent calls is held for a person too, whatever the trust level; a phrase that matches a workflow doesn't start it (use `trigger_skill`); and the agent can't answer a paused workflow's question. Follow an item with `list_approvals` (`venture_key` and `approval_id`): it shows the outcome (`pending_approval`, `succeeded`, `rejected`, `unknown_outcome` after a restart, …) and the result of the agent's own writes, not other people's details.
+- **People decide.** An agent can't approve, reject or dismiss anything, including its own requests: `approve_request`, `reject_request`, `approve_suggestion` and `dismiss_suggestion` return `MCP_AGENT_CANNOT_DECIDE`. Over REST, approve and reject return `403`.
+- **Some tools aren't for agents.** `create_venture`, `delete_venture`, `update_setting`, `reload_agents` and `run_evolution` return `MCP_AGENT_REFUSED`, even with `--allow-admin`: an owner does those in the dashboard or CLI. So does any new tool until someone decides its rule.
+- **It acts as itself.** An agent can't chat as, or read the history of, another user, whatever its user's role. Over REST, an agent token may read within its ventures and chat; every other REST write returns `403`.
+- **Everything is on the record.** Every tool call is written to the audit log (channel `mcp`), including refusals and held writes. A token's calls are logged as `agent:<id>`; a stdio session's under its user's email.
+
+Details and the full per-tool table: [mcp-server.md](mcp-server.md#governed-writes-from-outside-agents).
 
 ## Claude Code
 
@@ -76,7 +90,8 @@ claude mcp add realize-os -- python /path/to/RealizeOS/cli.py mcp stdio --direct
 - `--user` is required and must be in `users.yaml`. There is no default user, and it is never read from environment variables.
 - `--venture tower-b` narrows the session further (repeatable). It must be one of the user's ventures.
 - `--directory` (or `--root`) is the absolute path of the RealizeOS folder, where `realize-os.yaml`, `users.yaml`, `.env` and the data live. Without it, RealizeOS uses the folder it is installed in. It never reads them from the folder the agent happens to start it in, so files left in that folder can't change who the agent is or what it can do.
-- Admin tools stay off over stdio unless you add `--allow-admin` (and the user is an owner). `mcp.allow_admin` doesn't turn them on here.
+- Admin tools stay off over stdio unless you add `--allow-admin` (and the user is an owner). `mcp.allow_admin` doesn't turn them on here. Even then, an agent can't call them (see [What the agent can and can't do](#what-the-agent-can-and-cant-do)).
+- The session is governed as an outside agent: workflow runs wait for a person's approval, and it can't approve or reject.
 - Use the full path of the Python that runs RealizeOS if `python` isn't on the agent's `PATH`. `python -c "import sys; print(sys.executable)"` prints it.
 - `claude mcp add --scope project …` writes `.mcp.json` in the current folder so the team shares it. Without `--scope` it is stored for you only.
 
@@ -222,5 +237,8 @@ Any other MCP client works the same way: either start the stdio command, or poin
 | The stdio server disconnects at once | It refused to start: no `--user`, user not in `users.yaml`, MCP off, unknown `--venture`, a relative `--directory` | Read the last line of the server's log (stderr). It exits with code 2. |
 | The client reports invalid JSON from the stdio server | Something other than RealizeOS wrote to stdout, usually a wrapper (a shell profile that echoes, `conda run`, a batch file) | Start Python directly as the command. RealizeOS itself writes only JSON-RPC to stdout and sends logs, `print()` output and child processes to stderr. |
 | The stdio server can't find the config or users ("No users.yaml in …") | Without `--directory` it reads the folder RealizeOS is installed in, which isn't your RealizeOS folder (for example a `pip` install) | Pass `--directory /absolute/path/to/RealizeOS`. |
-| Admin tools are missing over stdio | Over stdio they need `--allow-admin` on the command line | Add `--allow-admin` (owner only). |
+| Admin tools are missing over stdio | Over stdio they need `--allow-admin` on the command line | Add `--allow-admin` (owner only). An agent still can't call them (`MCP_AGENT_REFUSED`). |
+| `{"status": "pending_approval"}` instead of a result | The agent asked for a write; a person decides | Approve it in the dashboard's approval queue, then follow it with `list_approvals`. |
+| `MCP_AGENT_CANNOT_DECIDE` or `MCP_AGENT_REFUSED` | People decide approvals; some tools aren't for agents | A person does it in the dashboard or CLI. |
+| `401` with `"error": "invalid_token"` | The agent token was revoked, expired, or its user was removed or lost its ventures | Create a new token (`python cli.py agent-token create …`). |
 | `404` or a hanging connection | Transport and URL don't match | Streamable HTTP (`type: http`) uses `/mcp`; HTTP+SSE (`type: sse`) uses `/mcp/sse`. `mcp.streamable_http: false` turns `/mcp` off. |

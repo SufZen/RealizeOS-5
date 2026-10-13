@@ -6,7 +6,9 @@ Two questions, answered in one place for every route:
 1. **Which ventures may this caller see?** A user in ``users.yaml`` may list
    ``ventures: [...]`` (empty or missing means all). A JWT may narrow further
    with ``venture:<key>`` scopes. API-key callers and callers with no
-   authenticated principal (auth off) see every venture.
+   authenticated principal (auth off) see every venture. An outside agent
+   (agent token, STORY-37) always carries venture scopes; without any it sees
+   nothing.
 2. **May this caller make this write?** Mutating requests need an RBAC
    permission picked from the route (see :func:`required_permission`). Writes
    that affect every venture (settings, integrations, agent definitions, ...)
@@ -49,6 +51,7 @@ _GLOBAL_PREFIXES = (
     "/api/fabric/reindex",
     "/api/dreams",
     "/api/evolution",
+    "/api/agent-tokens",
 )
 _VENTURES_PATH = "/api/ventures"
 #: System-wide areas a venture-limited caller may not use at all (reads included):
@@ -71,6 +74,8 @@ _SYSTEM_AREA_PREFIXES = (
     # Inbound webhook payloads have no trusted owner; LLM usage isn't split by venture.
     "/api/webhooks/events",
     "/api/llm",
+    # Issuing agent tokens spans ventures (STORY-37).
+    "/api/agent-tokens",
 )
 #: Areas that span every venture unless one is named; a venture-limited caller must name one.
 _NEEDS_VENTURE_PREFIXES = ("/api/fabric",)
@@ -105,6 +110,12 @@ def allowed_ventures(user_id: str | None, scopes: list[str] | None = None) -> fr
     token_ventures = {s[len(VENTURE_SCOPE_PREFIX) :] for s in scopes or [] if s.startswith(VENTURE_SCOPE_PREFIX)}
     if token_ventures:
         allowed = frozenset(token_ventures) if allowed is None else allowed & token_ventures
+    else:
+        from realize_core.security.agent_access import is_agent
+
+        if is_agent(user_id, scopes):
+            # An outside agent is never unrestricted: no venture scope means no venture.
+            return frozenset()
     return allowed
 
 

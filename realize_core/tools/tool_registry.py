@@ -127,6 +127,16 @@ class ToolRegistry:
         if not tool.is_available():
             return ToolResult.fail(f"Tool '{tool.name}' is not available (missing API key or dependency)")
 
+        if self._gate is None and self.is_destructive(action_name) is not False:
+            from realize_core.security.agent_access import outside_agent_active
+
+            if outside_agent_active():
+                # No gate to hold it for a person: an outside agent's write can't run (STORY-37).
+                return ToolResult.fail(
+                    f"Action '{action_name}' needs a person's approval; turn on features.enforce_gates",
+                    requires_human=True,
+                )
+
         # Governance gate (only when injected; default path is unchanged).
         if self._gate is not None:
             try:

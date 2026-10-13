@@ -36,6 +36,10 @@ curl -X POST http://localhost:8080/api/auth/token \
 curl -H "Authorization: Bearer <access_token>" http://localhost:8080/api/systems
 ```
 
+### Agent token (outside agents)
+
+An outside agent gets its own venture-scoped token (`rzag_...`, see [Agent Tokens](#agent-tokens)) instead of the API key. Send it the same way, as `Authorization: Bearer rzag_...` or `X-API-Key: rzag_...` (never in the URL). The agent reads within its ventures and may chat; every other write returns `403`, because outside agents change things through [MCP](mcp-server.md#governed-writes-from-outside-agents), where a person approves first. An invalid, expired or revoked token returns `401` with `"error": "invalid_token"`.
+
 ### No Auth (development)
 
 If neither `REALIZE_API_KEY` nor JWT is configured, the API runs in open mode (suitable for local development).
@@ -312,6 +316,82 @@ Approve an approval request.
 ### POST /api/approvals/{id}/reject
 
 Reject an approval request.
+
+People decide: a caller with an agent token gets `403` on approve and reject.
+
+---
+
+## Agent Tokens
+
+Venture-scoped tokens for outside agents (STORY-37). Owner or admin only, and not a user limited to some ventures. An admin can't issue a token that acts for a user with a higher role (the owner). Behind `features.agent_tokens` (on by default). See [mcp-server.md](mcp-server.md#agent-tokens-one-agent-one-clients-brain) for what a token can do.
+
+### GET /api/agent-tokens
+
+List every token. Secrets are never stored, so they are never listed.
+
+```json
+{
+  "enabled": true,
+  "tokens": [
+    {
+      "id": "3f9a0c1d2e4b",
+      "name": "claude-desktop-acme",
+      "principal": "agent:3f9a0c1d2e4b",
+      "user": "dana@acme.io",
+      "ventures": ["acme"],
+      "status": "active",
+      "created_by": "owner@example.com",
+      "created_at": "2026-10-13T09:00:00+00:00",
+      "expires_at": "2027-01-11T09:00:00+00:00",
+      "last_used_at": "2026-10-13T09:05:12+00:00",
+      "revoked_at": null,
+      "revoked_by": null
+    }
+  ]
+}
+```
+
+`status` is `active`, `expired` or `revoked`.
+
+### POST /api/agent-tokens
+
+Issue a token. The token is in this response only: copy it now.
+
+```json
+{
+  "name": "claude-desktop-acme",
+  "user": "dana@acme.io",
+  "ventures": ["acme"],
+  "expires_in_days": 90
+}
+```
+
+- `name` — 1-64 letters, digits, spaces, dots, dashes or underscores.
+- `user` — a `users.yaml` user; their role applies to the agent.
+- `ventures` — at least one configured venture, each one the user may see.
+- `expires_in_days` — optional, 1-3650. Omit for no expiry.
+
+Returns `201`:
+
+```json
+{
+  "token": "rzag_3f9a0c1d2e4b_…",
+  "agent_token": { "id": "3f9a0c1d2e4b", "status": "active", "…": "…" },
+  "message": "Copy the token now: it is shown only once. Send it as 'Authorization: Bearer <token>'."
+}
+```
+
+`400` for an unknown user or venture, or a venture outside the user's list; `403` for a caller who may not manage tokens; `409` when `features.agent_tokens` is off.
+
+### DELETE /api/agent-tokens/{id}
+
+Revoke a token now. The agent's held MCP writes that are still waiting for approval are withdrawn (rejected).
+
+```json
+{ "agent_token": { "id": "3f9a0c1d2e4b", "status": "revoked", "…": "…" }, "withdrawn_approvals": 1 }
+```
+
+`404` for an unknown id. Revoking twice is harmless.
 
 ---
 

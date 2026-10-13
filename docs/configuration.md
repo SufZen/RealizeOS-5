@@ -107,6 +107,7 @@ To add a new agent, create a `.md` file in `A-agents/` and add routing keywords 
 | `enforce_guardrails` | `false` | Reserved placeholder; guardrail post-response enforcement is deferred (no-op) |
 | `agent_tools` | `false` | Agents call registry tools (Google, Sheets, ClickUp, MCP) while answering. Without `enforce_gates`, only read-only tools are offered (see below) |
 | `cite_sources` | `false` | Answers cite knowledge-base sources inline as `[S1]` on the `api`, `dashboard` and `mcp` channels; the trail lists the sources (see below) |
+| `agent_tokens` | `true` | Accept venture-scoped agent tokens (`rzag_...`) for outside agents on MCP and REST. Nothing changes until an owner creates one; `false` makes every agent token stop working at once. See [mcp-server.md](mcp-server.md#agent-tokens-one-agent-one-clients-brain) |
 
 Custom flags are passed through without error — the engine ignores unknown flags.
 

@@ -64,9 +64,11 @@ def _user_from_request() -> CurrentUser | None:
     state = getattr(request, "state", None)
     if state is None:
         return None
+    from realize_api.dependencies import header_user_id
+
     headers = getattr(request, "headers", None) or {}
     return CurrentUser(
-        user_id=getattr(state, "user_id", None) or headers.get("X-User-ID", "anonymous"),
+        user_id=getattr(state, "user_id", None) or header_user_id(headers),
         role=getattr(state, "role", None) or "owner",
         scopes=getattr(state, "scopes", None) or [],
     )

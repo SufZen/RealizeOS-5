@@ -12,6 +12,7 @@ def register_commands(app: typer.Typer) -> None:
 
     # --- Existing commands (Story 6) ---
     # --- New operator commands (Story 7) ---
+    from realize_core.cli_app.commands.agent_token import agent_token_app
     from realize_core.cli_app.commands.ask import ask
     from realize_core.cli_app.commands.audit import audit
     from realize_core.cli_app.commands.bot import bot
@@ -64,5 +65,7 @@ def register_commands(app: typer.Typer) -> None:
     app.add_typer(wedge_app, name="wedge", help="Self-serve tender register pilot: invites, funnel, purge.")
     # v5.5.0 — FABRIC Knowledge System
     app.add_typer(fabric_app, name="fabric", help="FABRIC knowledge system: lint, reindex, search, dream.")
+    # STORY-37 — bring your own agent
+    app.add_typer(agent_token_app, name="agent-token", help="Venture-scoped tokens for outside agents.")
     # STORY-45 — reviewer kit for market packs
     app.add_typer(packs_app, name="packs", help="Market packs: review sheets, review submission, desk checks.")

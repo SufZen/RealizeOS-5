@@ -61,7 +61,9 @@ async def realize_chat(args: dict[str, Any], app_state: Any, user: CurrentUser) 
     body = ChatRequest(
         message=args["message"],
         system_key=args["system_key"],
-        user_id=chat_user_for(principal, role, args.get("user_id") or user.user_id),
+        user_id=chat_user_for(
+            principal, role, args.get("user_id") or user.user_id, scopes=getattr(user, "scopes", None)
+        ),
         agent_key=args.get("agent_key"),
         channel=args.get("channel", "mcp"),
     )
@@ -260,7 +262,7 @@ def _conversation_denied(args: dict[str, Any], user: CurrentUser | None) -> dict
     """MCP_FORBIDDEN unless the caller may access ``args['user_id']``'s conversation."""
     from realize_core.security.chat_access import may_access_conversation
 
-    if may_access_conversation(*_caller(user), args["user_id"]):
+    if may_access_conversation(*_caller(user), args["user_id"], scopes=getattr(user, "scopes", None)):
         return None
     return {"error": "You can only access your own conversations", "code": "MCP_FORBIDDEN"}
 

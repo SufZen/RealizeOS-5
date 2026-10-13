@@ -24,6 +24,11 @@ from datetime import UTC, datetime, timedelta
 
 logger = logging.getLogger(__name__)
 
+#: ``action_type`` of a write an outside agent asked for over MCP (STORY-37). The
+#: row's ``action_name`` is ``mcp:<tool>`` and ``params_json`` holds the call's
+#: arguments; approving it runs that MCP tool once, as the agent.
+MCP_WRITE_ACTION_TYPE = "mcp_write"
+
 # Default gate types and whether they're enabled
 DEFAULT_GATES = {
     "send_email": True,
@@ -355,6 +360,11 @@ async def execute_approved_action(approval_id: str, db_path=None) -> dict:
         params = None
     if not isinstance(params, dict):
         result_ok, output, error = False, "", "Stored parameters are unreadable"
+    elif row.get("action_type") == MCP_WRITE_ACTION_TYPE:
+        # An outside agent's held MCP write: same claim, same single dispatch.
+        from realize_core.mcp_server.held_writes import run_approved_write
+
+        result_ok, output, error = await run_approved_write(row, params)
     else:
         result = await get_tool_registry().execute_approved(action, params)
         result_ok, output, error = result.success, result.output or "", result.error
@@ -472,6 +482,7 @@ async def decide_approval(
     """Decide an approval item and carry out what the decision implies.
 
     - Tool action, approved: dispatched once (:func:`execute_approved_action`).
+      An outside agent's held MCP write (``mcp_write``) is dispatched the same way.
     - Tool action, rejected: never runs; the conversation is told.
     - Skill question (``skill_input``): approving with an answer records it as
       ``answered`` (input, not an approval) and resumes the skill; rejecting

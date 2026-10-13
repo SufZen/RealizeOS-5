@@ -124,6 +124,13 @@ class ToolGate:
         params = params or {}
         try:
             decision = check_trust(action_name, self._config, channel=self._channel, is_destructive=is_destructive)
+            if decision is TrustDecision.AUTO and is_destructive is not False:
+                from realize_core.security.agent_access import outside_agent_active
+
+                if outside_agent_active():
+                    # An outside agent never gets the trust ladder's automatic writes
+                    # (STORY-37): a person approves every write it sets off.
+                    decision = TrustDecision.APPROVE
 
             if decision is TrustDecision.AUTO:
                 return GateDecision(GateOutcome.ALLOW, action_name)

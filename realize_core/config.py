@@ -373,6 +373,10 @@ def get_features(config: dict) -> dict:
         # wedge: the free self-serve tender register MCP tools (STORY-46).
         #   Configure booking_url and per-market partners under wedge: in the config.
         "wedge": False,
+        # agent_tokens: accept venture-scoped agent tokens (rzag_...) on MCP and
+        #   REST (STORY-37). Inert until an owner creates a token; turning it off
+        #   makes every agent token stop working at once.
+        "agent_tokens": True,
     }
     features = config.get("features", {})
     merged = {**defaults, **features}

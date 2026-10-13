@@ -10,8 +10,11 @@ accepts any of three credential types:
 2. **API key** — ``X-API-Key`` header, ``Authorization: Bearer <key>``, or
    ``?api_key=<key>``. Used by CLI, Telegram bot, and any programmatic caller.
 3. **JWT bearer** — ``Authorization: Bearer <jwt>`` when ``REALIZE_JWT_ENABLED=true``.
+4. **Agent token** — ``X-API-Key: rzag_...`` or ``Authorization: Bearer rzag_...``
+   (STORY-37): a venture-scoped outside agent; see
+   :mod:`realize_core.security.agent_tokens`. Never read from the query string.
 
-A request is authenticated as soon as any of the three succeed. Public paths
+A request is authenticated as soon as any of them succeed. Public paths
 (health, docs, static assets, login endpoint, favicon) skip auth entirely.
 
 Mutating cookie-session requests must additionally pass a CSRF check
@@ -22,6 +25,7 @@ programmatic, not browser-driven.
 
 from __future__ import annotations
 
+import hmac
 import logging
 import os
 
@@ -88,6 +92,32 @@ def _mcp_challenge(scope) -> dict[str, str]:
     return {"WWW-Authenticate": f'Bearer resource_metadata="{metadata}"'}
 
 
+def _agent_tokens_enabled(request: Request) -> bool:
+    """``features.agent_tokens`` (default on): off makes every agent token stop working."""
+    from realize_core.config import get_features
+
+    config = getattr(request.app.state, "config", None)
+    return bool(get_features(config if isinstance(config, dict) else {}).get("agent_tokens"))
+
+
+def _extract_agent_token(request: Request) -> str:
+    """An agent token from ``X-API-Key`` or ``Authorization: Bearer`` (never from the URL)."""
+    from realize_core.security.agent_tokens import looks_like_agent_token
+
+    auth_header = request.headers.get("Authorization", "")
+    for value in (request.headers.get("X-API-Key", ""), auth_header[7:] if auth_header.startswith("Bearer ") else ""):
+        if looks_like_agent_token(value):
+            return value
+    return ""
+
+
+def _invalid_agent_token() -> JSONResponse:
+    return JSONResponse(
+        status_code=401,
+        content={"error": "invalid_token", "message": "This agent token is invalid, expired or revoked."},
+    )
+
+
 def _is_signed_webhook_delivery(request: Request) -> bool:
     """True for an inbound webhook POST that the route will HMAC-verify itself.
 
@@ -116,8 +146,9 @@ class AuthMiddleware(BaseHTTPMiddleware):
     2. ``realize_session`` cookie → look up session, attach user, enforce CSRF.
     3. ``X-API-Key`` / ``Authorization: Bearer <api-key>`` / ``?api_key=`` → match
        ``REALIZE_API_KEY``, attach the configured owner identity.
-    4. ``Authorization: Bearer <jwt>`` → verify via ``jwt_auth``, attach claims.
-    5. No match → 401.
+    4. Agent token (``rzag_...``) → venture-scoped outside agent (STORY-37).
+    5. ``Authorization: Bearer <jwt>`` → verify via ``jwt_auth``, attach claims.
+    6. No match → 401.
     """
 
     def __init__(self, app, api_key: str = "", jwt_enabled: bool = False):
@@ -146,11 +177,15 @@ class AuthMiddleware(BaseHTTPMiddleware):
     async def _authorize_mcp(self, request: Request) -> bool:
         """Check an MCP request's credentials and attach the caller to ``request.state``.
 
-        Accepts the API key, a JWT, or an MCP OAuth access token (issue #21).
+        Accepts the API key, an agent token (STORY-37), a JWT, or an MCP OAuth
+        access token (issue #21).
         """
         provided_key = self._extract_api_key(request)
-        if self.api_key and provided_key and provided_key == self.api_key:
+        if self._api_key_matches(provided_key):
             return True
+        agent = self._try_agent_token(request)
+        if agent is not None:
+            return agent
         if self.jwt_enabled and (await self._try_jwt(request)) is True:
             return True
         if provided_key and getattr(request.app.state, "mcp_oauth", None) is not None:
@@ -204,14 +239,21 @@ class AuthMiddleware(BaseHTTPMiddleware):
 
         # 2. API key
         provided_key = self._extract_api_key(request)
-        if self.api_key and provided_key and provided_key == self.api_key:
+        if self._api_key_matches(provided_key):
             request.state.user_id = os.environ.get("REALIZE_API_KEY_USER", "api-key")
             request.state.role = "owner"
             request.state.scopes = []
             request.state.auth_source = "api_key"
             return await call_next(request)
 
-        # 3. JWT bearer
+        # 3. Agent token (venture-scoped outside agent)
+        agent = self._try_agent_token(request)
+        if agent is True:
+            return await call_next(request)
+        if agent is False:
+            return _invalid_agent_token()
+
+        # 4. JWT bearer
         if self.jwt_enabled:
             jwt_failure_or_pass = await self._try_jwt(request)
             if jwt_failure_or_pass is True:  # authenticated
@@ -227,6 +269,36 @@ class AuthMiddleware(BaseHTTPMiddleware):
         )
 
     # ------------------------------------------------------------------ helpers
+
+    def _api_key_matches(self, provided_key: str) -> bool:
+        """Constant-time comparison with ``REALIZE_API_KEY``."""
+        if not self.api_key or not provided_key:
+            return False
+        return hmac.compare_digest(provided_key.encode("utf-8"), self.api_key.encode("utf-8"))
+
+    def _try_agent_token(self, request: Request) -> bool | None:
+        """Authenticate an outside agent.
+
+        Returns True (state set), False (an agent token was presented and
+        refused) or None (no agent token on the request).
+        """
+        token = _extract_agent_token(request)
+        if not token:
+            return None
+        if not _agent_tokens_enabled(request):
+            logger.warning("Agent token refused on %s: features.agent_tokens is off", request.url.path)
+            return False
+        from realize_core.security.agent_tokens import resolve_token
+
+        principal = resolve_token(token, ip_address=request.client.host if request.client else "")
+        if principal is None:
+            return False
+        request.state.user_id = principal.user_id
+        request.state.role = principal.role
+        request.state.scopes = principal.scopes
+        request.state.auth_source = "agent_token"
+        request.state.agent_token_id = principal.token_id
+        return True
 
     def _enforce_csrf(self, request: Request, record: session_store.SessionRecord):
         """Return a 403 response if CSRF check fails, else None."""
@@ -280,6 +352,15 @@ class AuthMiddleware(BaseHTTPMiddleware):
             )
 
             claims = verify_token(token, require_type="access")
+            from realize_core.security.agent_access import is_agent
+
+            if is_agent(claims.sub, claims.scopes):
+                # Agent identities come only from verified agent tokens (STORY-37).
+                logger.warning("JWT refused: it claims an agent identity")
+                return JSONResponse(
+                    status_code=401,
+                    content={"error": "invalid_token", "message": "Agent identities need an agent token."},
+                )
             request.state.user_id = claims.sub
             request.state.role = claims.role
             request.state.scopes = claims.scopes

@@ -78,6 +78,23 @@ async def check_and_execute_skill(
     if not skill or (is_knowledge_question and skill.get("_version", 1) == 1):
         return False, None
 
+    from realize_core.security.agent_access import outside_agent_active
+
+    if outside_agent_active():
+        # An outside agent doesn't start skills by phrasing (STORY-37): it asks for
+        # the run with trigger_skill, which a person approves first.
+        name = skill.get("name", "unnamed")
+        logger.info("Skill %s not auto-run for an outside agent in %s", name, system_key)
+        result = (
+            f"This matches the workflow '{name}'. An outside agent runs workflows with the trigger_skill "
+            "(or run_workflow) tool; a person approves the run before it starts."
+        )
+        add_message(system_key, user_id, "user", message)
+        message_id = add_message(system_key, user_id, "assistant", result)
+        if message_id is not None:
+            await emit_event(emit, {"type": "message_saved", "message_id": message_id})
+        return True, result
+
     logger.info(f"Skill triggered: {skill.get('name', 'unnamed')} for {system_key}")
     result = await execute_skill(
         skill=skill,
@@ -353,10 +370,17 @@ async def process_message(
         except Exception:
             pass
 
-    # Step 0: a skill paused at a human step? This message is the answer.
-    resumed = await _resume_paused_skill(system_key, user_id, message, kb_path, system_config, shared_config, channel)
-    if resumed is not None:
-        return resumed
+    # Step 0: a skill paused at a human step? This message is the answer —
+    # unless it comes from an outside agent: a person answers in the approval
+    # queue (STORY-37, people decide).
+    from realize_core.security.agent_access import outside_agent_active
+
+    if not outside_agent_active():
+        resumed = await _resume_paused_skill(
+            system_key, user_id, message, kb_path, system_config, shared_config, channel
+        )
+        if resumed is not None:
+            return resumed
 
     # Step 1: Active session?
     session = get_session(system_key, user_id)

@@ -72,14 +72,17 @@ def resolve_stdio_user(user_id: str | None, ventures: Sequence[str] = ()) -> Cur
             user's own ventures when ``users.yaml`` limits them.
 
     Returns:
-        A :class:`CurrentUser` with the user's role; ``--venture`` narrowing is
-        carried as ``venture:<key>`` scopes, the same way a scoped JWT does it.
+        A :class:`CurrentUser` with the user's email and role, marked as an
+        outside agent (``agent:stdio`` scope, STORY-37). Its ventures (``--venture``,
+        else the user's own) are carried as ``venture:<key>`` scopes, the same way
+        a scoped JWT does it.
 
     Raises:
         StdioStartupError: No user named, no ``users.yaml``, the user isn't in
             it, a value isn't a plain token, or a venture is outside the user's
             ventures.
     """
+    from realize_core.security.agent_tokens import STDIO_SCOPE
     from realize_core.security.users import USERS_FILE, get_user
     from realize_core.security.venture_scope import VENTURE_SCOPE_PREFIX
 
@@ -110,7 +113,12 @@ def resolve_stdio_user(user_id: str | None, ventures: Sequence[str] = ()) -> Cur
         outside = [v for v in requested if v not in user.ventures]
         if outside:
             raise StdioStartupError(f"{user.email} has no access to venture(s): {', '.join(outside)}")
-    scopes = [f"{VENTURE_SCOPE_PREFIX}{v}" for v in requested]
+    # The client of a stdio session is always an AI agent (STORY-37, ADR 0004): it is
+    # governed as an outside agent. The marker is set here, server-side, so it can't
+    # be spoofed; the user's role and ventures stay the upper bound. An unrestricted
+    # user without --venture gets every configured venture in prepare_stdio.
+    session_ventures = requested or user.ventures
+    scopes = [STDIO_SCOPE] + [f"{VENTURE_SCOPE_PREFIX}{v}" for v in session_ventures]
     return CurrentUser(user_id=user.email, role=user.role, scopes=scopes)
 
 
@@ -254,10 +262,21 @@ def prepare_stdio(
     user = resolve_stdio_user(user_id, ventures)
 
     state = build_stdio_state(config, kb_path)
-    unknown = [v for v in _named_ventures(user) if v not in state.systems]
+    named = [v.strip() for v in ventures if (v or "").strip()]
+    unknown = [v for v in named if v not in state.systems]
     if unknown:
         raise StdioStartupError(
             f"Unknown venture(s): {', '.join(unknown)}. Known: {', '.join(state.systems) or 'none'}"
+        )
+    if not _named_ventures(user):
+        # An agent is always venture-scoped: an unrestricted user's session sees
+        # the ventures configured when it starts.
+        from realize_core.security.venture_scope import VENTURE_SCOPE_PREFIX
+
+        user = CurrentUser(
+            user_id=user.user_id,
+            role=user.role,
+            scopes=list(user.scopes) + [f"{VENTURE_SCOPE_PREFIX}{v}" for v in state.systems],
         )
 
     server = build_mcp_server(app_state=state, mcp_config=mcp_config)

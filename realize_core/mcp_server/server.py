@@ -38,6 +38,10 @@ class MCPErrorCode:
     FORBIDDEN = "MCP_FORBIDDEN"
     ADMIN_DISABLED = "MCP_ADMIN_DISABLED"
     INTERNAL = "MCP_INTERNAL"
+    #: An outside agent (agent token) may not approve, reject or dismiss (STORY-37).
+    AGENT_CANNOT_DECIDE = "MCP_AGENT_CANNOT_DECIDE"
+    #: An outside agent may not call this tool (STORY-37).
+    AGENT_REFUSED = "MCP_AGENT_REFUSED"
 
 
 def build_mcp_server(
@@ -54,6 +58,9 @@ def build_mcp_server(
     read systems/kb_path/etc. as if they were inside a REST handler.
     """
     registry = registry or get_registry()
+    from realize_core.mcp_server.held_writes import bind_app_state
+
+    bind_app_state(app_state)  # approved held writes run against this state
     if version is None:
         from realize_core import __version__ as version  # the release, not a hard-coded string
     server: Server = Server(name=name, version=version)
@@ -118,6 +125,18 @@ async def _dispatch(
         _audit_call(tool, user, status="forbidden", duration_ms=0, mcp_config=mcp_config)
         return _error(MCPErrorCode.FORBIDDEN, "Pilot accounts can only use the tender register tools.")
 
+    from realize_core.security import agent_access
+
+    # Outside agents (agent tokens and stdio sessions, STORY-37): the same rules
+    # as the REST guard. People decide, and a tool without a rule is refused.
+    # Checked before any lookup by id.
+    agent = agent_access.is_agent_subject(user)
+    if agent:
+        refused = agent_access.tool_refusal(name)
+        if refused:
+            _audit_call(tool, user, status="forbidden", duration_ms=0, mcp_config=mcp_config)
+            return _error(*refused)
+
     from realize_core.mcp_server.venture_guard import is_rbac_role, permission_refusal
 
     # RBAC roles get the same per-tool permissions as the REST API; the
@@ -142,7 +161,37 @@ async def _dispatch(
         return _error(MCPErrorCode.FORBIDDEN, refusal)
 
     try:
-        result = venture_guard.filter_result(name, await tool.handler(arguments, app_state, user), allowed)
+        if agent and agent_access.must_hold(name):
+            # A write by an outside agent: queued for a person, nothing runs now.
+            from realize_core.mcp_server.held_writes import hold_write
+
+            result = hold_write(tool, arguments, user)
+            held_id = result.get("approval_id")
+            _audit_call(
+                tool,
+                user,
+                status="held" if held_id else "error",
+                duration_ms=int((time.monotonic() - started) * 1000),
+                mcp_config=mcp_config,
+                args=arguments,
+                result=result,
+                approval_id=held_id,
+            )
+            return [mcp_types.TextContent(type="text", text=_to_text(result))]
+        if agent:
+            # Everything the tool sets off (chat, its tool calls) is done for the agent:
+            # writes are held for a person, trigger phrases don't run skills.
+            from realize_core.security.agent_tokens import principal_id_for
+
+            with agent_access.acting_for_outside_agent(principal_id_for(user.user_id, user.scopes)):
+                raw = await tool.handler(arguments, app_state, user)
+        else:
+            raw = await tool.handler(arguments, app_state, user)
+        result = venture_guard.filter_result(name, raw, allowed)
+        if agent:
+            from realize_core.mcp_server.held_writes import agent_result
+
+            result = agent_result(name, result, user)
     except Exception as exc:
         logger.exception("MCP tool '%s' raised an exception", name)
         _audit_call(
@@ -194,12 +243,14 @@ def _audit_call(
     mcp_config: McpConfig,
     args: dict[str, Any] | None = None,
     result: Any = None,
+    approval_id: str | None = None,
 ) -> None:
     """Emit an audit log entry for an MCP tool call.
 
     Args + result are only included when ``mcp_config.audit_full_payload``
     is set or the tool family is ``admin`` (admin calls always log full
-    detail regardless of the toggle).
+    detail regardless of the toggle). A write held for approval
+    (``status="held"``) records its ``approval_id``.
     """
     try:
         from realize_core.security.audit import get_audit_logger
@@ -218,8 +269,10 @@ def _audit_call(
     if full_payload:
         metadata["args"] = args
         metadata["result"] = result
+    if approval_id:
+        metadata["approval_id"] = approval_id
 
-    outcome = "success" if status == "ok" else ("denied" if status == "forbidden" else "error")
+    outcome = {"ok": "success", "forbidden": "denied", "held": "held"}.get(status, "error")
     severity = "warning" if status == "forbidden" else "info"
 
     try:

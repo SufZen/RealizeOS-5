@@ -91,6 +91,10 @@ def _load_yaml_users(path: Path) -> list[User]:
         if not email or not password_hash:
             logger.warning("%s[%d]: missing email or password_hash, skipped", path, idx)
             continue
+        if email.startswith("agent:"):
+            # Reserved for outside agents' token identities (STORY-37).
+            logger.warning("%s[%d]: 'agent:' is reserved for agent tokens, skipped", path, idx)
+            continue
         if role not in VALID_ROLES:
             logger.warning(
                 "%s[%d]: invalid role %r (expected one of %s), skipped",
@@ -127,7 +131,7 @@ def _load_env_user() -> list[User]:
     """Construct a single-owner user from environment variables, if set."""
     email = (os.environ.get("REALIZE_ADMIN_USER") or "").strip().lower()
     password_hash = os.environ.get("REALIZE_ADMIN_PASSWORD_HASH") or ""
-    if not email or not password_hash:
+    if not email or not password_hash or email.startswith("agent:"):
         return []
     return [User(email=email, role="owner", password_hash=password_hash)]
 

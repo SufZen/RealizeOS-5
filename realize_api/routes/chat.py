@@ -34,18 +34,23 @@ def _principal(request: Request) -> tuple[str | None, str]:
     return getattr(state, "user_id", None), getattr(state, "role", None) or ""
 
 
+def _scopes(request: Request) -> list[str]:
+    """The caller's scopes (an outside agent's marker lives there)."""
+    return list(getattr(getattr(request, "state", None), "scopes", None) or [])
+
+
 def _chat_user(request: Request, requested: str) -> str:
     """The user a chat request acts for: the signed-in user unless owner/admin."""
     from realize_core.security.chat_access import chat_user_for
 
-    return chat_user_for(*_principal(request), requested)
+    return chat_user_for(*_principal(request), requested, scopes=_scopes(request))
 
 
 def _require_own_conversation(request: Request, user_id: str) -> None:
     """403 unless the caller may read or clear ``user_id``'s conversation."""
     from realize_core.security.chat_access import may_access_conversation
 
-    if not may_access_conversation(*_principal(request), user_id):
+    if not may_access_conversation(*_principal(request), user_id, scopes=_scopes(request)):
         raise HTTPException(status_code=403, detail="You can only access your own conversations")
 
 
@@ -123,6 +128,22 @@ async def _process(
 
     ``selected`` receives the agent that actually answered.
     """
+    from realize_core.security.agent_access import acting_for_outside_agent, is_agent_subject
+    from realize_core.security.agent_tokens import principal_id_for
+
+    state = getattr(request, "state", None)
+    if is_agent_subject(state):
+        # An outside agent's chat: write tools are held for a person and
+        # trigger phrases don't run skills (STORY-37).
+        with acting_for_outside_agent(principal_id_for(state.user_id, getattr(state, "scopes", None))):
+            return await _run_pipeline(body, request, systems, system_config, recorder, selected)
+    return await _run_pipeline(body, request, systems, system_config, recorder, selected)
+
+
+async def _run_pipeline(
+    body: ChatRequest, request: Request, systems: dict, system_config: dict, recorder, selected: dict
+) -> str:
+    """The message through ``base_handler.process_message``."""
     from realize_core import base_handler
     from realize_core.config import get_features
 
