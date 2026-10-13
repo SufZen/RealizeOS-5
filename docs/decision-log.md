@@ -24,7 +24,7 @@ Without a `directory`, the folder is `systems/<key>` (or the older `ventures/<ke
 
 ## When a write fails
 
-The decision is logged as soon as it is made, before the approved action runs. If the file can't be written (disk full, a read-only mount, the venture folder isn't there yet), the decision still stands and the write is kept in a queue (`decision_writes` in the operational database) instead of being lost. Queued writes are retried:
+The decision is logged as soon as it is made, before the approved action runs. If the file can't be written (disk full, a read-only mount, the venture folder isn't there yet), the decision still stands and the write is kept in a queue (`decision_writes` in the operational database) instead of being lost. The queue entry is stored in the same database transaction as the decision itself, so even if the server stops right after a decision, before anything else happens, the entry is written when it starts again. Queued writes are retried:
 
 - when the server starts;
 - after the next decision that is logged;

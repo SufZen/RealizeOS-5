@@ -313,6 +313,45 @@ def test_unavailable_disk_queues_the_write_and_a_retry_writes_it_once(db, kb, mo
     assert _intent(db, approval_id)["status"] == "done"
 
 
+class _Crash(BaseException):
+    """The process stops (not an error anything catches)."""
+
+
+def _row_status(approval_id: str) -> str:
+    from realize_core.db.schema import get_connection
+
+    conn = get_connection()
+    try:
+        return conn.execute("SELECT status FROM approval_queue WHERE id = ?", (approval_id,)).fetchone()["status"]
+    finally:
+        conn.close()
+
+
+def test_crash_between_decision_and_intent_still_logs_once(db, kb, monkeypatch):
+    """The decision commits, then the process dies before the log write is queued (review G-4)."""
+    from realize_core.governance.decision_log import retry_pending_decisions
+
+    def crash(*args, **kwargs):
+        raise _Crash
+
+    real_queue = decision_log._queue
+    monkeypatch.setattr(decision_log, "_queue", crash)
+    approval_id = _approval("tower-b", "Pay claim 4")
+    with pytest.raises(_Crash):
+        _decide(approval_id, True, "pay it")
+    assert _decision_files(_venture(kb)) == []
+
+    # Restart: the decision stands, its intent was stored with it, and the retry writes it once.
+    monkeypatch.setattr(decision_log, "_queue", real_queue)
+    assert _row_status(approval_id) == "approved"
+    assert _intent(db, approval_id)["status"] == "pending"
+    assert retry_pending_decisions()["logged"] == 1
+    assert retry_pending_decisions()["logged"] == 0
+    [d] = list_decisions(_venture(kb))
+    assert (d["approval_id"], d["outcome"]) == (approval_id, "approved")
+    assert len(_decision_files(_venture(kb))) == 1
+
+
 def test_next_decision_retries_a_pending_write(db, kb, monkeypatch):
     real_replace = decision_log.os.replace
 

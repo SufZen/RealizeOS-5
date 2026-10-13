@@ -20,6 +20,7 @@ governance:
 import asyncio
 import json
 import logging
+import sqlite3
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -253,6 +254,7 @@ def _decide(
     db_path=None,
     *,
     global_authorized: bool = False,
+    log_intent: bool = False,
 ) -> dict | None:
     """Move a pending, unexpired item to ``status`` in one compare-and-set step.
 
@@ -262,6 +264,10 @@ def _decide(
     (:data:`GLOBAL_ACTION_TYPES`) only moves when ``global_authorized`` says
     the caller checked the decider (:func:`decide_approval` does), so a direct
     call can't decide one by mistake.
+
+    With ``log_intent`` (:func:`decide_approval`), the intent to add the
+    decision to the decision log is stored in the same transaction, so a crash
+    right after the decision can't lose the entry (review G-4).
     """
     from realize_core.db.schema import get_connection
 
@@ -270,6 +276,10 @@ def _decide(
     placeholders = ",".join("?" for _ in global_types)
     conn = get_connection(db_path)
     try:
+        if log_intent:
+            from realize_core.governance.decision_log import ensure_intent_table
+
+            ensure_intent_table(conn)
         cur = conn.execute(
             f"""UPDATE approval_queue
                SET status = ?, decision_note = ?, decided_at = ?, updated_at = ?,
@@ -278,11 +288,20 @@ def _decide(
                  AND (? OR COALESCE(action_type, '') NOT IN ({placeholders}))""",
             (status, decision_note, now, now, decided_by, channel, approval_id, now, global_authorized, *global_types),
         )
-        conn.commit()
         if cur.rowcount != 1:
+            conn.rollback()
             return None
         row = conn.execute("SELECT * FROM approval_queue WHERE id = ?", (approval_id,)).fetchone()
         result = dict(row) if row else None
+        if log_intent and result is not None:
+            from realize_core.governance.decision_log import queue_with_decision
+
+            try:
+                queue_with_decision(conn, result, status == "approved", result.get("action_type"))
+            except sqlite3.Error:
+                # The decision stands; log_decision queues the intent again after this.
+                logger.warning("Could not queue the decision-log write for approval %s", approval_id, exc_info=True)
+        conn.commit()
     finally:
         conn.close()
 
@@ -312,14 +331,23 @@ def approve_request(
     decided_by: str | None = None,
     channel: str | None = None,
     global_authorized: bool = False,
+    log_intent: bool = False,
 ) -> dict | None:
     """Approve a pending, unexpired request. Returns the row, or None if it isn't pending or has expired.
 
     A global request (``pack_verify``) is approved only through
-    :func:`decide_approval`, which checks the decider first.
+    :func:`decide_approval`, which checks the decider first. ``log_intent``
+    stores the decision-log intent with the decision (:func:`decide_approval` does).
     """
     return _decide(
-        approval_id, "approved", decision_note, decided_by, channel, db_path, global_authorized=global_authorized
+        approval_id,
+        "approved",
+        decision_note,
+        decided_by,
+        channel,
+        db_path,
+        global_authorized=global_authorized,
+        log_intent=log_intent,
     )
 
 
@@ -331,14 +359,23 @@ def reject_request(
     decided_by: str | None = None,
     channel: str | None = None,
     global_authorized: bool = False,
+    log_intent: bool = False,
 ) -> dict | None:
     """Reject a pending, unexpired request. Returns the row, or None if it isn't pending or has expired.
 
     A global request (``pack_verify``) is rejected only through
-    :func:`decide_approval`, which checks the decider first.
+    :func:`decide_approval`, which checks the decider first. ``log_intent``
+    stores the decision-log intent with the decision (:func:`decide_approval` does).
     """
     return _decide(
-        approval_id, "rejected", decision_note, decided_by, channel, db_path, global_authorized=global_authorized
+        approval_id,
+        "rejected",
+        decision_note,
+        decided_by,
+        channel,
+        db_path,
+        global_authorized=global_authorized,
+        log_intent=log_intent,
     )
 
 
@@ -633,6 +670,7 @@ async def decide_approval(
             decided_by=decided_by,
             channel=channel,
             global_authorized=global_authorized,
+            log_intent=True,
         )
     else:
         record = reject_request(
@@ -642,6 +680,7 @@ async def decide_approval(
             decided_by=decided_by,
             channel=channel,
             global_authorized=global_authorized,
+            log_intent=True,
         )
     if record is None:
         return None
