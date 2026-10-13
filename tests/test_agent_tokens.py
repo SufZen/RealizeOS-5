@@ -602,6 +602,98 @@ class TestManagementApi:
 
 
 # ---------------------------------------------------------------------------
+# The approval queue names the outside agent (dashboard badge)
+# ---------------------------------------------------------------------------
+
+
+def _held_write(venture: str, requested_by: str | None) -> str:
+    """A held MCP write in ``venture``, as :func:`held_writes.hold_write` stores it."""
+    from realize_core.governance.gates import MCP_WRITE_ACTION_TYPE, create_approval_request
+
+    return create_approval_request(
+        venture,
+        "claude-acme",
+        MCP_WRITE_ACTION_TYPE,
+        {"tool": "run_workflow", "agent": requested_by, "agent_name": "claude-acme"},
+        action_name="mcp:run_workflow",
+        params={"system_key": venture, "workflow": "weekly-report"},
+        requested_by=requested_by,
+    )
+
+
+class TestApprovalsNameTheAgent:
+    def test_describe_requesters(self, env):
+        from realize_core.security.agent_tokens import describe_requesters
+
+        token, _ = _create(name="claude-acme")
+        described = describe_requesters(
+            [token.principal_id, "agent:stdio:dana@acme.io", "agent:abcdefabcdef", "agent:nope", "dana@acme.io", None]
+        )
+        assert described == {
+            token.principal_id: {"token_id": token.id, "name": "claude-acme"},
+            "agent:stdio:dana@acme.io": {"token_id": None, "name": "stdio"},
+            # A token row that is gone keeps its id as the name.
+            "agent:abcdefabcdef": {"token_id": "abcdefabcdef", "name": "abcdefabcdef"},
+        }
+        assert describe_requesters([]) == {}
+
+    def test_people_see_which_agent_asked(self, api):
+        token, secret = _create(name="claude-acme")
+        held = _held_write("acme", token.principal_id)
+        stdio = _held_write("acme", "agent:stdio:dana@acme.io")
+        person = _held_write("acme", "dana@acme.io")
+        rows = api.client.get("/api/approvals", headers={"X-API-Key": API_KEY}).json()["approvals"]
+        by_id = {r["id"]: r for r in rows}
+        assert by_id[held]["requested_by_agent"] == {"token_id": token.id, "name": "claude-acme"}
+        assert by_id[stdio]["requested_by_agent"] == {"token_id": None, "name": "stdio"}
+        assert by_id[person]["requested_by_agent"] is None
+        assert by_id[api.approvals["acme"]]["requested_by_agent"] is None  # no requester at all
+        # The agent's own view stays a status summary: nothing new in it.
+        own = api.client.get("/api/approvals", headers=_bearer(secret)).json()["approvals"]
+        assert own
+        assert all("requested_by_agent" not in r for r in own)
+
+    def test_a_revoked_agent_is_still_named_on_its_history(self, api):
+        from realize_core.security.agent_tokens import revoke_token
+
+        token, _ = _create(name="claude-acme")
+        held = _held_write("acme", token.principal_id)
+        revoke_token(token.id, revoked_by="owner@realization.co.il")
+        rows = api.client.get("/api/approvals", params={"status": ""}, headers={"X-API-Key": API_KEY}).json()
+        row = next(r for r in rows["approvals"] if r["id"] == held)
+        assert row["status"] == "rejected"  # withdrawn with the token
+        assert row["requested_by_agent"] == {"token_id": token.id, "name": "claude-acme"}
+
+    def test_a_venture_limited_person_sees_only_their_ventures_agents(self, env, monkeypatch):
+        from realize_api.main import create_app
+
+        monkeypatch.delenv("REALIZE_API_KEY", raising=False)
+        monkeypatch.delenv("REALIZE_JWT_ENABLED", raising=False)
+        acme_token, _ = _create(name="acme-agent")
+        globex_token, _ = _create(name="globex-agent", user="olga@acme.io", ventures=("globex",))
+        acme_held = _held_write("acme", acme_token.principal_id)
+        _held_write("globex", globex_token.principal_id)
+
+        app = create_app()
+        app.state.systems = dict(SYSTEMS)
+        app.state.config = {"features": {}}
+
+        @app.middleware("http")
+        async def as_dana(request, call_next):
+            request.state.user_id = "dana@acme.io"
+            request.state.role = "operator"
+            request.state.scopes = []
+            return await call_next(request)
+
+        r = TestClient(app).get("/api/approvals")
+        assert r.status_code == 200
+        rows = r.json()["approvals"]
+        assert [row["id"] for row in rows] == [acme_held]
+        assert rows[0]["requested_by_agent"]["name"] == "acme-agent"
+        assert "globex-agent" not in r.text
+
+
+# ---------------------------------------------------------------------------
 # CLI and rate limiting
 # ---------------------------------------------------------------------------
 
