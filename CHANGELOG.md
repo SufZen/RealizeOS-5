@@ -4,6 +4,13 @@ All notable changes to RealizeOS are documented in this file.
 This changelog is automatically generated from [Conventional Commits](https://conventionalcommits.org).
 
 
+## [5.28.3](https://github.com/SufZen/RealizeOS-5/compare/v5.28.2...v5.28.3) (2026-10-13)
+
+### Bug Fixes
+
+* **core:** keep rule-card provenance in the answer trail (N03) ([f469dbf](https://github.com/SufZen/RealizeOS-5/commit/f469dbf4ac957ff1d36027a6b11558e5712b2581))
+* **dashboard:** show each rule's verification level in the trail (N03) ([0d489f0](https://github.com/SufZen/RealizeOS-5/commit/0d489f05e15fb702f33dab1e977e6ccad13ce6be))
+
 ## [5.28.2](https://github.com/SufZen/RealizeOS-5/compare/v5.28.1...v5.28.2) (2026-10-13)
 
 ### Bug Fixes
