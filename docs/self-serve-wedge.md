@@ -12,7 +12,7 @@ A free workflow that anyone can run from their own AI agent, in any market, with
 3. The agent reads the tender PDF itself and builds the register.
 4. The agent calls `tender_register_submit`. RealizeOS then:
    - checks the register: duplicates, categories, items without a page
-   - returns it as a finished document in English, Hebrew or Portuguese, stating its verification level and limits
+   - returns it as a finished document in English, Hebrew or Portuguese, stating its verification level (the lowest level of the market's rule cards, never more than the weakest rule) and limits
    - offers a hand-off: book an Audit Sprint, or a local partner where one exists
 5. If the user wants to talk, the agent calls `request_audit_call` with a contact the user chose to share.
 

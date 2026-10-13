@@ -8,8 +8,8 @@ not be applied there, and a failure halfway through left some cards changed
 and others not.
 
 Now pack files stay as shipped. What an approval decides (level, reviewer,
-review date, approver and approval id, for some cards or for the whole pack)
-goes into one JSON file under ``DATA_PATH``::
+review date, the next review date, approver and approval id, for some cards or
+for the whole pack) goes into one JSON file under ``DATA_PATH``::
 
     DATA_PATH/packs/verification.json
 
@@ -20,20 +20,28 @@ pack it loads (:func:`apply_state`), so the resolver, chat context, MCP tools
 and the wedge all see the effective levels. The location is fixed relative to
 ``DATA_PATH``: no setting points it anywhere else.
 
+An approval records the card's next review date (``review_by``:
+the review date plus the pack's review interval, :data:`REVIEW_INTERVAL_MONTHS`
+unless ``pack.yaml`` sets ``verification.review_interval_months``), which
+replaces the card file's date, so a new review lifts a card whose old date had
+passed.
+
 File format::
 
     {"format": 1,
      "packs": {"market/pt": {
         "version": "0.1.0",                     # pack version when approved
-        "pack": {"level": 2, "reviewed_by": ..., "reviewed_at": ...,
+        "pack": {"level": 2, "reviewed_by": ..., "reviewed_at": ..., "review_by": ...,
                  "approved_by": ..., "approval_id": ...},   # whole-pack approvals only
         "cards": {"pt.vat.rates": {"verification": 2, "verified_by": ...,
-                  "reviewed_at": ..., "approved_by": ..., "approval_id": ...}},
+                  "reviewed_at": ..., "review_by": ...,
+                  "approved_by": ..., "approval_id": ...}},
         "updated_at": "..."}}}
 """
 
 from __future__ import annotations
 
+import calendar
 import contextlib
 import json
 import logging
@@ -42,7 +50,7 @@ import tempfile
 import threading
 import time
 from collections.abc import Iterator
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -65,7 +73,23 @@ STALE_LOCK_SECONDS = 15.0
 _REPLACE_ATTEMPTS = 5
 
 #: Pack-level fields an approval records (merged over the manifest's ``verification``).
-_PACK_FIELDS = ("level", "reviewed_by", "reviewed_at", "approved_by", "approval_id", "partner_agreement", "corrections")
+_PACK_FIELDS = (
+    "level",
+    "reviewed_by",
+    "reviewed_at",
+    "review_by",
+    "approved_by",
+    "approval_id",
+    "partner_agreement",
+    "corrections",
+)
+
+#: Months from a review to the next one, unless the pack's ``pack.yaml`` sets
+#: ``verification.review_interval_months`` (docs/drafting-a-market-pack.md:
+#: ``review_by`` six months ahead).
+REVIEW_INTERVAL_MONTHS = 6
+#: The longest review interval a pack may set.
+MAX_REVIEW_INTERVAL_MONTHS = 24
 
 
 class VerificationStateError(OSError):
@@ -182,11 +206,42 @@ def _valid_level(value: Any) -> int | None:
     return value
 
 
+def review_interval_months(pack: Pack) -> int:
+    """Months until a card approved now must be reviewed again.
+
+    :data:`REVIEW_INTERVAL_MONTHS` (six) unless the pack's ``pack.yaml`` sets
+    ``verification.review_interval_months`` to a whole number from 1 to
+    :data:`MAX_REVIEW_INTERVAL_MONTHS`; any other value is ignored.
+    """
+    value = (pack.verification or {}).get("review_interval_months")
+    if isinstance(value, bool) or not isinstance(value, int) or not 1 <= value <= MAX_REVIEW_INTERVAL_MONTHS:
+        return REVIEW_INTERVAL_MONTHS
+    return value
+
+
+def add_months(day: date, months: int) -> date:
+    """``day`` plus whole months, on the last day of the month when that day doesn't exist (31 Aug + 6 → 28/29 Feb)."""
+    index = day.year * 12 + day.month - 1 + months
+    year, month = divmod(index, 12)
+    month += 1
+    last = calendar.monthrange(year, month)[1]
+    return date(year, month, min(day.day, last))
+
+
+def _iso_date(value: Any) -> str | None:
+    """``value`` when it is an ISO date (``YYYY-MM-DD``), else None."""
+    try:
+        return date.fromisoformat(str(value)).isoformat() if value else None
+    except ValueError:
+        return None
+
+
 def apply_state(pack: Pack) -> None:
     """Lay the recorded verification state over a loaded pack.
 
     Sets the pack's level (whole-pack approvals) and each recorded card's
-    level, reviewer and review date. The usual rules still apply on top: a
+    level, reviewer, review date and next review date (``review_by``). The
+    usual rules still apply on top: a
     card's effective level is the lower of its own and the pack's, and a card
     past its ``review_by`` date drops to level 1.
     """
@@ -211,6 +266,9 @@ def apply_state(pack: Pack) -> None:
             card.verified_by = str(record["verified_by"])
         if record.get("reviewed_at"):
             card.reviewed_at = str(record["reviewed_at"])
+        review_by = _iso_date(record.get("review_by"))
+        if review_by:
+            card.review_by = review_by
         applied_cards[card_id] = dict(record)
     if applied_cards:
         applied["cards"] = applied_cards
@@ -299,6 +357,7 @@ def record_verification(
     partner_agreement: str | None = None,
     corrections: dict[str, Any] | None = None,
     today: str,
+    review_by: str | None = None,
 ) -> dict[str, Any]:
     """Record one approved verification in a single atomic write. Returns the pack's new entry.
 
@@ -315,6 +374,9 @@ def record_verification(
         partner_agreement: The maintenance agreement (level 3).
         corrections: Facts corrected per card, from the review.
         today: The review date to record (ISO date).
+        review_by: The next review date (ISO date) for every card raised, and
+            for the pack on a whole-pack approval. It replaces the card file's
+            ``review_by``, so a new review lifts a card whose old date passed.
 
     Raises:
         VerificationStateError: The state file can't be read for the update
@@ -329,7 +391,10 @@ def record_verification(
         stamp = {"verified_by": reviewer, "reviewed_at": today, "approved_by": approved_by, "approval_id": approval_id}
         card_state = dict(entry.get("cards") or {})
         for card_id in cards:
-            card_state[card_id] = {"verification": level, **stamp}
+            record = {"verification": level, **stamp}
+            if review_by:
+                record["review_by"] = review_by
+            card_state[card_id] = record
         entry["cards"] = card_state
         entry["version"] = version
         if whole_pack:
@@ -343,6 +408,8 @@ def record_verification(
                     "approval_id": approval_id,
                 }
             )
+            if review_by:
+                pack_entry["review_by"] = review_by
             if level == 3:
                 pack_entry["partner_agreement"] = partner_agreement
             if corrections:

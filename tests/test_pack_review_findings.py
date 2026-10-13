@@ -13,14 +13,16 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import shutil
-from datetime import date
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 import pytest
 from realize_core.governance.gates import Decider, decide_approval
-from realize_core.packs import PackResolver, clear_cache, load_pack, loader
+from realize_core.packs import PackResolver, clear_cache, load_pack, loader, state
 from realize_core.packs.loader import load_firm_layer
+from realize_core.packs.verify import request_verification
 
 PACKS = Path(__file__).parent.parent / "packs"
 OWNER = Decider(user_id="owner@x", role="owner", allowed_ventures=None)
@@ -183,3 +185,94 @@ def test_desk_check_fails_on_a_card_the_loader_skipped(shipped):
     result = CliRunner().invoke(app, ["packs", "desk-check", "pt", "--on", "2026-10-13"])
     assert result.exit_code == 1, result.output
     assert "mapping.md" in result.output
+
+
+# ---------------------------------------------------------------------------
+# P2-1: a new review records the next review date
+# ---------------------------------------------------------------------------
+
+
+def test_a_whole_pack_review_lifts_a_card_whose_old_date_passed(db, shipped, tmp_path):
+    card = shipped / "market" / "pt" / "rules" / "vat-rates.md"
+    card.write_text(
+        card.read_text(encoding="utf-8").replace("review_by: '2027-04-13'", "review_by: 2026-02-01"), encoding="utf-8"
+    )
+    venture = _venture(tmp_path)
+    assert PackResolver(venture, enabled=True).resolve("rule", "pt.vat.rates").verification == 1
+
+    approval_id = request_verification("ops", kind="market", pack_id="pt", level=2, reviewer="Ana Silva")
+    assert _approve(approval_id)["execution"]["success"] is True
+
+    today = datetime.now(UTC).date()
+    expected = state.add_months(today, 6).isoformat()
+    resolved = PackResolver(venture, enabled=True).resolve("rule", "pt.vat.rates")
+    assert resolved.verification == 2
+    assert resolved.value.review_by == expected
+    recorded = json.loads(state.state_path().read_text(encoding="utf-8"))["packs"]["market/pt"]
+    assert recorded["cards"]["pt.vat.rates"]["review_by"] == expected
+    assert recorded["pack"]["review_by"] == expected
+
+
+def test_the_pack_can_set_its_review_interval(db, shipped):
+    manifest = shipped / "market" / "pt" / "pack.yaml"
+    manifest.write_text(
+        manifest.read_text(encoding="utf-8").replace("  level: 1\n", "  level: 1\n  review_interval_months: 3\n"),
+        encoding="utf-8",
+    )
+    approval_id = request_verification(
+        "ops", kind="market", pack_id="pt", level=2, reviewer="R", cards=["pt.vat.rates"]
+    )
+    output = _approve(approval_id)["execution"]["output"]
+
+    expected = state.add_months(datetime.now(UTC).date(), 3).isoformat()
+    assert load_pack(shipped / "market" / "pt").rules["pt.vat.rates"].review_by == expected
+    assert f"Next review by {expected}" in output
+
+
+@pytest.mark.parametrize(
+    ("day", "months", "expected"),
+    [
+        (date(2026, 10, 13), 6, date(2027, 4, 13)),
+        (date(2026, 8, 31), 6, date(2027, 2, 28)),
+        (date(2027, 8, 31), 6, date(2028, 2, 29)),
+        (date(2026, 12, 1), 1, date(2027, 1, 1)),
+    ],
+)
+def test_add_months(day, months, expected):
+    assert state.add_months(day, months) == expected
+
+
+def test_register_headline_is_the_lowest_card_level(db, shipped):
+    """The tender register's headline must not claim the pack's level when a card it uses is lower."""
+    from realize_core.wedge.register import get_method, render_register
+
+    approval_id = request_verification("ops", kind="market", pack_id="pt", level=2, reviewer="R")
+    assert _approve(approval_id)["execution"]["success"] is True
+    market = get_method("pt")["market"]
+    assert market["verification"] == 2 == min(r["verification"] for r in market["rules"])
+
+    path = state.state_path()
+    data = json.loads(path.read_text(encoding="utf-8"))
+    data["packs"]["market/pt"]["cards"]["pt.vat.rates"]["review_by"] = "2026-02-01"
+    path.write_text(json.dumps(data), encoding="utf-8")
+    clear_cache()
+
+    market = get_method("pt")["market"]
+    levels = {r["id"]: r["verification"] for r in market["rules"]}
+    assert levels["pt.vat.rates"] == 1
+    assert market["verification"] == 1 == min(levels.values())
+    assert "verification 1 (drafted)" in market["notice"]
+    checked = {"items": [], "counts": {"items": 0, "mandatory": 0, "without_locator": 0}}
+    assert "verification 1 (drafted)" in render_register(checked, market="pt")
+
+
+def test_the_approval_date_is_today(db, shipped):
+    """Sanity check on the dates the approval records (the review date is today, the next one later)."""
+    approval_id = request_verification(
+        "ops", kind="market", pack_id="pt", level=2, reviewer="R", cards=["pt.vat.rates"]
+    )
+    assert _approve(approval_id)["execution"]["success"] is True
+    card = load_pack(shipped / "market" / "pt").rules["pt.vat.rates"]
+    today = datetime.now(UTC).date()
+    assert card.reviewed_at == today.isoformat()
+    assert date.fromisoformat(card.review_by) - today > timedelta(days=150)

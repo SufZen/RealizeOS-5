@@ -113,7 +113,7 @@ version: 0.1.0
 title: Israel
 languages: [he, en]
 defaults: {country: IL, currency: ILS, units: metric, locale: he-IL}
-verification: {level: 1, reviewed_by: null, review_by: 2027-04-01}
+verification: {level: 1, reviewed_by: null, review_by: 2027-04-01}   # optional: review_interval_months (default 6)
 limits:
   - Does not replace a lawyer, appraiser or licensed engineer.
 ```
@@ -165,19 +165,21 @@ A venture template can name packs (`packs:` in `templates/<name>.yaml`). With th
 | 3 | Maintained by a partner with a signed agreement. | maintained | מתוחזק |
 | 4 | Used in a paid engagement. | field-proven | הוכח בשטח |
 
-A card's level is the lower of its own level and the pack's level. A card whose `review_by` date has passed drops to level 1.
+A card's level is the lower of its own level and the pack's level. A card whose `review_by` date has passed drops to level 1. An approved review sets a new `review_by` (see below), which replaces the date in the card's file.
 
 ### Raising a level: approvals and where they are recorded
 
 Levels 2 and 3 are raised through a `pack_verify` approval (level 3 also needs a partner maintenance agreement; level 4 never comes from an approval). A pack is shared by every venture that uses it, so **only an owner with access to every venture** can approve or reject that request, from the dashboard, the API or MCP. An operator, an admin or an owner limited to some ventures gets 403 (`MCP_FORBIDDEN` over MCP), an outside agent never decides (`MCP_AGENT_CANNOT_DECIDE`), and the request stays pending.
 
-An approved verification doesn't edit the pack. The level, the reviewer, the review date, the approver and the approval id are recorded in one file under `DATA_PATH`:
+An approved verification doesn't edit the pack. The level, the reviewer, the review date, the next review date, the approver and the approval id are recorded in one file under `DATA_PATH`:
 
 ```
 DATA_PATH/packs/verification.json
 ```
 
-Each approval writes it once, atomically, so a failure leaves the previous state, never part of a review. The loader lays it over the pack files, so answers, `list_packs` and the tender register show the approved levels. A whole-pack approval raises the pack's own level and every card; a card approval raises those cards only. The usual rules still apply on top: the lower of card and pack, and a card past its `review_by` date shows level 1. If the pack's version changes after an approval, the pack carries a warning asking for the changed cards to be reviewed again.
+Each approval writes it once, atomically, so a failure leaves the previous state, never part of a review. The loader lays it over the pack files, so answers, `list_packs` and the tender register show the approved levels. A whole-pack approval raises the pack's own level and every card; a card approval raises those cards only. Each approved card gets a new `review_by`: the review date plus the pack's review interval, six months unless `pack.yaml` sets `verification.review_interval_months` (1 to 24). It replaces the date in the card's file, so a new review lifts a card whose old date had passed, and the card drops back to level 1 when the new date passes. The usual rules still apply on top: the lower of card and pack, and a card past its `review_by` date shows level 1. If the pack's version changes after an approval, the pack carries a warning asking for the changed cards to be reviewed again.
+
+The tender register (the self-serve wedge) states the lowest effective level of the market pack's rule cards, not the pack's own level, so its headline never claims more than the weakest rule it uses.
 
 The approval shows what happened, like any approved action: `execution_status` is `succeeded` or `failed`, `result_json` holds `{"output": "..."}` (for example "market/pt and its 10 rule cards raised to verification 2 (reviewed); reviewed by ..."), and `error` says why it failed (pack no longer installed, data folder not writable, ...). A failed approval is not retried: fix the cause and submit the request again (`review-submit` or `request_verification`).
 
