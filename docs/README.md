@@ -10,6 +10,7 @@ Welcome to the RealizeOS documentation. Choose a guide based on where you are in
 | [📖 Getting Started](getting-started.md) | First steps after setup |
 | [🔧 Configuration](configuration.md) | Customize your deployment |
 | [🚀 Self-Hosting](self-hosting-guide.md) | Production deployment |
+| [🛡️ Dependency Advisories](dependency-advisories.md) | Known advisories per ecosystem, and why any remain |
 
 ## Core Concepts
 
