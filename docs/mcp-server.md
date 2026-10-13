@@ -6,6 +6,8 @@ RealizeOS exposes its REST surface over the [Model Context Protocol](https://mod
 
 This is the **inverse** of [`realize_core/tools/mcp.py`](../realize_core/tools/mcp.py), which is the outbound *client* (RealizeOS calling external MCP servers).
 
+To connect a specific agent (Claude Code, Claude Desktop, Claude.ai, Cowork, ChatGPT, Cursor), follow [connect-your-agent.md](connect-your-agent.md).
+
 ## Enable it
 
 In `.env`:
@@ -47,6 +49,8 @@ MCP server mounted at /mcp/sse and /mcp (Streamable HTTP) — families=chat,kb,o
 | `GET` | `/mcp/sse` | HTTP+SSE handshake (older transport, kept for existing clients). The client keeps this connection open. |
 | `POST` | `/mcp/messages/?session_id=` | SSE clients post JSON-RPC payloads here. |
 | `GET` | `/mcp/health` | Liveness probe — returns `{ ok, name, tools, families }`. |
+
+Local agents can also use the [stdio transport](#local-agents-stdio) (`python cli.py mcp stdio`), which opens no port.
 
 Auth: the same as the REST API. Send `Authorization: Bearer <jwt>` (from `POST /api/auth/token`), `X-API-Key: <key>`, or an OAuth access token (see below).
 
@@ -160,6 +164,21 @@ With `features.wedge` on, `tender_register_method`, `tender_register_submit` and
 
 Clients that only speak HTTP+SSE can keep using `http://localhost:8080/mcp/sse`. For Claude.ai and Claude Desktop custom connectors, use OAuth (above).
 
+## Local agents (stdio)
+
+An agent on the same computer can start RealizeOS itself and talk over stdin/stdout, with no port open:
+
+```bash
+python cli.py mcp stdio --directory /path/to/RealizeOS --user dana@example.com [--venture tower-b]
+```
+
+- Same tools, families, `allow_admin`, `mcp.tools`, permission checks, venture scope and audit log as `/mcp`.
+- **Identity:** stdio has no HTTP request, so `--user` names the caller. It must be a `users.yaml` entry, and that user's role and ventures apply. `--venture` (repeatable) can only narrow them. There is no default or anonymous user, identity is never read from environment variables, and the server refuses to start without one, in every environment. The `REALIZE_ADMIN_USER` login is not accepted here. In production, admin tools still need strong JWT settings.
+- `--directory` is the RealizeOS folder (config, `users.yaml`, `.env`, KB): desktop agents can't set a working directory.
+- Needs `MCP_ENABLED=true`. stdout carries only JSON-RPC: logs, stray `print()` output and child processes go to stderr. A refused start exits with code 2 and the reason on stderr.
+
+Client configs for Claude Code, Claude Desktop and Cursor are in [connect-your-agent.md](connect-your-agent.md).
+
 ## Security
 
 - No anonymous access — `/mcp`, the SSE handshake and every JSON-RPC POST go through the existing auth middleware.
@@ -188,7 +207,7 @@ Stable `code` values:
 
 ## Roadmap
 
-- stdio transport (local install without network) — STORY-37.
+- ~~stdio transport (local install without network)~~ — done: [`mcp stdio`](#local-agents-stdio), with guides per agent in [connect-your-agent.md](connect-your-agent.md).
 - Venture-scoped agent tokens and governed MCP writes — STORY-37.
 - Remove HTTP+SSE after a deprecation window, once existing clients have moved to `/mcp`.
 - ~~Per-tool feature flags inside `mcp:` config~~ — done: `mcp.tools`.

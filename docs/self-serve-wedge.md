@@ -55,7 +55,7 @@ mcp:
   tools: [tender_register_method, tender_register_submit, request_audit_call, realize_health]
   oauth:
     enabled: true
-    redirect_hosts: [claude.ai, claude.com]   # add the hosts of the other agents you support
+    redirect_hosts: [claude.ai, claude.com, chatgpt.com]   # chatgpt.com for ChatGPT; see connect-your-agent.md
 wedge:
   booking_url: https://example.com/audit-sprint
   partners:
@@ -99,4 +99,4 @@ While `features.wedge` is on, the server deletes runs older than 30 days (unless
 
 `realize-os wedge funnel` (or `realize_core.wedge.funnel(days=30)`) returns runs, users and call requests per market, from recorded runs only. The pilot passes if 30% of users who run it request a call, and at least one comes from outside Israel.
 
-Connection guides for each agent are part of STORY-37 (`docs/connect-your-agent.md`).
+Connection guides for each agent: [connect-your-agent.md](connect-your-agent.md).

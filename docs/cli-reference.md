@@ -55,6 +55,8 @@ realize-os
 │
 ├── mcp
 │   ├── serve [--port PORT] [--allow-admin]      Start API + MCP server
+│   ├── stdio --user EMAIL [--venture KEY]       Serve MCP over stdin/stdout (local agents)
+│   │         [--directory DIR]
 │   ├── status                                   Show MCP health
 │   └── token [--user USER] [--role ROLE]        Issue bearer token
 │
@@ -171,6 +173,20 @@ realize-os mcp token --user admin --role admin
 ```
 
 Use the output token in Claude Desktop's `mcpServers` config or any MCP client.
+
+### `realize-os mcp stdio`
+
+Serve the MCP server over stdin/stdout for an agent on the same computer (Claude Code, Claude Desktop, Cursor). No port is opened. The agent starts this command itself; see [connect-your-agent.md](connect-your-agent.md).
+
+```bash
+python cli.py mcp stdio --directory /path/to/RealizeOS --user dana@example.com
+python cli.py mcp stdio --directory /path/to/RealizeOS --user owner@example.com --venture tower-b
+```
+
+- `--user` is required and must be a `users.yaml` entry: its role and ventures apply. There is no default user and it is never read from the environment.
+- `--venture` (repeatable) narrows the session to some of that user's ventures.
+- `--directory` is the RealizeOS folder (`realize-os.yaml`, `users.yaml`, `.env`, KB). Desktop agents can't set a working directory, so pass it.
+- MCP must be on (`MCP_ENABLED=true`). stdout carries only JSON-RPC; logs go to stderr. It exits with code 2 and a reason on stderr when it refuses to start.
 
 ### `realize-os wedge`
 
