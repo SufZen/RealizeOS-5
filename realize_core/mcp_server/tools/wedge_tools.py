@@ -131,14 +131,33 @@ async def request_audit_call(args: dict[str, Any], app_state: Any, user: Current
     contact = (args.get("contact") or "").strip()
     if not contact:
         return {"error": "contact is required", "code": "MCP_VALIDATION"}
-    ok = request_call(args.get("run_id") or "", getattr(user, "user_id", None) or "anonymous", contact)
+    user_id = getattr(user, "user_id", None) or "anonymous"
+    run_id = args.get("run_id") or ""
+    ok = request_call(run_id, user_id, contact)
     if not ok:
         return {"error": "Run not found", "code": "MCP_NOT_FOUND"}
-    return {
-        "status": "requested",
-        "message": "Thanks. Someone will contact you.",
-        "booking_url": cfg.get("booking_url"),
-    }
+    _note_request(user_id, run_id)
+    booking_url = cfg.get("booking_url")
+    # Say exactly what happened: the request is queued for a person; nothing is booked (audit N10).
+    message = "Your request is recorded in the practice's contact queue; a person reviews it."
+    if booking_url:
+        message += " To pick a time yourself now, use the booking link."
+    return {"status": "recorded", "message": message, "booking_url": booking_url}
+
+
+def _note_request(user_id: str, run_id: str) -> None:
+    """Show the request in the owner's activity feed (the contact itself stays in the queue)."""
+    from realize_core.activity.logger import log_event
+
+    log_event(
+        venture_key="wedge-pilot",
+        actor_type="user",
+        actor_id=user_id,
+        action="wedge_call_requested",
+        entity_type="wedge_run",
+        entity_id=run_id,
+        details="Waiting in the contact queue: realize-os wedge contacts",
+    )
 
 
 _TOOLS: tuple[MCPTool, ...] = (

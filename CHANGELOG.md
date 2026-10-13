@@ -4,6 +4,12 @@ All notable changes to RealizeOS are documented in this file.
 This changelog is automatically generated from [Conventional Commits](https://conventionalcommits.org).
 
 
+## [5.28.5](https://github.com/SufZen/RealizeOS-5/compare/v5.28.4...v5.28.5) (2026-10-13)
+
+### Bug Fixes
+
+* **wedge:** count converted people, and give call requests a contact queue (audit N09, N10) ([645983b](https://github.com/SufZen/RealizeOS-5/commit/645983b5790cd9f8b5fc287109b872293004ccbe))
+
 ## [5.28.4](https://github.com/SufZen/RealizeOS-5/compare/v5.28.3...v5.28.4) (2026-10-13)
 
 ### Bug Fixes

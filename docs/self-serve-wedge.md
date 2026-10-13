@@ -95,8 +95,27 @@ While `features.wedge` is on, the server deletes runs older than 30 days (unless
 - [ ] `booking_url` and partners point at real pages.
 - [ ] `realize-os wedge funnel` shows the test runs, and `purge` removes them.
 
+## Following up on call requests
+
+When a user asks to be contacted (`request_audit_call`), RealizeOS records it in the practice's contact queue and tells the user exactly that, with the booking link if one is set. Nothing is booked and no email is sent. The request also appears in the activity feed as `wedge_call_requested`, without the contact details.
+
+The owner works the queue:
+
+```bash
+realize-os wedge contacts                  # people waiting, oldest first: contact, markets, how often they asked
+realize-os wedge contacted dana@example.com --by "Owner name"   # after the call; takes them out of the queue
+realize-os wedge contacts --all            # include people already contacted
+```
+
+Check it daily during the pilot. A person who asks again after being contacted goes back into the queue. Someone who asks after several runs is listed once, with their latest contact.
+
 ## Measuring it
 
-`realize-os wedge funnel` (or `realize_core.wedge.funnel(days=30)`) returns runs, users and call requests per market, from recorded runs only. The pilot passes if 30% of users who run it request a call, and at least one comes from outside Israel.
+`realize-os wedge funnel` (or `realize_core.wedge.funnel(days=30)` and `funnel_summary(days=30)`) reports, from recorded runs only:
+
+- per market: runs, users, **converted users** (people who asked for a call, each counted once), call requests (how many runs asked; volume only) and the rate, converted users ÷ users;
+- across all markets: the same, with each person counted once, and how many converted users ran a market outside Israel.
+
+The pilot passes if at least 30% of users ask for a call and at least one of them comes from outside Israel. `--format json` returns `{"markets": [...], "summary": {...}}`.
 
 Connection guides for each agent: [connect-your-agent.md](connect-your-agent.md).

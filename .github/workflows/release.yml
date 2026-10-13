@@ -29,10 +29,31 @@ env:
 
 jobs:
   # ──────────────────────────────────────────────
+  # Job 0: A manual run must be dispatched on the tag it releases
+  # (gh workflow run release.yml --ref vX.Y.Z -f tag=vX.Y.Z), so CI and
+  # every build below check out exactly that commit.
+  # ──────────────────────────────────────────────
+  verify-ref:
+    name: Verify release ref
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch ref matches the tag input
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        env:
+          TAG: ${{ inputs.tag }}
+          REF: ${{ github.ref }}
+        run: |
+          if [ "$REF" != "refs/tags/$TAG" ]; then
+            echo "::error::Dispatch this run on the tag: gh workflow run release.yml --ref $TAG -f tag=$TAG (got $REF)"
+            exit 1
+          fi
+
+  # ──────────────────────────────────────────────
   # Job 1: Run full CI first (reuse ci.yml)
   # ──────────────────────────────────────────────
   ci:
     name: CI Checks
+    needs: verify-ref
     uses: ./.github/workflows/ci.yml
     permissions:
       contents: read
@@ -48,6 +69,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
 
       - name: Extract version from tag
         id: version
@@ -119,6 +142,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -167,6 +192,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -207,6 +234,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
 
       - name: Extract version from tag
         id: version
