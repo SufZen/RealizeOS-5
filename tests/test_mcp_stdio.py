@@ -445,7 +445,9 @@ def test_relative_directory_is_refused(stdio_project):
     assert b"must be an absolute path" in proc.stderr
 
 
-def test_allow_admin_flag_serves_admin_tools(stdio_project):
+def test_allow_admin_flag_serves_admin_tools_but_an_agent_session_cant_use_them(stdio_project):
+    """--allow-admin serves the admin family, but a stdio session is an outside agent:
+    tools/list leaves out the admin tools it would be refused, and a call is still refused."""
     project, env = stdio_project
     proc = subprocess.Popen(
         [
@@ -482,11 +484,17 @@ def test_allow_admin_flag_serves_admin_tools(stdio_project):
         )
         _exchange(proc, {"jsonrpc": "2.0", "method": "notifications/initialized"})
         tools = json.loads(_exchange(proc, {"jsonrpc": "2.0", "id": 2, "method": "tools/list"}))["result"]["tools"]
+        call = {"name": "delete_venture", "arguments": {"key": "x", "confirm": True}}
+        refused = json.loads(_exchange(proc, {"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": call}))
         proc.stdin.close()
         assert proc.wait() == 0
     finally:
         watchdog.cancel()
-    assert "delete_venture" in {t["name"] for t in tools}
+    names = {t["name"] for t in tools}
+    assert "list_agents" in names
+    assert not names & {"delete_venture", "create_venture", "update_setting", "reload_agents"}
+    # Served (not MCP_ADMIN_DISABLED), and refused to an outside agent.
+    assert json.loads(refused["result"]["content"][0]["text"])["code"] == "MCP_AGENT_REFUSED"
 
 
 def test_pilot_account_stays_confined_over_stdio(stdio_project):

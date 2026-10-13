@@ -152,6 +152,18 @@ def _skill_venture(skill_name: str) -> str | None:
     return "" if owner in GLOBAL_SKILL_OWNERS else owner
 
 
+def spans_every_venture(name: str, allowed: frozenset[str] | None) -> bool:
+    """True when a caller limited to ``allowed`` is refused ``name`` whatever its arguments.
+
+    Such tools span every venture (admin, evolution, cross-venture KB);
+    ``tools/list`` leaves them out for venture-limited callers. Callers
+    without a venture limit (``allowed`` None) are never refused here.
+    """
+    if allowed is None:
+        return False
+    return not (name in ALWAYS_ALLOWED or name in FILTERED_LISTS or name in NEEDS_VENTURE or name in APPROVAL_TOOLS)
+
+
 def check_call(name: str, arguments: dict[str, Any], allowed: frozenset[str] | None) -> str | None:
     """Return why a call is refused, or None when it may run."""
     if allowed is None:
@@ -175,6 +187,7 @@ def check_call(name: str, arguments: dict[str, Any], allowed: frozenset[str] | N
     if name in APPROVAL_TOOLS:
         venture = _approval_venture(str(arguments.get("approval_id", "")))
         return None if venture in allowed else "Approval not found"
+    # Everything else spans every venture (see spans_every_venture).
     return f"Tool '{name}' spans every venture; ask an owner or admin"
 
 

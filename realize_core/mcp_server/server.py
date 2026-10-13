@@ -67,19 +67,10 @@ def build_mcp_server(
 
     @server.list_tools()
     async def _list_tools() -> list[mcp_types.Tool]:
-        out: list[mcp_types.Tool] = []
-        pilot = _is_pilot(current_mcp_user())
-        for tool in registry.visible_tools(mcp_config):
-            if pilot and not _pilot_may_call(tool.name):
-                continue
-            out.append(
-                mcp_types.Tool(
-                    name=tool.name,
-                    description=tool.description,
-                    inputSchema=tool.input_schema,
-                )
-            )
-        return out
+        return [
+            mcp_types.Tool(name=tool.name, description=tool.description, inputSchema=tool.input_schema)
+            for tool in callable_tools(registry, mcp_config, current_mcp_user())
+        ]
 
     @server.call_tool()
     async def _call_tool(name: str, arguments: dict[str, Any] | None) -> list[mcp_types.TextContent]:
@@ -102,6 +93,61 @@ def _pilot_may_call(name: str) -> bool:
     return name in PILOT_TOOLS
 
 
+def caller_refusal(tool: MCPTool, user: Any) -> tuple[str, str] | None:
+    """``(code, message)`` when ``user`` may never call ``tool``, whatever the arguments; else None.
+
+    One rule set for ``tools/list`` and ``tools/call``, so the list never
+    offers a tool the call would refuse: pilot accounts get only the pilot
+    tools (STORY-46), outside agents only tools with an allow or hold rule
+    (STORY-37), RBAC roles only tools their permissions cover, and the
+    MCP-only roles only tools within their scope.
+    """
+    name = tool.name
+    if _is_pilot(user) and not _pilot_may_call(name):
+        return MCPErrorCode.FORBIDDEN, "Pilot accounts can only use the tender register tools."
+
+    from realize_core.security import agent_access
+
+    # Outside agents (agent tokens and stdio sessions, STORY-37): the same rules
+    # as the REST guard. People decide, and a tool without a rule is refused.
+    if agent_access.is_agent_subject(user):
+        refused = agent_access.tool_refusal(name)
+        if refused:
+            return refused
+
+    from realize_core.mcp_server.venture_guard import is_rbac_role, permission_refusal
+
+    # RBAC roles get the same per-tool permissions as the REST API; the
+    # MCP-only roles (e.g. "editor") keep the tool-family scope check.
+    role = getattr(user, "role", None)
+    refusal = permission_refusal(name, role)
+    if refusal:
+        return MCPErrorCode.INSUFFICIENT_SCOPE, refusal
+    if not is_rbac_role(role) and not role_meets_scope(role, tool.scope):
+        return (
+            MCPErrorCode.INSUFFICIENT_SCOPE,
+            f"Tool '{name}' requires scope '{tool.scope}'; caller has role '{role}'.",
+        )
+    return None
+
+
+def callable_tools(registry: ToolRegistry, mcp_config: McpConfig, user: Any) -> list[MCPTool]:
+    """The tools ``tools/list`` offers ``user``: served here, and not refused to them whatever the arguments.
+
+    Leaves out what :func:`caller_refusal` refuses and, for a caller limited
+    to some ventures, tools that span every venture. Hiding is a courtesy:
+    a call to a hidden tool is still refused by the dispatcher.
+    """
+    from realize_core.mcp_server import venture_guard
+
+    allowed = venture_guard.caller_ventures(user)
+    return [
+        tool
+        for tool in registry.visible_tools(mcp_config)
+        if caller_refusal(tool, user) is None and not venture_guard.spans_every_venture(tool.name, allowed)
+    ]
+
+
 async def _dispatch(
     registry: ToolRegistry,
     mcp_config: McpConfig,
@@ -121,38 +167,16 @@ async def _dispatch(
         code = MCPErrorCode.ADMIN_DISABLED if tool.family == "admin" else MCPErrorCode.DISABLED
         return _error(code, f"Tool '{name}' is not enabled on this RealizeOS instance.")
 
-    if _is_pilot(user) and not _pilot_may_call(name):
+    # Pilot accounts, outside agents and roles: checked before any lookup by id.
+    refused = caller_refusal(tool, user)
+    if refused:
         _audit_call(tool, user, status="forbidden", duration_ms=0, mcp_config=mcp_config)
-        return _error(MCPErrorCode.FORBIDDEN, "Pilot accounts can only use the tender register tools.")
-
-    from realize_core.security import agent_access
-
-    # Outside agents (agent tokens and stdio sessions, STORY-37): the same rules
-    # as the REST guard. People decide, and a tool without a rule is refused.
-    # Checked before any lookup by id.
-    agent = agent_access.is_agent_subject(user)
-    if agent:
-        refused = agent_access.tool_refusal(name)
-        if refused:
-            _audit_call(tool, user, status="forbidden", duration_ms=0, mcp_config=mcp_config)
-            return _error(*refused)
-
-    from realize_core.mcp_server.venture_guard import is_rbac_role, permission_refusal
-
-    # RBAC roles get the same per-tool permissions as the REST API; the
-    # MCP-only roles (e.g. "editor") keep the tool-family scope check.
-    refusal = permission_refusal(name, user.role)
-    if refusal:
-        _audit_call(tool, user, status="forbidden", duration_ms=0, mcp_config=mcp_config)
-        return _error(MCPErrorCode.INSUFFICIENT_SCOPE, refusal)
-    if not is_rbac_role(user.role) and not role_meets_scope(user.role, tool.scope):
-        _audit_call(tool, user, status="forbidden", duration_ms=0, mcp_config=mcp_config)
-        return _error(
-            MCPErrorCode.INSUFFICIENT_SCOPE,
-            f"Tool '{name}' requires scope '{tool.scope}'; caller has role '{user.role}'.",
-        )
+        return _error(*refused)
 
     from realize_core.mcp_server import venture_guard
+    from realize_core.security import agent_access
+
+    agent = agent_access.is_agent_subject(user)
 
     allowed = venture_guard.caller_ventures(user)
     refusal = venture_guard.check_call(name, arguments, allowed)
