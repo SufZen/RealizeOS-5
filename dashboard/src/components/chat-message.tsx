@@ -1,4 +1,4 @@
-import { Bot, User } from 'lucide-react'
+import { Bot } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { sourceAnchorId, splitCitations, type Trail } from '@/lib/chat-stream'
 import { TrailPanel } from '@/components/trail-panel'
@@ -35,20 +35,19 @@ function renderCitations(text: string, key: number, cite: CiteContext | null): R
         if (!cite.known.has(part.marker)) return `[${part.marker}]`
         const target = sourceAnchorId(cite.anchorPrefix, part.marker)
         return (
-          <sup key={i}>
-            <button
-              type="button"
-              onClick={() =>
-                document
-                  .getElementById(target)
-                  ?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
-              }
-              className="px-0.5 font-mono text-brand-400 hover:underline"
-              aria-label={`Source ${part.marker}`}
-            >
-              {part.marker}
-            </button>
-          </sup>
+          <button
+            key={i}
+            type="button"
+            onClick={() =>
+              document
+                .getElementById(target)
+                ?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+            }
+            className="rz-source"
+            aria-label={`Source ${part.marker}`}
+          >
+            {part.marker}
+          </button>
         )
       })}
     </span>
@@ -74,13 +73,8 @@ function renderMarkdown(text: string, cite: CiteContext | null): React.ReactNode
     // Add the code block
     const lang = match[1] || 'plain'
     nodes.push(
-      <pre
-        key={`code-${key++}`}
-        className="bg-surface-800 border border-border rounded-lg p-3 text-xs font-mono overflow-x-auto my-2"
-      >
-        <div className="text-[10px] text-muted-foreground mb-1 uppercase tracking-wider">
-          {lang}
-        </div>
+      <pre key={`code-${key++}`} className="rz-code my-2 whitespace-pre">
+        <div className="mb-1 text-[11px] text-subtle-foreground">{lang}</div>
         <code>{match[2]}</code>
       </pre>,
     )
@@ -114,10 +108,7 @@ function renderInline(text: string, startKey: number, cite: CiteContext | null):
     }
     if (part.startsWith('`') && part.endsWith('`')) {
       return (
-        <code
-          key={startKey + i}
-          className="bg-surface-800 px-1.5 py-0.5 rounded text-xs font-mono text-brand-400"
-        >
+        <code key={startKey + i} className="font-mono text-[0.9em]">
           {part.slice(1, -1)}
         </code>
       )
@@ -137,25 +128,31 @@ export function ChatMessage({ msg, anchorPrefix }: { msg: ChatMsg; anchorPrefix:
       : null
 
   return (
-    <div className={cn('flex gap-3 max-w-3xl', isUser ? 'ms-auto flex-row-reverse' : '')}>
+    <div
+      className={cn(
+        'flex gap-3 max-w-3xl rz-enter-scale',
+        isUser ? 'ms-auto flex-row-reverse' : '',
+      )}
+    >
+      {isUser ? (
+        <span className="rz-avatar mt-0.5" aria-hidden>
+          You
+        </span>
+      ) : (
+        <span className="rz-avatar rz-avatar--agent mt-0.5" aria-hidden>
+          <Bot className="h-3.5 w-3.5" />
+        </span>
+      )}
       <div
         className={cn(
-          'flex h-8 w-8 shrink-0 items-center justify-center rounded-full',
-          isUser ? 'bg-brand-400/20 text-brand-400' : 'bg-surface-700 text-muted-foreground',
-        )}
-      >
-        {isUser ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
-      </div>
-      <div
-        className={cn(
-          'rounded-xl px-4 py-3 text-sm leading-relaxed',
+          'min-w-0 rounded-[10px] px-4 py-3 text-[15px] leading-relaxed text-foreground',
           isUser
-            ? 'bg-brand-400/10 text-foreground border border-brand-400/20'
-            : 'bg-card text-foreground border border-border',
+            ? 'bg-surface-700 rounded-se-[3px]'
+            : 'border border-border bg-card rounded-ss-[3px]',
         )}
       >
         {msg.agent_key && !isUser && (
-          <div className="text-xs text-muted-foreground mb-1 font-medium">{msg.agent_key}</div>
+          <div className="mb-1 text-xs font-medium text-violet-400">{msg.agent_key}</div>
         )}
         {msg.pending && !msg.content ? (
           <TypingDots />
@@ -168,7 +165,7 @@ export function ChatMessage({ msg, anchorPrefix }: { msg: ChatMsg; anchorPrefix:
         )}
         {!isUser && msg.trail && <TrailPanel trail={msg.trail} anchorPrefix={anchorPrefix} />}
         {msg.timestamp && !msg.pending && (
-          <div className="text-xs text-muted-foreground mt-1 opacity-60">
+          <div className="mt-1.5 text-xs tabular text-subtle-foreground">
             <bdi>{new Date(msg.timestamp).toLocaleTimeString()}</bdi>
           </div>
         )}
@@ -179,11 +176,15 @@ export function ChatMessage({ msg, anchorPrefix }: { msg: ChatMsg; anchorPrefix:
 
 function TypingDots() {
   return (
-    <div className="flex gap-1 py-1" aria-label="Preparing the answer">
-      {[0, 150, 300].map((delay) => (
+    <div
+      className="flex items-center gap-1.5 py-1.5"
+      role="status"
+      aria-label="Preparing the answer"
+    >
+      {[0, 200, 400].map((delay) => (
         <span
           key={delay}
-          className="h-2 w-2 rounded-full bg-muted-foreground animate-bounce"
+          className="h-1.5 w-1.5 rounded-full bg-violet-400 animate-pulse"
           style={{ animationDelay: `${delay}ms` }}
         />
       ))}
