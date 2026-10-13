@@ -58,6 +58,9 @@ COPY realize_core/ ./realize_core/
 COPY realize_api/ ./realize_api/
 COPY realize_lite/ ./realize_lite/
 COPY templates/ ./templates/
+# Profession and market packs, and the FABRIC schemas the validator reads (spec 010).
+COPY packs/ ./packs/
+COPY docs/fabric-schemas/ ./docs/fabric-schemas/
 COPY cli.py .
 # Release identity for /api/status and the MCP serverInfo (else "unknown").
 COPY VERSION .

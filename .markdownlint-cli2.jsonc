@@ -28,6 +28,7 @@
     "dashboard/src/design-system/**",
     "realize-os-cli/node_modules",
     "templates/**",
+    "packs/**/documents/**",
     "shared/**",
     "docs/**",
     "realize_lite/**",

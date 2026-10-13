@@ -1,0 +1,14 @@
+id: developer
+kind: profession
+version: 0.1.0
+title: Real-estate developer
+requires:
+  core: '>=0.1'
+languages:
+- en
+limits:
+- Prepares checks and drafts; the developer's project manager or finance lead decides.
+- Does not certify progress on site; a supervisor or quantity surveyor does.
+authors:
+- Realization
+license: BSL-1.1

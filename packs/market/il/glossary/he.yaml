@@ -1,0 +1,57 @@
+- term: חשבון חלקי
+  family: money-event
+  kind: payment_claim
+- term: חשבון סופי
+  family: money-event
+  kind: payment_claim
+- term: הצעת מחיר
+  family: money-event
+  kind: quote
+- term: כתב כמויות
+  family: source
+  kind: contract
+- term: מכרז
+  family: source
+  kind: contract
+- term: פקודת שינויים
+  family: change
+  kind: variation
+- term: היתר בנייה
+  family: milestone
+  kind: permit
+- term: טופס 4
+  family: milestone
+  kind: handover
+- term: תעודת גמר
+  family: milestone
+  kind: handover
+- term: אבן דרך
+  family: milestone
+  kind: construction_stage
+- term: ערבות בנקאית
+  family: requirement
+  kind: covenant
+- term: ערבות חוק מכר
+  family: requirement
+  kind: covenant
+- term: ליווי בנקאי
+  family: contact
+  kind: lender
+- term: מפקח
+  family: contact
+  kind: supervisor
+- term: קבלן ראשי
+  family: contact
+  kind: contractor
+- term: קבלן משנה
+  family: contact
+  kind: subcontractor
+- term: ליקוי
+  family: issue
+  kind: defect
+- term: עיכוב
+  family: issue
+  kind: delay
+- term: הצמדה למדד תשומות הבנייה
+  family: money-event
+  field: indexation

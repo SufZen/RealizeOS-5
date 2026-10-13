@@ -76,7 +76,7 @@ py-modules = ["cli"]
 include-package-data = true
 
 [tool.setuptools.packages.find]
-include = ["realize_core*", "realize_api*", "realize_lite*", "templates*"]
+include = ["realize_core*", "realize_api*", "realize_lite*", "templates*", "packs*"]
 
 [tool.setuptools.package-data]
 "*" = ["*.yaml", "*.yml", "*.md", "*.html", "*.json", "*.txt"]

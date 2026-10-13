@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "pack://developer/tender-item.json",
+  "title": "Tender requirement (developer)",
+  "description": "One mandatory or optional item from a tender package, with where it was found.",
+  "allOf": [
+    {
+      "$ref": "https://realizeos.ai/schemas/v0.1/requirement.json"
+    }
+  ],
+  "properties": {
+    "kind": {
+      "const": "tender_item"
+    },
+    "section": {
+      "type": "string"
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "administrative",
+        "technical",
+        "financial",
+        "legal",
+        "schedule"
+      ]
+    }
+  },
+  "required": [
+    "mandatory",
+    "sources"
+  ]
+}

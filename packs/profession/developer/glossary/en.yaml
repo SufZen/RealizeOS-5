@@ -1,0 +1,45 @@
+- term: payment claim
+  family: money-event
+  kind: payment_claim
+- term: interim payment
+  family: money-event
+  kind: payment_claim
+- term: quote
+  family: money-event
+  kind: quote
+- term: budget line
+  family: money-event
+  kind: budget_line
+- term: capital call
+  family: money-event
+  kind: capital_call
+- term: retention
+  family: money-event
+  field: retention_percent
+- term: tender
+  family: source
+  kind: contract
+- term: bill of quantities
+  family: source
+  kind: contract
+- term: tender requirement
+  family: requirement
+  kind: tender_item
+- term: variation
+  family: change
+  kind: variation
+- term: change order
+  family: change
+  kind: variation
+- term: milestone
+  family: milestone
+  kind: construction_stage
+- term: handover
+  family: milestone
+  kind: handover
+- term: snag list
+  family: issue
+  kind: defect
+- term: investor report
+  family: source
+  kind: minutes

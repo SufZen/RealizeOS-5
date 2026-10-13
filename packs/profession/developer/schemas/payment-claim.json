@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "pack://developer/payment-claim.json",
+  "title": "Payment claim (developer)",
+  "description": "A contractor's claim checked line by line against its milestone.",
+  "allOf": [
+    {
+      "$ref": "https://realizeos.ai/schemas/v0.1/money-event.json"
+    }
+  ],
+  "properties": {
+    "kind": {
+      "const": "payment_claim"
+    },
+    "retention_percent": {
+      "type": "number"
+    },
+    "checked_lines": {
+      "type": "integer"
+    },
+    "flagged_lines": {
+      "type": "integer"
+    }
+  },
+  "required": [
+    "milestone",
+    "counterparty"
+  ]
+}
