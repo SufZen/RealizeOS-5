@@ -1,9 +1,22 @@
-import { useState } from 'react'
-import { AlertCircle, RefreshCw, CheckCircle2, XCircle, X } from 'lucide-react'
-import { useApi } from '@/hooks/use-api'
-import { ApprovalCard, type Approval } from '@/components/approval-card'
+import { useEffect, useState } from 'react'
+import { AlertCircle, RefreshCw, CheckCircle2, XCircle, AlertTriangle, X } from 'lucide-react'
+import { useApi, useInvalidateApi } from '@/hooks/use-api'
+import { useAuth } from '@/hooks/use-auth'
+import { useLocale } from '@/components/locale-provider'
+import { ApprovalCard, DecisionLogLine, type Approval } from '@/components/approval-card'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
+import { canDecide } from '@/lib/permissions'
+import {
+  approvalOutcome,
+  classifyDecisionError,
+  isExpired,
+  withSettled,
+  type DecisionLogResult,
+  type DecisionProblem,
+  type ExecutionResult,
+} from '@/lib/approval-outcome'
+import { approvalText, outcomeMessage, type ApprovalText } from '@/lib/approval-text'
 import { TitleBlock } from '@/components/ui/title-block'
 import { Tabs } from '@/components/ui/tabs'
 import { IconButton } from '@/components/ui/button'
@@ -15,78 +28,225 @@ interface ApprovalsResponse {
   approvals: Approval[]
 }
 
-interface DecisionResponse extends Approval {
-  execution?: { executed: boolean; success: boolean; output: string; error: string | null } | null
+/** The decide endpoint's answer: the row as decided, plus what ran. */
+export interface DecisionResponse extends Approval {
+  execution?: ExecutionResult | null
   skill_output?: string | null
+  decision_log?: DecisionLogResult | null
 }
 
-type Tab = 'pending' | 'history'
+export type ApprovalsTab = 'pending' | 'decided' | 'expired'
+
+const PATHS: Record<ApprovalsTab, string> = {
+  pending: '/approvals?status=pending',
+  decided: '/approvals?status=',
+  expired: '/approvals?status=expired',
+}
+
+/** Statuses the Decided tab shows (expired items have their own tab). */
+const DECIDED = new Set<Approval['status']>(['approved', 'rejected', 'answered'])
 
 /** Placeholder for the note box; credentials must never be typed here. */
-function notePlaceholder(actionType: string): string {
-  if (actionType === 'agent_credential') return 'Add the credential in Setup, not here (not stored)'
+function notePlaceholder(actionType: string, text: ApprovalText): string {
+  if (actionType === 'agent_credential') return text.notePlaceholderCredential
   if (actionType === 'skill_input' || actionType === 'agent_input')
-    return 'Your answer (optional)...'
-  return 'Optional note...'
+    return text.notePlaceholderAnswer
+  return text.notePlaceholder
+}
+
+function omit<T>(map: Record<string, T>, key: string): Record<string, T> {
+  const next = { ...map }
+  delete next[key]
+  return next
+}
+
+/** A clock that ticks, so an item whose time runs out while the page is open turns expired. */
+function useNow(intervalMs: number): number {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), intervalMs)
+    return () => clearInterval(timer)
+  }, [intervalMs])
+  return now
 }
 
 export default function ApprovalsPage() {
-  const [tab, setTab] = useState<Tab>('pending')
-  const { data, loading, error, refetch } = useApi<ApprovalsResponse>(
-    tab === 'pending' ? '/approvals?status=pending' : '/approvals?status=',
-  )
+  const { language } = useLocale()
+  const text = approvalText(language)
+  const { user } = useAuth()
+  const now = useNow(15_000)
+  const [tab, setTab] = useState<ApprovalsTab>('pending')
+  const { data, loading, error } = useApi<ApprovalsResponse>(PATHS[tab])
+  const invalidate = useInvalidateApi()
   const [noteMap, setNoteMap] = useState<Record<string, string>>({})
   const [busyId, setBusyId] = useState<string | null>(null)
   const [outcome, setOutcome] = useState<DecisionResponse | null>(null)
+  /** Why a decision didn't apply, per item. */
+  const [problems, setProblems] = useState<Record<string, DecisionProblem>>({})
+  /** Items a refused decision settled (someone else decided, expired): kept in view until refresh. */
+  const [settled, setSettled] = useState<Record<string, Approval>>({})
 
-  async function decide(id: string, verb: 'approve' | 'reject') {
+  function clearDecisionState() {
+    setOutcome(null)
+    setProblems({})
+    setSettled({})
+  }
+
+  function changeTab(next: ApprovalsTab) {
+    clearDecisionState()
+    setTab(next)
+  }
+
+  function refresh() {
+    clearDecisionState()
+    invalidate('/approvals')
+  }
+
+  async function decide(approval: Approval, verb: 'approve' | 'reject') {
+    const id = approval.id
     setBusyId(id)
+    setOutcome(null) // a new attempt never sits under the last decision's banner
+    setProblems((p) => omit(p, id))
+    let signedOut = false
     try {
       const res = await api.post<DecisionResponse>(`/approvals/${id}/${verb}`, {
         decision_note: noteMap[id] || null,
       })
       setOutcome(res)
+      setNoteMap((m) => omit(m, id))
+    } catch (err) {
+      const problem = classifyDecisionError(err)
+      // 401: the sign-in page takes over (notifySessionExpired already fired).
+      signedOut = problem.kind === 'session'
+      setProblems((p) => ({ ...p, [id]: problem }))
+      if (problem.final) {
+        setSettled((s) => ({ ...s, [id]: { ...approval, ...problem.approval } as Approval }))
+      }
     } finally {
       setBusyId(null)
-      refetch()
+      // Every attempt refreshes every approvals view: this tab, the others,
+      // the sidebar badge and the overview.
+      if (!signedOut) invalidate('/approvals')
     }
   }
 
-  const approvals = (data?.approvals ?? [])
-    .filter((a) => tab === 'pending' || a.status !== 'pending')
-    .slice(0, 50)
+  const fromServer = data?.approvals ?? []
+  const approvals = (
+    tab === 'pending'
+      ? withSettled(fromServer, settled)
+      : tab === 'decided'
+        ? fromServer.filter((a) => DECIDED.has(a.status))
+        : fromServer
+  ).slice(0, 50)
 
+  return (
+    <ApprovalsView
+      text={text}
+      language={language}
+      tab={tab}
+      onTabChange={changeTab}
+      onRefresh={refresh}
+      approvals={approvals}
+      loading={loading}
+      error={error}
+      now={now}
+      blockedReason={canDecide(user) ? null : text.viewOnly(user?.role ?? '')}
+      busyId={busyId}
+      problems={problems}
+      outcome={outcome}
+      onDismissOutcome={() => setOutcome(null)}
+      onDismissProblem={(id) => {
+        setProblems((p) => omit(p, id))
+        setSettled((s) => omit(s, id))
+      }}
+      onDecide={decide}
+      notes={noteMap}
+      onNoteChange={(id, value) => setNoteMap((m) => ({ ...m, [id]: value }))}
+    />
+  )
+}
+
+export interface ApprovalsViewProps {
+  text: ApprovalText
+  language: string
+  tab: ApprovalsTab
+  onTabChange: (tab: ApprovalsTab) => void
+  onRefresh: () => void
+  approvals: Approval[]
+  loading: boolean
+  error: string | null
+  /** Clock (ms) for expiry. */
+  now: number
+  /** Set when the person's role can't decide: no decision controls, and this says why. */
+  blockedReason: string | null
+  busyId: string | null
+  problems: Record<string, DecisionProblem>
+  outcome: DecisionResponse | null
+  onDismissOutcome: () => void
+  onDismissProblem: (id: string) => void
+  onDecide: (approval: Approval, verb: 'approve' | 'reject') => void
+  notes: Record<string, string>
+  onNoteChange: (id: string, value: string) => void
+}
+
+/** The approvals page as it renders, from plain props. */
+export function ApprovalsView({
+  text,
+  language,
+  tab,
+  onTabChange,
+  onRefresh,
+  approvals,
+  loading,
+  error,
+  now,
+  blockedReason,
+  busyId,
+  problems,
+  outcome,
+  onDismissOutcome,
+  onDismissProblem,
+  onDecide,
+  notes,
+  onNoteChange,
+}: ApprovalsViewProps) {
+  const heldCount = approvals.filter(
+    (a) => a.status === 'pending' && !isExpired(a, now) && !problems[a.id]?.final,
+  ).length
   return (
     <div className="mx-auto max-w-[960px]">
       <TitleBlock
-        title="Approvals"
-        description="Payments, messages and questions your agents prepared. Nothing runs until someone here decides."
+        title={text.title}
+        description={text.description}
         actions={
-          <IconButton label="Refresh" onClick={refetch}>
+          <IconButton label={text.refresh} onClick={onRefresh}>
             <RefreshCw />
           </IconButton>
         }
       />
 
       <Tabs
-        label="Approvals"
+        label={text.tabsLabel}
         className="mb-6"
         value={tab}
-        onChange={setTab}
+        onChange={onTabChange}
         items={[
           {
             value: 'pending',
-            label: 'Held for you',
-            count: tab === 'pending' && !loading ? approvals.length : undefined,
+            label: text.tabHeld,
+            count: tab === 'pending' && !loading ? heldCount : undefined,
           },
-          { value: 'history', label: 'Decided' },
+          { value: 'decided', label: text.tabDecided },
+          { value: 'expired', label: text.tabExpired },
         ]}
       />
 
-      {outcome && <OutcomeBanner outcome={outcome} onClose={() => setOutcome(null)} />}
+      {outcome && (
+        <OutcomeBanner outcome={outcome} now={now} text={text} onClose={onDismissOutcome} />
+      )}
 
       {loading ? (
-        <div className="grid gap-4" aria-busy="true" aria-label="Loading approvals">
+        <div className="grid gap-4" aria-busy="true" aria-label={text.loading}>
           <SkeletonCard />
           <SkeletonCard />
         </div>
@@ -101,8 +261,14 @@ export default function ApprovalsPage() {
       ) : approvals.length === 0 ? (
         <EmptyState
           art="approvals"
-          title={tab === 'pending' ? 'Nothing is waiting for you' : 'No decisions yet'}
-          body="Approvals appear here when agents attempt gated actions: payments, messages to clients, anything that touches money, contracts or people."
+          title={
+            tab === 'pending'
+              ? text.emptyHeld
+              : tab === 'expired'
+                ? text.emptyExpired
+                : text.emptyDecided
+          }
+          body={tab === 'expired' ? text.emptyExpiredBody : text.emptyBody}
         />
       ) : (
         <div className="grid gap-4 rz-stagger">
@@ -111,19 +277,26 @@ export default function ApprovalsPage() {
               key={approval.id}
               style={{ ['--i' as string]: i }}
               approval={approval}
+              language={language}
+              now={now}
               busy={busyId === approval.id}
-              onApprove={(id) => decide(id, 'approve')}
-              onReject={(id) => decide(id, 'reject')}
+              problem={problems[approval.id]}
+              onDismissProblem={() => onDismissProblem(approval.id)}
+              blockedReason={blockedReason}
+              onApprove={blockedReason ? undefined : () => onDecide(approval, 'approve')}
+              onReject={blockedReason ? undefined : () => onDecide(approval, 'reject')}
             >
-              <input
-                type="text"
-                dir="auto"
-                aria-label="Note for this decision"
-                placeholder={notePlaceholder(approval.action_type)}
-                value={noteMap[approval.id] || ''}
-                onChange={(e) => setNoteMap((m) => ({ ...m, [approval.id]: e.target.value }))}
-                className="rz-input rz-input--sm"
-              />
+              {!blockedReason && (
+                <input
+                  type="text"
+                  dir="auto"
+                  aria-label={text.noteLabel}
+                  placeholder={notePlaceholder(approval.action_type, text)}
+                  value={notes[approval.id] || ''}
+                  onChange={(e) => onNoteChange(approval.id, e.target.value)}
+                  className="rz-input rz-input--sm"
+                />
+              )}
             </ApprovalCard>
           ))}
         </div>
@@ -132,44 +305,73 @@ export default function ApprovalsPage() {
   )
 }
 
-/** What happened after a decision. The stamp strikes here, once, as the decision lands. */
-function OutcomeBanner({ outcome, onClose }: { outcome: DecisionResponse; onClose: () => void }) {
-  const exec = outcome.execution
-  const failed = exec?.executed && !exec.success
-  const text = exec?.executed
-    ? exec.success
-      ? `Done — ${outcome.action_name}: ${exec.output || 'completed'}`
-      : `${outcome.action_name} failed: ${exec.error}`
-    : outcome.skill_output
-      ? outcome.skill_output
-      : `Request ${outcome.status}.`
-  const decision = outcome.status === 'rejected' ? 'rejected' : 'approved'
+/**
+ * What happened after a decision: done, failed, or unknown, never just
+ * "approved". The stamp strikes here, once, as the decision lands.
+ */
+export function OutcomeBanner({
+  outcome,
+  now,
+  text,
+  onClose,
+}: {
+  outcome: DecisionResponse
+  now: number
+  text: ApprovalText
+  onClose: () => void
+}) {
+  const result = approvalOutcome(outcome, now, outcome.execution)
+  const failed = result.kind === 'failed'
+  const unsure = result.kind === 'unknown' || result.kind === 'not_started'
+  const ran = failed || unsure || result.kind === 'succeeded'
+  const actionName = outcome.action_name || outcome.action_type
+  const label = text.actionTypes[actionName] || actionName
+  const message = ran || !outcome.skill_output ? outcomeMessage(result, text) : outcome.skill_output
+  const Icon = failed ? XCircle : unsure ? AlertTriangle : CheckCircle2
   return (
     <div
       role="status"
+      data-outcome={result.kind}
       className={cn(
         'mb-6 flex items-center gap-4 rounded-[10px] border p-4 rz-enter',
-        failed ? 'border-red-400/30 bg-red-400/10' : 'border-border bg-card',
+        failed
+          ? 'border-red-400/30 bg-red-400/10'
+          : unsure
+            ? 'border-amber-400/30 bg-amber-400/10'
+            : 'border-border bg-card',
       )}
     >
       {(outcome.status === 'approved' || outcome.status === 'rejected') && (
-        <Stamp decision={decision} strike className="shrink-0" />
+        <Stamp
+          decision={outcome.status}
+          label={text.status[outcome.status]}
+          strike
+          className="shrink-0"
+        />
       )}
-      <div
-        dir="auto"
-        className={cn(
-          'flex min-w-0 flex-1 items-start gap-2 text-sm',
-          failed ? 'text-red-400' : 'text-foreground',
+      <div className="grid min-w-0 flex-1 gap-1.5">
+        <div
+          dir="auto"
+          className={cn(
+            'flex min-w-0 items-start gap-2 text-sm',
+            failed ? 'text-red-400' : unsure ? 'text-amber-400' : 'text-foreground',
+          )}
+        >
+          <Icon
+            className={cn('mt-0.5 h-4 w-4 shrink-0', !failed && !unsure && 'text-emerald-400')}
+          />
+          <span className="min-w-0 whitespace-pre-wrap break-words">
+            <strong className="font-semibold">{label}</strong> · {message}
+          </span>
+        </div>
+        {ran && outcome.skill_output && (
+          <p dir="auto" className="m-0 whitespace-pre-wrap break-words text-[13px] text-foreground">
+            {outcome.skill_output}
+          </p>
         )}
-      >
-        {failed ? (
-          <XCircle className="mt-0.5 h-4 w-4 shrink-0" />
-        ) : (
-          <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
-        )}
-        <span className="min-w-0 whitespace-pre-wrap break-words">{text}</span>
+        {outcome.decision_log && <DecisionLogLine log={outcome.decision_log} text={text} />}
       </div>
-      <IconButton label="Dismiss" size="sm" onClick={onClose}>
+      <IconButton label={text.dismiss} size="sm" onClick={onClose}>
         <X />
       </IconButton>
     </div>

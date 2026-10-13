@@ -1,6 +1,6 @@
 import { useCallback } from 'react'
 import { ApiError, notifySessionExpired } from '@/lib/api'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuthPrincipal } from '@/hooks/use-auth'
 
 export interface ApiState<T> {
@@ -39,6 +39,39 @@ function friendlyMessage(status: number, raw: string): string {
 /** Cache key for a GET: partitioned by principal, so users never share entries. */
 export function apiQueryKey(principal: string, path: string): readonly unknown[] {
   return ['api', principal, path] as const
+}
+
+/** True when `key` is this principal's cached GET of a path starting with `prefix`. */
+export function matchesApiPrefix(
+  key: readonly unknown[],
+  principal: string,
+  prefix: string,
+): boolean {
+  return (
+    key[0] === 'api' &&
+    key[1] === principal &&
+    typeof key[2] === 'string' &&
+    key[2].startsWith(prefix)
+  )
+}
+
+/**
+ * Mark every cached GET under a path prefix stale (and refetch the ones on
+ * screen) after a change, e.g. `/approvals` after a decision, so other tabs,
+ * the sidebar badge and the overview don't show the old state. Only the
+ * signed-in principal's entries are touched.
+ */
+export function useInvalidateApi(): (prefix: string) => void {
+  const client = useQueryClient()
+  const principal = useAuthPrincipal()
+  return useCallback(
+    (prefix: string) => {
+      void client.invalidateQueries({
+        predicate: (query) => matchesApiPrefix(query.queryKey, principal, prefix),
+      })
+    },
+    [client, principal],
+  )
 }
 
 async function fetchWithTimeout<T>(

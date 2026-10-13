@@ -16,18 +16,22 @@ export function Stamp({
   decision,
   by,
   strike,
+  label,
   className,
 }: {
   decision: Decision
   /** Who decided and when, printed small under the word: "Dana · 14:02". */
   by?: string
   strike?: boolean
+  /** The word in the person's language ("אושר"); English by default. */
+  label?: string
   className?: string
 }) {
+  const word = label || WORDS[decision]
   return (
     <span
       role="img"
-      aria-label={by ? `${WORDS[decision]}, ${by}` : WORDS[decision]}
+      aria-label={by ? `${word}, ${by}` : word}
       className={cn(
         'rz-stamp',
         decision !== 'approved' && `rz-stamp--${decision}`,
@@ -35,7 +39,7 @@ export function Stamp({
         className,
       )}
     >
-      {WORDS[decision]}
+      {word}
       {by && <small>{by}</small>}
     </span>
   )

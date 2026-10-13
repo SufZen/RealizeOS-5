@@ -18,11 +18,14 @@ const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
 
 export class ApiError extends Error {
   status: number
+  /** The parsed JSON error body, when there was one (e.g. a 409's `reason`). */
+  body?: unknown
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, body?: unknown) {
     super(message)
     this.name = 'ApiError'
     this.status = status
+    this.body = body
   }
 }
 
@@ -46,9 +49,11 @@ export function csrfHeader(): Record<string, string> {
 /** Turn a failed response into an ApiError carrying the server's detail. */
 export async function toApiError(res: Response): Promise<ApiError> {
   let message: unknown = res.statusText
+  let body: unknown
   try {
     const text = await res.text()
     const json = JSON.parse(text)
+    body = json
     message = json.detail || json.message || json.error || text
     if (Array.isArray(message)) {
       message = message.map((e: { msg?: string }) => e.msg || String(e)).join('; ')
@@ -56,7 +61,7 @@ export async function toApiError(res: Response): Promise<ApiError> {
   } catch {
     // Not JSON — use raw text or statusText.
   }
-  return new ApiError(res.status, String(message))
+  return new ApiError(res.status, String(message), body)
 }
 
 /** Tell the AuthProvider the session ended; it knows where to send the user. */

@@ -47,6 +47,30 @@ describe('api client', () => {
     })
   })
 
+  it('keeps a refused decision’s reason and state (N11)', async () => {
+    const body = {
+      detail: 'This request expired before anyone decided it, so nothing was done.',
+      reason: 'expired',
+      approval: { id: 'a1', status: 'expired', expired: true },
+    }
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 409,
+        statusText: 'Conflict',
+        text: () => Promise.resolve(JSON.stringify(body)),
+      }),
+    )
+
+    await expect(api.post('/approvals/a1/approve', {})).rejects.toMatchObject({
+      name: 'ApiError',
+      status: 409,
+      message: body.detail,
+      body,
+    })
+  })
+
   it('creates an activity stream against the API prefix with credentials', () => {
     const eventSourceMock = vi.fn(function MockEventSource(this: { close: () => void }) {
       this.close = vi.fn()
