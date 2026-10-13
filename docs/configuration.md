@@ -125,7 +125,8 @@ uploads/downloads are confined to `REALIZE_AGENT_FILES_DIR` (default `<KB_PATH>/
 ### "What I used" trail and citations (`cite_sources`)
 
 Every chat answer carries a trail: the knowledge-base sources its prompt included, numbered
-`[S1]…[Sn]`, and the tools it called, in order. The dashboard shows the trail live under each
+`[S1]…[Sn]`, the pack rule cards numbered `[R1]…[Rn]` with their verification level, layer and
+pack (see [packs](packs.md#rule-cards-in-the-answer-trail)), and the tools it called, in order. The dashboard shows the trail live under each
 answer and again in history; the API returns it as `trail` (see the
 [API reference](api-reference.md#post-apichat)). Trails are stored per message in `memory.db` and
 deleted with the conversation. They are never sent back to a model.

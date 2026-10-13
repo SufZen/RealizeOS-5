@@ -105,15 +105,25 @@ A pack extends a core family with `allOf` (see [`fabric-schemas/README.md`](fabr
 
 ## Verification levels
 
-| Level | Meaning |
-|---|---|
-| 0 | No market pack. Agents answer from general knowledge, labelled unverified. |
-| 1 | Drafted from public sources, with links and dates. |
-| 2 | Reviewed by a named local professional. |
-| 3 | Maintained by a partner with a signed agreement. |
-| 4 | Used in a paid engagement. |
+| Level | Meaning | Label in the answer trail | Hebrew |
+|---|---|---|---|
+| 0 | No market pack. Agents answer from general knowledge, labelled unverified. | unverified | לא מאומת |
+| 1 | Drafted from public sources, with links and dates. | draft — not reviewed | טיוטה — לא נבדקה |
+| 2 | Reviewed by a named local professional. | reviewed | נבדק |
+| 3 | Maintained by a partner with a signed agreement. | maintained | מתוחזק |
+| 4 | Used in a paid engagement. | field-proven | הוכח בשטח |
 
 A card's level is the lower of its own level and the pack's level. A card whose `review_by` date has passed drops to level 1.
+
+## Rule cards in the answer trail
+
+The rule cards an answer's prompt included appear in its "What I used" trail as `[R1]`, `[R2]`, next to the knowledge-base sources (`[S1]`…). Each rule row shows, whatever the model wrote:
+
+- the level and its label, such as **Level 1 · draft — not reviewed** (marked as needing attention at levels 0 and 1, green from level 2);
+- the layer and pack it came from, such as *market pack pt@0.1.0* (the firm's own rules show *your firm*);
+- the card's `as_of` date, with its `review_by` date on hover, and a link to its source.
+
+`[R1]` and `[S1]` markers in the answer jump to their trail rows. The labels follow the dashboard's language (English or Hebrew). The same fields (`layer`, `pack`, `verification`, `as_of`, `review_by`) come back from `POST /api/chat`, the `/api/chat/stream` events, `GET /api/conversations` and the MCP `realize_chat` trail summary, so another agent can show the level too. Older answers, stored before the trail kept rule levels, have none on their rule rows; the dashboard labels those rows *unverified* rather than guess.
 
 ## Reviewing a market pack
 
