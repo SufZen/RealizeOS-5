@@ -92,3 +92,61 @@ def pack_agents(venture_dir: Path, kb_path: Path, own: dict[str, str], *, packs_
                 out.readme = display_path(pack.agents_readme, kb_path)
                 break
     return out
+
+
+@dataclass(frozen=True)
+class PackAgentEntry:
+    """A pack agent a venture uses, as the agent registry shows it (read-only)."""
+
+    #: The venture that uses it.
+    venture_key: str
+    #: The agent key (file stem, ``-`` → ``_``).
+    key: str
+    #: The loaded definition (a pack agent is a markdown prompt: a V1 agent).
+    definition: Any
+    #: ``layer`` (``firm``, ``market`` or ``profession``), ``pack`` (``id@version``) and,
+    #: for a market pack, ``verification``.
+    provenance: dict[str, Any]
+    #: Where the venture's own copy would go, relative to the KB root. A file
+    #: there overrides the pack's agent (the venture's own file wins).
+    override_path: str
+
+
+def venture_pack_agents(venture_key: str, system: dict[str, Any], kb_path: Path) -> list[PackAgentEntry]:
+    """The pack agents in a venture's effective team, read from its built system config.
+
+    Uses what :func:`realize_core.config.build_systems_dict` recorded with
+    ``features.packs`` on: ``agents`` (key → path) and ``agent_provenance``
+    (the keys that came from packs). Agents the venture has its own file for
+    are not pack agents. A definition that can't be read is skipped (logged).
+
+    Args:
+        venture_key: The venture's key.
+        system: Its entry in ``app.state.systems``.
+        kb_path: The KB root the paths are relative to.
+    """
+    from realize_core.agents.loader import load_agent
+
+    provenance_by_key = system.get("agent_provenance") or {}
+    paths = system.get("agents") or {}
+    agents_dir = str(system.get("agents_dir") or f"systems/{venture_key}/A-agents").rstrip("/\\")
+    entries: list[PackAgentEntry] = []
+    for key in sorted(provenance_by_key):
+        path = paths.get(key)
+        if not path:
+            continue
+        try:
+            definition = load_agent(Path(kb_path) / path)
+        except (OSError, ValueError) as exc:
+            warn_once("Pack agent %s of venture %s can't be read (%s)", key, venture_key, exc)
+            continue
+        entries.append(
+            PackAgentEntry(
+                venture_key=venture_key,
+                key=key,
+                definition=definition,
+                provenance=dict(provenance_by_key[key]),
+                override_path=f"{agents_dir}/{Path(path).name}",
+            )
+        )
+    return entries

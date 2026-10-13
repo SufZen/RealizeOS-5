@@ -1,7 +1,11 @@
 import { useState } from 'react'
 import { Route, Search, Loader2, FileText, Shield, Check } from 'lucide-react'
 import { useApi } from '@/hooks/use-api'
+import { useVenture } from '@/hooks/use-venture'
+import { useLocale } from '@/components/locale-provider'
+import { VentureTrustPanel } from '@/components/venture-trust'
 import { api } from '@/lib/api'
+import type { VentureTrust } from '@/lib/trust-copy'
 import { cn } from '@/lib/utils'
 
 interface RoutingRule {
@@ -229,6 +233,8 @@ export function ReportsSection({
 interface TrustData {
   level: number
   actions: Record<string, Record<string, string>>
+  /** Each venture's effective decisions after its packs (only with `features.packs` on). */
+  ventures?: Record<string, VentureTrust>
 }
 
 const TRUST_LEVEL_LABELS: Record<number, string> = {
@@ -247,10 +253,16 @@ const DECISION_COLORS: Record<string, string> = {
 
 export function TrustLadderSection() {
   const { data, refetch } = useApi<TrustData>('/trust')
+  const { selected } = useVenture()
+  const { language } = useLocale()
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
 
   if (!data) return null
+
+  const ventureKeys = Object.keys(data.ventures || {})
+  const ventureKey = selected && data.ventures?.[selected] ? selected : ventureKeys[0]
+  const ventureTrust = ventureKey ? data.ventures?.[ventureKey] : undefined
 
   const actions = data.actions || {}
   const currentLevel = data.level || 3
@@ -323,6 +335,12 @@ export function TrustLadderSection() {
 
       {Object.keys(actions).length === 0 && (
         <p className="text-xs text-muted-foreground">No trust rules configured. Using defaults.</p>
+      )}
+
+      {ventureTrust && (
+        <div className="mt-4">
+          <VentureTrustPanel key={ventureKey} venture={ventureTrust} language={language} />
+        </div>
       )}
     </div>
   )

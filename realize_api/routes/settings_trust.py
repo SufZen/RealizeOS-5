@@ -18,11 +18,48 @@ class TrustLevelUpdate(BaseModel):
 
 @router.get("/trust")
 async def get_trust_matrix(request: Request):
-    """Get the full trust matrix with current level and all action rules."""
-    config = getattr(request.app.state, "config", {})
+    """Get the full trust matrix with current level and all action rules.
+
+    With ``features.packs`` on, ``ventures`` adds each visible venture's
+    effective decisions at the current level: per action, the ladder's
+    decision, the effective one and the pack or firm default that tightened
+    it, plus the defaults that were ignored because they would loosen it
+    (spec 010: packs only tighten trust). With the flag off the response is
+    unchanged.
+    """
+    config = getattr(request.app.state, "config", None) or {}
     from realize_core.governance.trust_ladder import get_trust_matrix
 
-    return get_trust_matrix(config)
+    matrix = get_trust_matrix(config)
+    from realize_core.config import get_features
+
+    if get_features(config).get("packs"):
+        matrix["ventures"] = _venture_matrices(request, config)
+    return matrix
+
+
+def _venture_matrices(request: Request, config: dict) -> dict[str, dict]:
+    """Each visible venture's effective trust decisions (``features.packs`` on)."""
+    from pathlib import Path
+
+    from realize_core.packs.loader import LOAD_ERRORS
+    from realize_core.packs.trust import venture_trust_matrix
+
+    from realize_api.dependencies import visible_systems
+
+    kb_path = getattr(request.app.state, "kb_path", None)
+    if kb_path is None:
+        return {}
+    out: dict[str, dict] = {}
+    for key, system in sorted(visible_systems(request).items()):
+        venture_dir = Path(kb_path) / str(system.get("system_dir") or f"systems/{key}")
+        if not venture_dir.is_dir():
+            continue
+        try:
+            out[key] = {"name": system.get("name", key), **venture_trust_matrix(config, venture_dir)}
+        except LOAD_ERRORS as exc:
+            logger.warning("Trust matrix for venture %s skipped (%s: %s)", key, type(exc).__name__, exc)
+    return out
 
 
 @router.put("/trust/level")

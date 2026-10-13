@@ -31,6 +31,7 @@ mcp:
     enabled: false             # Claude.ai custom connectors (see below)
     redirect_hosts: []         # empty = claude.ai, claude.com and loopback
   tools: []                    # only serve these tools; empty = every tool of the exposed families
+  rate_limit_per_minute: null  # tool calls per caller per minute; empty = API_RATE_LIMIT_PER_MINUTE
 ```
 
 `tools` (env `MCP_TOOLS`, comma-separated) narrows what a server offers. It can't widen it: a tool is served only when its family is exposed and the list names it. A hosted profile uses it to serve one workflow, for example the [self-serve tender register](self-serve-wedge.md#host-the-pilot). Names that match no tool are logged as a warning at startup. A value that is neither a list of names nor a comma-separated string (a mapping, a number) serves no tools at all, rather than every tool.
@@ -108,11 +109,12 @@ Rules:
 
 * `realize_chat` runs the same pipeline as `POST /api/chat` and returns its response, `message_id` and a **trail summary**: the knowledge-base sources (`id`, `title`, `path`), the pack rule cards (`[R1]`…) with their `layer`, `pack`, `verification` level (0 unverified to 4 field-proven) and `as_of` / `review_by` dates, and which tools ran (`name`, `success`, `held`, and `request_id` for held actions). Show a rule's level to the person whatever the answer text says; level 1 is a draft that no local professional has reviewed.
 * Tool inputs, outputs and errors are left out of the summary. They can carry third-party text (email bodies, web pages, sheet cells), so, like approval results, they are not echoed to MCP clients. The full trail is in the dashboard and `GET /api/conversations`.
+* `get_history` returns each stored answer with the same trail summary under `trail`, like `GET /api/conversations` does: the sources with their provenance (`layer`, `pack`, `verification`, `as_of`, `review_by`) and which tools ran, without tool inputs or outputs. Questions, and answers stored before trails were kept, have no `trail`.
 * Same rule as the REST chat routes: callers act for themselves. Only `owner`/`admin` may pass another `user_id` to `realize_chat`, `get_history`, `clear_history` or `get_session`; anyone else chats as themselves and gets `MCP_FORBIDDEN` for another user's history or session.
 
 ### Venture scope
 
-A caller limited to some ventures (a `users.yaml` user with `ventures`, or a JWT with `venture:<key>` scopes) gets a fail-closed subset: chat, agents, skills, history, session, KB search and approvals tools work only when they name one of those ventures; `approve_request` / `reject_request` only for approvals in them; `list_systems` / `list_ventures` are filtered; anything that spans every venture (admin, evolution, cross-venture KB) returns `MCP_FORBIDDEN`. Callers without a venture limit are unaffected.
+A caller limited to some ventures (a `users.yaml` user with `ventures`, or a JWT with `venture:<key>` scopes) gets a fail-closed subset: chat, agents, skills, history, session, KB search and approvals tools work only when they name one of those ventures; `approve_request` / `reject_request` only for approvals in them; `list_systems` / `list_ventures` are filtered; anything that spans every venture (admin, evolution, cross-venture KB) returns `MCP_FORBIDDEN`, and `tools/list` doesn't offer it to them. Callers without a venture limit are unaffected.
 
 ### Self-serve tender register
 
@@ -214,7 +216,7 @@ Outside agents go through the same approvals as internal ones. **People decide:*
 | **People decide** | `approve_request`, `reject_request`, `approve_suggestion`, `dismiss_suggestion` | Refused: `MCP_AGENT_CANNOT_DECIDE`. |
 | Refused | `create_venture`, `delete_venture`, `update_setting`, `reload_agents`, `run_evolution` | Refused: `MCP_AGENT_REFUSED`. They change every venture or remove a client's brain, so an owner does them in the dashboard or CLI. Holding them in one venture's queue would let a person limited to that venture approve a change to all of them. |
 
-A tool with no rule is refused (deny by default, exact names only), so a new tool needs a decision before outside agents can call it. People (dashboard users, the API key, OAuth connectors, JWTs) keep today's behaviour. An OAuth connector acts as the person who signed in; to govern an outside agent as an agent, give it an agent token.
+A tool with no rule is refused (deny by default, exact names only), so a new tool needs a decision before outside agents can call it. `tools/list` shows an outside agent only the tools it may call or have held: the people-decide and refused tools above aren't listed, and calling one by name is still refused. People (dashboard users, the API key, OAuth connectors, JWTs) keep today's behaviour. An OAuth connector acts as the person who signed in; to govern an outside agent as an agent, give it an agent token.
 
 A held call keeps only the arguments the tool declares and must name exactly one of the agent's ventures; that venture's queue gets the item.
 
@@ -256,7 +258,7 @@ python cli.py mcp stdio --directory /path/to/RealizeOS --user dana@example.com [
 - Same tools, families, `mcp.tools`, permission checks, venture scope and audit log as `/mcp`.
 - **Identity:** stdio has no HTTP request, so `--user` names the caller. It must be a `users.yaml` entry, and that user's role and ventures apply. `--venture` (repeatable) can only narrow them. There is no default or anonymous user, identity is never read from environment variables, and the server refuses to start without one, in every environment. The `REALIZE_ADMIN_USER` login is not accepted here.
 - **Configuration:** `--directory` (or `--root`) is the absolute path of the RealizeOS folder (config, `users.yaml`, `.env`, data, KB). Without it, the folder RealizeOS is installed in is used. The folder the agent starts the command in is never read, so a planted `users.yaml` or config there has no effect.
-- **Admin tools** are served over stdio only with `--allow-admin` on the command line (and only to an owner). `mcp.allow_admin` / `MCP_ALLOW_ADMIN` don't widen a stdio session. In production, `--allow-admin` still needs strong JWT settings.
+- **Admin tools** are served over stdio only with `--allow-admin` on the command line (and only to an owner). `mcp.allow_admin` / `MCP_ALLOW_ADMIN` don't widen a stdio session. In production, `--allow-admin` still needs strong JWT settings. A stdio session is an outside agent, so it is still refused every admin tool (`MCP_AGENT_REFUSED`) and `tools/list` doesn't show them.
 - Needs `MCP_ENABLED=true`. stdout carries only JSON-RPC: logs, stray `print()` output and child processes go to stderr. A refused start exits with code 2 and the reason on stderr.
 - **A stdio session is an outside agent.** Its client is always an AI agent, so it is governed like an agent token: its user id is `agent:stdio:<email>`, it sees the ventures named with `--venture` (else the user's ventures, else every venture configured at start), [writes are held](#governed-writes-from-outside-agents) for a person, and it can't approve, reject or dismiss. `--user`'s role and ventures are the upper bound. The marker is set by the stdio entry point itself, so it can't be spoofed. Pilot accounts can't open a stdio session.
 
@@ -266,7 +268,30 @@ Client configs for Claude Code, Claude Desktop and Cursor are in [connect-your-a
 
 - No anonymous access — `/mcp`, the SSE handshake and every JSON-RPC POST go through the existing auth middleware.
 - Scope hierarchy: `read` < `editor` < `owner`. Chat-family tools require `read`; `clear_history` requires `editor`; admin tools (Story 5) require `owner`.
+- `tools/list` shows each caller only the tools it may call: an RBAC role sees the tools its permissions cover (a viewer doesn't see `realize_chat` or `run_workflow`), the MCP-only roles the tools within their scope, outside agents the tools their rules allow or hold, pilot accounts the pilot tools, and a venture-limited caller no tool that spans every venture. Hiding is a courtesy, not the control: a call to an unlisted tool is refused as before.
 - Audit log: every tool call goes through `realize_core/security/audit.py` (same retention + log file as REST).
+- Rate limits: see [below](#rate-limits).
+
+## Rate limits
+
+The HTTP rate limiter lets `/mcp` and `/mcp/*` through untouched (buffering them would break the SSE and Streamable HTTP transports), so the MCP dispatcher limits tool calls itself. Each `tools/call` counts against the caller's bucket for one minute, whether it runs, is refused or names an unknown tool:
+
+| Caller | Bucket |
+|---|---|
+| Agent token | `agent:<token id>`, apart from the person it acts for |
+| Local stdio session | `agent:stdio:<email>` |
+| Anyone else signed in (API key, JWT, OAuth connector, dashboard user) | `user:<id>` |
+| Anonymous (auth off) | `ip:<client address>` |
+
+These are the same buckets as the HTTP limiter, but MCP calls are counted on their own, so a person's dashboard traffic doesn't use up their agent's calls. The limit is `MCP_RATE_LIMIT_PER_MINUTE` (or `mcp.rate_limit_per_minute`), else `API_RATE_LIMIT_PER_MINUTE` (120). A value that isn't a whole number of 1 or more is logged and the API limit applies; there is no "unlimited".
+
+Only tool calls are limited. The connection (the SSE stream, the Streamable HTTP session), `initialize`, `tools/list` and pings are never cut off. A limited call gets an ordinary tool result:
+
+```json
+{ "error": "Too many tool calls; try again in 60 seconds.", "code": "MCP_RATE_LIMITED", "retry_after_seconds": 60 }
+```
+
+and is audit-logged with outcome `rate_limited` (channel `mcp`, the bucket in `metadata.bucket`). The limiter keeps its counts in memory, per process.
 - Production guard: in `REALIZE_ENV=production`, enabling `mcp.allow_admin` requires `REALIZE_JWT_ENABLED=true` and a 32+ char `REALIZE_JWT_SECRET`. The server refuses to start otherwise.
 
 ## Error model
@@ -290,6 +315,7 @@ Stable `code` values:
 | `MCP_AGENT_CANNOT_DECIDE` | An outside agent tried to approve, reject or dismiss. People decide. |
 | `MCP_AGENT_REFUSED` | The tool isn't available to an outside agent. |
 | `MCP_TOO_MANY_PENDING` | The agent already has 25 writes waiting for approval. |
+| `MCP_RATE_LIMITED` | The caller made too many tool calls this minute; `retry_after_seconds` says when to try again. See [Rate limits](#rate-limits). |
 
 ## Roadmap
 

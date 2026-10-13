@@ -268,17 +268,31 @@ def _conversation_denied(args: dict[str, Any], user: CurrentUser | None) -> dict
 
 
 async def get_history(args: dict[str, Any], app_state: Any, user: CurrentUser) -> Any:
+    """Recent messages of a (system, user) conversation, each answer with its trail.
+
+    Like ``GET /api/conversations``, every stored answer carries its "what I
+    used" trail: sources with their provenance (``layer``, ``pack``,
+    ``verification``, ``as_of``, ``review_by``) and which tools ran. As in
+    ``realize_chat``, tool inputs, outputs and errors are left out
+    (:func:`realize_core.agents.trail.trail_summary`).
+    """
     denied = _conversation_denied(args, user)
     if denied:
         return denied
     try:
+        from realize_core.agents.trail import trail_summary
         from realize_core.memory.conversation import get_history as _get_history
+        from realize_core.memory.conversation import get_trails
 
         history = _get_history(args["system_key"], args["user_id"], limit=min(args.get("limit", 50), 200))
+        trails = get_trails([m.get("id") for m in history if m.get("role") == "assistant"])
+        messages = [
+            {**m, "trail": trail_summary(trails[m["id"]])} if m.get("id") in trails else dict(m) for m in history
+        ]
         return {
             "system_key": args["system_key"],
             "user_id": args["user_id"],
-            "messages": history,
+            "messages": messages,
         }
     except Exception as exc:
         logger.warning("get_history failed: %s", exc)
