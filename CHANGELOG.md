@@ -4,6 +4,22 @@ All notable changes to RealizeOS are documented in this file.
 This changelog is automatically generated from [Conventional Commits](https://conventionalcommits.org).
 
 
+## [5.29.0](https://github.com/SufZen/RealizeOS-5/compare/v5.28.5...v5.29.0) (2026-10-13)
+
+### Features
+
+* **packs:** developer template links the developer pack (thin pointer) ([88ad54b](https://github.com/SufZen/RealizeOS-5/commit/88ad54b358116e08aa7c6934313b589d2d3414ec))
+* **packs:** load agent definitions from linked packs ([3192aae](https://github.com/SufZen/RealizeOS-5/commit/3192aae7bb50c2d00e1f2eede6730ade478f7a6e))
+* **packs:** pack skills and agents show their provenance in the trail ([b101c2b](https://github.com/SufZen/RealizeOS-5/commit/b101c2b7603b98e3015d86e70f5d0961f0d1a4b4)), closes [#48](https://github.com/SufZen/RealizeOS-5/issues/48)
+* **packs:** pack skills join each venture's skills through the detector ([13d8261](https://github.com/SufZen/RealizeOS-5/commit/13d82613ab1c188a22875c6c4d8c10e5728df6e7))
+* **packs:** pack trust defaults tighten the gate, never loosen it ([185fc51](https://github.com/SufZen/RealizeOS-5/commit/185fc518efc50d5887b874cc3963c3049ad1c636))
+* **packs:** register pack schema extensions per venture ([8c8bc96](https://github.com/SufZen/RealizeOS-5/commit/8c8bc96a155ed60a4791ef0456eac3baa4a0eec6))
+
+### Bug Fixes
+
+* **packs:** a pack skill can't choose the venture it runs for ([0635b2e](https://github.com/SufZen/RealizeOS-5/commit/0635b2edea8fa0015b0f4e0e36f1a53f92e721af))
+* **sheets:** keep amounts summable while blocking formula injection ([5cb6484](https://github.com/SufZen/RealizeOS-5/commit/5cb64847341fb97057659dcc150a96a47aa409ad))
+
 ## [5.28.5](https://github.com/SufZen/RealizeOS-5/compare/v5.28.4...v5.28.5) (2026-10-13)
 
 ### Bug Fixes
