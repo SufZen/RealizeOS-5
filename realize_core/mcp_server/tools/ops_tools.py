@@ -104,7 +104,12 @@ RUN_WORKFLOW_SCHEMA = {
 }
 
 
-async def _run_skill(args: dict[str, Any], app_state: Any, user: CurrentUser) -> Any:
+def validate_run_args(args: dict[str, Any]) -> dict[str, Any] | None:
+    """The error a ``run_workflow`` / ``trigger_skill`` call would return before running, or None.
+
+    Also used before an outside agent's call is held for approval, so a person
+    never approves a run that can't start.
+    """
     name = (args.get("name") or "").strip()
     input_text = (args.get("input_text") or "").strip()
     if not name:
@@ -116,6 +121,21 @@ async def _run_skill(args: dict[str, Any], app_state: Any, user: CurrentUser) ->
             "error": f"input_text too long ({len(input_text)} chars, max {MAX_INPUT_CHARS}).",
             "code": "MCP_VALIDATION",
         }
+    try:
+        from realize_core.skills.detector import get_skill_by_name
+    except ImportError as exc:
+        return {"error": f"Skills module unavailable: {exc}", "code": "MCP_INTERNAL"}
+    if not get_skill_by_name(name):
+        return {"error": f"Workflow '{name}' not found", "code": "MCP_NOT_FOUND"}
+    return None
+
+
+async def _run_skill(args: dict[str, Any], app_state: Any, user: CurrentUser) -> Any:
+    invalid = validate_run_args(args)
+    if invalid:
+        return invalid
+    name = (args.get("name") or "").strip()
+    input_text = (args.get("input_text") or "").strip()
 
     try:
         from realize_core.skills.detector import get_skill_by_name
@@ -347,6 +367,10 @@ LIST_APPROVALS_SCHEMA = {
     "properties": {
         "venture_key": {"type": ["string", "null"]},
         "status": {"type": "string", "default": "pending"},
+        "approval_id": {
+            "type": ["string", "null"],
+            "description": "Only this item, whatever its status (to follow a held write).",
+        },
     },
     "additionalProperties": False,
 }
@@ -359,7 +383,9 @@ async def list_approvals(args: dict[str, Any], app_state: Any, user: CurrentUser
     except ImportError as exc:
         return {"error": f"DB module unavailable: {exc}", "code": "MCP_INTERNAL"}
 
-    status = (args.get("status") or "pending").strip()
+    approval_id = (args.get("approval_id") or "").strip() or None
+    # One item by id: any status unless one is asked for.
+    status = (args.get("status") or ("" if approval_id else "pending")).strip()
     venture_key = (args.get("venture_key") or "").strip() or None
 
     conn = get_connection()
@@ -368,6 +394,9 @@ async def list_approvals(args: dict[str, Any], app_state: Any, user: CurrentUser
         if status:
             clauses.append("status = ?")
             params.append(status)
+        if approval_id:
+            clauses.append("id = ?")
+            params.append(approval_id)
         if venture_key:
             clauses.append("venture_key = ?")
             params.append(venture_key)
