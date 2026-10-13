@@ -1,0 +1,36 @@
+- term: τίτλος ιδιοκτησίας
+  family: source
+  kind: contract
+- term: πωλητήριο έγγραφο
+  family: source
+  kind: contract
+- term: πολεοδομική άδεια
+  family: milestone
+  kind: permit
+- term: άδεια οικοδομής
+  family: milestone
+  kind: permit
+- term: πιστοποιητικό τελικής έγκρισης
+  family: milestone
+  kind: handover
+- term: πιστοποιητικό ενεργειακής απόδοσης
+  family: milestone
+  kind: handover
+- term: εργολάβος
+  family: contact
+  kind: contractor
+- term: υπεργολάβος
+  family: contact
+  kind: subcontractor
+- term: προσφορά
+  family: money-event
+  kind: quote
+- term: τιμολόγιο
+  family: money-event
+  kind: invoice
+- term: κακοτεχνία
+  family: issue
+  kind: defect
+- term: υποθήκη
+  family: requirement
+  kind: covenant

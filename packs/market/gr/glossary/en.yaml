@@ -1,0 +1,9 @@
+- term: electronic building identity
+  family: milestone
+  kind: handover
+- term: building permit
+  family: milestone
+  kind: permit
+- term: letter of guarantee
+  family: requirement
+  kind: covenant

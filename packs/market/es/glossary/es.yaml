@@ -1,0 +1,53 @@
+- term: certificación de obra
+  family: money-event
+  kind: payment_claim
+- term: presupuesto
+  family: money-event
+  kind: quote
+- term: mediciones
+  family: source
+  kind: contract
+- term: pliego de condiciones
+  family: source
+  kind: contract
+- term: revisión de precios
+  family: money-event
+- term: modificado
+  family: change
+  kind: variation
+- term: precios contradictorios
+  family: change
+  kind: variation
+- term: licencia de obras
+  family: milestone
+  kind: permit
+- term: declaración responsable
+  family: milestone
+  kind: permit
+- term: licencia de primera ocupación
+  family: milestone
+  kind: handover
+- term: acta de recepción
+  family: milestone
+  kind: handover
+- term: contratista
+  family: contact
+  kind: contractor
+- term: subcontratista
+  family: contact
+  kind: subcontractor
+- term: promotor
+  family: contact
+  kind: client
+- term: dirección facultativa
+  family: contact
+  kind: supervisor
+- term: aval bancario
+  family: requirement
+  kind: covenant
+- term: vicio constructivo
+  family: issue
+  kind: defect
+- term: retraso
+  family: issue
+  kind: delay

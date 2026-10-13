@@ -1,0 +1,34 @@
+id: us
+kind: market
+version: 0.1.0
+title: United States
+requires:
+  core: '>=0.1'
+languages:
+- en
+defaults:
+  country: US
+  currency: USD
+  units: imperial
+  locale: en-US
+  work_week:
+  - mon
+  - tue
+  - wed
+  - thu
+  - fri
+verification:
+  level: 1
+  reviewed_by: null
+  reviewed_at: null
+  review_by: '2027-04-13'
+limits:
+- Drafted by an agent from public sources and not yet reviewed by a professional in United States (verification
+  1).
+- Most construction law is state law; cards name the federal rule or a state example and never stand for
+  every state.
+- Does not replace a construction attorney, a licensed contractor or the local building department.
+- Rates, thresholds and forms change; check the source and the as-of date before relying on a rule.
+authors:
+- Realization (agent-drafted)
+license: BSL-1.1

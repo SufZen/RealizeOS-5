@@ -1,0 +1,34 @@
+id: es
+kind: market
+version: 0.1.0
+title: Spain
+requires:
+  core: '>=0.1'
+languages:
+- es
+- en
+defaults:
+  country: ES
+  currency: EUR
+  units: metric
+  locale: es-ES
+  work_week:
+  - mon
+  - tue
+  - wed
+  - thu
+  - fri
+verification:
+  level: 1
+  reviewed_by: null
+  reviewed_at: null
+  review_by: '2027-04-13'
+limits:
+- Drafted by an agent from public sources and not yet reviewed by a professional in Spain (verification
+  1).
+- Does not replace an abogado, notario, arquitecto or aparejador.
+- Regional (autonomous community) rules, such as transfer tax, vary and are not covered.
+- Rates, thresholds and forms change; check the source and the as-of date before relying on a rule.
+authors:
+- Realization (agent-drafted)
+license: BSL-1.1
