@@ -20,7 +20,12 @@ pack it loads (:func:`apply_state`), so the resolver, chat context, MCP tools
 and the wedge all see the effective levels. The location is fixed relative to
 ``DATA_PATH``: no setting points it anywhere else.
 
-An approval records the card's next review date (``review_by``:
+An approval binds to the card's content, not only its id: each approved card
+records a fingerprint of its statement, source and ``applies_to``
+(:func:`card_fingerprint`). A card edited after its approval, in place or in a
+``REALIZE_PACKS_PATH`` copy with the same version, no longer matches; it falls
+back to its file's level, with a warning naming the card, until it is reviewed
+again. The approval also records the card's next review date (``review_by``:
 the review date plus the pack's review interval, :data:`REVIEW_INTERVAL_MONTHS`
 unless ``pack.yaml`` sets ``verification.review_interval_months``), which
 replaces the card file's date, so a new review lifts a card whose old date had
@@ -34,7 +39,7 @@ File format::
         "pack": {"level": 2, "reviewed_by": ..., "reviewed_at": ..., "review_by": ...,
                  "approved_by": ..., "approval_id": ...},   # whole-pack approvals only
         "cards": {"pt.vat.rates": {"verification": 2, "verified_by": ...,
-                  "reviewed_at": ..., "review_by": ...,
+                  "reviewed_at": ..., "review_by": ..., "content": "<sha256>",
                   "approved_by": ..., "approval_id": ...}},
         "updated_at": "..."}}}
 """
@@ -43,6 +48,7 @@ from __future__ import annotations
 
 import calendar
 import contextlib
+import hashlib
 import json
 import logging
 import os
@@ -54,7 +60,7 @@ from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
-from realize_core.packs.models import Pack
+from realize_core.packs.models import Pack, RuleCard
 
 logger = logging.getLogger(__name__)
 
@@ -206,6 +212,35 @@ def _valid_level(value: Any) -> int | None:
     return value
 
 
+def _normalised(value: Any) -> Any:
+    """``value`` with every text's whitespace and line endings collapsed, for a stable fingerprint."""
+    if isinstance(value, str):
+        return " ".join(value.split())
+    if isinstance(value, dict):
+        return {str(k): _normalised(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_normalised(v) for v in value]
+    if isinstance(value, date):
+        return value.isoformat()
+    return value
+
+
+def card_fingerprint(card: RuleCard) -> str:
+    """SHA-256 of what a reviewer approves on a card: its statement, source and ``applies_to``.
+
+    Whitespace and line endings are normalised, so a Windows checkout or a
+    re-wrapped line gives the same fingerprint; a changed word, source or
+    applicability doesn't.
+    """
+    content = {
+        "statement": _normalised(card.statement),
+        "source": _normalised(card.source),
+        "applies_to": _normalised(card.applies_to),
+    }
+    text = json.dumps(content, ensure_ascii=False, sort_keys=True, default=str)
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
 def review_interval_months(pack: Pack) -> int:
     """Months until a card approved now must be reviewed again.
 
@@ -240,8 +275,10 @@ def apply_state(pack: Pack) -> None:
     """Lay the recorded verification state over a loaded pack.
 
     Sets the pack's level (whole-pack approvals) and each recorded card's
-    level, reviewer, review date and next review date (``review_by``). The
-    usual rules still apply on top: a
+    level, reviewer, review date and next review date (``review_by``). A card
+    whose statement, source or ``applies_to`` changed since it was approved
+    (its fingerprint no longer matches) keeps the level in its own file, and
+    the pack gets a warning naming it. The usual rules still apply on top: a
     card's effective level is the lower of its own and the pack's, and a card
     past its ``review_by`` date drops to level 1.
     """
@@ -260,6 +297,14 @@ def apply_state(pack: Pack) -> None:
         card = pack.rules.get(card_id)
         level = _valid_level(record.get("verification")) if isinstance(record, dict) else None
         if card is None or level is None:
+            continue
+        recorded = record.get("content")
+        if recorded and recorded != card_fingerprint(card):
+            pack.warnings.append(
+                f"rule card {card_id} changed since it was approved at verification {level}"
+                f"{' by ' + str(record['verified_by']) if record.get('verified_by') else ''}; "
+                f"it shows its own level ({card.verification}) until it is reviewed again"
+            )
             continue
         card.verification = level
         if record.get("verified_by"):
@@ -358,6 +403,7 @@ def record_verification(
     corrections: dict[str, Any] | None = None,
     today: str,
     review_by: str | None = None,
+    fingerprints: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """Record one approved verification in a single atomic write. Returns the pack's new entry.
 
@@ -377,6 +423,9 @@ def record_verification(
         review_by: The next review date (ISO date) for every card raised, and
             for the pack on a whole-pack approval. It replaces the card file's
             ``review_by``, so a new review lifts a card whose old date passed.
+        fingerprints: Card id to :func:`card_fingerprint` of the content that
+            was approved. A card whose content later differs falls back to the
+            level in its file.
 
     Raises:
         VerificationStateError: The state file can't be read for the update
@@ -394,6 +443,8 @@ def record_verification(
             record = {"verification": level, **stamp}
             if review_by:
                 record["review_by"] = review_by
+            if fingerprints and fingerprints.get(card_id):
+                record["content"] = fingerprints[card_id]
             card_state[card_id] = record
         entry["cards"] = card_state
         entry["version"] = version

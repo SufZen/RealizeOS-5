@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import shutil
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
@@ -276,3 +277,77 @@ def test_the_approval_date_is_today(db, shipped):
     today = datetime.now(UTC).date()
     assert card.reviewed_at == today.isoformat()
     assert date.fromisoformat(card.review_by) - today > timedelta(days=150)
+
+
+# ---------------------------------------------------------------------------
+# P2-2: approvals follow the card's content
+# ---------------------------------------------------------------------------
+
+
+def test_a_card_edited_in_place_after_approval_drops_to_its_file_level(db, shipped, caplog):
+    approval_id = request_verification("ops", kind="market", pack_id="pt", level=2, reviewer="Ana Silva")
+    assert _approve(approval_id)["execution"]["success"] is True
+    root = shipped / "market" / "pt"
+    assert load_pack(root).rules["pt.vat.rates"].verification == 2
+
+    card = root / "rules" / "vat-rates.md"
+    text = card.read_text(encoding="utf-8")
+    statement = next(line for line in text.splitlines() if line.startswith("statement:"))
+    card.write_text(text.replace(statement, "statement: Works carry no VAT at all."), encoding="utf-8")
+
+    with caplog.at_level(logging.WARNING, logger="realize_core.packs.loader"):
+        first = load_pack(root)
+        second = load_pack(root)
+    edited = first.rules["pt.vat.rates"]
+    assert edited.verification == 1
+    assert edited.verified_by is None
+    assert edited.effective_level(first.verification_level) == 1
+    assert first.rules["pt.contracts.price-revision"].effective_level(first.verification_level) == 2
+    assert second.rules["pt.vat.rates"].verification == 1
+    named = [r for r in caplog.records if "pt.vat.rates changed since it was approved" in r.getMessage()]
+    assert len(named) == 1  # warned once, naming the card
+
+
+def test_an_edited_copy_in_the_custom_folder_with_the_same_version_drops(db, shipped, tmp_path, monkeypatch):
+    approval_id = request_verification("ops", kind="market", pack_id="pt", level=2, reviewer="Ana Silva")
+    assert _approve(approval_id)["execution"]["success"] is True
+    custom = tmp_path / "custom"
+    shutil.copytree(shipped / "market" / "pt", custom / "market" / "pt")
+    card = custom / "market" / "pt" / "rules" / "vat-rates.md"
+    text = card.read_text(encoding="utf-8")
+    source = next(line for line in text.splitlines() if line.startswith("source:"))
+    card.write_text(text.replace(source, "source: https://firm.example/our-own-reading"), encoding="utf-8")
+    monkeypatch.setenv(loader.PACKS_PATH_ENV, str(custom))
+    clear_cache()
+
+    resolver = PackResolver(_venture(tmp_path), enabled=True)
+
+    assert resolver.packs[0].root.resolve().is_relative_to(custom.resolve())  # the edited copy is the one used
+    assert resolver.resolve("rule", "pt.vat.rates").verification == 1
+    assert resolver.resolve("rule", "pt.contracts.price-revision").verification == 2
+
+
+def test_line_endings_and_wrapping_do_not_break_an_approval(db, shipped):
+    approval_id = request_verification(
+        "ops", kind="market", pack_id="pt", level=2, reviewer="R", cards=["pt.vat.rates"]
+    )
+    assert _approve(approval_id)["execution"]["success"] is True
+    card = shipped / "market" / "pt" / "rules" / "vat-rates.md"
+    card.write_bytes(card.read_bytes().replace(b"\r\n", b"\n").replace(b"\n", b"\r\n"))
+
+    assert load_pack(shipped / "market" / "pt").rules["pt.vat.rates"].verification == 2
+
+
+def test_an_approval_recorded_before_fingerprints_still_applies(db, shipped):
+    """Records written by 5.28-5.29 have no fingerprint; they keep applying until the card is reviewed again."""
+    approval_id = request_verification(
+        "ops", kind="market", pack_id="pt", level=2, reviewer="R", cards=["pt.vat.rates"]
+    )
+    assert _approve(approval_id)["execution"]["success"] is True
+    path = state.state_path()
+    data = json.loads(path.read_text(encoding="utf-8"))
+    del data["packs"]["market/pt"]["cards"]["pt.vat.rates"]["content"]
+    path.write_text(json.dumps(data), encoding="utf-8")
+    clear_cache()
+
+    assert load_pack(shipped / "market" / "pt").rules["pt.vat.rates"].verification == 2

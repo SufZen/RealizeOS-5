@@ -11,8 +11,8 @@ reject it (audit N01; enforced in
 :func:`realize_core.governance.gates.decide_approval`).
 
 When it is approved, :func:`apply_verification` records the reviewer, the
-date, the new level and the next review date, for the reviewed cards or for
-the whole pack, in the
+date, the new level, the next review date and a fingerprint of each approved
+card's content, for the reviewed cards or for the whole pack, in the
 verification state under ``DATA_PATH`` (:mod:`realize_core.packs.state`), in
 one atomic write. Pack files are never edited by an approval, so shipped packs
 can stay read-only (audit N04). Nothing changes on rejection.
@@ -122,7 +122,9 @@ def apply_verification(
     pack's own level stays as it was), or with no ``cards`` for the whole pack
     and every card in it. The pack's files are not touched. Each card also
     gets its next review date (today plus the pack's review interval, six
-    months unless ``pack.yaml`` sets ``verification.review_interval_months``).
+    months unless ``pack.yaml`` sets ``verification.review_interval_months``)
+    and a fingerprint of the content approved, so a later edit to the card
+    drops it back to its file's level.
 
     Returns:
         ``{"pack", "level", "reviewer", "cards", "skipped", "pack_level_changed", "review_by"}``.
@@ -169,6 +171,7 @@ def apply_verification(
         corrections=corrections if isinstance(corrections, dict) else None,
         today=today.isoformat(),
         review_by=review_by,
+        fingerprints={card_id: state.card_fingerprint(pack.rules[card_id]) for card_id in cards},
     )
     logger.info("Pack %s/%s verification %s applied to %d cards", kind, pack_id, level, len(cards))
     return {
