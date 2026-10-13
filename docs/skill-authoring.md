@@ -29,6 +29,8 @@ pipeline:
 
 The API loads every venture's skills (`systems/<venture>/R-routines/skills/`, found through the venture's configured `directory`) at startup and on every config reload (`POST /api/systems/reload`). After adding or editing a skill file, reload or restart. Before 5.30 venture skills loaded only after a skill was installed from the library, so chat matched only the built-in default skills after a restart.
 
+Workflows created, changed or deleted through the API (`POST`, `PUT`, `DELETE /api/workflows`) live in memory, not in files. A config reload keeps them: it re-reads the skill files and then applies the API's changes again, so a workflow created through the API wins over a file with the same name in that venture. A restart drops them; to keep a workflow, save it as a file.
+
 ## v2 Skills — Multi-Step Workflows
 
 v2 skills support multiple step types with context injection.

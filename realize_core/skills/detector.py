@@ -272,11 +272,17 @@ def load_skills(skills_dir=None, kb_path=None, packs: bool | None = None, ventur
 
 
 def reload_skills(skills_dir=None, kb_path=None, packs: bool | None = None, ventures: dict | None = None):
-    """Hot-reload skills from YAML files (and, with ``packs``, from the ventures' packs)."""
+    """Hot-reload skills from YAML files (and, with ``packs``, from the ventures' packs).
+
+    Skills created, changed or deleted through the API (``/api/workflows``)
+    are applied again on top, so a settings reload doesn't undo them; they
+    last until the server restarts (:func:`_reapply_runtime_changes`).
+    """
     global _loaded_skills, _skills_loaded
     _loaded_skills = {}
     _skills_loaded = False
     load_skills(skills_dir=skills_dir, kb_path=kb_path, packs=packs, ventures=ventures)
+    _reapply_runtime_changes()
 
 
 def detect_skill(message: str, system_key: str = None) -> dict | None:
@@ -492,6 +498,40 @@ def get_skill_by_name(name: str, system_key: str | None = None) -> dict | None:
     return found[1] if found else None
 
 
+# ---------------------------------------------------------------------------
+# Skills created or changed through the API (kept across reloads until restart)
+# ---------------------------------------------------------------------------
+
+#: Skills registered at runtime (``POST /api/workflows``), by ``(owner, name)``.
+_runtime_skills: dict[tuple[str, str], dict] = {}
+#: API changes (``PUT /api/workflows/{name}``) to skills loaded from files, by ``(owner, name)``.
+_runtime_edits: dict[tuple[str, str], dict] = {}
+#: File skills deleted through the API (``DELETE /api/workflows/{name}``), by ``(owner, name)``.
+_runtime_removed: set[tuple[str, str]] = set()
+
+
+def _reapply_runtime_changes() -> None:
+    """Apply the API's changes again after a reload: they were the user's last word, until restart.
+
+    A file skill deleted through the API stays deleted, changes are laid over
+    the reloaded file skill, and a skill created through the API replaces a
+    file skill with the same name in the same venture (it was the user's
+    explicit, later action). All of it lasts until the server restarts.
+    """
+    for owner, name in _runtime_removed:
+        skills = _loaded_skills.get(owner)
+        if skills:
+            skills[:] = [s for s in skills if s.get("name") != name]
+    for (owner, name), updates in _runtime_edits.items():
+        skill = _named(_loaded_skills.get(owner, []), name)
+        if skill is not None:
+            skill.update(updates)
+    for (owner, name), skill in _runtime_skills.items():
+        skills = _loaded_skills.setdefault(owner, [])
+        skills[:] = [s for s in skills if s.get("name") != name]
+        skills.append(skill)
+
+
 def _owned(name: str, system_key: str | None) -> tuple[str, dict] | None:
     """The skill ``name`` of exactly ``system_key`` (any loaded owner), or a shared or global one."""
     if system_key is not None:
@@ -502,8 +542,16 @@ def _owned(name: str, system_key: str | None) -> tuple[str, dict] | None:
 
 
 def register_skill(skill_data: dict) -> None:
-    """Register a new skill at runtime (in-memory only)."""
+    """Register a new skill at runtime (in memory only).
+
+    It is kept across :func:`reload_skills` (a settings reload) until the
+    server restarts.
+    """
     system_key = skill_data.get("system_key", "_runtime")
+    key = (system_key, str(skill_data.get("name") or ""))
+    _runtime_skills[key] = skill_data
+    _runtime_removed.discard(key)
+    _runtime_edits.pop(key, None)
     _loaded_skills.setdefault(system_key, []).append(skill_data)
     logger.info("Registered runtime skill '%s' in system '%s'", skill_data.get("name"), system_key)
 
@@ -512,13 +560,16 @@ def update_skill(name: str, updates: dict, system_key: str | None = None) -> boo
     """Update a skill's fields. Returns True if found and updated.
 
     ``system_key`` is the owner whose skill to change; without it only a
-    shared or global skill is changed, never a venture's.
+    shared or global skill is changed, never a venture's. The change is kept
+    across :func:`reload_skills` until the server restarts.
     """
     found = _owned(name, system_key)
     if found is None:
         return False
     owner, skill = found
     skill.update(updates)
+    if (owner, name) not in _runtime_skills:
+        _runtime_edits.setdefault((owner, name), {}).update(updates)
     logger.info("Updated skill '%s' in system '%s': %s", name, owner, list(updates.keys()))
     return True
 
@@ -527,7 +578,8 @@ def unregister_skill(name: str, system_key: str | None = None) -> bool:
     """Remove a skill. Returns True if found and removed.
 
     ``system_key`` is the owner whose skill to remove; without it only a
-    shared or global skill is removed, never a venture's.
+    shared or global skill is removed, never a venture's. A file skill removed
+    this way stays removed across :func:`reload_skills` until the server restarts.
     """
     found = _owned(name, system_key)
     if found is None:
@@ -535,6 +587,9 @@ def unregister_skill(name: str, system_key: str | None = None) -> bool:
     owner, skill = found
     skills = _loaded_skills[owner]
     skills[:] = [s for s in skills if s is not skill]
+    _runtime_edits.pop((owner, name), None)
+    if _runtime_skills.pop((owner, name), None) is None:
+        _runtime_removed.add((owner, name))
     logger.info("Unregistered skill '%s' from system '%s'", name, owner)
     return True
 
