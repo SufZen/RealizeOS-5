@@ -76,6 +76,9 @@ realize-os
 │   ├── list                                     List tokens (no secrets)
 │   └── revoke ID                                Revoke now; withdraw its held writes
 │
+├── decisions                                    Decision log
+│   └── retry [--limit N]                        Write decisions whose earlier write failed
+│
 ├── config
 │   ├── show [KEY]                               Show config value(s)
 │   ├── set KEY VALUE                            Set a config value
@@ -263,6 +266,17 @@ realize-os wedge purge                     # delete runs older than 30 days unle
 ```
 
 `invite` only works on a pilot host: `features.wedge` on and `mcp.tools` limited to the pilot tools, so it can't open the practice's own server to outsiders. It rewrites `users.yaml` (comments are not kept; the previous file is saved as `users.yaml.bak`). If the file is read-only, it prints the entry to add by hand. It refuses to create `users.yaml`: once that file exists it replaces a single-owner `REALIZE_ADMIN_USER` login, so create it with your own owner account first.
+
+### `realize-os decisions`
+
+Repair the [decision log](decision-log.md#when-a-write-fails). Run it on the server, in the project directory (where `realize-os.yaml` and the database are).
+
+```bash
+realize-os decisions retry              # write every queued decision; list those still waiting, with the reason
+python cli.py decisions retry           # same
+```
+
+A decision whose file couldn't be written (disk full, read-only mount, venture folder missing) is queued, and the server retries it on its own at startup and after the next logged decision, up to 5 times. This command tries every queued write regardless, and never writes a decision twice. It exits with code 1 while some writes are still waiting.
 
 ## Multi-Instance Profiles
 

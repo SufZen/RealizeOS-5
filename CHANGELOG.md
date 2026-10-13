@@ -4,6 +4,13 @@ All notable changes to RealizeOS are documented in this file.
 This changelog is automatically generated from [Conventional Commits](https://conventionalcommits.org).
 
 
+## [5.28.1](https://github.com/SufZen/RealizeOS-5/compare/v5.28.0...v5.28.1) (2026-10-13)
+
+### Bug Fixes
+
+* **governance:** decision log follows configured folders and survives write failures (audit N05) ([0da5122](https://github.com/SufZen/RealizeOS-5/commit/0da5122b2a62b7ba1821484b40be9bfe96414ca6))
+* **missions:** a held step waits for approval instead of failing (audit N02) ([79dc962](https://github.com/SufZen/RealizeOS-5/commit/79dc9620b1274fca715b209e04bc9d2b36d7f3c6))
+
 ## [5.28.0](https://github.com/SufZen/RealizeOS-5/compare/v5.27.0...v5.28.0) (2026-10-13)
 
 ### Features

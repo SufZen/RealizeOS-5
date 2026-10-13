@@ -158,6 +158,21 @@ async def lifespan(app: FastAPI):
         app.state.store_errors["operational_db"] = "required"
         logger.error("Operational DB initialization failed: %s", e, exc_info=True)
 
+    # Decision-log writes that failed earlier (disk full, read-only mount): retry now (N05).
+    if "operational_db" not in app.state.store_errors:
+        try:
+            from realize_core.governance.decision_log import retry_pending_decisions
+
+            retried = retry_pending_decisions(kb_path=KB_PATH)
+            if retried["logged"] or retried["pending"]:
+                logger.info(
+                    "Decision log: %d pending write(s) recorded at startup, %d still pending",
+                    retried["logged"],
+                    retried["pending"],
+                )
+        except Exception as e:
+            logger.warning("Decision-log retry at startup skipped: %s", e, exc_info=True)
+
     # Initialize KB index
     try:
         from realize_core.kb.indexer import index_kb_files

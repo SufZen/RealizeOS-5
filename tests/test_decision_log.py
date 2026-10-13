@@ -194,3 +194,224 @@ def test_log_decision_is_registered_and_guarded():
     assert (tool.family, tool.scope) == ("ops", "editor")
     assert "log_decision" in venture_guard.NEEDS_VENTURE
     assert venture_guard.TOOL_PERMISSIONS["log_decision"] == "agents:execute"
+
+
+# ─── Codex audit N05: configured directories, durable writes, visible outcome ──
+
+
+@pytest.fixture
+def configured(tmp_path, monkeypatch) -> Path:
+    """realize-os.yaml maps venture key ``acme`` to ``systems/acme-office`` (and ``rogue`` outside systems/)."""
+    config = tmp_path / "realize-os.yaml"
+    config.write_text(
+        "systems:\n"
+        "  - key: acme\n    name: Acme\n    directory: systems/acme-office\n"
+        "  - key: rogue\n    name: Rogue\n    directory: shared\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("REALIZE_CONFIG", str(config))
+    return tmp_path
+
+
+def _approval(venture: str, note: str = "ok") -> str:
+    from realize_core.governance.gates import create_approval_request
+
+    return create_approval_request(
+        venture, "site_payments", "tool_call", {"summary": note}, params={"basis": [{"source": "a.pdf"}]}
+    )
+
+
+def _decide(approval_id: str, approve: bool = True, note: str | None = None) -> dict:
+    from realize_core.governance.gates import decide_approval
+
+    return asyncio.run(decide_approval(approval_id, approve, note, decided_by="asaf", channel="dashboard"))
+
+
+def _intent(db, approval_id: str) -> dict:
+    conn = decision_log._connect(db)
+    try:
+        row = conn.execute("SELECT * FROM decision_writes WHERE approval_id = ?", (approval_id,)).fetchone()
+        return dict(row) if row else {}
+    finally:
+        conn.close()
+
+
+def _decision_files(venture_dir: Path) -> list[Path]:
+    folder = venture_dir / "B-brain" / "decisions"
+    return sorted(folder.iterdir()) if folder.is_dir() else []
+
+
+def test_configured_directory_that_differs_from_the_key(db, kb, configured):
+    from realize_core.scheduler.reports import generate_weekly_review
+
+    office = kb / "systems" / "acme-office"
+    office.mkdir(parents=True)
+    approval_id = _approval("acme")
+
+    out = _decide(approval_id, True, "pay it")
+
+    assert out["decision_log"]["logged"] is True
+    assert out["decision_log"]["error"] is None
+    [d] = list_decisions(office)
+    assert d["approval_id"] == approval_id
+    assert d["id"] == out["decision_log"]["decision_id"]
+    assert not (kb / "systems" / "acme").exists()
+    assert _intent(db, approval_id)["status"] == "done"
+    # The weekly review reads the same configured folder.
+    text = asyncio.run(generate_weekly_review({"acme": {}}, kb))
+    assert "**acme**: 1 decisions recorded" in text
+
+
+def test_configured_directory_outside_systems_is_refused(db, kb, configured):
+    (kb / "shared").mkdir()
+
+    out = _decide(_approval("rogue"))
+
+    assert out["approval"]["status"] == "approved"
+    assert out["decision_log"]["logged"] is False
+    assert "outside systems/ or ventures/" in out["decision_log"]["error"]
+    assert not (kb / "shared" / "B-brain").exists()
+    assert record_approval_decision(out["approval"], True) is None
+
+
+def test_unavailable_disk_queues_the_write_and_a_retry_writes_it_once(db, kb, monkeypatch):
+    from realize_core.governance.decision_log import retry_pending_decisions
+
+    real_replace = decision_log.os.replace
+
+    def disk_full(src, dst):
+        raise OSError(28, "No space left on device", str(dst))
+
+    monkeypatch.setattr(decision_log.os, "replace", disk_full)
+    approval_id = _approval("tower-b", "Pay claim 3")
+
+    out = _decide(approval_id, False, "Line 4 is not in the contract")
+
+    # The decision itself stands; the log write is queued and the result says so.
+    assert out["approval"]["status"] == "rejected"
+    assert out["decision_log"] == {
+        "logged": False,
+        "pending": True,
+        "error": "No space left on device",
+        "decision_id": None,
+    }
+    assert _decision_files(_venture(kb)) == []  # no partial entry, no temp file left behind
+    intent = _intent(db, approval_id)
+    assert (intent["status"], intent["attempts"]) == ("pending", 1)
+    assert "No space left on device" in intent["last_error"]
+
+    monkeypatch.setattr(decision_log.os, "replace", real_replace)  # the disk is back
+    assert retry_pending_decisions() == {"logged": 1, "pending": 0}
+    assert retry_pending_decisions() == {"logged": 0, "pending": 0}
+
+    [d] = list_decisions(_venture(kb))
+    assert d["approval_id"] == approval_id
+    assert d["outcome"] == "rejected"
+    assert "Line 4 is not in the contract" in d["_body"]
+    assert d["date"] == out["approval"]["decided_at"][:10]  # dated when it was decided, not when retried
+    assert len(_decision_files(_venture(kb))) == 1
+    assert _intent(db, approval_id)["status"] == "done"
+
+
+def test_next_decision_retries_a_pending_write(db, kb, monkeypatch):
+    real_replace = decision_log.os.replace
+
+    def read_only(src, dst):
+        raise PermissionError(13, "Permission denied", str(dst))
+
+    monkeypatch.setattr(decision_log.os, "replace", read_only)
+    first = _approval("tower-b", "first")
+    assert _decide(first)["decision_log"]["pending"] is True
+
+    monkeypatch.setattr(decision_log.os, "replace", real_replace)
+    second = _approval("tower-b", "second")
+    assert _decide(second)["decision_log"]["logged"] is True
+
+    assert sorted(d["approval_id"] for d in list_decisions(_venture(kb))) == sorted([first, second])
+    assert _intent(db, first)["status"] == "done"
+
+
+def test_missing_venture_folder_is_retried_once_it_exists(db, kb):
+    from realize_core.governance.decision_log import retry_pending_decisions
+
+    out = _decide(_approval("new-site"))
+    assert out["decision_log"]["pending"] is True
+    assert "no folder" in out["decision_log"]["error"]
+
+    (kb / "systems" / "new-site").mkdir()
+    assert retry_pending_decisions()["logged"] == 1
+    assert len(list_decisions(kb / "systems" / "new-site")) == 1
+
+
+def test_automatic_retries_stop_after_repeated_failures(db, kb):
+    from realize_core.governance.decision_log import MAX_AUTO_ATTEMPTS, pending_decisions, retry_pending_decisions
+
+    approval_id = _approval("gone")
+    _decide(approval_id)
+    for _ in range(MAX_AUTO_ATTEMPTS + 2):
+        retry_pending_decisions()
+    assert _intent(db, approval_id)["attempts"] == MAX_AUTO_ATTEMPTS
+    # Still pending, and still tried when the owner asks.
+    assert [i["approval_id"] for i in pending_decisions()] == [approval_id]
+    retry_pending_decisions(max_attempts=None)
+    assert _intent(db, approval_id)["attempts"] == MAX_AUTO_ATTEMPTS + 1
+
+
+def test_inputs_are_not_queued(db, kb):
+    from realize_core.governance.decision_log import log_decision
+
+    out = log_decision({"id": "q-1", "venture_key": "tower-b", "action_type": "skill_input"}, True)
+    assert out == {"logged": False, "pending": False, "error": None, "decision_id": None}
+    assert _intent(db, "q-1") == {}
+
+
+def test_rest_and_mcp_report_the_decision_log_outcome(db, kb):
+    from realize_api.routes.approvals import _flatten
+    from realize_core.mcp_server.tools.ops_tools import _decision_summary
+
+    out = _decide(_approval("tower-b"))
+
+    flat = _flatten(out)
+    assert flat["status"] == "approved"  # the historical shape is kept
+    assert flat["decision_log"]["logged"] is True
+    summary = _decision_summary(out)
+    assert (summary["decision_logged"], summary["decision_log_pending"]) == (True, False)
+
+
+def test_cli_retry_reports_what_is_still_waiting(db, kb):
+    from realize_core.cli_app import app
+    from typer.testing import CliRunner
+
+    approval_id = _approval("later-site")
+    _decide(approval_id)
+
+    runner = CliRunner()
+    waiting = runner.invoke(app, ["decisions", "retry"])
+    assert waiting.exit_code == 1
+    assert "Recorded 0 decision(s); 1 still waiting" in waiting.output
+    assert approval_id in waiting.output
+
+    (kb / "systems" / "later-site").mkdir()
+    done = runner.invoke(app, ["decisions", "retry"])
+    assert done.exit_code == 0
+    assert "Recorded 1 decision(s); 0 still waiting" in done.output
+
+
+def test_migration_013_creates_the_write_queue(tmp_path):
+    import sqlite3
+
+    from realize_core.db.migrations import run_migrations
+    from realize_core.db.schema import init_schema
+    from realize_core.migration.engine import MigrationEngine
+
+    path = tmp_path / "fresh.db"
+    init_schema(path)
+    run_migrations(path)
+    MigrationEngine(db_path=path).migrate_up()
+
+    conn = sqlite3.connect(path)
+    try:
+        names = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type IN ('table', 'index')")}
+    finally:
+        conn.close()
+    assert {"decision_writes", "idx_decision_writes_status"} <= names

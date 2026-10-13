@@ -319,6 +319,10 @@ Reject an approval request.
 
 People decide: a caller with an agent token gets `403` on approve and reject.
 
+Both return the approval row with the outcomes added: `execution` (a held action that ran), `skill_output` (a skill that resumed) and `decision_log`, whether the decision reached the venture's [decision log](decision-log.md#when-a-write-fails): `{"logged", "pending", "error", "decision_id"}`. `pending: true` means the write failed and is queued for a retry; the decision itself stands.
+
+A mission step whose action was held waits as `awaiting-approval`, and the steps that depend on it wait too. Approving the action completes the step and the mission continues; rejecting it (or an approved action that fails) fails the step, and the steps that depend on it never run.
+
 ---
 
 ## Agent Tokens
