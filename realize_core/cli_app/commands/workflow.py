@@ -24,20 +24,33 @@ def workflow_list() -> None:
 @workflow_app.command("run")
 def workflow_run(
     name: Annotated[str, typer.Argument(help="Workflow name to run.")],
-    input_json: Annotated[str | None, typer.Option("--input", "-i", help="Input JSON string.")] = None,
+    venture: Annotated[str, typer.Option("--venture", "-v", help="The venture whose copy of the workflow runs.")],
+    message: Annotated[
+        str | None, typer.Option("--message", "-m", help="The input message (what you'd type in chat).")
+    ] = None,
+    input_json: Annotated[
+        str | None, typer.Option("--input", "-i", help='Deprecated: JSON input; {"input_text": "..."} or any JSON.')
+    ] = None,
 ) -> None:
-    """Run a workflow by name."""
+    """Run a venture's workflow with an input message (POST /api/workflows/{name}/run)."""
     import json
+    from urllib.parse import quote
 
     state = get_state()
 
-    body: dict[str, object] = {"name": name}
-    if input_json:
+    text = message
+    if text is None and input_json:
         try:
-            body["input"] = json.loads(input_json)
+            parsed = json.loads(input_json)
         except json.JSONDecodeError as exc:
             typer.echo(f"Error: Invalid JSON input: {exc}", err=True)
             raise typer.Exit(code=1) from exc
+        text = parsed.get("input_text") if isinstance(parsed, dict) else None
+        text = text if isinstance(text, str) else json.dumps(parsed, ensure_ascii=False)
+    if not text:
+        typer.echo("Error: give the input with --message", err=True)
+        raise typer.Exit(code=1)
 
-    result = api_post("/api/workflows/run", profile=state.profile, json_body=body)
+    body = {"system_key": venture, "input_text": text}
+    result = api_post(f"/api/workflows/{quote(name, safe='')}/run", profile=state.profile, json_body=body)
     emit(result, output_format=state.output_format)

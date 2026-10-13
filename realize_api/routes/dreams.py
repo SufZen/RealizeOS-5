@@ -57,7 +57,8 @@ async def list_dreams(
     return {
         "proposals": proposals,
         "count": len(proposals),
-        "stats": inbox.stats(),
+        # Counts over the caller's ventures only, like the list.
+        "stats": inbox.stats(lambda p: visible_to(request, p.venture)),
     }
 
 

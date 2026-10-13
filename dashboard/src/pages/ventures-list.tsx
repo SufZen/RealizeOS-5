@@ -11,6 +11,7 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { Skeleton, SkeletonCard } from '@/components/ui/skeleton'
 import { api, ApiError } from '@/lib/api'
 import { useAuth } from '@/hooks/use-auth'
+import { useLocale } from '@/components/locale-provider'
 import { ventureGates } from '@/lib/permissions'
 
 interface VenturesResponse {
@@ -38,7 +39,8 @@ export default function VenturesListPage() {
   const { user } = useAuth()
   const canEdit = data?.config_writable !== false
   // The role and venture scope decide too (the server checks again on every change).
-  const gates = ventureGates(user, canEdit)
+  const { language } = useLocale()
+  const gates = ventureGates(user, canEdit, language)
 
   function handleDeleteClick(key: string, e: React.MouseEvent) {
     e.stopPropagation()

@@ -10,6 +10,7 @@ Welcome to the RealizeOS documentation. Choose a guide based on where you are in
 | [📖 Getting Started](getting-started.md) | First steps after setup |
 | [🔧 Configuration](configuration.md) | Customize your deployment |
 | [🚀 Self-Hosting](self-hosting-guide.md) | Production deployment |
+| [🛡️ Dependency Advisories](dependency-advisories.md) | Known advisories per ecosystem, and why any remain |
 
 ## Core Concepts
 
@@ -39,6 +40,7 @@ Welcome to the RealizeOS documentation. Choose a guide based on where you are in
 
 | Guide | Description |
 |-------|-------------|
+| [📋 Upgrade to 5.30](upgrade-to-5.30.md) | From 5.24 or 5.14: migrations, new settings, behaviour changes |
 | [📋 Upgrade from 5.0](upgrade-from-v50.md) | Migration guide: 5.0.x → 5.1.0 |
 | [📋 Upgrade from 0.3](upgrade-from-v03.md) | Migration guide: 0.3.x → 5.x |
 

@@ -20,6 +20,7 @@ governance:
 import asyncio
 import json
 import logging
+import sqlite3
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -34,6 +35,10 @@ MCP_WRITE_ACTION_TYPE = "mcp_write"
 #: ``action_type`` of a request to raise a shared pack's verification (spec 010 §5).
 PACK_VERIFY_ACTION_TYPE = "pack_verify"
 
+#: ``action_type`` of a decision made elsewhere that an agent proposes for the
+#: decision log (``decision_log.DECISION_LOG_ACTION``, STORY-44).
+DECISION_PROPOSAL_ACTION_TYPE = "decision_log"
+
 #: Requests whose outcome changes something every venture shares. Only a
 #: global maintainer may approve or reject them, whatever the row's venture
 #: (audit N01): a pack's verification level shows on every venture's answers.
@@ -47,8 +52,39 @@ GLOBAL_ACTION_TYPES = frozenset({PACK_VERIFY_ACTION_TYPE})
 GLOBAL_MAINTAINER_ROLES = frozenset({"owner"})
 
 
+#: An outside agent can't flood the approval queue: past this many items waiting for
+#: a person (held writes, writes held from its chat, decision proposals, questions)
+#: it must wait for decisions (S6).
+MAX_PENDING_PER_AGENT = 25
+
+
 class ApprovalForbiddenError(PermissionError):
     """The decider may not decide this approval; nothing was changed."""
+
+
+class TooManyPendingError(RuntimeError):
+    """An outside agent already has :data:`MAX_PENDING_PER_AGENT` items waiting; nothing was queued."""
+
+
+def too_many_pending_message(limit: int) -> str:
+    """What an agent is told when it has ``limit`` items waiting for a person."""
+    return f"{limit} of your requests are already waiting for approval; wait for a decision"
+
+
+def pending_count_for(requested_by: str, db_path=None) -> int:
+    """How many items ``requested_by`` has waiting for a person (pending and not expired), of every kind."""
+    from realize_core.db.schema import get_connection
+
+    conn = get_connection(db_path)
+    try:
+        row = conn.execute(
+            """SELECT COUNT(*) FROM approval_queue
+               WHERE requested_by = ? AND status = 'pending' AND (expires_at IS NULL OR expires_at > ?)""",
+            (requested_by, _now()),
+        ).fetchone()
+    finally:
+        conn.close()
+    return int(row[0]) if row else 0
 
 
 @dataclass(frozen=True)
@@ -165,9 +201,29 @@ def create_approval_request(
     once approved (:func:`execute_approved_action`), plus ``requested_by``
     and ``session_ref`` (``<venture>|<user>``) to report the outcome back.
 
+    Work done for an outside agent (:func:`realize_core.security.agent_access.acting_for_outside_agent`)
+    is requested by the agent: ``requested_by`` becomes its principal
+    (``agent:<id>``, or ``agent:stdio:<email>`` for a stdio session) unless
+    it already names one, so the queue shows the request came from outside.
+    An outside agent has at most :data:`MAX_PENDING_PER_AGENT` items waiting.
+
     Returns the approval ID.
+
+    Raises:
+        TooManyPendingError: the agent already has that many items waiting.
     """
     from realize_core.db.schema import get_connection
+    from realize_core.security.agent_access import current_outside_agent
+    from realize_core.security.agent_tokens import is_agent_principal
+
+    outside_agent = current_outside_agent()
+    if outside_agent and not is_agent_principal(requested_by):
+        requested_by = outside_agent
+    if is_agent_principal(requested_by) and pending_count_for(requested_by, db_path) >= MAX_PENDING_PER_AGENT:
+        logger.warning(
+            "Approval request from %s refused: %d items already waiting", requested_by, MAX_PENDING_PER_AGENT
+        )
+        raise TooManyPendingError(too_many_pending_message(MAX_PENDING_PER_AGENT))
 
     approval_id = str(uuid.uuid4())
     now = datetime.now(UTC)
@@ -253,6 +309,7 @@ def _decide(
     db_path=None,
     *,
     global_authorized: bool = False,
+    log_intent: bool = False,
 ) -> dict | None:
     """Move a pending, unexpired item to ``status`` in one compare-and-set step.
 
@@ -262,6 +319,10 @@ def _decide(
     (:data:`GLOBAL_ACTION_TYPES`) only moves when ``global_authorized`` says
     the caller checked the decider (:func:`decide_approval` does), so a direct
     call can't decide one by mistake.
+
+    With ``log_intent`` (:func:`decide_approval`), the intent to add the
+    decision to the decision log is stored in the same transaction, so a crash
+    right after the decision can't lose the entry (review G-4).
     """
     from realize_core.db.schema import get_connection
 
@@ -270,6 +331,10 @@ def _decide(
     placeholders = ",".join("?" for _ in global_types)
     conn = get_connection(db_path)
     try:
+        if log_intent:
+            from realize_core.governance.decision_log import ensure_intent_table
+
+            ensure_intent_table(conn)
         cur = conn.execute(
             f"""UPDATE approval_queue
                SET status = ?, decision_note = ?, decided_at = ?, updated_at = ?,
@@ -278,11 +343,20 @@ def _decide(
                  AND (? OR COALESCE(action_type, '') NOT IN ({placeholders}))""",
             (status, decision_note, now, now, decided_by, channel, approval_id, now, global_authorized, *global_types),
         )
-        conn.commit()
         if cur.rowcount != 1:
+            conn.rollback()
             return None
         row = conn.execute("SELECT * FROM approval_queue WHERE id = ?", (approval_id,)).fetchone()
         result = dict(row) if row else None
+        if log_intent and result is not None:
+            from realize_core.governance.decision_log import queue_with_decision
+
+            try:
+                queue_with_decision(conn, result, status == "approved", result.get("action_type"))
+            except sqlite3.Error:
+                # The decision stands; log_decision queues the intent again after this.
+                logger.warning("Could not queue the decision-log write for approval %s", approval_id, exc_info=True)
+        conn.commit()
     finally:
         conn.close()
 
@@ -312,14 +386,23 @@ def approve_request(
     decided_by: str | None = None,
     channel: str | None = None,
     global_authorized: bool = False,
+    log_intent: bool = False,
 ) -> dict | None:
     """Approve a pending, unexpired request. Returns the row, or None if it isn't pending or has expired.
 
     A global request (``pack_verify``) is approved only through
-    :func:`decide_approval`, which checks the decider first.
+    :func:`decide_approval`, which checks the decider first. ``log_intent``
+    stores the decision-log intent with the decision (:func:`decide_approval` does).
     """
     return _decide(
-        approval_id, "approved", decision_note, decided_by, channel, db_path, global_authorized=global_authorized
+        approval_id,
+        "approved",
+        decision_note,
+        decided_by,
+        channel,
+        db_path,
+        global_authorized=global_authorized,
+        log_intent=log_intent,
     )
 
 
@@ -331,14 +414,23 @@ def reject_request(
     decided_by: str | None = None,
     channel: str | None = None,
     global_authorized: bool = False,
+    log_intent: bool = False,
 ) -> dict | None:
     """Reject a pending, unexpired request. Returns the row, or None if it isn't pending or has expired.
 
     A global request (``pack_verify``) is rejected only through
-    :func:`decide_approval`, which checks the decider first.
+    :func:`decide_approval`, which checks the decider first. ``log_intent``
+    stores the decision-log intent with the decision (:func:`decide_approval` does).
     """
     return _decide(
-        approval_id, "rejected", decision_note, decided_by, channel, db_path, global_authorized=global_authorized
+        approval_id,
+        "rejected",
+        decision_note,
+        decided_by,
+        channel,
+        db_path,
+        global_authorized=global_authorized,
+        log_intent=log_intent,
     )
 
 
@@ -363,12 +455,16 @@ def answer_request(
 
 
 def _claim_for_execution(approval_id: str, db_path=None, *, action_type: str | None = None) -> dict | None:
-    """Atomically claim an approved, unexpired, not-yet-dispatched action.
+    """Atomically claim an approved, not-yet-dispatched action.
 
     Returns the row when this caller won the claim, else None, so a double
     click or a retry never dispatches the same action twice. The claim is
     committed before the action runs: if the process dies mid-call the row
     stays ``execution_status = 'claimed'`` (unknown outcome) and is not retried.
+
+    Expiry is not checked again: the decision already required an unexpired
+    item, so a person approved it in time. Checking it here made an approval
+    given just before expiry never run (review G-2).
 
     Args:
         approval_id: The approval.
@@ -380,15 +476,14 @@ def _claim_for_execution(approval_id: str, db_path=None, *, action_type: str | N
 
     now = _now()
     if action_type is None:
-        which, params = "action_name IS NOT NULL", (now, now, approval_id, now)
+        which, params = "action_name IS NOT NULL", (now, now, approval_id)
     else:
-        which, params = "action_type = ?", (now, now, approval_id, now, action_type)
+        which, params = "action_type = ?", (now, now, approval_id, action_type)
     conn = get_connection(db_path)
     try:
         cur = conn.execute(
             f"""UPDATE approval_queue SET executed_at = ?, updated_at = ?, execution_status = 'claimed'
-               WHERE id = ? AND status = 'approved' AND executed_at IS NULL
-                 AND (expires_at IS NULL OR expires_at > ?) AND {which}""",
+               WHERE id = ? AND status = 'approved' AND executed_at IS NULL AND {which}""",
             params,
         )
         conn.commit()
@@ -430,6 +525,47 @@ def report_to_conversation(session_ref: str | None, text: str) -> None:
         logger.warning("Could not post approval outcome to conversation %s", session_ref, exc_info=True)
 
 
+def requester_refusal(row: dict) -> str | None:
+    """Why an approved item an outside agent asked for must not run now, or None.
+
+    None when the item was not asked for by an outside agent
+    (``requested_by`` isn't an ``agent:`` principal). Otherwise the agent is
+    checked again now (:func:`realize_core.mcp_server.held_writes.live_requester`).
+    """
+    from realize_core.security.agent_tokens import is_agent_principal
+
+    requested_by = row.get("requested_by")
+    if not is_agent_principal(requested_by):
+        return None
+    from realize_core.mcp_server.held_writes import live_requester
+
+    _principal, refusal = live_requester(requested_by, row.get("venture_key") or "")
+    return refusal
+
+
+def _record_refused_execution(approval_id: str, action_type: str, refusal: str, db_path=None) -> dict:
+    """Claim an approved item that must not run and record why (a failed execution, nothing run)."""
+    row = _claim_for_execution(approval_id, db_path, action_type=action_type)
+    if row is None:
+        return {"executed": False, "success": False, "output": "", "error": None}
+    _store_execution_result(approval_id, "", refusal, db_path)
+    try:
+        from realize_core.activity.logger import log_event
+
+        log_event(
+            venture_key=row["venture_key"],
+            actor_type="system",
+            actor_id="gate",
+            action="approval_execution_failed",
+            entity_type="approval",
+            entity_id=approval_id,
+            details=json.dumps({"action": action_type, "error": refusal}),
+        )
+    except Exception:
+        logger.debug("activity log failed for a refused approval", exc_info=True)
+    return {"executed": True, "success": False, "output": "", "error": refusal}
+
+
 async def execute_approved_action(approval_id: str, db_path=None) -> dict:
     """Dispatch an approved tool action at most once and record the outcome.
 
@@ -442,10 +578,16 @@ async def execute_approved_action(approval_id: str, db_path=None) -> dict:
     on the approval row, logged as ``approval_executed``, and a fixed status
     line is posted into the originating conversation.
 
+    An item an outside agent asked for (``requested_by`` is an agent
+    principal: a write held from its chat or its runs, its held MCP write)
+    runs only while the agent is still live: a token revoked or expired, agent
+    tokens turned off, a removed user or a lost venture records a failed
+    execution with the reason, and nothing runs (S3).
+
     Returns:
         ``{"executed": bool, "success": bool, "output": str, "error": str | None}``.
         ``executed`` is False when there was nothing to run (not a tool action,
-        not approved, already dispatched, or expired).
+        not approved, or already dispatched).
     """
     row = _claim_for_execution(approval_id, db_path)
     if row is None:
@@ -458,7 +600,10 @@ async def execute_approved_action(approval_id: str, db_path=None) -> dict:
         params = json.loads(row.get("params_json") or "{}")
     except json.JSONDecodeError:
         params = None
-    if not isinstance(params, dict):
+    refusal = requester_refusal(row)
+    if refusal:
+        result_ok, output, error = False, "", refusal
+    elif not isinstance(params, dict):
         result_ok, output, error = False, "", "Stored parameters are unreadable"
     elif row.get("action_type") == MCP_WRITE_ACTION_TYPE:
         # An outside agent's held MCP write: same claim, same single dispatch.
@@ -600,7 +745,12 @@ async def decide_approval(
 
     Only one decision can win: the transition requires the item to be pending
     and unexpired. ``decided_by`` / ``channel`` are stored on the row; they
-    default to the decider's.
+    default to the decider's. Once approved, the action runs even if the item
+    expires meanwhile: the person decided in time.
+
+    The decision-log intent is stored with the decision; the entry itself is
+    written after the action has run, in a worker thread, so a slow write
+    never delays the action (review G-2).
 
     Returns ``{"approval": row, "execution": ..., "skill_output": ...,
     "decision_log": {"logged", "pending", "error", "decision_id"}}`` or None
@@ -623,6 +773,10 @@ async def decide_approval(
         # Never store or relay what was typed: a secret pasted here would land
         # in the DB and the conversation. Credentials go in Setup.
         decision_note = None
+    # An outside agent's decision proposal is recorded only while the agent is live (S3).
+    proposal_refusal = None
+    if approve and action_type == DECISION_PROPOSAL_ACTION_TYPE:
+        proposal_refusal = requester_refusal(_get_row(approval_id, db_path) or {})
     if is_question and approve:
         record = answer_request(approval_id, decision_note or "yes", db_path, answered_by=decided_by, channel=channel)
     elif approve:
@@ -633,6 +787,7 @@ async def decide_approval(
             decided_by=decided_by,
             channel=channel,
             global_authorized=global_authorized,
+            log_intent=proposal_refusal is None,
         )
     else:
         record = reject_request(
@@ -642,17 +797,20 @@ async def decide_approval(
             decided_by=decided_by,
             channel=channel,
             global_authorized=global_authorized,
+            log_intent=True,
         )
     if record is None:
         return None
 
-    out: dict = {
-        "approval": record,
-        "execution": None,
-        "skill_output": None,
-        # Logged first, so a failure or crash below can't lose it; a failed write is retried (N05).
-        "decision_log": _record_decision(record, approve, action_type, db_path),
-    }
+    out: dict = {"approval": record, "execution": None, "skill_output": None, "decision_log": None}
+    if proposal_refusal:
+        # Approved, but the agent that proposed it is gone: nothing is recorded.
+        out["execution"] = _record_refused_execution(
+            approval_id, DECISION_PROPOSAL_ACTION_TYPE, proposal_refusal, db_path
+        )
+        out["approval"] = _get_row(approval_id, db_path) or record
+        out["decision_log"] = {"logged": False, "pending": False, "error": proposal_refusal, "decision_id": None}
+        return out
     if is_question:
         if approve:
             out["skill_output"] = await _resume_skill_from_approval(record, decision_note or "yes")
@@ -674,6 +832,11 @@ async def decide_approval(
         out["execution"] = await _apply_pack_verification(approval_id, db_path)
     if out["execution"] and out["execution"].get("executed"):
         out["approval"] = _get_row(approval_id, db_path) or record
+    # The decision log is written once what the decision sets off has run, and off the
+    # event loop: a slow write (it also retries other pending writes) must not delay the
+    # approved action or block other requests. The intent was stored with the decision
+    # (log_intent), so a failure or crash before this line can't lose it (N05, review G-2).
+    out["decision_log"] = await asyncio.to_thread(_record_decision, record, approve, action_type, db_path)
     return out
 
 

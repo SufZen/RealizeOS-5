@@ -42,6 +42,8 @@ class MCPErrorCode:
     AGENT_CANNOT_DECIDE = "MCP_AGENT_CANNOT_DECIDE"
     #: An outside agent may not call this tool (STORY-37).
     AGENT_REFUSED = "MCP_AGENT_REFUSED"
+    #: The caller made too many tool calls this minute (see :mod:`realize_core.mcp_server.rate_limit`).
+    RATE_LIMITED = "MCP_RATE_LIMITED"
 
 
 def build_mcp_server(
@@ -67,19 +69,10 @@ def build_mcp_server(
 
     @server.list_tools()
     async def _list_tools() -> list[mcp_types.Tool]:
-        out: list[mcp_types.Tool] = []
-        pilot = _is_pilot(current_mcp_user())
-        for tool in registry.visible_tools(mcp_config):
-            if pilot and not _pilot_may_call(tool.name):
-                continue
-            out.append(
-                mcp_types.Tool(
-                    name=tool.name,
-                    description=tool.description,
-                    inputSchema=tool.input_schema,
-                )
-            )
-        return out
+        return [
+            mcp_types.Tool(name=tool.name, description=tool.description, inputSchema=tool.input_schema)
+            for tool in callable_tools(registry, mcp_config, current_mcp_user())
+        ]
 
     @server.call_tool()
     async def _call_tool(name: str, arguments: dict[str, Any] | None) -> list[mcp_types.TextContent]:
@@ -102,6 +95,70 @@ def _pilot_may_call(name: str) -> bool:
     return name in PILOT_TOOLS
 
 
+def caller_refusal(tool: MCPTool, user: Any, *, pilot: bool | None = None) -> tuple[str, str] | None:
+    """``(code, message)`` when ``user`` may never call ``tool``, whatever the arguments; else None.
+
+    One rule set for ``tools/list`` and ``tools/call``, so the list never
+    offers a tool the call would refuse: pilot accounts get only the pilot
+    tools (STORY-46), outside agents only tools with an allow or hold rule
+    (STORY-37), RBAC roles only tools their permissions cover, and the
+    MCP-only roles only tools within their scope.
+
+    Args:
+        tool: The tool asked for.
+        user: The MCP caller.
+        pilot: Whether the caller is a pilot account, when already known
+            (``users.yaml`` is read otherwise).
+    """
+    name = tool.name
+    if pilot is None:
+        pilot = _is_pilot(user)
+    if pilot and not _pilot_may_call(name):
+        return MCPErrorCode.FORBIDDEN, "Pilot accounts can only use the tender register tools."
+
+    from realize_core.security import agent_access
+
+    # Outside agents (agent tokens and stdio sessions, STORY-37): the same rules
+    # as the REST guard. People decide, and a tool without a rule is refused.
+    if agent_access.is_agent_subject(user):
+        refused = agent_access.tool_refusal(name)
+        if refused:
+            return refused
+
+    from realize_core.mcp_server.venture_guard import is_rbac_role, permission_refusal
+
+    # RBAC roles get the same per-tool permissions as the REST API; the
+    # MCP-only roles (e.g. "editor") keep the tool-family scope check.
+    role = getattr(user, "role", None)
+    refusal = permission_refusal(name, role)
+    if refusal:
+        return MCPErrorCode.INSUFFICIENT_SCOPE, refusal
+    if not is_rbac_role(role) and not role_meets_scope(role, tool.scope):
+        return (
+            MCPErrorCode.INSUFFICIENT_SCOPE,
+            f"Tool '{name}' requires scope '{tool.scope}'; caller has role '{role}'.",
+        )
+    return None
+
+
+def callable_tools(registry: ToolRegistry, mcp_config: McpConfig, user: Any) -> list[MCPTool]:
+    """The tools ``tools/list`` offers ``user``: served here, and not refused to them whatever the arguments.
+
+    Leaves out what :func:`caller_refusal` refuses and, for a caller limited
+    to some ventures, tools that span every venture. Hiding is a courtesy:
+    a call to a hidden tool is still refused by the dispatcher.
+    """
+    from realize_core.mcp_server import venture_guard
+
+    allowed = venture_guard.caller_ventures(user)
+    pilot = _is_pilot(user)
+    return [
+        tool
+        for tool in registry.visible_tools(mcp_config)
+        if caller_refusal(tool, user, pilot=pilot) is None and not venture_guard.spans_every_venture(tool.name, allowed)
+    ]
+
+
 async def _dispatch(
     registry: ToolRegistry,
     mcp_config: McpConfig,
@@ -109,9 +166,21 @@ async def _dispatch(
     name: str,
     arguments: dict[str, Any],
 ) -> list[mcp_types.TextContent]:
-    """Look up + scope-check + invoke a tool, returning MCP TextContent."""
+    """Rate-limit + look up + scope-check + invoke a tool, returning MCP TextContent."""
     user = current_mcp_user()
     started = time.monotonic()
+
+    from realize_core.mcp_server.rate_limit import RETRY_AFTER_SECONDS, allow_call
+
+    # Every tools/call counts, refused or not; the connection itself is never limited.
+    allowed_now, bucket = allow_call(app_state, user, mcp_config.rate_limit_per_minute)
+    if not allowed_now:
+        _audit_rate_limited(name, user, bucket)
+        return _error(
+            MCPErrorCode.RATE_LIMITED,
+            f"Too many tool calls; try again in {RETRY_AFTER_SECONDS} seconds.",
+            retry_after_seconds=RETRY_AFTER_SECONDS,
+        )
 
     tool = registry.get(name)
     if tool is None:
@@ -121,38 +190,16 @@ async def _dispatch(
         code = MCPErrorCode.ADMIN_DISABLED if tool.family == "admin" else MCPErrorCode.DISABLED
         return _error(code, f"Tool '{name}' is not enabled on this RealizeOS instance.")
 
-    if _is_pilot(user) and not _pilot_may_call(name):
+    # Pilot accounts, outside agents and roles: checked before any lookup by id.
+    refused = caller_refusal(tool, user)
+    if refused:
         _audit_call(tool, user, status="forbidden", duration_ms=0, mcp_config=mcp_config)
-        return _error(MCPErrorCode.FORBIDDEN, "Pilot accounts can only use the tender register tools.")
-
-    from realize_core.security import agent_access
-
-    # Outside agents (agent tokens and stdio sessions, STORY-37): the same rules
-    # as the REST guard. People decide, and a tool without a rule is refused.
-    # Checked before any lookup by id.
-    agent = agent_access.is_agent_subject(user)
-    if agent:
-        refused = agent_access.tool_refusal(name)
-        if refused:
-            _audit_call(tool, user, status="forbidden", duration_ms=0, mcp_config=mcp_config)
-            return _error(*refused)
-
-    from realize_core.mcp_server.venture_guard import is_rbac_role, permission_refusal
-
-    # RBAC roles get the same per-tool permissions as the REST API; the
-    # MCP-only roles (e.g. "editor") keep the tool-family scope check.
-    refusal = permission_refusal(name, user.role)
-    if refusal:
-        _audit_call(tool, user, status="forbidden", duration_ms=0, mcp_config=mcp_config)
-        return _error(MCPErrorCode.INSUFFICIENT_SCOPE, refusal)
-    if not is_rbac_role(user.role) and not role_meets_scope(user.role, tool.scope):
-        _audit_call(tool, user, status="forbidden", duration_ms=0, mcp_config=mcp_config)
-        return _error(
-            MCPErrorCode.INSUFFICIENT_SCOPE,
-            f"Tool '{name}' requires scope '{tool.scope}'; caller has role '{user.role}'.",
-        )
+        return _error(*refused)
 
     from realize_core.mcp_server import venture_guard
+    from realize_core.security import agent_access
+
+    agent = agent_access.is_agent_subject(user)
 
     allowed = venture_guard.caller_ventures(user)
     refusal = venture_guard.check_call(name, arguments, allowed)
@@ -225,13 +272,33 @@ def _to_text(value: Any) -> str:
         return repr(value)
 
 
-def _error(code: str, message: str) -> list[mcp_types.TextContent]:
+def _error(code: str, message: str, **extra: Any) -> list[mcp_types.TextContent]:
     return [
         mcp_types.TextContent(
             type="text",
-            text=json.dumps({"error": message, "code": code}, ensure_ascii=False),
+            text=json.dumps({"error": message, "code": code, **extra}, ensure_ascii=False),
         )
     ]
+
+
+def _audit_rate_limited(name: str, user: Any, bucket: str) -> None:
+    """Record a tool call refused by the MCP rate limit (outcome ``rate_limited``)."""
+    logger.warning("MCP rate limit hit for %s calling '%s'", bucket, name)
+    try:
+        from realize_core.security.audit import get_audit_logger
+
+        get_audit_logger().log(
+            user_id=getattr(user, "user_id", None) or "anonymous",
+            action=f"mcp.{name}",
+            outcome="rate_limited",
+            channel="mcp",
+            resource_type="mcp_tool",
+            resource_id=name,
+            severity="warning",
+            metadata={"bucket": bucket, "code": MCPErrorCode.RATE_LIMITED},
+        )
+    except Exception as exc:
+        logger.debug("Audit log emit failed for rate-limited MCP call '%s': %s", name, exc)
 
 
 def _audit_call(

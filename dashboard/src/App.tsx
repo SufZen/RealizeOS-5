@@ -23,6 +23,8 @@ import {
   Moon,
   Sun,
   Languages,
+  KeyRound,
+  type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ThemeProvider } from '@/components/theme-provider'
@@ -37,12 +39,16 @@ import { VentureSwitcher } from '@/components/venture-switcher'
 import { LocaleProvider } from '@/components/locale-provider'
 import { LocaleToggle } from '@/components/locale-toggle'
 import AuthGuard from '@/components/auth-guard'
-import { useApi } from '@/hooks/use-api'
 import { useTheme } from '@/components/theme-provider'
 import { useLocale } from '@/components/locale-provider'
 import { CommandPalette, type Command } from '@/components/ui/command-palette'
 import { Kbd } from '@/components/ui/badge'
 import { BrandMark } from '@/components/ui/brand-mark'
+import { SignOutButton } from '@/components/sign-out-button'
+import { useHeldApprovals } from '@/hooks/use-held-approvals'
+import { useSignOut } from '@/hooks/use-sign-out'
+import { canOpenPage, isUnrestricted } from '@/lib/permissions'
+import { shellText, signOutCommand } from '@/lib/shell-text'
 
 const OverviewPage = lazy(() => import('@/pages/overview'))
 const ChatPage = lazy(() => import('@/pages/chat-page'))
@@ -66,14 +72,28 @@ const MissionsPage = lazy(() => import('@/pages/missions-page'))
 const KnowledgeMapPage = lazy(() => import('@/pages/knowledge-map-page'))
 const DreamInboxPage = lazy(() => import('@/pages/dream-inbox-page'))
 const DesignPage = lazy(() => import('@/pages/design-page'))
+const AgentTokensPage = lazy(() => import('@/pages/agent-tokens-page'))
 
 import OnboardingWizard, {
+  ProviderNeededNotice,
+  dismissProviderNotice,
   isOnboardingComplete,
+  isProviderNoticeDismissed,
   markOnboardingComplete,
+  onboardingPrompt,
   serverHasAiProvider,
+  type ServerSetup,
 } from '@/components/onboarding-wizard'
 
-const navGroups = [
+interface NavItem {
+  to: string
+  icon: LucideIcon
+  label: string
+  /** Extra words the command palette matches (synonyms, Hebrew). */
+  keywords?: string
+}
+
+const navGroups: { label: string; items: NavItem[] }[] = [
   {
     label: 'Core',
     items: [
@@ -115,45 +135,44 @@ const navGroups = [
       { to: '/docs', icon: BookOpen, label: 'Docs' },
       { to: '/setup', icon: Plug, label: 'Setup' },
       { to: '/settings', icon: Settings, label: 'Settings' },
+      {
+        to: '/settings/agent-tokens',
+        icon: KeyRound,
+        label: 'Agent tokens',
+        keywords: 'mcp outside agent connect claude chatgpt cursor api key revoke טוקן סוכן',
+      },
     ],
   },
 ]
 
-/** Pages that work on what every venture shares; hidden from venture-limited users (STORY-18). */
-const SYSTEM_WIDE_PAGES = new Set([
-  '/pipelines',
-  '/evolution',
-  '/tools',
-  '/integrations',
-  '/setup',
-  '/settings',
-])
+/** Links that stay active only on their own page, not on the pages under them. */
+const EXACT_NAV = new Set(['/', '/settings'])
 
-/** Nav groups the signed-in user may see (venture-limited users lose system-wide pages). */
+/**
+ * Nav groups the signed-in user may see: venture-limited users lose
+ * system-wide pages, and only owners and admins with every venture get agent
+ * tokens (`canOpenPage`). The server checks every request anyway.
+ */
 function useVisibleNav() {
   const { user } = useAuth()
-  const scoped = Array.isArray(user?.ventures)
   return useMemo(
     () =>
       navGroups
         .map((group) => ({
           ...group,
-          items: group.items.filter((item) => !(scoped && SYSTEM_WIDE_PAGES.has(item.to))),
+          items: group.items.filter((item) => canOpenPage(user, item.to)),
         }))
         .filter((group) => group.items.length > 0),
-    [scoped],
+    [user],
   )
-}
-
-/** Approvals held for a person, shown on the nav so held work is never out of sight. */
-function useHeldCount(): number {
-  const { data } = useApi<{ approvals: { status: string }[] }>('/approvals?status=pending')
-  return (data?.approvals ?? []).filter((a) => a.status === 'pending').length
 }
 
 function NavContent({ onNavigate }: { onNavigate?: () => void }) {
   const groups = useVisibleNav()
-  const held = useHeldCount()
+  // Held work is never out of sight; an item whose time ran out leaves the count on time.
+  const held = useHeldApprovals().held.length
+  const { language } = useLocale()
+  const shell = shellText(language)
 
   return (
     <nav className="flex flex-col gap-4 flex-1" data-tour="sidebar" aria-label="Main">
@@ -167,7 +186,7 @@ function NavContent({ onNavigate }: { onNavigate?: () => void }) {
               <li key={to}>
                 <NavLink
                   to={to}
-                  end={to === '/'}
+                  end={EXACT_NAV.has(to)}
                   viewTransition
                   onClick={onNavigate}
                   data-tour={`nav-${label.toLowerCase()}`}
@@ -200,7 +219,7 @@ function NavContent({ onNavigate }: { onNavigate?: () => void }) {
                       {to === '/approvals' && held > 0 && (
                         <span
                           className="ms-auto rz-badge rz-badge--accent tabular"
-                          aria-label={`${held} held for you`}
+                          aria-label={shell.heldForYou(held)}
                         >
                           {held}
                         </span>
@@ -245,11 +264,33 @@ function SidebarBody({ onNavigate, onSearch }: { onNavigate?: () => void; onSear
         <SearchButton onOpen={onSearch} />
       </div>
       <NavContent onNavigate={onNavigate} />
-      <div className="mt-6 pt-3 border-t border-border grid gap-px" data-tour="theme-toggle">
-        <LocaleToggle />
-        <ThemeToggle />
+      <div className="mt-6 pt-3 border-t border-border grid gap-px">
+        <div className="grid gap-px" data-tour="theme-toggle">
+          <LocaleToggle />
+          <ThemeToggle />
+        </div>
+        <SidebarSignOut />
       </div>
     </>
+  )
+}
+
+/** Sign out, with who is signed in; it clears this person's cached data. */
+function SidebarSignOut() {
+  const { user } = useAuth()
+  const { language } = useLocale()
+  const signOut = useSignOut()
+  const [busy, setBusy] = useState(false)
+  return (
+    <SignOutButton
+      text={shellText(language)}
+      userId={user?.user_id}
+      busy={busy}
+      onSignOut={() => {
+        setBusy(true)
+        void signOut()
+      }}
+    />
   )
 }
 
@@ -336,7 +377,8 @@ function useShellCommands(): Command[] {
   const groups = useVisibleNav()
   const navigate = useNavigate()
   const { resolved, setTheme } = useTheme()
-  const { override, setOverride } = useLocale()
+  const { language, override, setOverride } = useLocale()
+  const signOut = useSignOut()
   return useMemo(
     () => [
       ...groups.flatMap((g) =>
@@ -346,6 +388,7 @@ function useShellCommands(): Command[] {
           label: item.label,
           icon: item.icon,
           hint: g.label,
+          keywords: item.keywords,
           run: () => navigate(item.to, { viewTransition: true }),
         })),
       ),
@@ -364,8 +407,9 @@ function useShellCommands(): Command[] {
         icon: Languages,
         run: () => setOverride(override === 'he' ? 'en' : 'he'),
       },
+      signOutCommand(shellText(language), () => void signOut()),
     ],
-    [groups, navigate, resolved, setTheme, override, setOverride],
+    [groups, navigate, resolved, setTheme, language, override, setOverride, signOut],
   )
 }
 
@@ -475,15 +519,15 @@ function AuthenticatedShell() {
   const [showOnboarding, setShowOnboarding] = useState(!isOnboardingComplete())
   // 'unknown' until the server says whether setup was already done (QA 5.14 D-1:
   // the wizard used to appear in every new browser, even on a configured server).
-  const [serverSetup, setServerSetup] = useState<'unknown' | 'done' | 'needed'>('unknown')
+  const [serverSetup, setServerSetup] = useState<ServerSetup>('unknown')
+  const [noticeDismissed, setNoticeDismissed] = useState(isProviderNoticeDismissed)
 
-  // Don't show onboarding until the user is signed in — onboarding writes setup state
-  // for the active deployment, not the anonymous visitor. Users limited to some
-  // ventures can't change deployment setup, so they never get it.
-  const wantsOnboarding = showOnboarding && !!user && !Array.isArray(user.ventures)
+  // Only once signed in: setup is the deployment's, not the anonymous visitor's.
+  // Users limited to some ventures can't read deployment setup, so they get nothing.
+  const checksSetup = showOnboarding && isUnrestricted(user)
 
   useEffect(() => {
-    if (!wantsOnboarding) return
+    if (!checksSetup) return
     let current = true
     api
       .get<{ connections: { category: string; configured: boolean }[] }>('/setup/connections')
@@ -493,72 +537,96 @@ function AuthenticatedShell() {
         if (done) markOnboardingComplete()
         setServerSetup(done ? 'done' : 'needed')
       })
-      .catch(() => current && setServerSetup('needed'))
+      .catch(() => current && setServerSetup('unreachable'))
     return () => {
       current = false
     }
-  }, [wantsOnboarding])
+  }, [checksSetup])
 
-  if (wantsOnboarding && serverSetup === 'needed') {
-    return <OnboardingWizard onComplete={() => setShowOnboarding(false)} />
+  // Only someone who may connect a provider gets the wizard (saving a key needs
+  // it); anyone else gets a notice they can close, and the dashboard as usual.
+  const prompt = checksSetup ? onboardingPrompt(user, serverSetup) : null
+  const showNotice = prompt === 'notice' && !noticeDismissed
+
+  // The wizard sits inside the locale provider too, so it reads in the person's
+  // language and direction (Hebrew → RTL), and the shell keeps them after it.
+  if (prompt === 'wizard') {
+    return (
+      <VentureProvider>
+        <LocaleProvider>
+          <OnboardingWizard onComplete={() => setShowOnboarding(false)} />
+        </LocaleProvider>
+      </VentureProvider>
+    )
   }
 
   return (
     <VentureProvider>
       <LocaleProvider>
-        <a
-          href="#main-content"
-          className="sr-only focus:not-sr-only focus:absolute focus:z-[60] focus:top-4 focus:start-4 focus:px-4 focus:py-2 focus:rounded-lg focus:bg-brand-400 focus:text-black focus:text-sm focus:font-medium"
-        >
-          Skip to content
-        </a>
-        <div className="flex h-screen bg-background">
-          <DesktopSidebar onSearch={() => setPaletteOpen(true)} />
-          <div className="flex flex-1 flex-col overflow-hidden min-w-0">
-            <MobileHeader
-              onToggle={() => setMobileOpen(true)}
-              onSearch={() => setPaletteOpen(true)}
-            />
-            <MobileSheet
-              open={mobileOpen}
-              onClose={() => setMobileOpen(false)}
-              onSearch={() => setPaletteOpen(true)}
-            />
-            <main
-              id="main-content"
-              className="flex-1 overflow-y-auto px-4 py-6 sm:px-8 sm:py-8 [view-transition-name:rz-main]"
-            >
-              <ErrorBoundaryWithLocation>
-                <Suspense fallback={<PageSkeleton />}>
-                  <Routes>
-                    <Route path="/" element={<OverviewPage />} />
-                    <Route path="/chat" element={<ChatPage />} />
-                    <Route path="/ventures" element={<VenturesListPage />} />
-                    <Route path="/ventures/:key" element={<VentureDetailPage />} />
-                    <Route path="/ventures/:key/agents/:id" element={<AgentDetailPage />} />
-                    <Route path="/activity" element={<ActivityPage />} />
-                    <Route path="/evolution" element={<EvolutionPage />} />
-                    <Route path="/approvals" element={<ApprovalsPage />} />
-                    <Route path="/skills" element={<SkillsPage />} />
-                    <Route path="/tools" element={<ToolsPage />} />
-                    <Route path="/pipelines" element={<PipelineBuilderPage />} />
-                    <Route path="/workflows" element={<WorkflowEditorPage />} />
-                    <Route path="/routing" element={<RoutingPage />} />
-                    <Route path="/integrations" element={<IntegrationsPage />} />
-                    <Route path="/setup" element={<SetupPage />} />
-                    <Route path="/settings" element={<SettingsPage />} />
-                    <Route path="/docs" element={<DocsPage />} />
-                    <Route path="/missions" element={<MissionsPage />} />
-                    <Route path="/knowledge" element={<KnowledgeMapPage />} />
-                    <Route path="/dreams" element={<DreamInboxPage />} />
-                    <Route path="*" element={<NotFoundPage />} />
-                  </Routes>
-                </Suspense>
-              </ErrorBoundaryWithLocation>
-            </main>
+        <TourProvider>
+          <a
+            href="#main-content"
+            className="sr-only focus:not-sr-only focus:absolute focus:z-[60] focus:top-4 focus:start-4 focus:px-4 focus:py-2 focus:rounded-lg focus:bg-brand-400 focus:text-black focus:text-sm focus:font-medium"
+          >
+            Skip to content
+          </a>
+          <div className="flex h-screen bg-background">
+            <DesktopSidebar onSearch={() => setPaletteOpen(true)} />
+            <div className="flex flex-1 flex-col overflow-hidden min-w-0">
+              <MobileHeader
+                onToggle={() => setMobileOpen(true)}
+                onSearch={() => setPaletteOpen(true)}
+              />
+              <MobileSheet
+                open={mobileOpen}
+                onClose={() => setMobileOpen(false)}
+                onSearch={() => setPaletteOpen(true)}
+              />
+              <main
+                id="main-content"
+                className="flex-1 overflow-y-auto px-4 py-6 sm:px-8 sm:py-8 [view-transition-name:rz-main]"
+              >
+                {showNotice && (
+                  <ProviderNeededNotice
+                    onDismiss={() => {
+                      dismissProviderNotice()
+                      setNoticeDismissed(true)
+                    }}
+                  />
+                )}
+                <ErrorBoundaryWithLocation>
+                  <Suspense fallback={<PageSkeleton />}>
+                    <Routes>
+                      <Route path="/" element={<OverviewPage />} />
+                      <Route path="/chat" element={<ChatPage />} />
+                      <Route path="/ventures" element={<VenturesListPage />} />
+                      <Route path="/ventures/:key" element={<VentureDetailPage />} />
+                      <Route path="/ventures/:key/agents/:id" element={<AgentDetailPage />} />
+                      <Route path="/activity" element={<ActivityPage />} />
+                      <Route path="/evolution" element={<EvolutionPage />} />
+                      <Route path="/approvals" element={<ApprovalsPage />} />
+                      <Route path="/skills" element={<SkillsPage />} />
+                      <Route path="/tools" element={<ToolsPage />} />
+                      <Route path="/pipelines" element={<PipelineBuilderPage />} />
+                      <Route path="/workflows" element={<WorkflowEditorPage />} />
+                      <Route path="/routing" element={<RoutingPage />} />
+                      <Route path="/integrations" element={<IntegrationsPage />} />
+                      <Route path="/setup" element={<SetupPage />} />
+                      <Route path="/settings" element={<SettingsPage />} />
+                      <Route path="/settings/agent-tokens" element={<AgentTokensPage />} />
+                      <Route path="/docs" element={<DocsPage />} />
+                      <Route path="/missions" element={<MissionsPage />} />
+                      <Route path="/knowledge" element={<KnowledgeMapPage />} />
+                      <Route path="/dreams" element={<DreamInboxPage />} />
+                      <Route path="*" element={<NotFoundPage />} />
+                    </Routes>
+                  </Suspense>
+                </ErrorBoundaryWithLocation>
+              </main>
+            </div>
           </div>
-        </div>
-        <ShellPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
+          <ShellPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
+        </TourProvider>
       </LocaleProvider>
     </VentureProvider>
   )
@@ -590,11 +658,9 @@ export default function App() {
       <ToastProvider>
         <BrowserRouter>
           <AuthProvider>
-            <TourProvider>
-              <ErrorBoundary>
-                <AppRoutes />
-              </ErrorBoundary>
-            </TourProvider>
+            <ErrorBoundary>
+              <AppRoutes />
+            </ErrorBoundary>
           </AuthProvider>
         </BrowserRouter>
       </ToastProvider>

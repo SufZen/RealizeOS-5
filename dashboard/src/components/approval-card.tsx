@@ -1,5 +1,14 @@
 import { useId, type CSSProperties, type ReactNode } from 'react'
-import { Clock, CheckCircle2, XCircle, AlertTriangle, AlertCircle, Info, X } from 'lucide-react'
+import {
+  Bot,
+  Clock,
+  CheckCircle2,
+  XCircle,
+  AlertTriangle,
+  AlertCircle,
+  Info,
+  X,
+} from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Button, IconButton } from '@/components/ui/button'
@@ -7,12 +16,14 @@ import { Stamp } from '@/components/ui/stamp'
 import { useLocale } from '@/components/locale-provider'
 import {
   approvalOutcome,
+  decisionLogState,
   isExpired,
   type ApprovalStatus,
   type DecisionLogResult,
   type DecisionProblem,
   type Outcome,
 } from '@/lib/approval-outcome'
+import { formatDateTime } from '@/lib/locale'
 import {
   approvalText,
   outcomeMessage,
@@ -37,6 +48,8 @@ export interface Approval {
   action_name?: string | null
   params_json?: string | null
   requested_by?: string | null
+  /** Set by the server when an outside agent asked (agent token, or `stdio` for a local session). */
+  requested_by_agent?: RequestingAgent | null
   executed_at?: string | null
   result_json?: string | null
   error?: string | null
@@ -47,6 +60,14 @@ export interface Approval {
   decision_channel?: string | null
   /** Present only when the server reports whether the decision log was written. */
   decision_log?: DecisionLogResult | null
+}
+
+/** The outside agent behind an approval, as `GET /api/approvals` names it. */
+export interface RequestingAgent {
+  /** The agent token's id; null for a local stdio session. */
+  token_id: string | null
+  /** The token's name (`stdio` for a local session). */
+  name: string
 }
 
 /** Items whose payload carries a question for the operator. */
@@ -70,11 +91,6 @@ function parseJson(text?: string | null): unknown {
   } catch {
     return undefined
   }
-}
-
-function formatTime(iso: string): string {
-  const t = new Date(iso)
-  return Number.isNaN(t.getTime()) ? iso : t.toLocaleString()
 }
 
 /** One line saying what happened after the decision: done, failed, or unknown. */
@@ -103,24 +119,38 @@ export function OutcomeLine({ outcome, text }: { outcome: Outcome; text: Approva
   )
 }
 
-/** Whether the decision reached the decision log; rendered only when the server says. */
-export function DecisionLogLine({ log, text }: { log: DecisionLogResult; text: ApprovalText }) {
+/**
+ * Whether the decision reached the decision log, when there is something to
+ * say: logged, queued for a retry (it will be added), or failed. Nothing for
+ * inputs and rejected proposals, which aren't decisions.
+ */
+export function DecisionLogLine({
+  log,
+  text,
+}: {
+  log: DecisionLogResult | null | undefined
+  text: ApprovalText
+}) {
+  const state = decisionLogState(log)
+  if (!state) return null
+  const failed = state === 'failed'
+  const Icon = state === 'logged' ? CheckCircle2 : state === 'queued' ? Clock : AlertTriangle
   return (
     <p
       dir="auto"
-      data-decision-log={log.logged ? 'logged' : 'missing'}
+      data-decision-log={failed ? 'missing' : state}
       className={cn(
         'm-0 flex items-start gap-1.5 text-xs',
-        log.logged ? 'text-muted-foreground' : 'text-amber-400',
+        failed ? 'text-amber-400' : 'text-muted-foreground',
       )}
     >
-      {log.logged ? (
-        <CheckCircle2 className="mt-0.5 h-3 w-3 shrink-0" aria-hidden />
-      ) : (
-        <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" aria-hidden />
-      )}
+      <Icon className="mt-0.5 h-3 w-3 shrink-0" aria-hidden />
       <span className="min-w-0 break-words">
-        {log.logged ? text.decisionLogged : text.decisionNotLogged(log.error)}
+        {state === 'logged'
+          ? text.decisionLogged
+          : state === 'queued'
+            ? text.decisionQueued
+            : text.decisionNotLogged(log?.error)}
       </span>
     </p>
   )
@@ -225,7 +255,8 @@ export function ApprovalCard({
   style,
 }: ApprovalCardProps) {
   const locale = useLocale()
-  const text = approvalText(language ?? locale.language)
+  const lang = language ?? locale.language
+  const text = approvalText(lang)
   const expiryNoticeId = useId()
   const at = now ?? clockNow()
 
@@ -246,13 +277,17 @@ export function ApprovalCard({
     (parseJson(approval.params_json) as Record<string, unknown> | undefined) ?? payload?.params
   const question = QUESTION_TYPES.has(approval.action_type) ? payload?.question : undefined
   const expiredNotice = expired && !settled && (!isPending || !!blockedReason)
+  const outsideAgent = approval.requested_by_agent ?? null
+  // While it can still be decided, say where the approval boundary is.
+  const agentNote = !!outsideAgent && isPending && !expired && !settled
   const hasBody =
+    agentNote ||
     !!question ||
     !!params ||
     showOutcome ||
     expiredNotice ||
     !!problem ||
-    !!approval.decision_log ||
+    decisionLogState(approval.decision_log) !== null ||
     (!!approval.decision_note && !isPending)
   const canAct = !!(onApprove || onReject)
   const showFooter = isPending && !settled && (canAct || !!children || !!blockedReason)
@@ -274,26 +309,40 @@ export function ApprovalCard({
             {approval.action_name && approval.action_name !== label && (
               <code className="text-[11px] text-subtle-foreground">{approval.action_name}</code>
             )}
+            {outsideAgent && (
+              <Badge
+                tone="agent"
+                data-outside-agent={outsideAgent.token_id ?? 'stdio'}
+                title={
+                  approval.requested_by ? text.outsideAgentTitle(approval.requested_by) : undefined
+                }
+              >
+                <Bot aria-hidden />
+                <span>
+                  {text.outsideAgent} <bdi>{outsideAgent.name}</bdi>
+                </span>
+              </Badge>
+            )}
           </div>
           <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-subtle-foreground">
             <span className="inline-flex items-center gap-1.5">
               <span className="rz-avatar rz-avatar--agent rz-avatar--sm" aria-hidden>
                 {approval.agent_key.slice(0, 2).toUpperCase()}
               </span>
-              {text.agent}: {approval.agent_key}
+              {text.agent}: <bdi>{approval.agent_key}</bdi>
             </span>
             <span>
-              {text.venture}: {approval.venture_key}
+              {text.venture}: <bdi>{approval.venture_key}</bdi>
             </span>
-            {approval.requested_by && (
+            {approval.requested_by && !outsideAgent && (
               <span>
-                {text.requestedFor}: {approval.requested_by}
+                {text.requestedFor}: <bdi>{approval.requested_by}</bdi>
               </span>
             )}
             {approval.expires_at && isPending && !expired && (
               <span
                 className="inline-flex items-center gap-1"
-                title={text.expiresAt(formatTime(approval.expires_at))}
+                title={text.expiresAt(formatDateTime(approval.expires_at, lang))}
               >
                 <Clock className="h-3 w-3" aria-hidden />
                 {text.expires(relativeExpiry(approval.expires_at, at, text))}
@@ -302,7 +351,7 @@ export function ApprovalCard({
             {approval.expires_at && expired && (
               <span className="inline-flex items-center gap-1">
                 <Clock className="h-3 w-3" aria-hidden />
-                {text.expiredAt} <bdi>{formatTime(approval.expires_at)}</bdi>
+                {text.expiredAt} <bdi>{formatDateTime(approval.expires_at, lang)}</bdi>
               </span>
             )}
             {approval.decided_by && !isPending && (
@@ -328,6 +377,16 @@ export function ApprovalCard({
 
       {hasBody && (
         <div className="grid gap-3 px-4 pb-4 ps-5">
+          {agentNote && (
+            <p
+              data-outside-agent-note
+              className="m-0 flex items-start gap-2 text-[13px] text-muted-foreground"
+            >
+              <Bot className="mt-0.5 h-3.5 w-3.5 shrink-0 text-agent" aria-hidden />
+              <span>{text.outsideAgentNote}</span>
+            </p>
+          )}
+
           {question && (
             <p dir="auto" className="m-0 text-[15px] leading-relaxed text-foreground">
               {question}
@@ -338,7 +397,7 @@ export function ApprovalCard({
 
           {showOutcome && outcome && <OutcomeLine outcome={outcome} text={text} />}
 
-          {approval.decision_log && <DecisionLogLine log={approval.decision_log} text={text} />}
+          <DecisionLogLine log={approval.decision_log} text={text} />
 
           {expiredNotice && (
             <p dir="auto" className="m-0 text-[13px] text-muted-foreground">

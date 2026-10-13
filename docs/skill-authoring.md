@@ -25,6 +25,12 @@ pipeline:
 4. Reviewer agent reviews for quality
 5. Final output returned to user
 
+## When skills load
+
+The API loads every venture's skills (`systems/<venture>/R-routines/skills/`, found through the venture's configured `directory`) at startup and on every config reload (`POST /api/systems/reload`). After adding or editing a skill file, reload or restart. Before 5.30 venture skills loaded only after a skill was installed from the library, so chat matched only the built-in default skills after a restart.
+
+Workflows created, changed or deleted through the API (`POST`, `PUT`, `DELETE /api/workflows`) live in memory, not in files. A config reload keeps them: it re-reads the skill files and then applies the API's changes again, so a workflow created through the API wins over a file with the same name in that venture. A restart drops them; to keep a workflow, save it as a file.
+
 ## v2 Skills — Multi-Step Workflows
 
 v2 skills support multiple step types with context injection.
@@ -200,10 +206,9 @@ systems/my-business/R-routines/skills/
   meeting-prep.yaml
 ```
 
-With `features.packs` on, the API loads every venture's skills (its own and its packs') at
-startup and again on every config reload, such as POST `/api/systems/reload`. With the flag off,
-venture skill files are loaded when a skill is installed from the library
-(POST `/api/skills/install`), as before packs.
+The API loads every venture's skills at startup and again on every config reload, such as POST
+`/api/systems/reload` (see [When skills load](#when-skills-load)). With `features.packs` on, the
+skills of the venture's packs are added too.
 
 ## Skills from profession and market packs
 
@@ -227,6 +232,9 @@ shows as a `W1` source with its layer and pack).
     triggers: ["bid requirements"]   # optional, added to the skill's own
   ```
 
+- **Each venture runs its own copy.** A run by name (`run_workflow` / `trigger_skill` over MCP,
+  a held write once approved, `GET /api/workflows/{name}?system_key=`) uses the copy of the
+  venture it names, with that venture's variables, never another venture's.
 - **Switch one off** by listing its id in `F-foundations/overrides/disable.yaml`.
 - **Writing one for a pack:** keep it market-neutral (English triggers, no local terms or
   currencies); a market pack adds local-language triggers in its own `skill-settings.yaml`

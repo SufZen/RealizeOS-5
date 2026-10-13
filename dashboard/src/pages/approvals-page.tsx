@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { AlertCircle, RefreshCw, CheckCircle2, XCircle, AlertTriangle, X } from 'lucide-react'
 import { useApi, useInvalidateApi } from '@/hooks/use-api'
 import { useAuth } from '@/hooks/use-auth'
@@ -6,17 +6,20 @@ import { useLocale } from '@/components/locale-provider'
 import { ApprovalCard, DecisionLogLine, type Approval } from '@/components/approval-card'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
-import { canDecide } from '@/lib/permissions'
+import { OWNER_ONLY_APPROVALS, canDecide, canDecideOwnerOnly } from '@/lib/permissions'
 import {
+  APPROVALS_PAGE_SIZE,
+  APPROVALS_PATHS,
   approvalOutcome,
   classifyDecisionError,
-  isExpired,
+  heldApprovals,
   withSettled,
+  type ApprovalsTab,
   type DecisionLogResult,
   type DecisionProblem,
   type ExecutionResult,
 } from '@/lib/approval-outcome'
-import { approvalText, outcomeMessage, type ApprovalText } from '@/lib/approval-text'
+import { approvalText, isolate, outcomeMessage, type ApprovalText } from '@/lib/approval-text'
 import { TitleBlock } from '@/components/ui/title-block'
 import { Tabs } from '@/components/ui/tabs'
 import { IconButton } from '@/components/ui/button'
@@ -35,13 +38,7 @@ export interface DecisionResponse extends Approval {
   decision_log?: DecisionLogResult | null
 }
 
-export type ApprovalsTab = 'pending' | 'decided' | 'expired'
-
-const PATHS: Record<ApprovalsTab, string> = {
-  pending: '/approvals?status=pending',
-  decided: '/approvals?status=',
-  expired: '/approvals?status=expired',
-}
+export type { ApprovalsTab }
 
 /** Statuses the Decided tab shows (expired items have their own tab). */
 const DECIDED = new Set<Approval['status']>(['approved', 'rejected', 'answered'])
@@ -76,7 +73,7 @@ export default function ApprovalsPage() {
   const { user } = useAuth()
   const now = useNow(15_000)
   const [tab, setTab] = useState<ApprovalsTab>('pending')
-  const { data, loading, error } = useApi<ApprovalsResponse>(PATHS[tab])
+  const { data, loading, error } = useApi<ApprovalsResponse>(APPROVALS_PATHS[tab])
   const invalidate = useInvalidateApi()
   const [noteMap, setNoteMap] = useState<Record<string, string>>({})
   const [busyId, setBusyId] = useState<string | null>(null)
@@ -137,7 +134,7 @@ export default function ApprovalsPage() {
       : tab === 'decided'
         ? fromServer.filter((a) => DECIDED.has(a.status))
         : fromServer
-  ).slice(0, 50)
+  ).slice(0, APPROVALS_PAGE_SIZE)
 
   return (
     <ApprovalsView
@@ -151,6 +148,7 @@ export default function ApprovalsPage() {
       error={error}
       now={now}
       blockedReason={canDecide(user) ? null : text.viewOnly(user?.role ?? '')}
+      ownerOnlyReason={canDecideOwnerOnly(user) ? null : text.ownerOnly}
       busyId={busyId}
       problems={problems}
       outcome={outcome}
@@ -179,6 +177,11 @@ export interface ApprovalsViewProps {
   now: number
   /** Set when the person's role can't decide: no decision controls, and this says why. */
   blockedReason: string | null
+  /**
+   * Set when the person may decide, but not items only an owner with every
+   * venture may decide (`OWNER_ONLY_APPROVALS`, e.g. a pack verification).
+   */
+  ownerOnlyReason?: string | null
   busyId: string | null
   problems: Record<string, DecisionProblem>
   outcome: DecisionResponse | null
@@ -201,6 +204,7 @@ export function ApprovalsView({
   error,
   now,
   blockedReason,
+  ownerOnlyReason = null,
   busyId,
   problems,
   outcome,
@@ -210,9 +214,10 @@ export function ApprovalsView({
   notes,
   onNoteChange,
 }: ApprovalsViewProps) {
-  const heldCount = approvals.filter(
-    (a) => a.status === 'pending' && !isExpired(a, now) && !problems[a.id]?.final,
-  ).length
+  const heldCount = heldApprovals(approvals, now).filter((a) => !problems[a.id]?.final).length
+  /** Why this person can't decide this item, or null when they can. */
+  const reasonFor = (approval: Approval): string | null =>
+    blockedReason ?? (OWNER_ONLY_APPROVALS.has(approval.action_type) ? ownerOnlyReason : null)
   return (
     <div className="mx-auto max-w-[960px]">
       <TitleBlock
@@ -272,33 +277,36 @@ export function ApprovalsView({
         />
       ) : (
         <div className="grid gap-4 rz-stagger">
-          {approvals.map((approval, i) => (
-            <ApprovalCard
-              key={approval.id}
-              style={{ ['--i' as string]: i }}
-              approval={approval}
-              language={language}
-              now={now}
-              busy={busyId === approval.id}
-              problem={problems[approval.id]}
-              onDismissProblem={() => onDismissProblem(approval.id)}
-              blockedReason={blockedReason}
-              onApprove={blockedReason ? undefined : () => onDecide(approval, 'approve')}
-              onReject={blockedReason ? undefined : () => onDecide(approval, 'reject')}
-            >
-              {!blockedReason && (
-                <input
-                  type="text"
-                  dir="auto"
-                  aria-label={text.noteLabel}
-                  placeholder={notePlaceholder(approval.action_type, text)}
-                  value={notes[approval.id] || ''}
-                  onChange={(e) => onNoteChange(approval.id, e.target.value)}
-                  className="rz-input rz-input--sm"
-                />
-              )}
-            </ApprovalCard>
-          ))}
+          {approvals.map((approval, i) => {
+            const reason = reasonFor(approval)
+            return (
+              <ApprovalCard
+                key={approval.id}
+                style={{ ['--i' as string]: i }}
+                approval={approval}
+                language={language}
+                now={now}
+                busy={busyId === approval.id}
+                problem={problems[approval.id]}
+                onDismissProblem={() => onDismissProblem(approval.id)}
+                blockedReason={reason}
+                onApprove={reason ? undefined : () => onDecide(approval, 'approve')}
+                onReject={reason ? undefined : () => onDecide(approval, 'reject')}
+              >
+                {!reason && (
+                  <input
+                    type="text"
+                    dir="auto"
+                    aria-label={text.noteLabel}
+                    placeholder={notePlaceholder(approval.action_type, text)}
+                    value={notes[approval.id] || ''}
+                    onChange={(e) => onNoteChange(approval.id, e.target.value)}
+                    className="rz-input rz-input--sm"
+                  />
+                )}
+              </ApprovalCard>
+            )
+          })}
         </div>
       )}
     </div>
@@ -326,7 +334,8 @@ export function OutcomeBanner({
   const ran = failed || unsure || result.kind === 'succeeded'
   const actionName = outcome.action_name || outcome.action_type
   const label = text.actionTypes[actionName] || actionName
-  const message = ran || !outcome.skill_output ? outcomeMessage(result, text) : outcome.skill_output
+  const message: ReactNode =
+    ran || !outcome.skill_output ? outcomeMessage(result, text) : isolate(outcome.skill_output)
   const Icon = failed ? XCircle : unsure ? AlertTriangle : CheckCircle2
   return (
     <div
@@ -369,7 +378,7 @@ export function OutcomeBanner({
             {outcome.skill_output}
           </p>
         )}
-        {outcome.decision_log && <DecisionLogLine log={outcome.decision_log} text={text} />}
+        <DecisionLogLine log={outcome.decision_log} text={text} />
       </div>
       <IconButton label={text.dismiss} size="sm" onClick={onClose}>
         <X />

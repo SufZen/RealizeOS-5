@@ -25,6 +25,10 @@ _skills_loaded = False
 # Off by default: skill loading is then exactly what it was before packs.
 _pack_cascade = False
 
+# The ventures' folders by configured key (``systems[].directory`` in realize-os.yaml),
+# remembered so a later reload (e.g. after a library install) keeps the same mapping.
+_venture_dirs: dict[str, Path] | None = None
+
 
 def configure_pack_cascade(enabled: bool) -> None:
     """Turn the pack skill cascade on or off for later :func:`load_skills` calls.
@@ -175,7 +179,27 @@ def _load_md_skills(skills_dir) -> dict[str, list[dict]]:
     return skills_by_system
 
 
-def load_skills(skills_dir=None, kb_path=None, packs: bool | None = None):
+def _skill_dirs(kb_path: Path) -> list[tuple[str, Path]]:
+    """``(venture key, its R-routines/skills folder)`` for every venture.
+
+    Uses the configured key-to-folder mapping when one was given
+    (:func:`load_skills` ``ventures``), so a venture ``acme`` in
+    ``systems/acme-office`` finds its skills; otherwise each folder under
+    ``systems/`` is keyed by its name, as before.
+
+    A venture keyed like a shared or global owner (``shared``) is left out
+    with a warning: its skills would otherwise be handed to every venture.
+    """
+    if _venture_dirs is not None:
+        pairs = [(key, Path(folder) / "R-routines" / "skills") for key, folder in sorted(_venture_dirs.items())]
+    else:
+        pairs = [(d.parent.parent.name, d) for d in sorted(kb_path.glob("systems/*/R-routines/skills"))]
+    for key in sorted({key for key, _folder in pairs if key in GLOBAL_SKILL_OWNERS}):
+        logger.warning("Skills of venture '%s' not loaded: that key is reserved for shared skills", key)
+    return [(key, folder) for key, folder in pairs if key not in GLOBAL_SKILL_OWNERS]
+
+
+def load_skills(skills_dir=None, kb_path=None, packs: bool | None = None, ventures: dict | None = None):
     """
     Load all skills from YAML files + defaults.
 
@@ -185,8 +209,13 @@ def load_skills(skills_dir=None, kb_path=None, packs: bool | None = None):
         packs: Also add each venture's pack skills (spec 010): a venture's own
             skill wins over a pack skill with the same id or name. None uses
             the setting from :func:`configure_pack_cascade` (off by default).
+        ventures: The ventures' folders by configured key. Remembered for later
+            reloads; None keeps the last mapping (or keys folders by name).
     """
-    global _loaded_skills, _skills_loaded
+    global _loaded_skills, _skills_loaded, _venture_dirs
+
+    if ventures is not None:
+        _venture_dirs = {str(k): Path(v) for k, v in ventures.items()}
 
     # Load from dedicated skills directory
     if skills_dir:
@@ -201,9 +230,8 @@ def load_skills(skills_dir=None, kb_path=None, packs: bool | None = None):
     # Also load from each system's R-routines/skills/ directory
     if kb_path:
         kb_path = Path(kb_path)
-        for system_dir in kb_path.glob("systems/*/R-routines/skills"):
-            if system_dir.exists():
-                system_key = system_dir.parent.parent.name
+        for system_key, system_dir in _skill_dirs(kb_path):
+            if system_dir.is_dir():
                 try:
                     import yaml
 
@@ -233,7 +261,9 @@ def load_skills(skills_dir=None, kb_path=None, packs: bool | None = None):
     if kb_path and (_pack_cascade if packs is None else packs):
         from realize_core.packs.skills import load_venture_pack_skills
 
-        added = load_venture_pack_skills(Path(kb_path), _loaded_skills)
+        added = load_venture_pack_skills(
+            Path(kb_path), _loaded_skills, ventures=_venture_dirs, reserved=GLOBAL_SKILL_OWNERS
+        )
         logger.info("Loaded %d skill(s) from profession and market packs", added)
 
     _skills_loaded = True
@@ -241,12 +271,18 @@ def load_skills(skills_dir=None, kb_path=None, packs: bool | None = None):
     logger.info(f"Loaded {total} skills across {len(_loaded_skills)} systems")
 
 
-def reload_skills(skills_dir=None, kb_path=None, packs: bool | None = None):
-    """Hot-reload skills from YAML files (and, with ``packs``, from the ventures' packs)."""
+def reload_skills(skills_dir=None, kb_path=None, packs: bool | None = None, ventures: dict | None = None):
+    """Hot-reload skills from YAML files (and, with ``packs``, from the ventures' packs).
+
+    Skills created, changed or deleted through the API (``/api/workflows``)
+    are applied again on top, so a settings reload doesn't undo them; they
+    last until the server restarts (:func:`_reapply_runtime_changes`).
+    """
     global _loaded_skills, _skills_loaded
     _loaded_skills = {}
     _skills_loaded = False
-    load_skills(skills_dir=skills_dir, kb_path=kb_path, packs=packs)
+    load_skills(skills_dir=skills_dir, kb_path=kb_path, packs=packs, ventures=ventures)
+    _reapply_runtime_changes()
 
 
 def detect_skill(message: str, system_key: str = None) -> dict | None:
@@ -398,69 +434,164 @@ def get_all_skills() -> list[dict]:
     return all_skills
 
 
-#: Skill owners that are not ventures: built-ins and skills registered without one.
-GLOBAL_SKILL_OWNERS = frozenset({"", "_default", "_runtime"})
+#: Skill owners that are not ventures: the firm's shared skills (every venture
+#: gets them, as skill detection does), built-ins and skills registered without one.
+GLOBAL_SKILL_OWNERS = frozenset({"", "_default", "_runtime", "shared"})
+
+#: Order in which shared and global owners are searched after a venture's own skills.
+_GLOBAL_LOOKUP_ORDER = ("shared", "", "_runtime", "_default")
 
 
-def find_skill(name: str) -> tuple[str, dict] | None:
+def _named(skills: list[dict], name: str) -> dict | None:
+    return next((skill for skill in skills if skill.get("name") == name), None)
+
+
+def find_shared_skill(name: str) -> tuple[str, dict] | None:
+    """A shared or global skill by name: shared, registered without a venture, built-in."""
+    for owner in _GLOBAL_LOOKUP_ORDER:
+        skill = _named(_loaded_skills.get(owner, []), name)
+        if skill is not None:
+            return owner, skill
+    for owner, skills in _DEFAULT_SKILLS.items():
+        skill = _named(skills, name)
+        if skill is not None:
+            return owner, skill
+    return None
+
+
+def ventures_with_skill(name: str) -> list[str]:
+    """The ventures (not shared or global owners) that have their own skill called ``name``, sorted."""
+    return sorted(
+        owner
+        for owner, skills in _loaded_skills.items()
+        if owner not in GLOBAL_SKILL_OWNERS and _named(skills, name) is not None
+    )
+
+
+def find_skill(name: str, system_key: str | None = None) -> tuple[str, dict] | None:
     """Look up a skill by name with its owner (same skill as :func:`get_skill_by_name`).
 
     The owner is the system key the skill was loaded under. Skills loaded from
     a venture's YAML don't carry it in their dict, so access checks must use
     this owner, never ``skill.get("system_key")``.
+
+    Every venture has its own copy of a pack skill (with its own
+    ``variables``, such as its sheet ids), and two ventures may each have a
+    skill with the same name, so a run must say which venture it is for:
+
+    - with ``system_key``: that venture's own skill, else a shared or global
+      one (:data:`GLOBAL_SKILL_OWNERS`); never another venture's;
+    - without one: only a shared or global skill, never a venture's. A caller
+      that wants a venture's skill names the venture
+      (:func:`ventures_with_skill` says which ventures have one).
     """
-    for owner, skills in _loaded_skills.items():
-        for skill in skills:
-            if skill.get("name") == name:
-                return owner, skill
-    for owner, skills in _DEFAULT_SKILLS.items():
-        for skill in skills:
-            if skill.get("name") == name:
-                return owner, skill
-    return None
+    if system_key:
+        skill = _named(_loaded_skills.get(system_key, []), name)
+        if skill is not None:
+            return system_key, skill
+    return find_shared_skill(name)
 
 
-def get_skill_by_name(name: str) -> dict | None:
-    """Look up a skill by name across all systems."""
-    for skills in _loaded_skills.values():
-        for skill in skills:
-            if skill.get("name") == name:
-                return skill
-    # Check defaults
-    for skills in _DEFAULT_SKILLS.values():
-        for skill in skills:
-            if skill.get("name") == name:
-                return skill
-    return None
+def get_skill_by_name(name: str, system_key: str | None = None) -> dict | None:
+    """Look up a skill by name for a venture (see :func:`find_skill`)."""
+    found = find_skill(name, system_key)
+    return found[1] if found else None
+
+
+# ---------------------------------------------------------------------------
+# Skills created or changed through the API (kept across reloads until restart)
+# ---------------------------------------------------------------------------
+
+#: Skills registered at runtime (``POST /api/workflows``), by ``(owner, name)``.
+_runtime_skills: dict[tuple[str, str], dict] = {}
+#: API changes (``PUT /api/workflows/{name}``) to skills loaded from files, by ``(owner, name)``.
+_runtime_edits: dict[tuple[str, str], dict] = {}
+#: File skills deleted through the API (``DELETE /api/workflows/{name}``), by ``(owner, name)``.
+_runtime_removed: set[tuple[str, str]] = set()
+
+
+def _reapply_runtime_changes() -> None:
+    """Apply the API's changes again after a reload: they were the user's last word, until restart.
+
+    A file skill deleted through the API stays deleted, changes are laid over
+    the reloaded file skill, and a skill created through the API replaces a
+    file skill with the same name in the same venture (it was the user's
+    explicit, later action). All of it lasts until the server restarts.
+    """
+    for owner, name in _runtime_removed:
+        skills = _loaded_skills.get(owner)
+        if skills:
+            skills[:] = [s for s in skills if s.get("name") != name]
+    for (owner, name), updates in _runtime_edits.items():
+        skill = _named(_loaded_skills.get(owner, []), name)
+        if skill is not None:
+            skill.update(updates)
+    for (owner, name), skill in _runtime_skills.items():
+        skills = _loaded_skills.setdefault(owner, [])
+        skills[:] = [s for s in skills if s.get("name") != name]
+        skills.append(skill)
+
+
+def _owned(name: str, system_key: str | None) -> tuple[str, dict] | None:
+    """The skill ``name`` of exactly ``system_key`` (any loaded owner), or a shared or global one."""
+    if system_key is not None:
+        skill = _named(_loaded_skills.get(system_key, []), name)
+        return (system_key, skill) if skill is not None else None
+    found = find_shared_skill(name)
+    return found if found is not None and found[0] in _loaded_skills else None
 
 
 def register_skill(skill_data: dict) -> None:
-    """Register a new skill at runtime (in-memory only)."""
+    """Register a new skill at runtime (in memory only).
+
+    It is kept across :func:`reload_skills` (a settings reload) until the
+    server restarts.
+    """
     system_key = skill_data.get("system_key", "_runtime")
+    key = (system_key, str(skill_data.get("name") or ""))
+    _runtime_skills[key] = skill_data
+    _runtime_removed.discard(key)
+    _runtime_edits.pop(key, None)
     _loaded_skills.setdefault(system_key, []).append(skill_data)
     logger.info("Registered runtime skill '%s' in system '%s'", skill_data.get("name"), system_key)
 
 
-def update_skill(name: str, updates: dict) -> bool:
-    """Update an existing skill's fields by name. Returns True if found and updated."""
-    for skills in _loaded_skills.values():
-        for skill in skills:
-            if skill.get("name") == name:
-                skill.update(updates)
-                logger.info("Updated skill '%s': %s", name, list(updates.keys()))
-                return True
-    return False
+def update_skill(name: str, updates: dict, system_key: str | None = None) -> bool:
+    """Update a skill's fields. Returns True if found and updated.
+
+    ``system_key`` is the owner whose skill to change; without it only a
+    shared or global skill is changed, never a venture's. The change is kept
+    across :func:`reload_skills` until the server restarts.
+    """
+    found = _owned(name, system_key)
+    if found is None:
+        return False
+    owner, skill = found
+    skill.update(updates)
+    if (owner, name) not in _runtime_skills:
+        _runtime_edits.setdefault((owner, name), {}).update(updates)
+    logger.info("Updated skill '%s' in system '%s': %s", name, owner, list(updates.keys()))
+    return True
 
 
-def unregister_skill(name: str) -> bool:
-    """Remove a skill by name. Returns True if found and removed."""
-    for sys_key, skills in _loaded_skills.items():
-        for i, skill in enumerate(skills):
-            if skill.get("name") == name:
-                skills.pop(i)
-                logger.info("Unregistered skill '%s' from system '%s'", name, sys_key)
-                return True
-    return False
+def unregister_skill(name: str, system_key: str | None = None) -> bool:
+    """Remove a skill. Returns True if found and removed.
+
+    ``system_key`` is the owner whose skill to remove; without it only a
+    shared or global skill is removed, never a venture's. A file skill removed
+    this way stays removed across :func:`reload_skills` until the server restarts.
+    """
+    found = _owned(name, system_key)
+    if found is None:
+        return False
+    owner, skill = found
+    skills = _loaded_skills[owner]
+    skills[:] = [s for s in skills if s is not skill]
+    _runtime_edits.pop((owner, name), None)
+    if _runtime_skills.pop((owner, name), None) is None:
+        _runtime_removed.add((owner, name))
+    logger.info("Unregistered skill '%s' from system '%s'", name, owner)
+    return True
 
 
 def _score_skill_keywords(skill: dict, msg_lower: str) -> int:

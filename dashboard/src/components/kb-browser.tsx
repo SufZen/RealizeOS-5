@@ -13,7 +13,9 @@ import {
   Info,
 } from 'lucide-react'
 import { useApi } from '@/hooks/use-api'
+import { useLocale } from '@/components/locale-provider'
 import { api } from '@/lib/api'
+import { kbEmptyHint } from '@/lib/kb-text'
 import { cn } from '@/lib/utils'
 import { FileEditor, CreateFileDialog } from '@/components/file-editor'
 
@@ -154,6 +156,7 @@ export function KBBrowser({
   readOnlyReason?: string | null
 }) {
   const readOnly = !!readOnlyReason
+  const { language } = useLocale()
   const { data, loading, refetch } = useApi<KBFilesResponse>(`/ventures/${ventureKey}/kb/files`)
   const [selectedFile, setSelectedFile] = useState<KBFileContent | null>(null)
   const [fileLoading, setFileLoading] = useState(false)
@@ -416,9 +419,7 @@ export function KBBrowser({
 
           {!selectedFile && !searchResults && !fileLoading && (
             <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
-              {readOnly
-                ? 'Select a file to view, or search the knowledge base'
-                : 'Select a file to view or edit, or search the knowledge base'}
+              {kbEmptyHint(readOnly, language)}
             </div>
           )}
         </div>

@@ -145,8 +145,9 @@ def acting_for_outside_agent(principal: str | None) -> Iterator[None]:
     even when the trust ladder would run it automatically, the tool registry
     refuses writes when no gate is installed, and chat doesn't auto-run
     skills from trigger phrases or answer a paused skill's question. Set by
-    the MCP dispatcher around an agent's tool call and by the REST chat
-    routes for an agent caller.
+    the MCP dispatcher around an agent's tool call, by the REST chat routes
+    for an agent caller, around an approved held write of an agent, and when
+    a paused skill an agent started is resumed.
     """
     token = _OUTSIDE_AGENT.set(principal or "agent")
     try:
@@ -158,6 +159,27 @@ def acting_for_outside_agent(principal: str | None) -> Iterator[None]:
 def outside_agent_active() -> bool:
     """True while work is being done for an outside agent."""
     return _OUTSIDE_AGENT.get() is not None
+
+
+def outside_agent_marker() -> str | None:
+    """The marker of the outside agent work is being done for now (its principal, or ``agent``), or None.
+
+    Stored with work that pauses (a skill's resume point), so resuming it
+    re-establishes the same marker from what was stored, never from whoever
+    resumes it; an unknown principal (``agent``) then fails every liveness check.
+    """
+    return _OUTSIDE_AGENT.get()
+
+
+def current_outside_agent() -> str | None:
+    """The outside agent's principal id (``agent:...``) work is being done for now, or None.
+
+    None also when the work is marked as an agent's but its principal is
+    unknown. Approval rows created meanwhile name this principal as
+    ``requested_by``, so they show as the agent's.
+    """
+    principal = _OUTSIDE_AGENT.get()
+    return principal if isinstance(principal, str) and principal.startswith("agent:") else None
 
 
 def endpoint_name(endpoint: Any) -> str | None:

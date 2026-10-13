@@ -12,7 +12,7 @@ A free workflow that anyone can run from their own AI agent, in any market, with
 3. The agent reads the tender PDF itself and builds the register.
 4. The agent calls `tender_register_submit`. RealizeOS then:
    - checks the register: duplicates, categories, items without a page
-   - returns it as a finished document in English, Hebrew or Portuguese, stating its verification level and limits
+   - returns it as a finished document in English, Hebrew or Portuguese, stating its verification level (the lowest level of the market's rule cards, never more than the weakest rule) and limits
    - offers a hand-off: book an Audit Sprint, or a local partner where one exists
 5. If the user wants to talk, the agent calls `request_audit_call` with a contact the user chose to share.
 
@@ -62,7 +62,7 @@ wedge:
     pt: {name: "Partner name", url: "https://partner.example"}
 ```
 
-`.env`: production posture (`REALIZE_ENV=production`, `REALIZE_API_KEY`, `REALIZE_JWT_ENABLED=true` and a strong `REALIZE_JWT_SECRET`), plus `MCP_PUBLIC_URL` if you prefer it to the YAML. Behind a reverse proxy, set `REALIZE_TRUSTED_PROXIES` so rate limits see real client addresses, and start uvicorn with `--proxy-headers` (see [mcp-server.md](mcp-server.md#connect-claudeai-custom-connector-oauth)).
+`.env`: production posture (`REALIZE_ENV=production`, `REALIZE_API_KEY`, `REALIZE_JWT_ENABLED=true` and a strong `REALIZE_JWT_SECRET`), plus `MCP_PUBLIC_URL` if you prefer it to the YAML. Behind a reverse proxy, set `REALIZE_TRUSTED_PROXIES` to the proxy's address so rate limits see real client addresses, and start uvicorn with `--proxy-headers --forwarded-allow-ips=<proxy ip>` (both flags; the image's default command has neither, so override it; see [mcp-server.md](mcp-server.md#connect-claudeai-custom-connector-oauth)).
 
 With `docker-compose.prod.yml`, use a separate project and data volume, and bind-mount a writable `users.yaml` (the container's root is read-only):
 
@@ -83,7 +83,7 @@ Sign-in is by invitation for now; there is no public sign-up. `invite` refuses t
 realize-os wedge invite dana@example.com
 ```
 
-This adds a `viewer` marked `pilot: true` and limited to an empty sandbox venture of their own (`pilot-<hash>`), and prints a password once. The marker confines the account on the server, whatever the host's config: over MCP it can only call the four pilot tools, and the REST API and dashboard sign-in refuse it. Send them the password privately, with the connector URL (`https://pilot.example.com/mcp`) and the guide for their agent ([connect-your-agent.md](connect-your-agent.md)). Their agent signs in with OAuth and sees only the pilot tools. Inside Docker, run it with `docker compose -p realizeos-pilot exec api python cli.py wedge invite …`.
+This adds a `viewer` marked `pilot: true` and limited to an empty sandbox venture of their own (`pilot-<hash>`), and prints a password once. The marker confines the account on the server, whatever the host's config: over MCP it can only call the four pilot tools, and the REST API, dashboard sign-in and a local stdio session (`mcp stdio --user`) refuse it. Send them the password privately, with the connector URL (`https://pilot.example.com/mcp`) and the guide for their agent ([connect-your-agent.md](connect-your-agent.md)). Their agent signs in with OAuth and sees only the pilot tools. Inside Docker, run it with `docker compose -p realizeos-pilot exec api python cli.py wedge invite …`.
 
 ### Retention
 
@@ -116,6 +116,6 @@ Check it daily during the pilot. A person who asks again after being contacted g
 - per market: runs, users, **converted users** (people who asked for a call, each counted once), call requests (how many runs asked; volume only) and the rate, converted users ÷ users;
 - across all markets: the same, with each person counted once, and how many converted users ran a market outside Israel.
 
-The pilot passes if at least 30% of users ask for a call and at least one of them comes from outside Israel. `--format json` returns `{"markets": [...], "summary": {...}}`.
+The pilot passes if at least 30% of users ask for a call and at least one of them comes from outside Israel. Only a known market code other than `il` counts as outside Israel (`pt`, `es-ct`): a run with no market (`any`), with text that isn't a market code such as "Israel" (`other`), or with an Israeli sub-region (`il-north`) never does. `--format json` returns `{"markets": [...], "summary": {...}}`.
 
 Connection guides for each agent: [connect-your-agent.md](connect-your-agent.md).

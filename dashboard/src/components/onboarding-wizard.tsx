@@ -8,15 +8,21 @@ import {
   Check,
   Eye,
   EyeOff,
+  Info,
+  Languages,
   Search,
   Server,
   Shield,
   Sparkles,
+  X,
   Zap,
 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
+import { isUnrestricted, setupGate, type Actor } from '@/lib/permissions'
+import { onboardingText, type OnboardingText, type ProviderId } from '@/lib/onboarding-text'
 import { usePrefersReducedMotion } from '@/hooks/use-motion'
+import { useLocale } from '@/components/locale-provider'
 import { Badge } from '@/components/ui/badge'
 import { BrandMark } from '@/components/ui/brand-mark'
 import { Button, IconButton } from '@/components/ui/button'
@@ -49,10 +55,95 @@ export function serverHasAiProvider(connections: { category: string; configured:
   return connections.some((c) => c.category === 'llm' && c.configured)
 }
 
-/** What to tell the person when a provider key or URL could not be saved. */
-export function saveErrorText(err: unknown): string {
+/**
+ * What the server said about setup: `done` (an AI provider is connected),
+ * `needed`, or `unreachable` (the check failed); `unknown` until it answers.
+ */
+export type ServerSetup = 'unknown' | 'done' | 'needed' | 'unreachable'
+
+/**
+ * What a signed-in person gets on a server without an AI provider. Only
+ * someone who may connect providers (`setupGate`: system:manage and every
+ * venture) gets the wizard, since saving a key needs that; anyone else with
+ * every venture gets a notice that an owner or admin must do it. A person
+ * limited to some ventures gets neither (they can't read the setup state).
+ */
+export function onboardingPrompt(
+  user: Actor | null | undefined,
+  serverSetup: ServerSetup,
+): 'wizard' | 'notice' | null {
+  if (!user || !isUnrestricted(user)) return null
+  if (setupGate(user) === null) {
+    // A failed check still offers the wizard, as before: it re-reads the state itself.
+    return serverSetup === 'needed' || serverSetup === 'unreachable' ? 'wizard' : null
+  }
+  return serverSetup === 'needed' ? 'notice' : null
+}
+
+const NOTICE_DISMISSED_KEY = 'realizeos_provider_notice_dismissed'
+
+/** True when the person closed the "no AI provider yet" notice in this browser. */
+export function isProviderNoticeDismissed(): boolean {
+  try {
+    return localStorage.getItem(NOTICE_DISMISSED_KEY) === 'true'
+  } catch {
+    return false
+  }
+}
+
+/** Remember that the person closed the notice. */
+export function dismissProviderNotice() {
+  try {
+    localStorage.setItem(NOTICE_DISMISSED_KEY, 'true')
+  } catch {
+    // storage unavailable: the notice stays closed for this page only
+  }
+}
+
+/**
+ * For someone who can't connect providers, on a server with none yet: who has
+ * to do it. It can be closed; the dashboard works around it.
+ */
+export function ProviderNeededNotice({
+  onDismiss,
+  text: given,
+}: {
+  onDismiss: () => void
+  text?: OnboardingText
+}) {
+  const text = useWizardText(given)
+  return (
+    <div
+      role="status"
+      data-notice="provider-needed"
+      className="rz-panel mb-6 flex items-start gap-3 p-4 text-sm"
+    >
+      <Info className="mt-0.5 h-4 w-4 shrink-0 text-blue-400" aria-hidden />
+      <div className="min-w-0 flex-1">
+        <p className="m-0 font-medium text-foreground">{text.providerNeededTitle}</p>
+        <p className="m-0 mt-0.5 text-muted-foreground">{text.providerNeeded}</p>
+      </div>
+      <IconButton label={text.dismiss} size="sm" onClick={onDismiss}>
+        <X />
+      </IconButton>
+    </div>
+  )
+}
+
+/** What to tell the person when a provider key or URL could not be saved, in their language. */
+export function saveErrorText(err: unknown, text: OnboardingText = onboardingText('en')): string {
   const detail = err instanceof Error ? err.message.trim() : ''
-  return detail ? `Couldn’t connect: ${detail}` : 'Couldn’t connect. Check the value and try again.'
+  return text.saveError(detail)
+}
+
+/**
+ * The wizard's words: `text` when given (tests, a parent that already has
+ * them), else the language in effect. Outside the locale provider that is
+ * English.
+ */
+function useWizardText(text?: OnboardingText): OnboardingText {
+  const { language } = useLocale()
+  return text ?? onboardingText(language)
 }
 
 interface Connection {
@@ -67,80 +158,25 @@ interface Connection {
   help: string
 }
 
+/** A provider the wizard can connect. Its description and help are in `OnboardingText`. */
 export interface LlmProvider {
-  id: string
+  id: ProviderId
+  /** Product name: the same in every language. */
   name: string
   icon: typeof Brain
-  description: string
-  help: string
   recommended: boolean
   isUrl?: boolean
 }
 
 export const LLM_PROVIDERS: LlmProvider[] = [
-  {
-    id: 'anthropic',
-    name: 'Claude (Anthropic)',
-    icon: Brain,
-    description: 'Best for complex reasoning, writing, and code',
-    help: 'Get your key at console.anthropic.com',
-    recommended: true,
-  },
-  {
-    id: 'google_ai',
-    name: 'Gemini (Google)',
-    icon: Brain,
-    description: 'Fast and cost-effective for most tasks',
-    help: 'Get your key at aistudio.google.com',
-    recommended: false,
-  },
-  {
-    id: 'openai',
-    name: 'GPT-4 (OpenAI)',
-    icon: Brain,
-    description: 'Strong general-purpose AI models',
-    help: 'Get your key at platform.openai.com',
-    recommended: false,
-  },
-  {
-    id: 'ollama',
-    name: 'Ollama (Local)',
-    icon: Server,
-    description: 'Run models locally — free, private, no API key',
-    help: 'Default URL: http://localhost:11434',
-    recommended: false,
-    isUrl: true,
-  },
+  { id: 'anthropic', name: 'Claude (Anthropic)', icon: Brain, recommended: true },
+  { id: 'google_ai', name: 'Gemini (Google)', icon: Brain, recommended: false },
+  { id: 'openai', name: 'GPT-4 (OpenAI)', icon: Brain, recommended: false },
+  { id: 'ollama', name: 'Ollama (Local)', icon: Server, recommended: false, isUrl: true },
 ]
 
-const FEATURES = [
-  {
-    icon: Sparkles,
-    title: 'Multi-agent system',
-    description: 'Deploy specialized AI agents for different tasks',
-  },
-  {
-    icon: Shield,
-    title: 'Trust ladder',
-    description: 'Control what agents can do autonomously vs. with approval',
-  },
-  {
-    icon: Zap,
-    title: 'Smart routing',
-    description: 'Automatically route tasks to the best model for the job',
-  },
-  {
-    icon: Search,
-    title: 'Tools and integrations',
-    description: 'Web search, browser automation, Google Workspace, and more',
-  },
-]
-
-const NEXT_STEPS = [
-  { label: 'Start a conversation', desc: 'Chat with your AI agents' },
-  { label: 'Explore ventures', desc: 'See your business units and agents' },
-  { label: 'Configure settings', desc: 'Adjust features, governance, and trust levels' },
-]
+/** Icons for the four welcome lines, in `OnboardingText.features` order. */
+const FEATURE_ICONS = [Sparkles, Shield, Zap, Search]
 
 /** Welcome, connect a provider, done. */
 export const TOTAL_STEPS = 3
@@ -150,22 +186,22 @@ export const TOTAL_STEPS = 3
 /* ------------------------------------------------------------------ */
 
 /** The sheet reference for a step: scope and position, like "Setup · 2 of 3". */
-function stepReference(step: number): string[] {
-  return ['Setup', `${step + 1} of ${TOTAL_STEPS}`]
+function stepReference(step: number, text: OnboardingText): string[] {
+  return [text.setup, text.stepOf(step + 1, TOTAL_STEPS)]
 }
 
 /** A survey line across the top of the sheet: how far through setup you are. */
-function SetupProgress({ step }: { step: number }) {
+function SetupProgress({ step, text }: { step: number; text: OnboardingText }) {
   const pct = `${Math.round(((step + 1) / TOTAL_STEPS) * 100)}%`
   return (
     <div
       className="rz-progress rounded-none"
       role="progressbar"
-      aria-label="Setup progress"
+      aria-label={text.progressLabel}
       aria-valuemin={1}
       aria-valuemax={TOTAL_STEPS}
       aria-valuenow={step + 1}
-      aria-valuetext={`Step ${step + 1} of ${TOTAL_STEPS}`}
+      aria-valuetext={text.progressText(step + 1, TOTAL_STEPS)}
     >
       <div className="rz-progress__bar rounded-none" style={{ ['--_v' as string]: pct }} />
     </div>
@@ -173,31 +209,35 @@ function SetupProgress({ step }: { step: number }) {
 }
 
 /** Step 1: what RealizeOS is, in four lines. */
-export function WelcomeStep() {
+export function WelcomeStep({ text: given }: { text?: OnboardingText } = {}) {
+  const text = useWizardText(given)
   return (
     <>
       <TitleBlock
-        title="Welcome to RealizeOS"
-        description="Your AI-powered operating system for business. Let’s get you set up in under 2 minutes."
-        reference={stepReference(0)}
+        title={text.welcomeTitle}
+        description={text.welcomeDescription}
+        reference={stepReference(0, text)}
       />
       <ul className="m-0 grid list-none gap-3 p-0 sm:grid-cols-2">
-        {FEATURES.map((f) => (
-          <li key={f.title} className="rz-card flex items-start gap-3">
-            <span
-              aria-hidden
-              className="grid h-8 w-8 shrink-0 place-items-center rounded-[5px] bg-secondary text-muted-foreground"
-            >
-              <f.icon className="h-4 w-4" />
-            </span>
-            <div className="min-w-0">
-              <h3 className="m-0 text-sm font-semibold text-foreground">{f.title}</h3>
-              <p className="m-0 mt-0.5 text-[13px] leading-snug text-muted-foreground">
-                {f.description}
-              </p>
-            </div>
-          </li>
-        ))}
+        {text.features.map((f, i) => {
+          const Icon = FEATURE_ICONS[i] ?? Sparkles
+          return (
+            <li key={f.title} className="rz-card flex items-start gap-3">
+              <span
+                aria-hidden
+                className="grid h-8 w-8 shrink-0 place-items-center rounded-[5px] bg-secondary text-muted-foreground"
+              >
+                <Icon className="h-4 w-4" />
+              </span>
+              <div className="min-w-0">
+                <h3 className="m-0 text-sm font-semibold text-foreground">{f.title}</h3>
+                <p className="m-0 mt-0.5 text-[13px] leading-snug text-muted-foreground">
+                  {f.description}
+                </p>
+              </div>
+            </li>
+          )
+        })}
       </ul>
     </>
   )
@@ -208,11 +248,14 @@ export function ProviderCard({
   provider,
   configured,
   onSave,
+  text: given,
 }: {
   provider: LlmProvider
   configured: boolean
   onSave: (id: string, value: string) => Promise<void>
+  text?: OnboardingText
 }) {
+  const text = useWizardText(given)
   const [value, setValue] = useState('')
   const [showValue, setShowValue] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -221,6 +264,7 @@ export function ProviderCard({
   const inputId = useId()
   const noteId = `${inputId}-note`
   const Icon = provider.icon
+  const words = text.providers[provider.id]
 
   async function handleSave() {
     if (!value.trim()) return
@@ -231,7 +275,7 @@ export function ProviderCard({
       setSaved(true)
       setValue('')
     } catch (err) {
-      setError(saveErrorText(err))
+      setError(saveErrorText(err, text))
     } finally {
       setSaving(false)
     }
@@ -253,16 +297,18 @@ export function ProviderCard({
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className="m-0 text-[15px] font-semibold text-foreground">{provider.name}</h3>
-            {provider.recommended && !saved && <Badge tone="accent">Recommended</Badge>}
+            <h3 className="m-0 text-[15px] font-semibold text-foreground">
+              <bdi>{provider.name}</bdi>
+            </h3>
+            {provider.recommended && !saved && <Badge tone="accent">{text.recommended}</Badge>}
             {saved && (
               <Badge tone="success">
                 <Check aria-hidden />
-                Connected
+                {text.connected}
               </Badge>
             )}
           </div>
-          <p className="m-0 mt-0.5 text-[13px] text-muted-foreground">{provider.description}</p>
+          <p className="m-0 mt-0.5 text-[13px] text-muted-foreground">{words.description}</p>
         </div>
       </div>
 
@@ -275,10 +321,13 @@ export function ProviderCard({
           }}
         >
           <label htmlFor={inputId} className="rz-label">
-            {provider.isUrl ? 'Server URL' : 'API key'}
+            {provider.isUrl ? text.serverUrl : text.apiKey}
           </label>
           <div className="flex gap-2">
-            <div className="relative min-w-0 flex-1">
+            {/* Keys and URLs read left to right in every language: the field, its
+                padding and the show/hide button share one direction, so in
+                Hebrew the button never covers the start of the key. */}
+            <div dir="ltr" className="relative min-w-0 flex-1">
               <input
                 id={inputId}
                 type={showValue || provider.isUrl ? 'text' : 'password'}
@@ -298,7 +347,7 @@ export function ProviderCard({
               />
               {!provider.isUrl && (
                 <IconButton
-                  label={showValue ? 'Hide key' : 'Show key'}
+                  label={showValue ? text.hideKey : text.showKey}
                   size="sm"
                   className="absolute end-[3px] top-1/2 -translate-y-1/2"
                   onClick={() => setShowValue(!showValue)}
@@ -309,7 +358,7 @@ export function ProviderCard({
             </div>
             <Button type="submit" busy={saving} disabled={!value.trim()}>
               <Check aria-hidden />
-              Connect
+              {text.connect}
             </Button>
           </div>
           {error ? (
@@ -319,7 +368,7 @@ export function ProviderCard({
             </span>
           ) : (
             <span id={noteId} className="rz-help">
-              {provider.help}
+              {words.help}
             </span>
           )}
         </form>
@@ -332,16 +381,19 @@ export function ProviderCard({
 export function ConnectStep({
   connected,
   onSave,
+  text: given,
 }: {
   connected: Set<string>
   onSave: (id: string, value: string) => Promise<void>
+  text?: OnboardingText
 }) {
+  const text = useWizardText(given)
   return (
     <>
       <TitleBlock
-        title="Connect an AI provider"
-        description="RealizeOS needs at least one LLM provider to power your agents. Connect one or more below."
-        reference={stepReference(1)}
+        title={text.connectTitle}
+        description={text.connectDescription}
+        reference={stepReference(1, text)}
       />
       <ul className="m-0 grid list-none gap-3 p-0">
         {LLM_PROVIDERS.map((provider) => (
@@ -350,6 +402,7 @@ export function ConnectStep({
             provider={provider}
             configured={connected.has(provider.id)}
             onSave={onSave}
+            text={text}
           />
         ))}
       </ul>
@@ -392,19 +445,28 @@ function DoneMark({ animate }: { animate: boolean }) {
 }
 
 /** Step 3: what was set up, and what to do next, on one leader line. */
-export function DoneStep({ providers, animate }: { providers: string[]; animate: boolean }) {
+export function DoneStep({
+  providers,
+  animate,
+  text: given,
+}: {
+  providers: string[]
+  animate: boolean
+  text?: OnboardingText
+}) {
+  const text = useWizardText(given)
   const count = providers.length
   const steps: TrailStep[] = [
     ...providers.map((name) => ({
       id: `connected-${name}`,
       state: 'done' as const,
-      title: `Connected ${name}`,
+      title: text.connectedProvider(name),
     })),
-    ...NEXT_STEPS.map((tip) => ({
-      id: `next-${tip.label}`,
+    ...text.nextSteps.map((tip, i) => ({
+      id: `next-${i}`,
       state: 'pending' as const,
-      title: tip.label,
-      meta: tip.desc,
+      title: tip.title,
+      meta: tip.description,
     })),
   ]
   return (
@@ -413,44 +475,57 @@ export function DoneStep({ providers, animate }: { providers: string[]; animate:
         title={
           <span className="inline-flex items-center gap-3">
             <DoneMark animate={animate} />
-            You’re all set
+            {text.doneTitle}
           </span>
         }
         description={
           <>
-            RealizeOS is ready to go. You’ve connected{' '}
-            <span className="font-medium text-foreground">
-              {count} provider{count !== 1 ? 's' : ''}
-            </span>
-            . You can add more integrations anytime from the Setup page.
+            {text.doneBefore}{' '}
+            <span className="font-medium text-foreground">{text.providerCount(count)}</span>
+            {text.doneAfter}
           </>
         }
-        reference={stepReference(2)}
+        reference={stepReference(2, text)}
       />
-      <h2 className="m-0 mb-2 text-sm font-medium text-muted-foreground">What to do next</h2>
-      <Trail steps={steps} label="Setup and next steps" />
+      <h2 className="m-0 mb-2 text-sm font-medium text-muted-foreground">{text.nextTitle}</h2>
+      <Trail steps={steps} label={text.trailLabel} />
     </>
   )
 }
 
-/** The drawing sheet every step sits on: brand, progress, the step, and its actions. */
+/**
+ * The drawing sheet every step sits on: brand, progress, the step, and its
+ * actions. It carries the language and direction itself, so it reads right
+ * whether or not the page around it has switched yet.
+ */
 export function WizardSheet({
   step,
   footer,
   children,
   stepRef,
   enterClass,
+  headerEnd,
+  text: given,
 }: {
   step: number
   footer: ReactNode
   children: ReactNode
   stepRef?: Ref<HTMLDivElement>
   enterClass?: string
+  /** Controls at the inline end of the brand row (the language button). */
+  headerEnd?: ReactNode
+  text?: OnboardingText
 }) {
+  const text = useWizardText(given)
   return (
-    <div className="relative z-10 mx-auto flex min-h-full w-full max-w-2xl flex-col justify-center px-4 py-8 sm:py-12">
-      <div className="mb-5 flex items-center">
+    <div
+      lang={text.lang}
+      dir={text.dir}
+      className="relative z-10 mx-auto flex min-h-full w-full max-w-2xl flex-col justify-center px-4 py-8 sm:py-12"
+    >
+      <div className="mb-5 flex items-center gap-3">
         <BrandMark size={24} />
+        {headerEnd && <div className="ms-auto">{headerEnd}</div>}
       </div>
       <Panel
         flush
@@ -458,7 +533,7 @@ export function WizardSheet({
         style={{ boxShadow: 'var(--rz-shadow-3)' }}
         footer={footer}
       >
-        <SetupProgress step={step} />
+        <SetupProgress step={step} text={text} />
         <div
           key={step}
           ref={stepRef}
@@ -472,11 +547,34 @@ export function WizardSheet({
   )
 }
 
+/** Switch the wizard (and the dashboard after it) to the other language. */
+export function WizardLanguageButton({
+  text,
+  onSwitch,
+}: {
+  text: OnboardingText
+  onSwitch: (language: OnboardingText['switchTarget']) => void
+}) {
+  return (
+    <Button
+      variant="ghost"
+      size="sm"
+      aria-label={text.switchLabel}
+      onClick={() => onSwitch(text.switchTarget)}
+    >
+      <Languages aria-hidden />
+      <span lang={text.switchTarget}>{text.switchTo}</span>
+    </Button>
+  )
+}
+
 /* ------------------------------------------------------------------ */
 /* Wizard                                                              */
 /* ------------------------------------------------------------------ */
 
 export default function OnboardingWizard({ onComplete }: { onComplete: () => void }) {
+  const { language, setOverride } = useLocale()
+  const text = onboardingText(language)
   const [step, setStep] = useState(0)
   const [connectedProviders, setConnectedProviders] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
@@ -532,9 +630,11 @@ export default function OnboardingWizard({ onComplete }: { onComplete: () => voi
   if (loading) {
     return (
       <div
+        lang={text.lang}
+        dir={text.dir}
         className="fixed inset-0 z-50 grid place-items-center bg-background"
         role="status"
-        aria-label="Loading setup"
+        aria-label={text.loading}
       >
         <div className="grid w-48 justify-items-center gap-4">
           <BrandMark size={28} />
@@ -550,7 +650,7 @@ export default function OnboardingWizard({ onComplete }: { onComplete: () => voi
     step === 0 ? (
       <div className="flex justify-end">
         <Button variant="primary" onClick={() => setStep(1)}>
-          Get started
+          {text.getStarted}
           <ArrowRight className="rtl:rotate-180" aria-hidden />
         </Button>
       </div>
@@ -558,16 +658,14 @@ export default function OnboardingWizard({ onComplete }: { onComplete: () => voi
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <Button variant="ghost" className="-ms-2" onClick={() => setStep(0)}>
           <ArrowLeft className="rtl:rotate-180" aria-hidden />
-          Back
+          {text.back}
         </Button>
         <div className="ms-auto flex flex-wrap items-center justify-end gap-x-3 gap-y-2">
           {!hasProvider && (
-            <span className="text-xs text-subtle-foreground">
-              Connect at least one provider to continue
-            </span>
+            <span className="text-xs text-subtle-foreground">{text.needProvider}</span>
           )}
           <Button variant="primary" onClick={() => setStep(2)} disabled={!hasProvider}>
-            Continue
+            {text.continue}
             <ArrowRight className="rtl:rotate-180" aria-hidden />
           </Button>
         </div>
@@ -575,14 +673,19 @@ export default function OnboardingWizard({ onComplete }: { onComplete: () => voi
     ) : (
       <div className="flex justify-end">
         <Button variant="primary" onClick={handleFinish}>
-          Go to dashboard
+          {text.finish}
           <ArrowRight className="rtl:rotate-180" aria-hidden />
         </Button>
       </div>
     )
 
   return (
-    <div ref={scrollRef} className="fixed inset-0 z-50 overflow-y-auto bg-background">
+    <div
+      ref={scrollRef}
+      lang={text.lang}
+      dir={text.dir}
+      className="fixed inset-0 z-50 overflow-y-auto bg-background"
+    >
       {/* The drafting grid fades out from the centre: the one ambient surface */}
       <div
         aria-hidden
@@ -593,13 +696,18 @@ export default function OnboardingWizard({ onComplete }: { onComplete: () => voi
         footer={footer}
         stepRef={stepRef}
         enterClass={reduced ? 'rz-fade' : 'rz-enter'}
+        headerEnd={<WizardLanguageButton text={text} onSwitch={setOverride} />}
+        text={text}
       >
-        {step === 0 && <WelcomeStep />}
-        {step === 1 && <ConnectStep connected={connectedProviders} onSave={handleProviderSave} />}
+        {step === 0 && <WelcomeStep text={text} />}
+        {step === 1 && (
+          <ConnectStep connected={connectedProviders} onSave={handleProviderSave} text={text} />
+        )}
         {step === 2 && (
           <DoneStep
             providers={LLM_PROVIDERS.filter((p) => connectedProviders.has(p.id)).map((p) => p.name)}
             animate={!reduced}
+            text={text}
           />
         )}
       </WizardSheet>

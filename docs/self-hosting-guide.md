@@ -130,7 +130,7 @@ Protection levels control which files AI tools may modify:
 | `standard` | Core engine protected, config editable with auto-backup |
 | `relaxed` | Only security/DB files protected, everything else open |
 
-See the [User Guide](docs/user-guide.html#devmode) for full documentation.
+See [Developer Mode in the API reference](api-reference.md#developer-mode) for the endpoints.
 
 ### Storage & Backup (Optional)
 
@@ -180,7 +180,7 @@ The application folder, including the shipped profession and market packs in `/a
       - REALIZE_PACKS_PATH=/app/packs-custom
 ```
 
-The storage export includes `DATA_PATH/packs/verification.json`, the `REALIZE_PACKS_PATH` folder and a `packs-inventory.json` to check a restore with `python cli.py packs inventory --compare packs-inventory.json`. The KB index `kb_index.db` stays next to the knowledge base when that folder is writable and moves to `DATA_PATH` otherwise. Set `REALIZE_DB_PATH` to put the operational database somewhere else.
+The storage export includes `DATA_PATH/packs/verification.json`, the `REALIZE_PACKS_PATH` folder and a `packs-inventory.json` to check a restore with `python cli.py packs inventory --compare packs-inventory.json` (see [Move to another server](#move-to-another-server-export-and-restore)). The KB index `kb_index.db` stays next to the knowledge base when that folder is writable and moves to `DATA_PATH` otherwise. Set `REALIZE_DB_PATH` to put the operational database somewhere else.
 
 Upgrading from 5.14 or earlier: an existing `realize_data.db` in the working directory or `.synapse/` in the KB root keeps being used (the log warns if it isn't on `DATA_PATH`). To move it, stop the container, copy it into the data volume, and remove the old copy.
 
@@ -409,37 +409,67 @@ realize.yourdomain.com {
 
 ## Backups
 
-### Database Backup
+### Export (the complete backup)
+
+**Settings → Storage & Backup → Export**, or from the server:
 
 ```bash
-# Backup SQLite database
-docker cp realizeos-api:/app/data/realizeos.db ./backups/realizeos-$(date +%Y%m%d).db
-
-# Or using volumes directly
-docker run --rm \
-  -v realizeos-data:/data \
-  -v $(pwd)/backups:/backups \
-  alpine cp /data/realizeos.db /backups/realizeos-$(date +%Y%m%d).db
+curl -fsS -X POST -H "X-API-Key: $REALIZE_API_KEY" -o realizeos-export-$(date +%Y%m%d).zip \
+  http://localhost:8080/api/storage/export
 ```
 
-### Full Backup
+The ZIP holds `realize-os.yaml`, `systems/`, `shared/`, consistent snapshots of the databases (`data/memory.db`, `data/realize_data.db`, `data/synapse/`), the pack verification state (`data/packs/verification.json`), your `REALIZE_PACKS_PATH` folder (`custom-packs/`) and `packs-inventory.json`. It never holds `.env`, `users.yaml` or `.credentials/`, and the dashboard sign-in sessions are removed from the database snapshot, so the ZIP can't be used to sign in to the running server. Agent tokens travel as hashes only. Keep the ZIP private all the same: it is the whole brain of your ventures. It is built in `/tmp`, which is all the production container needs.
+
+Back up `.env`, `users.yaml` and `.credentials/` separately, somewhere as safe as the secrets they are.
+
+### Move to another server: export and restore
+
+1. Export on the old server (above).
+2. On the new server, restore into a new or empty folder. Nothing is overwritten; an archive with anything outside an export's layout is refused before anything is written:
+
+   ```bash
+   python cli.py storage restore realizeos-export-20261013.zip --directory /srv/realizeos
+   ```
+
+3. Copy `.env`, `users.yaml` and `.credentials/` from the old server into `/srv/realizeos`.
+4. Run RealizeOS from `/srv/realizeos` with `DATA_PATH=/srv/realizeos/data` and, if the export had custom packs, `REALIZE_PACKS_PATH=/srv/realizeos/custom-packs`. With Docker, use the folder's `realize-os.yaml`, `systems/` and `custom-packs/` as the compose bind mounts (`./realize-os.yaml`, `./systems`, `./packs-custom`), and copy `data/` and `shared/` into the named volumes before the first start, owned by the container's user (uid 1000):
+
+   ```bash
+   docker run --rm --user 0:0 -v realizeos-data:/app/data -v /srv/realizeos/data:/from:ro \
+     ghcr.io/sufzen/realizeos-5 sh -c 'cp -a /from/. /app/data/ && chown -R 1000:1000 /app/data'
+   docker run --rm --user 0:0 -v realizeos-shared:/app/shared -v /srv/realizeos/shared:/from:ro \
+     ghcr.io/sufzen/realizeos-5 sh -c 'cp -a /from/. /app/shared/ && chown -R 1000:1000 /app/shared'
+   ```
+
+5. Check that the new installation resolves the same packs, levels and rules (exit code 1 lists each difference):
+
+   ```bash
+   python cli.py packs inventory --kb /srv/realizeos --compare /srv/realizeos/packs-inventory.json
+   # Docker:
+   docker compose -f docker-compose.prod.yml exec -T api python cli.py packs inventory --compare /dev/stdin \
+     < /srv/realizeos/packs-inventory.json
+   ```
+
+People sign in again on the new server. Approvals, decisions, skill runs, agent tokens and conversations come back as they were. `tests/test_export_restore.py` runs this whole round trip (export through the API, `storage restore`, `packs inventory --compare`) in CI, and checks that no secret is in the ZIP.
+
+### Database files
+
+The databases live in the data volume (`DATA_PATH`): `realize_data.db` (approvals, sessions, agent tokens, decisions queue), `memory.db` (conversations) and `synapse/`. Copying a live SQLite file can catch it mid-write; prefer the export, or stop the container first:
 
 ```bash
-# Backup everything: config, systems, data
-tar czf realizeos-backup-$(date +%Y%m%d).tar.gz \
-  realize-os.yaml \
-  .env \
-  systems/ \
-  .credentials/
+docker compose -f docker-compose.prod.yml stop api
+docker run --rm -v realizeos-data:/data:ro -v $(pwd)/backups:/backups alpine \
+  tar czf /backups/realizeos-data-$(date +%Y%m%d).tgz -C /data .
+docker compose -f docker-compose.prod.yml start api
 ```
 
 ### Automated Daily Backups
 
-Add a cron job:
+Add a cron job that saves the export:
 
 ```bash
 # crontab -e
-0 2 * * * cd /path/to/RealizeOS-5 && docker cp realizeos-api:/app/data/realizeos.db backups/realizeos-$(date +\%Y\%m\%d).db
+0 2 * * * cd /path/to/RealizeOS-5 && . ./.env && curl -fsS -X POST -H "X-API-Key: $REALIZE_API_KEY" -o backups/realizeos-export-$(date +\%Y\%m\%d).zip http://localhost:8080/api/storage/export
 ```
 
 ## Monitoring

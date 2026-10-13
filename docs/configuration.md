@@ -361,6 +361,7 @@ MCP_ENABLED=false                # Enable the MCP SSE endpoint
 MCP_ALLOW_ADMIN=false            # Expose admin tools (venture CRUD, settings)
 MCP_EXPOSE_KB=true               # Expose KB search tools
 MCP_EXPOSE_OPS=true              # Expose workflow/skill/evolution tools
+MCP_RATE_LIMIT_PER_MINUTE=       # Tool calls per caller per minute (empty = API_RATE_LIMIT_PER_MINUTE)
 ```
 
 ## MCP Server Configuration
@@ -377,6 +378,7 @@ mcp:
   allow_admin: false              # Admin tools (venture CRUD, system settings)
   expose_kb: true                 # KB search/get tools
   expose_ops: true                # Workflow, skill, evolution tools
+  rate_limit_per_minute: null     # Tool calls per caller per minute (null = API_RATE_LIMIT_PER_MINUTE)
   max_sessions: 100               # Maximum concurrent MCP sessions
   session_timeout: 3600           # Session TTL in seconds
 ```

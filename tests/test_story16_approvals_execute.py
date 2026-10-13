@@ -478,7 +478,8 @@ class TestDecisions:
         assert tool.calls == []
 
     @pytest.mark.asyncio
-    async def test_expiry_between_approval_and_dispatch_blocks_the_run(self, gated, db):
+    async def test_an_approved_item_is_claimed_by_status_not_expiry(self, gated, db):
+        """The decision enforced expiry; the claim doesn't check it again (review G-2)."""
         from realize_core.governance.gates import approve_request, execute_approved_action
 
         registry, tool = gated
@@ -487,8 +488,39 @@ class TestDecisions:
         _set(db, approval_id, expires_at="2000-01-01T00:00:00.000000Z")
 
         out = await execute_approved_action(approval_id)
-        assert out["executed"] is False
-        assert tool.calls == []
+        assert out["executed"] is True
+        assert len(tool.calls) == 1
+        assert (await execute_approved_action(approval_id))["executed"] is False
+        assert len(tool.calls) == 1
+
+    @pytest.mark.asyncio
+    async def test_an_approval_given_just_before_expiry_still_runs_once(self, gated, db, monkeypatch):
+        """A slow decision-log write can't push the approved action past the item's expiry (review G-2)."""
+        import time
+        from datetime import UTC, datetime, timedelta
+
+        from realize_core.governance import decision_log
+        from realize_core.governance.gates import decide_approval
+
+        registry, tool = gated
+        approval_id = await _hold(registry)
+        soon = (datetime.now(UTC) + timedelta(seconds=1)).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+        _set(db, approval_id, expires_at=soon)
+        real_write = decision_log._write_decision
+
+        def slow_write(*args, **kwargs):
+            time.sleep(1.2)
+            return real_write(*args, **kwargs)
+
+        monkeypatch.setattr(decision_log, "_write_decision", slow_write)
+
+        result = await decide_approval(approval_id, approve=True, decided_by="owner@x")
+
+        assert result["execution"]["executed"] is True
+        assert result["execution"]["success"] is True
+        assert len(tool.calls) == 1
+        assert _row(db, approval_id)["execution_status"] == "succeeded"
+        assert set(result["decision_log"]) == {"logged", "pending", "error", "decision_id"}
 
     @pytest.mark.asyncio
     async def test_decider_and_channel_are_recorded(self, gated, db, monkeypatch):

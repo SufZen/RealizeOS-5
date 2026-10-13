@@ -57,9 +57,11 @@ only those ventures in the dashboard (the venture switcher is locked when there
 is one), the API and MCP. Another venture's data returns 403 or "not found",
 wherever the venture is named (path, query or anywhere in a JSON body). The
 system-wide areas (settings, security, setup, integrations, storage, tools,
-shared files, evolution, pipelines) are closed to them, reads included, and
-their pages are hidden; changes that affect every venture (agent definitions,
-routing, reloads) are refused. Knowledge-base files are checked against the
+shared files, evolution, pipelines, LLM usage and `/api/memory/stats`) are
+closed to them, reads included, and their pages are hidden; changes that affect
+every venture (agent definitions, routing, reloads) are refused. Lists and
+searches that don't name a venture (memory search, approvals, missions, the
+Dream Inbox and its counts) cover only their ventures. Knowledge-base files are checked against the
 venture's own directory, not just the knowledge base.
 
 Leave `ventures` out for access to every venture; a `ventures` entry that is
@@ -93,6 +95,30 @@ is recorded in `DATA_PATH`, never in the pack files. See
 4. `curl -fsS http://<host>:<port>/.env` — should return **404** (proves the SPA catch-all blocks dotfiles).
 5. Visit the dashboard in a browser — you should land on `/login`.
 6. Log in with the user you configured — every nav item should load successfully.
+
+## Production smoke test (read-only container)
+
+`scripts/prod_smoke.py` runs an image the way `docker-compose.prod.yml` does and checks it end to end. CI runs it on every push and pull request (job **Production smoke (read-only container)** in `.github/workflows/ci.yml`); run it yourself before a release or after changing the Dockerfile:
+
+```bash
+docker build -t realizeos-5:smoke .
+python scripts/prod_smoke.py --image realizeos-5:smoke     # add --keep to leave everything for debugging
+```
+
+It needs Docker with a Linux engine and Python 3.11+ (standard library only). It starts the container with a read-only root filesystem, a `/tmp` tmpfs, `no-new-privileges`, named volumes for `/app/data` and `/app/shared`, `realize-os.yaml` and `.credentials` mounted read-only, `systems/` and `packs-custom/` (as `REALIZE_PACKS_PATH`) mounted writable, and production settings (`REALIZE_ENV=production`, an API key, JWT on with a strong secret, `CORS_ORIGINS`, a dashboard owner). The secrets are generated for each run and never written to disk. Then it checks:
+
+1. `/api/health` is `ok`; a request without credentials gets 401; the API key, a JWT minted with it and a dashboard sign-in work.
+2. Creating a venture is refused with 503 (the config is read-only) and leaves nothing behind; a venture file is written through the API into the `systems/` mount.
+3. A market pack review runs in the container the documented way: the shipped pack is copied into `REALIZE_PACKS_PATH`, `packs review-sheet` and `packs review-submit --whole-pack` queue a `pack_verify` request, the owner approves it over the API, the approval's `execution_status` is `succeeded`, and `packs/verification.json` is in the data volume at level 2.
+4. `POST /api/storage/export` works with only `/tmp` writable, and the ZIP has the venture file, the verification state and the custom pack, and none of the API key, the JWT secret, the password hash or the session cookie.
+5. After `docker restart`, and again after the container is removed and recreated from the image on the same volumes: the venture file, the sign-in session, the approval and its outcome, the decision-log entry, the verification state and the pack inventory (`packs inventory --compare`) are all unchanged.
+6. The container log shows no write refused by the read-only filesystem.
+
+It exits 1 at the first failed check, printing the container log, and removes the container, volumes and temp folder either way (unless `--keep`).
+
+## Backups and moving to another server
+
+The storage export is the complete backup; `python cli.py storage restore <zip> --directory <new folder>` restores it on a new server. What is and isn't in the ZIP, and the steps for Docker, are in [self-hosting-guide.md](self-hosting-guide.md#backups).
 
 ## Common issues
 

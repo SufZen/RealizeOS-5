@@ -9,9 +9,11 @@ person approves it in the queue.
 Writes are idempotent on the approval id, so retries never duplicate entries.
 Counts come from the files that exist, never from estimates.
 
-Writes are durable (Codex audit N05): :func:`log_decision` first stores the
-intent in ``decision_writes`` (migration 013), then writes the file and marks
-the intent done. A write that fails (disk full, read-only mount, venture folder
+Writes are durable (Codex audit N05): the intent is stored in
+``decision_writes`` (migration 013) in the same transaction that records the
+decision (:func:`queue_with_decision`), so a crash right after a decision
+can't lose its entry; :func:`log_decision` then writes the file and marks the
+intent done. A write that fails (disk full, read-only mount, venture folder
 missing) stays pending and is retried at startup, after the next decision that
 is logged, and by ``realize-os decisions retry``.
 """
@@ -389,6 +391,38 @@ def log_decision(
             # This decision is logged; a broken retry of others must not report otherwise.
             logger.warning("Retrying pending decision-log writes failed", exc_info=True)
     return _outcome(True, decision=decision)
+
+
+def ensure_intent_table(conn: sqlite3.Connection) -> None:
+    """Create ``decision_writes`` on ``conn`` if it isn't there (call outside a transaction)."""
+    conn.executescript(DDL)
+
+
+def queue_with_decision(conn: sqlite3.Connection, record: dict, approve: bool, action_type: str | None) -> bool:
+    """Store the intent to log a decision in the same transaction that records the decision.
+
+    Called by :func:`realize_core.governance.gates.decide_approval` (through
+    ``_decide``) before it commits the decision, so a crash right after the
+    commit can't lose the decision-log entry: the intent is retried at startup
+    (:func:`retry_pending_decisions`). :func:`log_decision` later finds it
+    queued and writes the entry once. Inputs and rejected proposals are not
+    decisions and are not queued. Does not commit.
+
+    Returns:
+        True when the intent is stored (or already was).
+    """
+    action_type = action_type or record.get("action_type") or ""
+    approval_id = str(record.get("id") or "")
+    if not approval_id or not is_decision(action_type, approve):
+        return False
+    now = _now()
+    conn.execute(
+        """INSERT OR IGNORE INTO decision_writes
+           (approval_id, venture_key, approve, action_type, status, attempts, created_at, updated_at)
+           VALUES (?, ?, ?, ?, 'pending', 0, ?, ?)""",
+        (approval_id, record.get("venture_key") or "", int(bool(approve)), action_type, now, now),
+    )
+    return True
 
 
 def _queue(record: dict, approve: bool, action_type: str, db_path) -> bool:

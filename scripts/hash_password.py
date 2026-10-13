@@ -42,8 +42,7 @@ def main(argv: list[str]) -> int:
 
     if len(password) < 8:
         print(
-            "warning: password is shorter than 8 characters — "
-            "consider something longer for a production deployment",
+            "warning: password is shorter than 8 characters — consider something longer for a production deployment",
             file=sys.stderr,
         )
 

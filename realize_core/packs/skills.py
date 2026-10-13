@@ -30,7 +30,7 @@ from typing import Any
 
 import yaml
 
-from realize_core.packs.loader import LOAD_ERRORS, warn_once
+from realize_core.packs.loader import LOAD_ERRORS, is_scalar, scalar_text, warn_once
 from realize_core.packs.resolver import PackResolver, get_resolver
 
 logger = logging.getLogger(__name__)
@@ -59,7 +59,7 @@ def _read_skill(path: Path) -> dict[str, Any] | None:
         if not isinstance(value, list):
             warn_once("Pack skill %s skipped: %s must be a list", path, key)
             return None
-        kept = [str(v) for v in value if isinstance(v, (str, int, float)) and not isinstance(v, bool)]
+        kept = [scalar_text(v) for v in value if is_scalar(v)]
         if len(kept) != len(value):
             warn_once("Pack skill %s: %s that aren't text were dropped", path, key)
         data[key] = kept
@@ -172,24 +172,38 @@ def skill_trail_source(skill: dict[str, Any]) -> dict[str, Any] | None:
 
 
 def load_venture_pack_skills(
-    kb_path: Path, loaded: dict[str, list[dict[str, Any]]], *, packs_root: Path | None = None
+    kb_path: Path,
+    loaded: dict[str, list[dict[str, Any]]],
+    *,
+    packs_root: Path | None = None,
+    ventures: dict[str, Path] | None = None,
+    reserved: frozenset[str] = frozenset(),
 ) -> int:
     """Add every venture's pack skills to ``loaded`` (the detector's skills by venture).
 
-    Ventures are the folders under ``<kb>/systems/``, keyed by folder name like
+    Ventures come from ``ventures`` (configured key to folder) when given,
+    otherwise the folders under ``<kb>/systems/`` keyed by folder name, like
     their own skills. A venture whose packs can't be read is skipped with a
-    warning; the others still load.
+    warning; the others still load. Ventures keyed with a ``reserved`` owner
+    (the detector's shared and global owners) are skipped: their copies would
+    be handed to every venture.
 
     Returns:
         How many pack skills were added.
     """
-    systems = Path(kb_path) / "systems"
-    if not systems.is_dir():
-        return 0
+    if ventures is not None:
+        pairs = sorted((str(k), Path(v)) for k, v in ventures.items())
+    else:
+        systems = Path(kb_path) / "systems"
+        if not systems.is_dir():
+            return 0
+        pairs = [(p.name, p) for p in sorted(systems.iterdir()) if p.is_dir()]
+    pairs = [(key, folder) for key, folder in pairs if key not in reserved]
     shared = {s.get("name") for s in loaded.get("shared", []) if s.get("name")}
     added = 0
-    for venture_dir in sorted(p for p in systems.iterdir() if p.is_dir()):
-        key = venture_dir.name
+    for key, venture_dir in pairs:
+        if not venture_dir.is_dir():
+            continue
         own = loaded.get(key, [])
         taken = shared | {s.get("name") for s in own if s.get("name")} | {s.get("id") for s in own if s.get("id")}
         try:

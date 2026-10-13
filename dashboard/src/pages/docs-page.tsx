@@ -44,6 +44,12 @@ interface DocSection {
 }
 
 /** A quiet icon tile for feature cards; agents get the agent sheet-tab mark. */
+/**
+ * The full documentation. The server ships no standalone guide (the old
+ * `/docs/user-guide.html` link was a 404), so this is the docs index on GitHub.
+ */
+export const FULL_DOCS_URL = 'https://github.com/SufZen/RealizeOS-5/blob/main/docs/README.md'
+
 function IconTile({ icon: Icon, agent }: { icon: LucideIcon; agent?: boolean }) {
   return (
     <span
@@ -692,13 +698,13 @@ python cli.py setup-google                   # Run Google OAuth flow`}
         ))}
         <div className="pt-4 mt-4 border-t border-border">
           <a
-            href="/docs/user-guide.html"
+            href={FULL_DOCS_URL}
             target="_blank"
-            rel="noopener"
+            rel="noopener noreferrer"
             className="flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground hover:text-foreground transition-colors"
           >
-            <ExternalLink className="w-3.5 h-3.5" />
-            <span>Full Standalone Guide</span>
+            <ExternalLink className="w-3.5 h-3.5 rtl:-scale-x-100" aria-hidden />
+            <span>Full documentation (GitHub)</span>
           </a>
         </div>
       </nav>

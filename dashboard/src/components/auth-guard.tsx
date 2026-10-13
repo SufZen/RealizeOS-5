@@ -6,6 +6,7 @@
 import { useEffect, type ReactNode } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/hooks/use-auth'
+import { loginRedirect } from '@/lib/sign-out-state'
 
 interface Props {
   children: ReactNode
@@ -21,8 +22,8 @@ export default function AuthGuard({ children }: Props) {
     if (user) return
     if (location.pathname === '/login') return
 
-    const next = `${location.pathname}${location.search}`
-    navigate(`/login?next=${encodeURIComponent(next)}`, { replace: true })
+    // After a deliberate sign-out, don't hand this page to the next person.
+    navigate(loginRedirect(location.pathname, location.search), { replace: true })
   }, [user, loading, location.pathname, location.search, navigate])
 
   if (loading) {

@@ -206,7 +206,7 @@ List available skills for a system.
 
 ### GET /api/systems/{system_key}/sessions/{user_id}
 
-Get active creative session.
+Get active creative session. Same rule as `/api/conversations`: a caller reads their own session; only owner and admin people may name another user, and an outside agent (agent token) never may (`403`).
 
 ### POST /api/systems/reload
 
@@ -221,6 +221,8 @@ Reload system configurations from YAML (hot reload).
 List all ventures with their configuration and status.
 
 The response also carries `config_writable` (bool). It is `false` when `realize-os.yaml` can't be edited (for example a read-only Docker mount); the dashboard then hides create and delete, because both edit that file.
+
+Each venture has `warnings`, a list of problems an operator should fix (empty when there are none): for example a venture whose agents and skills come from its packs while `features.packs` is off (see [packs.md](packs.md#templates-that-link-packs)). `GET /api/ventures/{key}` and `GET /api/status` (per system) return the same list.
 
 ### POST /api/ventures
 
@@ -270,6 +272,8 @@ Create a new agent within a venture.
 
 Get agent definition and configuration.
 
+`definition_path` (here, in the agent list and in `GET /api/ventures/{key}`) is never a path on the server's disk: a venture's own agent shows its path in the KB (`systems/acme/A-agents/writer.md`), and an agent from a pack shows `<layer>:<pack>@<version>/A-agents/<file>` (`profession:developer@0.1.0/A-agents/procurement.md`).
+
 ### PUT /api/ventures/{key}/agents/{agent_key}
 
 Update an agent definition.
@@ -277,6 +281,50 @@ Update an agent definition.
 ### DELETE /api/ventures/{key}/agents/{agent_key}
 
 Delete an agent from a venture.
+
+---
+
+## Agent registry
+
+The registry of loaded agent definitions (V1 markdown and V2 YAML), across the ventures the caller may see.
+
+### GET /api/agents
+
+Query: `version` (`1` or `2`), `persona` (V2 persona key), `venture` (one venture's agents; `404` for a venture you can't see).
+
+With `features.packs` on, each venture's **effective team** is listed: its own agents plus the agents of its profession and market packs and its firm overrides ([packs.md](packs.md#what-packs-change-at-run-time)). Each entry then also says where it came from:
+
+| Field | Meaning |
+|---|---|
+| `venture_key` | The venture the agent belongs to (`null` for one registered through this API) |
+| `layer` | `venture` (the venture's own `A-agents/` file), `firm`, `market` or `profession` (from a pack), or `api` |
+| `pack` | `id@version` of the pack (pack agents only) |
+| `verification` | The market pack's verification level, 0–4 (market pack agents only) |
+| `read_only` | `true` for pack and firm-override agents |
+| `override_path` | For a read-only agent: where the venture's own copy goes (relative to the KB root) |
+
+The venture's own file wins: a pack agent with the same key as one of the venture's agents isn't listed for that venture. A pack shared by several ventures is listed once per venture. With the flag off, the response is the same as before packs (no provenance fields).
+
+```json
+{ "key": "estimator", "name": "Estimator", "venture_key": "acme", "layer": "profession",
+  "pack": "developer@0.1.0", "read_only": true, "override_path": "systems/acme/A-agents/estimator.md", "...": "..." }
+```
+
+### GET /api/agents/{agent_key}
+
+One agent. Query `venture` names the venture whose agent is meant (a pack agent of that venture, or the venture's own); without it, the registry's agent, else the first visible venture's pack agent of that key.
+
+### PUT /api/agents/{agent_key} · DELETE /api/agents/{agent_key}
+
+Update (V2 only) or unregister an agent in the in-memory registry. Query `venture` as above. A pack or firm-override agent is read-only: `409` and nothing is written into the pack:
+
+```json
+{ "detail": { "error": "pack_agent_read_only", "agent_key": "estimator", "venture_key": "acme",
+  "layer": "profession", "pack": "developer@0.1.0", "override_path": "systems/acme/A-agents/estimator.md",
+  "message": "Agent 'estimator' comes from the profession pack developer@0.1.0 and is read-only here; ... override it in your venture: add systems/acme/A-agents/estimator.md. ..." } }
+```
+
+To change a pack agent for one venture, copy it to `override_path` and edit the copy; the venture's own file wins over the pack's.
 
 ---
 
@@ -308,15 +356,19 @@ List all workflows.
 
 ### POST /api/workflows
 
-Create a new workflow.
+Create a new workflow in `system_key`'s venture (or a global one when empty). `409` when that venture already has one with the name, or a shared or global one does; another venture's workflow with the same name doesn't conflict.
 
-### GET /api/workflows/{id}
+### GET /api/workflows/{name}
 
-Get workflow details and execution status.
+Get a workflow's definition. Two ventures can each have a workflow with the same name (every venture has its own copy of a pack skill, with its own sheet ids): `?system_key=<venture>` returns that venture's, else a shared or global one, never another venture's. Without it: the first venture you may see that has it, else a shared or global one.
 
-### POST /api/workflows/{id}/execute
+### PUT /api/workflows/{name} · DELETE /api/workflows/{name}
 
-Execute a workflow.
+Change or delete a workflow. `?system_key=<venture>` says whose; without it only a shared or global workflow is changed, and a venture's workflow returns `409`. A caller limited to some ventures can't use these (`403`).
+
+### POST /api/workflows/{name}/run
+
+Run a venture's workflow with an input message, as the MCP `run_workflow` tool does. Body: `{"system_key": "<venture>", "input_text": "..."}` (both required; unknown fields are refused). The venture's own copy runs, else a shared or global one, never another venture's. Needs `agents:execute`; a caller limited to some ventures must name one of them. Tool steps go through the governance gate like any run, so writes may wait for an approval. Outside agents can't use this over REST: they run workflows over MCP, where a person approves first. Returns `{"name", "system_key", "user_id", "output"}`; `404` for an unknown workflow, `403` for a venture you can't use, `422` for a missing field.
 
 ---
 
@@ -324,7 +376,7 @@ Execute a workflow.
 
 ### GET /api/approvals
 
-List approval requests, newest first, in the caller's ventures. Query: `status` (default `pending`; empty for every status) and `venture_key`.
+List approval requests, newest first, in the caller's ventures. Query: `status` (default `pending`; `decided` for approved, rejected and answered items; empty for every status), `venture_key` and `limit` (at most 500; outside 1–500 is `422`). Without `limit`, pending items are all listed (each waits for a person) and other statuses return the 50 most recent. Decided items (`decided`, `approved`, `rejected`, `answered`) come most recently decided first (`decided_at`); the rest newest first. The dashboard's Decided tab asks for `?status=decided&limit=50`.
 
 Each row's `status` is its **effective** status, and every row carries `expired` (bool):
 
@@ -332,6 +384,8 @@ Each row's `status` is its **effective** status, and every row carries `expired`
 - `?status=expired` returns the items no one decided in time. Nothing ran for them, and they can't be approved or rejected any more.
 
 The MCP `list_approvals` tool and the morning briefing use the same rule.
+
+Every row also carries `requested_by_agent`: `{"token_id", "name"}` when an outside agent asked for it (its [agent token](#agent-tokens)'s current name; `{"token_id": null, "name": "stdio"}` for a local stdio session), else `null`. The dashboard shows it as an "Outside agent" badge on the card, so the person deciding sees that the request crossed the approval boundary. A caller with an agent token gets its usual status summary instead, without this field.
 
 ### POST /api/approvals/{id}/approve
 
@@ -492,6 +546,40 @@ Update general system settings.
 | `GET/PUT /api/settings/trust` | Trust and approval gate settings |
 | `GET/PUT /api/settings/skills` | Skill configuration |
 | `GET /api/settings/reports` | System reports and analytics |
+
+---
+
+## Trust
+
+### GET /api/trust
+
+The trust ladder: `level` (1-5) and `actions` (each governance action's decision per level: `block`, `approve` or `auto`). The ladder spans every venture: a venture-limited caller gets `403`.
+
+With `features.packs` on, `ventures` adds each venture's **effective** decisions at the current level, after its packs and firm overrides ([packs.md](packs.md#what-packs-change-at-run-time)). Packs only tighten trust, so `effective` is never looser than `ladder`:
+
+```json
+"ventures": {
+  "acme": {
+    "name": "Acme Tower",
+    "layers": [{"layer": "firm", "pack": null}, {"layer": "market", "pack": "pt@0.1.0"}, {"layer": "profession", "pack": "developer@0.1.0"}],
+    "actions": [
+      {"action": "data_write", "governed_by": null, "ladder": "approve", "effective": "block", "tightened": true,
+       "source": {"layer": "market", "pack": "pt@0.1.0", "key": "data_write", "value": "block", "label": "market pack pt@0.1.0"},
+       "ignored": []},
+      {"action": "gmail_send", "governed_by": "send_email", "ladder": "approve", "effective": "approve", "tightened": false,
+       "source": null,
+       "ignored": [{"layer": "profession", "pack": "developer@0.1.0", "key": "gmail_send", "value": "auto", "label": "profession pack developer@0.1.0", "reason": "loosen"}]}
+    ],
+    "warnings": ["profession pack developer@0.1.0 would loosen gmail_send from approve to auto; ignored (packs only tighten trust)"]
+  }
+}
+```
+
+There is one row per governance action of the ladder and one per tool action a pack or the firm names on its own (`governed_by` is the governance action it falls under; a tool action the ladder has no rule for is shown as a write, `unknown_write`). `source` is the layer whose default set the effective decision (`label` is `firm overrides` for the firm's own `F-foundations/overrides/trust.yaml`). `ignored` lists defaults that were not applied: `loosen` (it would loosen the ladder's decision) or `invalid` (not `auto`, `approve` or `block`); `warnings` says the same once per venture. The governance gate uses the same calculation, so the matrix and the gate agree. With the flag off the response has no `ventures`.
+
+### PUT /api/trust/level
+
+Body `{"level": 1-5}`: set the trust level in `realize-os.yaml` and reload. Needs `system:manage`.
 
 ---
 

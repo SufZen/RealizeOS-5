@@ -25,7 +25,10 @@ step before anything runs, so the write runs at most once, and a row left
 Just before running, the agent's token is checked again: a token revoked or
 expired in the meantime, a removed user or a lost venture means nothing runs.
 It runs as the agent, with the agent's narrowed scope, never as the person
-who approved it.
+who approved it. It also stays the agent's run: approving it starts it, and
+each write it makes (a skill's tool step) still waits for a person, the same
+rule as an agent's chat. Such a step pauses the skill, which continues once
+that write is approved.
 """
 
 from __future__ import annotations
@@ -47,7 +50,8 @@ ACTION_PREFIX = "mcp:"
 HELD_WRITE_TTL_MINUTES = 24 * 60
 #: Arguments that name the venture a held write belongs to.
 _VENTURE_ARGS = ("system_key", "venture_key", "venture")
-#: An agent can't flood the approval queue: past this many waiting writes it must wait.
+#: An agent can't flood the approval queue: past this many waiting items (of every
+#: kind, see :data:`realize_core.governance.gates.MAX_PENDING_PER_AGENT`) it must wait.
 MAX_PENDING_PER_AGENT = 25
 
 #: The live ``app.state`` (systems, kb_path, shared_config) of the server that
@@ -90,7 +94,7 @@ def hold_write(tool: Any, arguments: dict[str, Any], user: Any) -> dict[str, Any
     tool's declared arguments are kept. Invalid calls are refused here, so a
     person never approves a run that can't start.
     """
-    from realize_core.governance.gates import create_approval_request
+    from realize_core.governance.gates import TooManyPendingError, create_approval_request, too_many_pending_message
     from realize_core.mcp_server.venture_guard import caller_ventures
     from realize_core.security.agent_access import CODE_REFUSED
     from realize_core.security.agent_tokens import live_agent, principal_id_for
@@ -114,23 +118,23 @@ def hold_write(tool: Any, arguments: dict[str, Any], user: Any) -> dict[str, Any
         return invalid
 
     if _pending_count(principal) >= MAX_PENDING_PER_AGENT:
-        return {
-            "error": f"{MAX_PENDING_PER_AGENT} of your writes are already waiting for approval; wait for a decision",
-            "code": "MCP_TOO_MANY_PENDING",
-        }
+        return {"error": too_many_pending_message(MAX_PENDING_PER_AGENT), "code": "MCP_TOO_MANY_PENDING"}
     stored = {**arguments, "user_id": agent.user_id}
     agent_name = agent.name
-    approval_id = create_approval_request(
-        venture_key=venture,
-        agent_key=agent_name,
-        action_type=MCP_WRITE_ACTION_TYPE,
-        payload={"tool": name, "agent": principal, "agent_name": agent_name},
-        expires_minutes=HELD_WRITE_TTL_MINUTES,
-        action_name=f"{ACTION_PREFIX}{name}",
-        params=stored,
-        requested_by=principal,
-        session_ref=f"{venture}|{agent.user_id}",
-    )
+    try:
+        approval_id = create_approval_request(
+            venture_key=venture,
+            agent_key=agent_name,
+            action_type=MCP_WRITE_ACTION_TYPE,
+            payload={"tool": name, "agent": principal, "agent_name": agent_name},
+            expires_minutes=HELD_WRITE_TTL_MINUTES,
+            action_name=f"{ACTION_PREFIX}{name}",
+            params=stored,
+            requested_by=principal,
+            session_ref=f"{venture}|{agent.user_id}",
+        )
+    except TooManyPendingError as exc:
+        return {"error": str(exc), "code": "MCP_TOO_MANY_PENDING"}
     _log_activity(venture, principal, "mcp_write_held", approval_id, {"tool": name})
     logger.info("Held MCP write %s from %s in %s (approval %s)", name, principal, venture, approval_id)
     return {
@@ -146,21 +150,10 @@ def hold_write(tool: Any, arguments: dict[str, Any], user: Any) -> dict[str, Any
 
 
 def _pending_count(principal: str) -> int:
-    """How many of this agent's held writes are waiting for a person."""
-    from realize_core.db.schema import get_connection
+    """How many items this agent has waiting for a person (held writes, writes held from its chat, proposals)."""
+    from realize_core.governance.gates import pending_count_for
 
-    now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
-    conn = get_connection()
-    try:
-        row = conn.execute(
-            """SELECT COUNT(*) FROM approval_queue
-               WHERE requested_by = ? AND action_type = ? AND status = 'pending'
-                 AND (expires_at IS NULL OR expires_at > ?)""",
-            (principal, MCP_WRITE_ACTION_TYPE, now),
-        ).fetchone()
-    finally:
-        conn.close()
-    return int(row[0]) if row else 0
+    return pending_count_for(principal)
 
 
 def _log_activity(venture: str, actor: str, action: str, approval_id: str, details: dict[str, Any]) -> None:
@@ -177,6 +170,16 @@ def _log_activity(venture: str, actor: str, action: str, approval_id: str, detai
     )
 
 
+def live_config() -> dict:
+    """The running app's config (the state the MCP server runs against), else ``realize-os.yaml``."""
+    config = getattr(_app_state, "config", None) if _app_state is not None else None
+    if isinstance(config, dict):
+        return config
+    from realize_core.config import load_config
+
+    return load_config()
+
+
 def _runtime_state() -> Any:
     """The app state approved writes run against: the live one, else loaded from config."""
     if _app_state is not None and getattr(_app_state, "systems", None) is not None:
@@ -190,6 +193,27 @@ def _runtime_state() -> Any:
         kb_path=runtime["kb_path"],
         shared_config=runtime["shared_config"],
     )
+
+
+def live_requester(requested_by: str | None, venture: str) -> tuple[Any, str | None]:
+    """``(principal, None)`` when the agent that asked still may act in ``venture`` now, else ``(None, why)``.
+
+    Checked just before anything an outside agent asked for runs (its held
+    MCP writes, writes held from its chat, its decision proposals): a token
+    revoked or expired meanwhile, agent tokens turned off, a removed user or a
+    lost venture means nothing runs.
+    """
+    from realize_core.security.agent_tokens import live_agent
+
+    principal = live_agent(requested_by, known_ventures=_known_ventures(requested_by))
+    if principal is None:
+        return None, (
+            "The agent's token was revoked or expired, agent tokens were turned off, or its user was removed "
+            "before this ran; nothing was done"
+        )
+    if venture not in principal.ventures:
+        return None, f"The agent no longer has access to venture '{venture}'; nothing was done"
+    return principal, None
 
 
 def _known_ventures(principal: str | None) -> list[str]:
@@ -222,7 +246,6 @@ async def run_approved_write(row: dict, params: dict[str, Any]) -> tuple[bool, s
     from realize_core.mcp_server import venture_guard
     from realize_core.mcp_server.registry import get_registry
     from realize_core.security.agent_access import must_hold
-    from realize_core.security.agent_tokens import live_agent
 
     action = str(row.get("action_name") or "")
     name = action[len(ACTION_PREFIX) :] if action.startswith(ACTION_PREFIX) else ""
@@ -232,20 +255,17 @@ async def run_approved_write(row: dict, params: dict[str, Any]) -> tuple[bool, s
 
     # The agent's own, current, narrowed identity — never the approver's.
     requested_by = row.get("requested_by")
-    principal = live_agent(requested_by, known_ventures=_known_ventures(requested_by))
-    if principal is None:
-        return (
-            False,
-            "",
-            "The agent's token was revoked or expired, or its user removed, before this ran; nothing was done",
-        )
     venture = row.get("venture_key") or ""
-    if venture not in principal.ventures:
-        return False, "", f"The agent no longer has access to venture '{venture}'; nothing was done"
+    principal, refusal = live_requester(requested_by, venture)
+    if principal is None:
+        return False, "", refusal or "nothing was done"
     # Run exactly what was approved: the declared arguments, all in the approval's venture.
     arguments = _declared(tool, params)
     if _named_ventures(arguments) != {venture}:
         return False, "", f"The stored call doesn't name venture '{venture}' alone; nothing was done"
+    if "system_key" in ((getattr(tool, "input_schema", None) or {}).get("properties") or {}):
+        # The skill is resolved in the approval's own venture, never one re-read from elsewhere.
+        arguments["system_key"] = venture
     refused = venture_guard.permission_refusal(name, principal.role) or venture_guard.check_call(
         name, arguments, principal.ventures
     )
@@ -254,8 +274,14 @@ async def run_approved_write(row: dict, params: dict[str, Any]) -> tuple[bool, s
 
     user = CurrentUser(user_id=principal.user_id, role=principal.role, scopes=principal.scopes)
     arguments["user_id"] = principal.user_id
+    from realize_core.security.agent_access import acting_for_outside_agent
+
     try:
-        result = await tool.handler(arguments, _runtime_state(), user)
+        # A person approved starting the run, not what it writes: its inputs came from
+        # the agent, so it stays the agent's run, and each write it makes is held for a
+        # person again (the same rule as an agent's chat; review G-3).
+        with acting_for_outside_agent(requested_by):
+            result = await tool.handler(arguments, _runtime_state(), user)
     except Exception as exc:  # any tool failure is recorded on the item, never re-run
         logger.exception("Held MCP write %s (%s) failed", row.get("id"), name)
         _audit_execution(principal.user_id, name, row, ok=False)

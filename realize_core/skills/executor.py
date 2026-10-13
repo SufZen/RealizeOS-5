@@ -15,6 +15,7 @@ Each step's result feeds into the next step's context.
 
 import json
 import logging
+from contextlib import AbstractContextManager, nullcontext
 from datetime import date
 
 logger = logging.getLogger(__name__)
@@ -119,17 +120,52 @@ async def resume_pending_skill(
         return None
     ctx = pending["context"]
     step_id = pending.get("step_id") or "human"
+    gone = _initiator_refusal(ctx)
+    if gone:
+        return _stopped_after(pending, step_id, gone)
     ctx.step_results[step_id] = answer
     logger.info("Resuming skill %s for %s after step %s", pending.get("skill_name"), user_id, step_id)
-    return await _run_v2_steps(
-        pending.get("remaining_steps", []),
-        ctx,
-        pending.get("skill_name", ""),
-        kb_path,
-        system_config,
-        shared_config,
-        channel,
-    )
+    with _as_run_for(ctx):
+        return await _run_v2_steps(
+            pending.get("remaining_steps", []),
+            ctx,
+            pending.get("skill_name", ""),
+            kb_path,
+            system_config,
+            shared_config,
+            channel,
+        )
+
+
+def _as_run_for(ctx: "SkillContext") -> AbstractContextManager:
+    """Resume a paused run as what it was: an outside agent's run stays governed as the agent's.
+
+    The marker comes from what the resume point stored, never from whoever
+    resumes it (a person approving or answering), so it fails closed.
+    """
+    if not ctx.outside_agent:
+        return nullcontext()
+    from realize_core.security.agent_access import acting_for_outside_agent
+
+    return acting_for_outside_agent(ctx.outside_agent)
+
+
+def _stopped_after(pending: dict, step_id: str, reason: str) -> str:
+    """The message for a paused run that is stopped instead of resumed (its agent is gone)."""
+    logger.warning("Skill %s not resumed after step %s: %s", pending.get("skill_name"), step_id, reason)
+    return f"⚠️ The workflow stopped after step '{step_id}': {reason}. Nothing after this step ran."
+
+
+def _initiator_refusal(ctx: "SkillContext") -> str | None:
+    """Why a run an outside agent started must stop now, or None (also None for anyone else's run)."""
+    if not ctx.outside_agent:
+        return None
+    from realize_core.mcp_server.held_writes import live_requester
+
+    principal, refusal = live_requester(ctx.outside_agent, ctx.system_key)
+    if principal is not None:
+        return None
+    return (refusal or "the agent that started it is no longer active").removesuffix("; nothing was done")
 
 
 async def resume_after_held_tool(
@@ -156,17 +192,21 @@ async def resume_after_held_tool(
         logger.warning("Approved step %s failed; skill %s stopped", step_id, pending.get("skill_name"))
         return f"⚠️ The workflow stopped at step '{step_id}': the approved action failed. Nothing after this step ran."
     ctx = pending["context"]
+    gone = _initiator_refusal(ctx)
+    if gone:
+        return _stopped_after(pending, step_id, gone)
     ctx.step_results[step_id] = _bounded_tool_output(execution.get("output", ""))
     logger.info("Resuming skill %s after approved step %s", pending.get("skill_name"), step_id)
-    return await _run_v2_steps(
-        pending.get("remaining_steps", []),
-        ctx,
-        pending.get("skill_name", ""),
-        kb_path,
-        system_config,
-        shared_config,
-        channel,
-    )
+    with _as_run_for(ctx):
+        return await _run_v2_steps(
+            pending.get("remaining_steps", []),
+            ctx,
+            pending.get("skill_name", ""),
+            kb_path,
+            system_config,
+            shared_config,
+            channel,
+        )
 
 
 class SkillContext:
@@ -180,6 +220,9 @@ class SkillContext:
         self.variables: dict[str, str] = {"doc_title": user_message}
         self.progress_messages: list[str] = []
         self.annotations: dict[str, dict] = {}
+        #: The outside agent (``agent:...``) the run is for, kept when it pauses so
+        #: the rest of the run is still governed as the agent's (review G-3).
+        self.outside_agent: str | None = None
 
     def to_dict(self) -> dict:
         """Plain data for a durable resume point."""
@@ -191,6 +234,7 @@ class SkillContext:
             "variables": self.variables,
             "progress_messages": self.progress_messages,
             "annotations": self.annotations,
+            "outside_agent": self.outside_agent,
         }
 
     @classmethod
@@ -201,6 +245,8 @@ class SkillContext:
         ctx.variables = dict(data.get("variables") or ctx.variables)
         ctx.progress_messages = list(data.get("progress_messages") or [])
         ctx.annotations = dict(data.get("annotations") or {})
+        outside_agent = data.get("outside_agent")
+        ctx.outside_agent = outside_agent if isinstance(outside_agent, str) and outside_agent else None
         return ctx
 
     def inject(self, template: str) -> str:
@@ -363,7 +409,10 @@ async def _execute_v2_steps(
     if not steps:
         return "Skill has no steps defined."
 
+    from realize_core.security.agent_access import outside_agent_marker
+
     ctx = SkillContext(user_message, system_key, user_id)
+    ctx.outside_agent = outside_agent_marker()
     # Skill-level variables (e.g. a venture's spreadsheet ids) for {placeholders}.
     ctx.variables.update({str(k): str(v) for k, v in (skill.get("variables") or {}).items()})
     return await _run_v2_steps(
@@ -377,13 +426,20 @@ async def _run_v2_steps(
     """Run v2 steps in order; pauses (and stores a resume point) at a human step.
 
     A step that fails (:class:`StepFailedError`) stops the workflow: nothing after
-    it runs, and the result says where it stopped and why.
+    it runs, and the result says where it stopped and why. A run an outside
+    agent started stops too, before the next step, once that agent is gone
+    (token revoked or expired, agent tokens turned off, user removed).
     """
     outputs = []
 
     for i, step in enumerate(steps):
         step_id = step.get("id", f"step_{i}")
         step_type = step.get("type", "agent")
+
+        gone = _initiator_refusal(ctx) if i else None  # a resume checks before its first step
+        if gone:
+            logger.warning("Skill %s stopped before step %s: %s", skill_name, step_id, gone)
+            return f"⚠️ The workflow stopped before step '{step_id}': {gone}. Nothing after this point ran."
 
         logger.info(f"Executing step {i + 1}/{len(steps)}: {step_id} ({step_type})")
 

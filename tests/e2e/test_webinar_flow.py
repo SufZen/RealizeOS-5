@@ -181,7 +181,7 @@ def _load_skill(root, name: str, **variables) -> dict:
     from realize_core.skills.detector import find_skill
 
     _reload(root)
-    owner, skill = find_skill(name)
+    owner, skill = find_skill(name, DEMO)
     assert owner == DEMO
     return {**skill, "variables": {**skill.get("variables", {}), **variables}}
 

@@ -161,7 +161,7 @@ def test_pack_skills_join_the_ventures_own(kb, skills):
 
 def test_find_skill_resolves_a_custom_pack_skill(kb, skills):
     skills.reload_skills(kb_path=kb, packs=True)
-    owner, skill = skills.find_skill("quote_check")
+    owner, skill = skills.find_skill("quote_check", VENTURE)
     assert owner == VENTURE
     assert skill["steps"][1]["tool"] == "ledger_append"
     assert "system_key" not in skill
@@ -202,7 +202,7 @@ def test_flag_off_loads_exactly_the_ventures_own_skills(kb, skills):
     assert {k: [s["name"] for s in v] for k, v in skills._loaded_skills.items()} == snapshot
     skills.reload_skills(kb_path=kb, packs=False)
     assert {k: [s["name"] for s in v] for k, v in skills._loaded_skills.items()} == snapshot
-    assert skills.find_skill("quote_check") is None
+    assert skills.find_skill("quote_check", VENTURE) is None
 
 
 def test_the_app_loads_the_cascade_only_with_the_flag(kb, skills):
@@ -210,7 +210,9 @@ def test_the_app_loads_the_cascade_only_with_the_flag(kb, skills):
 
     state = SimpleNamespace(kb_path=kb)
     sync_skill_cascade(state, _config(packs=False))
-    assert skills._loaded_skills == {}  # flag off and never on: nothing changes
+    # Flag off: the ventures' own skills load (they didn't before 5.30), pack skills don't.
+    assert "local_wins" in _names(skills, VENTURE)
+    assert "quote_check" not in _names(skills, VENTURE)
     sync_skill_cascade(state, _config(packs=True))
     assert "quote_check" in _names(skills, VENTURE)
     skills.reload_skills(kb_path=kb)  # e.g. installing a skill: keeps the cascade
@@ -381,7 +383,7 @@ async def test_outside_agents_writes_from_pack_skills_are_held(kb, skills, llm, 
     config = _config(packs=True, trust={"level": 5})
     ledger = _gated_ledger(monkeypatch, kb, config)
     skills.reload_skills(kb_path=kb, packs=True)
-    _owner, note = skills.find_skill("note_taker")
+    _owner, note = skills.find_skill("note_taker", VENTURE)
 
     # A person at trust level 5: the note (no pack default) runs on its own.
     await _run(kb, config, note, "take a note: call the supplier")
@@ -632,3 +634,26 @@ def test_unusable_trust_values_are_ignored(kb, packs_root, ops_db, caplog):
     clear_cache()
     assert _decide(kb, _config(packs=True, trust={"level": 5}), "ledger_append") == "allow"
     assert "sets trust 'sometimes' for ledger_append" in caplog.text
+
+
+def test_startup_loads_venture_skills_by_configured_key(tmp_path, skills):
+    """A venture whose folder differs from its key finds its skills, flag off (fixed in 5.30)."""
+    from realize_core.config_runtime import sync_skill_cascade
+
+    folder = tmp_path / "systems" / "acme-office" / "R-routines" / "skills"
+    folder.mkdir(parents=True)
+    (folder / "site-visit.yaml").write_text(
+        "name: site_visit_report\ntriggers: [site visit report]\nsteps: []\n", encoding="utf-8"
+    )
+    state = SimpleNamespace(
+        kb_path=tmp_path,
+        systems={"acme": {"system_dir": "systems/acme-office"}},
+    )
+    sync_skill_cascade(state, {"features": {}})
+
+    assert [s["name"] for s in skills.get_skills_for_system("acme")][:1] == ["site_visit_report"]
+    assert skills.detect_skill("please write the site visit report", "acme")["name"] == "site_visit_report"
+    assert "acme-office" not in skills._loaded_skills
+    skills.reload_skills(kb_path=tmp_path)  # e.g. after a library install: same mapping
+    assert skills.find_skill("site_visit_report", "acme") is not None
+    assert "acme" in skills._loaded_skills

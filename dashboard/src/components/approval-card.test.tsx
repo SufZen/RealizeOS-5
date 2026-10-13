@@ -115,7 +115,9 @@ describe('ApprovalCard', () => {
         }}
       />,
     )
-    expect(html).toContain('Someone else already decided this (approved by dana@acme.io)')
+    expect(html).toContain(
+      'Someone else already decided this (approved by <bdi>dana@acme.io</bdi>)',
+    )
     expect(html).toContain('Decided by <bdi>dana@acme.io</bdi>')
     expect(buttons(html).some((b) => b.includes('Approve'))).toBe(false)
   })
@@ -135,7 +137,7 @@ describe('ApprovalCard', () => {
     )
     expect(html).toContain('data-outcome="failed"')
     expect(html).toContain(
-      'Approved, but it failed: Pack market/audit-missing is not installed. It is not retried',
+      'Approved, but it failed: <bdi>Pack market/audit-missing is not installed</bdi>. It is not retried',
     )
     expect(html).not.toContain('Approved and done')
   })
@@ -170,7 +172,7 @@ describe('ApprovalCard', () => {
       />,
     )
     expect(html).toContain('data-outcome="succeeded"')
-    expect(html).toContain('Approved and done: Email sent to client@acme.io')
+    expect(html).toContain('Approved and done: <bdi>Email sent to client@acme.io</bdi>')
   })
 
   it('history: an approved action that never ran is not shown as done', () => {
@@ -204,6 +206,71 @@ describe('ApprovalCard', () => {
     expect(buttons(html)).toHaveLength(0)
   })
 
+  describe('an outside agent asked (STORY-37)', () => {
+    const FROM_AGENT: Approval = {
+      ...HELD,
+      agent_key: 'claude-acme',
+      action_type: 'mcp_write',
+      action_name: 'mcp:run_workflow',
+      params_json: JSON.stringify({ system_key: 'tower-b', workflow: 'weekly-report' }),
+      requested_by: 'agent:3f9a0c1d2e4b',
+      requested_by_agent: { token_id: '3f9a0c1d2e4b', name: 'claude-acme' },
+    }
+
+    it('a held write shows the agent badge and where the boundary is', () => {
+      const html = renderToStaticMarkup(
+        <ApprovalCard approval={FROM_AGENT} now={NOW} onApprove={noop} onReject={noop} />,
+      )
+      expect(html).toContain('data-outside-agent="3f9a0c1d2e4b"')
+      expect(html).toContain('rz-badge--agent')
+      expect(html).toContain('Outside agent: <bdi>claude-acme</bdi>')
+      expect(html).toContain('title="Requested by agent:3f9a0c1d2e4b over MCP"')
+      expect(html).toContain('data-outside-agent-note')
+      expect(html).toContain('it runs once, as that agent and only in its ventures')
+      expect(html).toContain('aria-label="Run a workflow: Held"')
+      expect(html).toContain('mcp:run_workflow')
+      // The badge names the agent; the raw principal isn't repeated as "For".
+      expect(html).not.toContain('For: agent:')
+    })
+
+    it('a local stdio session is an outside agent too', () => {
+      const html = renderToStaticMarkup(
+        <ApprovalCard
+          approval={{
+            ...FROM_AGENT,
+            requested_by: 'agent:stdio:dana@acme.io',
+            requested_by_agent: { token_id: null, name: 'stdio' },
+          }}
+          now={NOW}
+        />,
+      )
+      expect(html).toContain('data-outside-agent="stdio"')
+      expect(html).toContain('Outside agent: <bdi>stdio</bdi>')
+    })
+
+    it('history keeps the badge; the boundary note is only for a decision still to make', () => {
+      const html = renderToStaticMarkup(
+        <ApprovalCard
+          approval={{ ...FROM_AGENT, status: 'rejected', decided_by: 'dana@acme.io' }}
+          now={NOW}
+        />,
+      )
+      expect(html).toContain('Outside agent: <bdi>claude-acme</bdi>')
+      expect(html).not.toContain('data-outside-agent-note')
+    })
+
+    it('a person’s request has no badge', () => {
+      const html = renderToStaticMarkup(
+        <ApprovalCard
+          approval={{ ...HELD, requested_by: 'dana@acme.io', requested_by_agent: null }}
+          now={NOW}
+        />,
+      )
+      expect(html).not.toContain('data-outside-agent')
+      expect(html).toContain('For: <bdi>dana@acme.io</bdi>')
+    })
+  })
+
   it('Hebrew: expired and error states in Hebrew, mirror-safe', () => {
     const later = Date.parse('2026-10-13T13:00:01Z')
     const html = renderToStaticMarkup(
@@ -225,7 +292,7 @@ describe('ApprovalCard', () => {
     )
     expect(html).toContain('aria-label="שליחת מייל: פג תוקף"')
     expect(html).toContain('תוקף הבקשה פג לפני שמישהו החליט עליה')
-    expect(html).toContain('מישהו אחר כבר החליט על הבקשה (נדחה ע״י דנה)')
+    expect(html).toContain('מישהו אחר כבר החליט על הבקשה (נדחה ע״י <bdi>דנה</bdi>)')
     expect(html).toContain('dir="auto"')
     for (const cls of classesOf(html)) expect(cls).not.toMatch(PHYSICAL_CLASS)
   })

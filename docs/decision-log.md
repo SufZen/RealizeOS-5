@@ -24,7 +24,7 @@ Without a `directory`, the folder is `systems/<key>` (or the older `ventures/<ke
 
 ## When a write fails
 
-The decision is logged as soon as it is made, before the approved action runs. If the file can't be written (disk full, a read-only mount, the venture folder isn't there yet), the decision still stands and the write is kept in a queue (`decision_writes` in the operational database) instead of being lost. Queued writes are retried:
+The decision is queued for the log the moment it is made, and the entry is written right after the approved action has run, so a slow disk never delays the action (an approval given just before the item expires still runs). If the file can't be written (disk full, a read-only mount, the venture folder isn't there yet), the decision still stands and the write is kept in a queue (`decision_writes` in the operational database) instead of being lost. The queue entry is stored in the same database transaction as the decision itself, so even if the server stops right after a decision, before anything else happens, the entry is written when it starts again. Queued writes are retried:
 
 - when the server starts;
 - after the next decision that is logged;
@@ -38,7 +38,7 @@ The approval result says what happened. `POST /api/approvals/{id}/approve` and `
 {"logged": false, "pending": true, "error": "No space left on device", "decision_id": null}
 ```
 
-`logged` is true once the entry is on disk (`decision_id` names it); `pending` means it is queued for a retry. For inputs and credentials (below) both are false and `error` is null. The MCP tools `approve_request` and `reject_request` report `decision_logged` and `decision_log_pending`.
+`logged` is true once the entry is on disk (`decision_id` names it); `pending` means it is queued for a retry. For inputs and credentials (below) both are false and `error` is null. The dashboard says nothing in that case (an input isn't a decision), "Queued; it will be added shortly" for a queued retry, and the error only when the write failed and couldn't be queued. The MCP tools `approve_request` and `reject_request` report `decision_logged` and `decision_log_pending`.
 
 ## Decisions made elsewhere
 

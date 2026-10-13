@@ -81,7 +81,7 @@ describe('ApprovalsView', () => {
   it('a decision error is shown on its card', () => {
     const html = view({ problems: { 'apv-1': { kind: 'server', final: false, detail: 'locked' } } })
     expect(html).toContain('data-problem="server"')
-    expect(html).toContain('The server could not record this decision (locked)')
+    expect(html).toContain('The server could not record this decision (<bdi>locked</bdi>)')
   })
 
   it('a settled item is not counted as held', () => {
@@ -121,7 +121,7 @@ describe('OutcomeBanner', () => {
       execution: { executed: true, success: true, output: 'sent', error: null },
     })
     expect(html).toContain('data-outcome="succeeded"')
-    expect(html).toContain('Approved and done: sent')
+    expect(html).toContain('Approved and done: <bdi>sent</bdi>')
   })
 
   it('approved but failed: the error, in red, not "approved"', () => {
@@ -130,7 +130,7 @@ describe('OutcomeBanner', () => {
       execution: { executed: true, success: false, output: '', error: 'SMTP refused' },
     })
     expect(html).toContain('data-outcome="failed"')
-    expect(html).toContain('Approved, but it failed: SMTP refused')
+    expect(html).toContain('Approved, but it failed: <bdi>SMTP refused</bdi>')
     expect(html).toContain('border-red-400/30')
   })
 
@@ -165,7 +165,7 @@ describe('OutcomeBanner', () => {
       decision_log: { logged: false, error: 'disk full' },
     })
     expect(missed).toContain('data-decision-log="missing"')
-    expect(missed).toContain('Not added to the decision log: disk full')
+    expect(missed).toContain('Not added to the decision log: <bdi>disk full</bdi>')
   })
 
   it('Hebrew banner', () => {
@@ -173,6 +173,6 @@ describe('OutcomeBanner', () => {
       { ...approved, execution: { executed: true, success: false, output: '', error: 'x' } },
       'he',
     )
-    expect(html).toContain('אושר, אבל הביצוע נכשל: x')
+    expect(html).toContain('אושר, אבל הביצוע נכשל: <bdi>x</bdi>')
   })
 })

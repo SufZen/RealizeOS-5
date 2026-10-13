@@ -48,17 +48,20 @@ LIST_WORKFLOWS_SCHEMA = {
 async def list_workflows(args: dict[str, Any], app_state: Any, user: CurrentUser) -> Any:
     """List registered workflows / skills — mirrors ``GET /api/workflows``."""
     try:
-        from realize_core.skills.detector import get_all_skills
+        from realize_core.skills.detector import GLOBAL_SKILL_OWNERS, get_all_skills
 
         skills = get_all_skills()
     except Exception as exc:
         logger.warning("list_workflows failed: %s", exc)
         return {"workflows": [], "total": 0, "error": str(exc)[:200], "code": "MCP_INTERNAL"}
 
-    # system_key is each skill's owner (the venture it was loaded under).
+    # system_key is each skill's owner (the venture it was loaded under); shared
+    # and global skills belong to every venture.
     system_key = args.get("system_key") or None
     if system_key:
-        skills = [s for s in skills if (s.get("system_key", "") or "") in (system_key, "")]
+        skills = [
+            s for s in skills if (s.get("system_key") or "") == system_key or s.get("system_key") in GLOBAL_SKILL_OWNERS
+        ]
 
     return {
         "workflows": [
@@ -104,6 +107,31 @@ RUN_WORKFLOW_SCHEMA = {
 }
 
 
+def resolve_run_skill(args: dict[str, Any]) -> tuple[str, dict] | dict[str, Any]:
+    """``(owner, skill)`` a ``run_workflow`` / ``trigger_skill`` call runs, or its error.
+
+    The skill is looked up for the venture the call names (``system_key``):
+    that venture's own copy, else a shared or global skill, never another
+    venture's (each venture's copy carries its own ``variables``, such as its
+    sheet ids). Without a venture only a shared or global skill runs; when a
+    venture has one by that name, the caller is asked to name the venture.
+    """
+    name = (args.get("name") or "").strip()
+    venture = args.get("system_key")
+    venture = venture.strip() if isinstance(venture, str) else ""
+    try:
+        from realize_core.skills.detector import find_skill, ventures_with_skill
+    except ImportError as exc:
+        return {"error": f"Skills module unavailable: {exc}", "code": "MCP_INTERNAL"}
+    found = find_skill(name, venture or None)
+    if not found and not venture and ventures_with_skill(name):
+        # Which ventures is left out: the caller may not see all of them.
+        return {"error": f"Workflow '{name}' belongs to a venture; name it as system_key", "code": "MCP_VALIDATION"}
+    if not found:
+        return {"error": f"Workflow '{name}' not found", "code": "MCP_NOT_FOUND"}
+    return found
+
+
 def validate_run_args(args: dict[str, Any]) -> dict[str, Any] | None:
     """The error a ``run_workflow`` / ``trigger_skill`` call would return before running, or None.
 
@@ -121,16 +149,34 @@ def validate_run_args(args: dict[str, Any]) -> dict[str, Any] | None:
             "error": f"input_text too long ({len(input_text)} chars, max {MAX_INPUT_CHARS}).",
             "code": "MCP_VALIDATION",
         }
-    try:
-        from realize_core.skills.detector import get_skill_by_name
-    except ImportError as exc:
-        return {"error": f"Skills module unavailable: {exc}", "code": "MCP_INTERNAL"}
-    if not get_skill_by_name(name):
-        return {"error": f"Workflow '{name}' not found", "code": "MCP_NOT_FOUND"}
+    resolved = resolve_run_skill(args)
+    return resolved if isinstance(resolved, dict) else None
+
+
+def _venture_refusal(args: dict[str, Any], user: CurrentUser) -> dict[str, Any] | None:
+    """Refuse a run for a venture the caller can't see, before any skill is looked up.
+
+    A caller limited to some ventures must name one of them as ``system_key``
+    (exact text, never coerced). The MCP dispatcher's venture guard checks the
+    same; this keeps the handler safe on its own (held writes call it too).
+    """
+    from realize_core.mcp_server.venture_guard import caller_ventures
+
+    allowed = caller_ventures(user)
+    if allowed is None:
+        return None
+    venture = args.get("system_key")
+    if not isinstance(venture, str) or not venture:
+        return {"error": "Name one of your ventures as system_key", "code": "MCP_VALIDATION"}
+    if venture not in allowed:
+        return {"error": f"You don't have access to venture '{venture}'", "code": "MCP_FORBIDDEN"}
     return None
 
 
-async def _run_skill(args: dict[str, Any], app_state: Any, user: CurrentUser) -> Any:
+async def _run_skill(args: dict[str, Any], app_state: Any, user: CurrentUser, *, channel: str = "mcp") -> Any:
+    refused = _venture_refusal(args, user)
+    if refused:
+        return refused
     invalid = validate_run_args(args)
     if invalid:
         return invalid
@@ -138,18 +184,23 @@ async def _run_skill(args: dict[str, Any], app_state: Any, user: CurrentUser) ->
     input_text = (args.get("input_text") or "").strip()
 
     try:
-        from realize_core.skills.detector import get_skill_by_name
+        from realize_core.skills.detector import GLOBAL_SKILL_OWNERS
         from realize_core.skills.executor import execute_skill
     except ImportError as exc:
         return {"error": f"Skills module unavailable: {exc}", "code": "MCP_INTERNAL"}
 
-    skill = get_skill_by_name(name)
-    if not skill:
-        return {"error": f"Workflow '{name}' not found", "code": "MCP_NOT_FOUND"}
+    resolved = resolve_run_skill(args)
+    if isinstance(resolved, dict):
+        return resolved
+    owner, skill = resolved
 
     from realize_core.security.chat_access import chat_user_for
 
-    system_key = (args.get("system_key") or skill.get("system_key") or "").strip() or "default"
+    # The named venture (the one the skill was resolved in); a shared or global
+    # skill run without one runs for "default". A system_key written inside a
+    # skill's own definition never picks the venture.
+    home = "" if owner in GLOBAL_SKILL_OWNERS else owner
+    system_key = (args.get("system_key") or home or "").strip() or "default"
     # Same rule as chat: callers act for themselves unless owner/admin.
     requested = (args.get("user_id") or user.user_id or "mcp-user").strip()
     user_id = chat_user_for(user.user_id, getattr(user, "role", None), requested, scopes=getattr(user, "scopes", None))
@@ -168,7 +219,7 @@ async def _run_skill(args: dict[str, Any], app_state: Any, user: CurrentUser) ->
             kb_path=kb_path,
             system_config=system_config,
             shared_config=shared_config,
-            channel="mcp",
+            channel=channel,
         )
     except Exception as exc:
         logger.exception("run_workflow %r failed", name)

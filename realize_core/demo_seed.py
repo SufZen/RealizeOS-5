@@ -60,17 +60,19 @@ def _configure_system(root: Path, key: str) -> None:
     )
 
 
-def _add_market_pack(venture_dir: Path, market: str) -> None:
-    """Add a market pack to the venture's packs.yaml (active with features.packs on)."""
+def _set_market_pack(venture_dir: Path, market: str) -> None:
+    """Make ``market`` the venture's only market pack in packs.yaml (active with features.packs on).
+
+    The template links the Israel pack by default; the demo project is
+    elsewhere, so its market replaces the template's rather than joining it
+    (a second market pack would put its rules and currency above this one).
+    """
     import yaml
 
     path = venture_dir / "packs.yaml"
     data = yaml.safe_load(path.read_text(encoding="utf-8")) if path.is_file() else {}
     data = data or {}
-    markets = list(data.get("market") or [])
-    if market not in markets:
-        markets.append(market)
-    data["market"] = markets
+    data["market"] = [market]
     data.setdefault("profession", [])
     path.write_text(yaml.safe_dump(data, allow_unicode=True, sort_keys=False), encoding="utf-8")
 
@@ -104,6 +106,6 @@ def seed_webinar_demo(project_root: str | Path, key: str = DEMO_KEY, name: str =
             documents += 1
 
     _configure_system(root, key)
-    _add_market_pack(venture_dir, DEMO_MARKET)
+    _set_market_pack(venture_dir, DEMO_MARKET)
     logger.info("Seeded demo venture '%s' with %d documents", key, documents)
     return {"key": key, "venture_dir": str(venture_dir), "documents": documents}

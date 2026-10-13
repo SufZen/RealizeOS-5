@@ -38,6 +38,17 @@ def _echo(text: str = "", *, err: bool = False) -> None:
         typer.echo(text.encode("ascii", "replace").decode("ascii"), err=err)
 
 
+def _echo_outside(text: object, *, err: bool = False) -> None:
+    """:func:`_echo` for text built from outside values (a reviewer's sheet, a card, an inventory file).
+
+    Non-printable characters are shown escaped, line by line, so a value can't
+    send escape sequences to the terminal.
+    """
+    from realize_core.utils.text import escape_lines
+
+    _echo(escape_lines(str(text)), err=err)
+
+
 def _default_venture() -> str:
     from realize_core.config import load_config
 
@@ -77,7 +88,7 @@ def review_sheet(
 def _confirm_diff(yes: bool) -> Callable[[str], bool]:
     def confirm(diff: str) -> bool:
         _echo("Changes to the pack:")
-        _echo(diff)
+        _echo_outside(diff)  # holds the reviewer's corrected statements
         if yes:
             return True
         try:
@@ -110,9 +121,9 @@ def _print_outcome(outcome: SubmitOutcome, market: str, reviewer: str) -> None:
                 f"{totals['facts_corrected']} of {totals['facts_checked']} facts corrected"
             )
     for warning in review.warnings:
-        _echo(f"  Warning: {warning}")
+        _echo_outside(f"  Warning: {warning}")
     for line in outcome.applied:
-        _echo(f"  Applied: {line}")
+        _echo_outside(f"  Applied: {line}")
     _echo(f"Record: {outcome.record_path}")
     if outcome.previous_approval:
         _echo(
@@ -185,13 +196,13 @@ def review_submit(
     except ReviewSheetError as exc:
         _echo(f"The sheet has {len(exc.errors)} problem(s); nothing was recorded:", err=True)
         for error in exc.errors:
-            _echo(f"  - {error}", err=True)
+            _echo_outside(f"  - {error}", err=True)
         raise typer.Exit(1) from exc
     except ReviewDeclinedError as exc:
         _echo(str(exc), err=True)
         raise typer.Exit(1) from exc
     except (ReviewError, PackVerificationError) as exc:
-        _echo(f"Error: {exc}", err=True)
+        _echo_outside(f"Error: {exc}", err=True)
         raise typer.Exit(1) from exc
     except PermissionError as exc:
         _echo(
@@ -220,7 +231,7 @@ def desk_check(
         raise typer.Exit(1) from exc
     _echo(f"Desk check of market/{market} (mechanical; not a professional review)")
     for finding in findings:
-        _echo(f"  {finding.level.upper():7} {finding.target}: {finding.message}")
+        _echo_outside(f"  {finding.level.upper():7} {finding.target}: {finding.message}")
     errors = sum(1 for f in findings if f.level == "error")
     warnings = sum(1 for f in findings if f.level == "warning")
     _echo(f"{errors} error(s), {warnings} warning(s), {len(findings) - errors - warnings} note(s)")
@@ -264,5 +275,5 @@ def inventory(
         return
     _echo(f"{len(problems)} difference(s) from {compare.name}:")
     for problem in problems:
-        _echo(f"  - {problem}")
+        _echo_outside(f"  - {problem}")
     raise typer.Exit(1)

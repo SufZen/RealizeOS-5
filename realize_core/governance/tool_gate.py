@@ -42,7 +42,8 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
-from realize_core.governance.trust_ladder import ACTION_MAP, TrustDecision, check_trust, get_trust_rules
+from realize_core.governance.gates import TooManyPendingError
+from realize_core.governance.trust_ladder import TrustDecision, check_trust, trust_keys
 from realize_core.tools.approval import (
     ApprovalAction,
     ApprovalRequest,
@@ -68,6 +69,8 @@ class GateDecision:
     action_name: str
     request_id: str | None = None
     reason: str = ""
+    #: ``reason`` may be shown to the caller (it carries no internal detail).
+    public_reason: bool = False
 
     @property
     def allowed(self) -> bool:
@@ -140,7 +143,11 @@ class ToolGate:
                 return GateDecision(GateOutcome.ALLOW, action_name)
 
             if decision is TrustDecision.APPROVE:
-                request_id = self._record(action_name, params, status="approve")
+                try:
+                    request_id = self._record(action_name, params, status="approve")
+                except TooManyPendingError as exc:
+                    # An outside agent with too many items waiting: nothing is queued or run (S6).
+                    return GateDecision(GateOutcome.BLOCK, action_name, reason=str(exc), public_reason=True)
                 if request_id is None:
                     # No durable approval row: never report an approval nobody can act on.
                     return GateDecision(
@@ -154,7 +161,10 @@ class ToolGate:
                 )
 
             # TrustDecision.BLOCK
-            request_id = self._record(action_name, params, status="block")
+            try:
+                request_id = self._record(action_name, params, status="block")
+            except TooManyPendingError:
+                request_id = None  # still blocked; only the record of it is left out
             return GateDecision(
                 GateOutcome.BLOCK,
                 action_name,
@@ -192,10 +202,7 @@ class ToolGate:
             return decision
         from realize_core.packs.trust import tighten
 
-        trust_action = ACTION_MAP.get(action_name, action_name)
-        names = [action_name, trust_action]
-        if is_destructive and trust_action not in get_trust_rules(self._config):
-            names.append("unknown_write")
+        names = trust_keys(action_name, self._config, is_destructive=is_destructive)
         return TrustDecision(tighten(decision.value, names, venture_dir))
 
     def _venture_dir(self, system_key: str) -> Path | None:
@@ -239,6 +246,8 @@ class ToolGate:
                 "params": _safe_params(params),
             },
         )
+        from realize_core.security.agent_access import current_outside_agent
+
         try:
             from realize_core.governance.gates import create_approval_request
 
@@ -249,9 +258,12 @@ class ToolGate:
                 payload={"gate_status": status, "params": _safe_params(params)},
                 action_name=action_name if status == "approve" else None,
                 params=params if status == "approve" else None,
-                requested_by=origin.user_id or None,
+                # Done for an outside agent: the agent asked (agent:stdio:<email> for a stdio session).
+                requested_by=current_outside_agent() or origin.user_id or None,
                 session_ref=origin.session_ref or None,
             )
+        except TooManyPendingError:
+            raise
         except Exception as exc:
             logger.error("approval_queue write failed for '%s': %s", action_name, exc)
             return None

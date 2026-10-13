@@ -485,7 +485,7 @@ class TestReviewFollowUps:
 
         # YAML skills don't carry their venture: the owner is where they were loaded.
         owners = {"globex-report": ("globex", {"name": "globex-report"}), "summarize": ("_default", {})}
-        monkeypatch.setattr(detector, "find_skill", lambda name: owners.get(name))
+        monkeypatch.setattr(detector, "find_skill", lambda name, system_key=None: owners.get(name))
         allowed = frozenset({"acme"})
         args = {"system_key": "acme", "input_text": "go"}
         assert check_call("run_workflow", {**args, "name": "globex-report"}, allowed) == "Workflow not found"
@@ -505,7 +505,7 @@ class TestReviewFollowUps:
             seen.update(kwargs)
             return "done"
 
-        monkeypatch.setattr(detector, "get_skill_by_name", lambda name: {"name": name, "system_key": "acme"})
+        monkeypatch.setattr(detector, "find_skill", lambda name, system_key=None: ("acme", {"name": name}))
         monkeypatch.setattr(executor, "execute_skill", fake_execute)
         await run_workflow(
             {"name": "s", "input_text": "go", "system_key": "acme", "user_id": "boss@acme.io"},

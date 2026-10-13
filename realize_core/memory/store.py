@@ -9,6 +9,7 @@ Categories: feedback | decision | learning | preference | entity
 import json
 import logging
 import sqlite3
+from collections.abc import Iterable
 from contextlib import contextmanager
 from datetime import datetime, timedelta
 from difflib import SequenceMatcher
@@ -183,20 +184,39 @@ def store_memory(system_key: str, category: str, content: str, tags: list[str] |
         )
 
 
-def search_memories(query: str, system_key: str | None = None, limit: int = 5) -> list[dict]:
-    """Search memories using FTS5."""
+def search_memories(
+    query: str,
+    system_key: str | None = None,
+    limit: int = 5,
+    system_keys: Iterable[str] | None = None,
+) -> list[dict]:
+    """Search memories using FTS5.
+
+    Args:
+        query: FTS5 query.
+        system_key: Only this venture's memories.
+        limit: Most rows returned.
+        system_keys: Only memories of these ventures (the caller's allowed set);
+            None means every venture, and an empty set matches nothing. Applied
+            in the query, so ``limit`` counts only rows the caller may see.
+    """
+    clauses = ["memories_fts MATCH ?"]
+    params: list[object] = [query]
+    if system_key:
+        clauses.append("m.system_key = ?")
+        params.append(system_key)
+    if system_keys is not None:
+        keys = sorted(set(system_keys))
+        if not keys:
+            return []
+        clauses.append(f"m.system_key IN ({','.join('?' for _ in keys)})")
+        params.extend(keys)
+    params.append(limit)
     with db_connection() as conn:
-        if system_key:
-            rows = conn.execute(
-                "SELECT m.* FROM memories m JOIN memories_fts f ON m.id = f.rowid "
-                "WHERE memories_fts MATCH ? AND m.system_key = ? LIMIT ?",
-                (query, system_key, limit),
-            ).fetchall()
-        else:
-            rows = conn.execute(
-                "SELECT m.* FROM memories m JOIN memories_fts f ON m.id = f.rowid WHERE memories_fts MATCH ? LIMIT ?",
-                (query, limit),
-            ).fetchall()
+        rows = conn.execute(
+            f"SELECT m.* FROM memories m JOIN memories_fts f ON m.id = f.rowid WHERE {' AND '.join(clauses)} LIMIT ?",
+            params,
+        ).fetchall()
     return [dict(r) for r in rows]
 
 

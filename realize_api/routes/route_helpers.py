@@ -59,13 +59,58 @@ def analyze_fabric(kb_path: Path, sys_conf: dict) -> dict:
     }
 
 
-def get_agents_with_status(sys_conf: dict, venture_key: str) -> list[dict]:
-    """Get agent list with current status from DB."""
+#: Where a pack keeps its agent definitions (``realize_core.packs.loader``).
+PACK_AGENTS_DIR = "A-agents"
+
+
+def public_definition_path(sys_conf: dict, agent_key: str, kb_path: Path | None = None) -> str:
+    """Where an agent's definition lives, as anyone who may see the agent may read it.
+
+    Never an absolute server path. A venture's own agent reads its path
+    relative to the KB root (``systems/acme/A-agents/writer.md``). A pack agent
+    (one listed in ``agent_provenance``) reads ``<layer>:<pack ref>/<path in the
+    pack>``, e.g. ``profession:developer@0.1.0/A-agents/procurement.md``: the
+    pack may live outside the KB, and where it is installed on the server is
+    nobody's business but the operator's.
+
+    Args:
+        sys_conf: The venture's entry in ``app.state.systems``.
+        agent_key: The agent's key in ``sys_conf["agents"]``.
+        kb_path: The KB root; an absolute venture path under it is made relative.
+
+    Returns:
+        The path to show, with ``/`` separators; ``""`` for an unknown agent.
+    """
+    stored = (sys_conf.get("agents") or {}).get(agent_key)
+    if not stored:
+        return ""
+    path = Path(str(stored))
+    provenance = (sys_conf.get("agent_provenance") or {}).get(agent_key)
+    if isinstance(provenance, dict) and provenance.get("layer"):
+        pack = provenance.get("pack")
+        ref = f"{provenance['layer']}:{pack}" if pack else str(provenance["layer"])
+        return f"{ref}/{PACK_AGENTS_DIR}/{path.name}"
+    if not path.is_absolute():
+        return path.as_posix()
+    if kb_path is not None:
+        try:
+            return path.resolve().relative_to(Path(kb_path).resolve()).as_posix()
+        except (OSError, ValueError):
+            pass
+    # Outside the KB: the file name alone, never where it sits on the server.
+    return path.name
+
+
+def get_agents_with_status(sys_conf: dict, venture_key: str, kb_path: Path | None = None) -> list[dict]:
+    """Get agent list with current status from DB.
+
+    ``definition_path`` is the public form (:func:`public_definition_path`), never absolute.
+    """
     agents = []
     for agent_key in sys_conf.get("agents", {}):
         agent_data = {
             "key": agent_key,
-            "definition_path": sys_conf["agents"][agent_key],
+            "definition_path": public_definition_path(sys_conf, agent_key, kb_path),
             "status": "idle",
             "last_run_at": None,
             "last_error": None,

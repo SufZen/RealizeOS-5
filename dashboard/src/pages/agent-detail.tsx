@@ -1,13 +1,18 @@
 import { useState, useEffect } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
-import { ChevronLeft, Bot, AlertCircle, Pause, Play, Clock, Save } from 'lucide-react'
+import { Link, useParams } from 'react-router-dom'
+import { ChevronLeft, Bot, AlertCircle, Pause, Play, Clock, Save, Info } from 'lucide-react'
 import { useApi } from '@/hooks/use-api'
+import { useAuth } from '@/hooks/use-auth'
 import { AgentStatusBadge, type AgentStatus } from '@/components/agent-status-badge'
 import { ActivityFeed, type ActivityEvent } from '@/components/activity-feed'
+import { useToast } from '@/components/ui/toast'
+import { useLocale } from '@/components/locale-provider'
 import { api } from '@/lib/api'
+import { agentChangeFailed } from '@/lib/agent-text'
 import { cn } from '@/lib/utils'
+import { agentControlsGate, type Gate } from '@/lib/permissions'
 
-interface AgentData {
+export interface AgentData {
   key: string
   venture_key: string
   definition_path: string
@@ -158,19 +163,24 @@ function ScheduleEditor({
 
 export default function AgentDetailPage() {
   const { key: ventureKey, id: agentKey } = useParams<{ key: string; id: string }>()
-  const navigate = useNavigate()
+  const { user } = useAuth()
+  const { language } = useLocale()
+  const toast = useToast()
   const { data, loading, error, refetch } = useApi<AgentData>(
     `/ventures/${ventureKey}/agents/${agentKey}`,
   )
 
-  async function handlePause() {
-    await api.post(`/ventures/${ventureKey}/agents/${agentKey}/pause`)
-    refetch()
-  }
-
-  async function handleResume() {
-    await api.post(`/ventures/${ventureKey}/agents/${agentKey}/resume`)
-    refetch()
+  async function change(verb: 'pause' | 'resume') {
+    try {
+      await api.post(`/ventures/${ventureKey}/agents/${agentKey}/${verb}`)
+    } catch (err) {
+      // The server decides every change; a refusal is said, not swallowed.
+      toast.error(
+        err instanceof Error && err.message ? err.message : agentChangeFailed(verb, language),
+      )
+    } finally {
+      refetch()
+    }
   }
 
   if (loading) {
@@ -194,6 +204,38 @@ export default function AgentDetailPage() {
 
   if (!data) return null
 
+  return (
+    <AgentDetailView
+      data={data}
+      ventureKey={ventureKey ?? data.venture_key}
+      gate={agentControlsGate(user, language)}
+      onPause={() => change('pause')}
+      onResume={() => change('resume')}
+      onScheduleSaved={refetch}
+    />
+  )
+}
+
+/**
+ * One agent: status, schedule, definition and recent activity. `gate` is set
+ * when the person's role can't change agents (`system:write`): pause, resume
+ * and the schedule editor are left out, and one line says why.
+ */
+export function AgentDetailView({
+  data,
+  ventureKey,
+  gate,
+  onPause,
+  onResume,
+  onScheduleSaved,
+}: {
+  data: AgentData
+  ventureKey: string
+  gate: Gate
+  onPause: () => void
+  onResume: () => void
+  onScheduleSaved: () => void
+}) {
   const isPaused = data.status === 'paused'
   const isError = data.status === 'error'
 
@@ -201,50 +243,63 @@ export default function AgentDetailPage() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <button
-          onClick={() => navigate(`/ventures/${ventureKey}`)}
-          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground mb-2 transition-colors"
+        <Link
+          to={`/ventures/${ventureKey}`}
+          viewTransition
+          className="mb-2 inline-flex items-center gap-1 text-xs text-muted-foreground no-underline transition-colors hover:text-foreground"
         >
-          <ChevronLeft className="h-3 w-3" />
-          Back to {ventureKey}
-        </button>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Bot className="h-5 w-5 text-subtle-foreground" />
-            <div>
+          <ChevronLeft className="h-3 w-3 rtl:rotate-180" aria-hidden />
+          <span dir="auto">
+            Back to <bdi>{ventureKey}</bdi>
+          </span>
+        </Link>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <Bot className="h-5 w-5 shrink-0 text-subtle-foreground" aria-hidden />
+            <div className="min-w-0">
               <h1 className="m-0 text-[1.375rem] font-semibold tracking-tight text-foreground">
                 {data.key}
               </h1>
-              <span className="text-xs text-muted-foreground font-mono">
+              <span dir="ltr" className="block truncate font-mono text-xs text-muted-foreground">
                 {data.definition_path}
               </span>
             </div>
           </div>
           <div className="flex items-center gap-3">
             <AgentStatusBadge status={data.status} />
-            {isPaused ? (
-              <button
-                onClick={handleResume}
-                className="flex items-center gap-1.5 rounded-lg bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-400 hover:bg-emerald-500/20 transition-colors"
-              >
-                <Play className="h-3.5 w-3.5" />
-                Resume
-              </button>
-            ) : (
-              <button
-                onClick={handlePause}
-                className="flex items-center gap-1.5 rounded-lg bg-surface-700 px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <Pause className="h-3.5 w-3.5" />
-                Pause
-              </button>
-            )}
+            {!gate &&
+              (isPaused ? (
+                <button
+                  onClick={onResume}
+                  className="flex items-center gap-1.5 rounded-lg bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-400 transition-colors hover:bg-emerald-500/20"
+                >
+                  <Play className="h-3.5 w-3.5" aria-hidden />
+                  Resume
+                </button>
+              ) : (
+                <button
+                  onClick={onPause}
+                  className="flex items-center gap-1.5 rounded-lg bg-surface-700 px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  <Pause className="h-3.5 w-3.5" aria-hidden />
+                  Pause
+                </button>
+              ))}
           </div>
         </div>
+        {gate && (
+          <p
+            data-gate="agent"
+            className="m-0 mt-3 flex items-start gap-2 text-[13px] text-muted-foreground"
+          >
+            <Info className="mt-0.5 h-4 w-4 shrink-0 text-blue-400" aria-hidden />
+            <span dir="auto">{gate}</span>
+          </p>
+        )}
       </div>
 
       {/* Status details */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
         <div className="rounded-xl border border-border bg-card p-4">
           <span className="text-xs text-muted-foreground">Status</span>
           <div className="mt-1">
@@ -272,20 +327,22 @@ export default function AgentDetailPage() {
         </div>
       </div>
 
-      {/* Schedule editor */}
-      <ScheduleEditor
-        ventureKey={data.venture_key}
-        agentKey={data.key}
-        currentCron={data.schedule_cron}
-        currentInterval={data.schedule_interval_sec}
-        onSaved={refetch}
-      />
+      {/* Schedule editor: only for a role that may change agents */}
+      {!gate && (
+        <ScheduleEditor
+          ventureKey={data.venture_key}
+          agentKey={data.key}
+          currentCron={data.schedule_cron}
+          currentInterval={data.schedule_interval_sec}
+          onSaved={onScheduleSaved}
+        />
+      )}
 
       {/* Error display */}
       {isError && data.last_error && (
         <div className="rounded-xl border border-red-400/30 bg-red-400/5 p-4">
           <span className="text-xs font-medium text-red-400">Last Error</span>
-          <p className="mt-1 text-sm text-red-300 font-mono whitespace-pre-wrap">
+          <p className="mt-1 whitespace-pre-wrap font-mono text-sm text-red-300">
             {data.last_error}
           </p>
         </div>
@@ -294,11 +351,12 @@ export default function AgentDetailPage() {
       {/* Agent definition */}
       {data.definition && (
         <section>
-          <h2 className="text-lg font-semibold text-foreground mb-3">Configuration</h2>
+          <h2 className="mb-3 text-lg font-semibold text-foreground">Configuration</h2>
           <div className="rounded-xl border border-border bg-card p-4">
             <pre
+              dir="auto"
               className={cn(
-                'text-sm text-muted-foreground whitespace-pre-wrap font-mono',
+                'whitespace-pre-wrap font-mono text-sm text-muted-foreground',
                 'max-h-64 overflow-y-auto',
               )}
             >
@@ -310,7 +368,7 @@ export default function AgentDetailPage() {
 
       {/* Action history */}
       <section>
-        <h2 className="text-lg font-semibold text-foreground mb-3">
+        <h2 className="mb-3 text-lg font-semibold text-foreground">
           Recent Activity ({data.recent_activity.length})
         </h2>
         <div className="rounded-xl border border-border bg-card">

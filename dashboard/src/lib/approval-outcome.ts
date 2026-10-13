@@ -8,6 +8,23 @@ import { ApiError } from '@/lib/api'
 
 export type ApprovalStatus = 'pending' | 'approved' | 'rejected' | 'expired' | 'answered'
 
+/** The approvals page's tabs. */
+export type ApprovalsTab = 'pending' | 'decided' | 'expired'
+
+/** How many items an approvals tab shows. */
+export const APPROVALS_PAGE_SIZE = 50
+
+/**
+ * What each approvals tab asks the server for. Decided comes back as the
+ * latest decisions first and capped (`GET /api/approvals?status=decided`),
+ * instead of the whole queue sorted in the browser.
+ */
+export const APPROVALS_PATHS: Readonly<Record<ApprovalsTab, string>> = {
+  pending: '/approvals?status=pending',
+  decided: `/approvals?status=decided&limit=${APPROVALS_PAGE_SIZE}`,
+  expired: '/approvals?status=expired',
+}
+
 /** The approval fields these rules read (a subset of the card's `Approval`). */
 export interface ApprovalState {
   id: string
@@ -32,10 +49,32 @@ export interface ExecutionResult {
   error?: string | null
 }
 
-/** Whether the decision reached the venture's decision log (present only when the server says). */
+/**
+ * Whether the decision reached the venture's decision log (present only when
+ * the server says; `realize_core/governance/decision_log.py::log_decision`).
+ */
 export interface DecisionLogResult {
   logged: boolean
+  /** True when the write failed and a retry is queued: it will be added. */
+  pending?: boolean
   error?: string | null
+  /** The decision log entry, once written. */
+  decision_id?: string | null
+}
+
+/**
+ * What a decision-log result means for the person: `null` when there is
+ * nothing to say (inputs and rejected proposals are not decisions, so the
+ * server reports neither logged, pending nor an error).
+ */
+export type DecisionLogState = 'logged' | 'queued' | 'failed' | null
+
+export function decisionLogState(log: DecisionLogResult | null | undefined): DecisionLogState {
+  if (!log) return null
+  if (log.logged) return 'logged'
+  if (log.pending) return 'queued'
+  if (log.error) return 'failed'
+  return null
 }
 
 /**
@@ -47,6 +86,29 @@ export function isExpired(a: ApprovalState, now: number): boolean {
   if (a.status !== 'pending' || !a.expires_at) return false
   const at = new Date(a.expires_at).getTime()
   return !Number.isNaN(at) && at <= now
+}
+
+/**
+ * Items still held for a decision at `now`: listed as pending and not expired.
+ * The approvals page, the nav badge and the Overview all count with this, so
+ * an item whose time ran out leaves every count at the same moment.
+ */
+export function heldApprovals<T extends ApprovalState>(list: readonly T[], now: number): T[] {
+  return list.filter((a) => a.status === 'pending' && !isExpired(a, now))
+}
+
+/**
+ * When the next held item expires (ms), judged at `now`; null when none will.
+ * A page counting held items re-renders then, so the count drops on time.
+ */
+export function nextExpiry(list: readonly ApprovalState[], now: number): number | null {
+  let next: number | null = null
+  for (const a of heldApprovals(list, now)) {
+    if (!a.expires_at) continue
+    const at = new Date(a.expires_at).getTime()
+    if (!Number.isNaN(at) && (next === null || at < next)) next = at
+  }
+  return next
 }
 
 export type OutcomeKind =

@@ -155,8 +155,9 @@ class ToolRegistry:
                 outcome = getattr(decision, "outcome", None)
                 request_id = getattr(decision, "request_id", None)
                 if outcome is not None and getattr(outcome, "value", "") == "block" and not request_id:
+                    reason = getattr(decision, "reason", "") if getattr(decision, "public_reason", False) else ""
                     return ToolResult.fail(
-                        f"Action '{action_name}' is blocked by governance policy",
+                        f"Action '{action_name}' is blocked by governance policy" + (f": {reason}" if reason else ""),
                         requires_human=True,
                     )
                 return ToolResult.ok(

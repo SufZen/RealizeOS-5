@@ -17,7 +17,7 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException, Request
 
 from realize_api.dependencies import visible_systems
-from realize_api.routes.route_helpers import get_agents_with_status
+from realize_api.routes.route_helpers import get_agents_with_status, public_definition_path
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -27,19 +27,24 @@ logger = logging.getLogger(__name__)
 async def list_venture_agents(venture_key: str, request: Request):
     """List agents for a venture with current status from DB."""
     systems: dict = visible_systems(request)
+    kb_path: Path = getattr(request.app.state, "kb_path", Path("."))
 
     if venture_key not in systems:
         raise HTTPException(status_code=404, detail=f"Venture '{venture_key}' not found")
 
     sys_conf = systems[venture_key]
-    agents = get_agents_with_status(sys_conf, venture_key)
+    agents = get_agents_with_status(sys_conf, venture_key, kb_path)
 
     return {"agents": agents, "venture_key": venture_key}
 
 
 @router.get("/ventures/{venture_key}/agents/{agent_key}")
 async def get_agent_detail(venture_key: str, agent_key: str, request: Request):
-    """Get detailed agent info including config, status, and recent activity."""
+    """Get detailed agent info including config, status, and recent activity.
+
+    ``definition_path`` is KB-relative for a venture's own agent and
+    ``<layer>:<pack ref>/<path in the pack>`` for a pack agent, never absolute.
+    """
     systems: dict = visible_systems(request)
     kb_path: Path = getattr(request.app.state, "kb_path", Path("."))
 
@@ -90,7 +95,8 @@ async def get_agent_detail(venture_key: str, agent_key: str, request: Request):
     return {
         "key": agent_key,
         "venture_key": venture_key,
-        "definition_path": agents[agent_key],
+        # Never the absolute server path: a pack can live outside the KB.
+        "definition_path": public_definition_path(sys_conf, agent_key, kb_path),
         "definition": definition,
         **status_data,
         "recent_activity": recent_activity,
