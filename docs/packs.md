@@ -157,6 +157,10 @@ A pack extends a core family with `allOf` (see [`fabric-schemas/README.md`](fabr
 
 A venture template can name packs (`packs:` in `templates/<name>.yaml`). With the flag on, `scaffold_venture(template=...)` (the dashboard, `realize-os venture create --template`) writes the venture's `packs.yaml`, copies only the firm's starter files, and leaves out the agents and skills the linked packs provide, at the same path, in `A-agents/` and `R-routines/skills/`. It writes `F-foundations/overrides/skill-settings.yaml` with the ids to set. With the flag off it copies the whole template, as before. `python cli.py init --template` is unchanged.
 
+The `real-estate-developer` template is the Israeli developer demo, so its `packs.yaml` links `profession: [developer]` and `market: [il]`: the developer pack is market-neutral, and the Hebrew triggers of its three skills come from the Israel pack's `skill-settings.yaml`. For projects elsewhere, change `market` in the venture's `packs.yaml` (for example `[pt]`).
+
+**Turning packs off later.** A venture created with the flag on has no agents or skills of its own: they come from its packs. If `features.packs` is turned off afterwards, that venture has no team and no skills. RealizeOS says so instead of failing quietly: at startup, and on the config reload that turns the flag off, it logs a warning for each such venture (its `packs.yaml` names packs, it has no agents or no skills of its own, and its packs provide them), and lists the message in the venture's `warnings` in `GET /api/ventures`, `GET /api/ventures/{key}` and `GET /api/status`. Turn the flag back on, or copy the agents and skills from the template into the venture's `A-agents/` and `R-routines/skills/`.
+
 ## Verification levels
 
 | Level | Meaning | Label in the answer trail | Hebrew |

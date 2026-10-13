@@ -59,6 +59,8 @@ async def list_ventures(request: Request):
                 "agent_count": len(sys_conf.get("agents", {})),
                 "skill_count": count_skills(kb_path, sys_conf),
                 "fabric_completeness": fabric["completeness"],
+                # Problems an operator should see, e.g. packs it relies on are switched off.
+                "warnings": list(sys_conf.get("warnings") or []),
             }
         )
 
@@ -91,6 +93,7 @@ async def get_venture_detail(venture_key: str, request: Request):
         "agents": agents,
         "skills": skills,
         "fabric": fabric,
+        "warnings": list(sys_conf.get("warnings") or []),
     }
 
 
