@@ -39,6 +39,10 @@ class McpConfig:
     public_url: str = ""
     #: Hosts OAuth clients may redirect to; empty = the built-in default list.
     oauth_redirect_hosts: tuple[str, ...] = ()
+    #: Only these tools are served (within the exposed families); None = all of them.
+    #: A hosted profile uses it to serve one workflow, e.g. the self-serve tender register.
+    #: An empty tuple serves nothing: that's what a malformed value resolves to.
+    tools: tuple[str, ...] | None = None
 
     @property
     def resource_url(self) -> str:
@@ -64,13 +68,34 @@ def _host_list(raw: object) -> tuple[str, ...]:
     return tuple(str(h).strip().lower() for h in items if str(h).strip())
 
 
+def _tool_allowlist(raw: object) -> tuple[str, ...] | None:
+    """The ``mcp.tools`` allowlist: None for "every tool", else the named tools in order.
+
+    Unset, an empty string or an empty list mean every tool. Any other shape
+    (a mapping, a number, a list of non-strings) fails closed: no tool is
+    served, rather than silently every tool.
+    """
+    if raw is None or raw == "" or raw == []:
+        return None
+    if isinstance(raw, str):
+        items: list = raw.split(",")
+    elif isinstance(raw, list) and all(isinstance(n, str) for n in raw):
+        items = raw
+    else:
+        logger.error("mcp.tools must be a list of tool names or a comma-separated string; serving no tools")
+        return ()
+    names = tuple(dict.fromkeys(n.strip() for n in items if n.strip()))
+    return names or None
+
+
 def mcp_config_from_env(config: dict | None = None) -> McpConfig:
     """Resolve effective MCP config from ``realize-os.yaml`` + env vars.
 
     Env vars (``MCP_ENABLED``, ``MCP_EXPOSE_KB``, ``MCP_EXPOSE_OPS``,
     ``MCP_ALLOW_ADMIN``, ``MCP_AUDIT_FULL_PAYLOAD``,
     ``MCP_BEARER_TOKEN_OVERRIDE``, ``MCP_STREAMABLE_HTTP``,
-    ``MCP_OAUTH_ENABLED``, ``MCP_OAUTH_REDIRECT_HOSTS``, ``MCP_PUBLIC_URL``) take precedence over the yaml block.
+    ``MCP_OAUTH_ENABLED``, ``MCP_OAUTH_REDIRECT_HOSTS``, ``MCP_PUBLIC_URL``, ``MCP_TOOLS``) take precedence
+    over the yaml block.
     """
     raw = (config or {}).get("mcp", {}) if isinstance(config, dict) else {}
     raw = raw if isinstance(raw, dict) else {}
@@ -95,4 +120,5 @@ def mcp_config_from_env(config: dict | None = None) -> McpConfig:
             os.environ.get("MCP_OAUTH_REDIRECT_HOSTS", oauth_raw.get("redirect_hosts") or "")
         ),
         public_url=os.environ.get("MCP_PUBLIC_URL", str(raw.get("public_url", "") or "")).strip().rstrip("/"),
+        tools=_tool_allowlist(os.environ.get("MCP_TOOLS") or raw.get("tools")),
     )
