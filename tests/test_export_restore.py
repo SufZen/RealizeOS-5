@@ -488,34 +488,57 @@ def _leftovers(parent: Path) -> list[str]:
     return sorted(p.name for p in parent.iterdir() if ".restore-" in p.name)
 
 
-@pytest.mark.parametrize(
-    "bad",
-    [
-        "systems/.. /.. /x.md",  # Windows drops the trailing space: ".." once written
-        "systems/../ ../x.md",
-        "systems/acme./x.md",
-        "systems/acme /x.md",
-        "systems/acme/notes.md.",
-        "systems/acme/notes.md ",
-        "systems/.../x.md",
-        "systems/CON/x.md",
-        "systems/acme/nul.txt",
-        "systems/acme/Aux",
-        "data/COM1",
-        "data/lpt9.db",
-        "custom-packs/prn .md",
-        "systems/acme/C:x.md",  # drive-relative on Windows
-        "systems/c:/x.md",
-    ],
-)
-def test_restore_refuses_names_windows_rewrites_or_reserves(tmp_path, bad):
+WINDOWS_ONLY_NAMES = [
+    "systems/.. /.. /x.md",  # Windows drops the trailing space: ".." once written
+    "systems/acme./x.md",
+    "systems/acme /x.md",
+    "systems/acme/notes.md.",
+    "systems/acme/notes.md ",
+    "systems/.../x.md",
+    "systems/CON/x.md",
+    "systems/acme/nul.txt",
+    "systems/acme/Aux",
+    "data/COM1",
+    "data/lpt9.db",
+    "custom-packs/prn .md",
+    "systems/acme/C:x.md",  # drive-relative on Windows
+    "systems/c:/x.md",
+    "systems/acme./a:b.md",  # a colon and a trailing dot
+    "systems/C:/a:b.md",
+]
+
+
+def test_restore_refuses_a_real_parent_segment_everywhere(tmp_path):
     from realize_core.storage.restore import RestoreError, restore_export
 
     with pytest.raises(RestoreError):
-        restore_export(_zip(tmp_path / "x.zip", {**GOOD, bad: b"x"}), tmp_path / "new")
+        restore_export(_zip(tmp_path / "x.zip", {**GOOD, "systems/../ ../x.md": b"x"}), tmp_path / "new")
     assert not (tmp_path / "new").exists()
     assert _leftovers(tmp_path) == []
-    assert sorted(p.name for p in tmp_path.iterdir()) == ["x.zip"]
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows rewrites or reserves these names")
+@pytest.mark.parametrize("name", WINDOWS_ONLY_NAMES)
+def test_windows_skips_names_it_would_rewrite_or_reserve(tmp_path, name):
+    from realize_core.storage.restore import restore_export
+
+    result = restore_export(_zip(tmp_path / "x.zip", {**GOOD, name: b"x"}), tmp_path / "new")
+    assert name in result.skipped
+    assert name not in result.files
+    assert (tmp_path / "new").is_dir()  # the rest of the export restored
+    assert not (tmp_path / "x.md").exists()  # ".. /.. /x.md" never escaped
+    assert _leftovers(tmp_path) == []
+
+
+@pytest.mark.skipif(os.name == "nt", reason="these are ordinary names on Linux and macOS")
+@pytest.mark.parametrize("name", WINDOWS_ONLY_NAMES)
+def test_posix_restores_names_only_windows_rewrites(tmp_path, name):
+    from realize_core.storage.restore import restore_export
+
+    result = restore_export(_zip(tmp_path / "x.zip", {**GOOD, name: b"x"}), tmp_path / "new")
+    assert (tmp_path / "new").joinpath(*name.split("/")).read_bytes() == b"x"
+    assert result.skipped == []
+    assert not (tmp_path / "x.md").exists()
 
 
 @pytest.mark.parametrize(
@@ -588,7 +611,7 @@ def test_restore_cli_reports_skipped_names(tmp_path, monkeypatch):
     assert not (tmp_path / "new" / "systems" / "acme" / "B-brain" / "standup 10:30.md").exists()
 
 
-@pytest.mark.parametrize("bad", ["../x:y.md", "users.yaml:x", "systems/acme./a:b.md", "systems/C:/a:b.md"])
+@pytest.mark.parametrize("bad", ["../x:y.md", "users.yaml:x"])
 @pytest.mark.parametrize("posix", [True, False])
 def test_colon_names_that_are_unsafe_otherwise_still_refuse_the_restore(tmp_path, monkeypatch, bad, posix):
     from realize_core.storage import restore
