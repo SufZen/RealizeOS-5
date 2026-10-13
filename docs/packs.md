@@ -203,7 +203,7 @@ The rule cards an answer's prompt included appear in its "What I used" trail as 
 - the layer and pack it came from, such as *market pack pt@0.1.0* (the firm's own rules show *your firm*);
 - the card's `as_of` date, with its `review_by` date on hover, and a link to its source.
 
-`[R1]` and `[S1]` markers in the answer jump to their trail rows. The labels follow the dashboard's language (English or Hebrew). The same fields (`layer`, `pack`, `verification`, `as_of`, `review_by`) come back from `POST /api/chat`, the `/api/chat/stream` events, `GET /api/conversations` and the MCP `realize_chat` trail summary, so another agent can show the level too. Older answers, stored before the trail kept rule levels, have none on their rule rows; the dashboard labels those rows *unverified* rather than guess.
+`[R1]` and `[S1]` markers in the answer jump to their trail rows. The labels follow the dashboard's language (English or Hebrew). The same fields (`layer`, `pack`, `verification`, `as_of`, `review_by`) come back from `POST /api/chat`, the `/api/chat/stream` events, `GET /api/conversations` and the MCP trail summary (`realize_chat` and `get_history`), so another agent can show the level too. Older answers, stored before the trail kept rule levels, have none on their rule rows; the dashboard labels those rows *unverified* rather than guess.
 
 ## Reviewing a market pack
 
