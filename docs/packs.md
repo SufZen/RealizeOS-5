@@ -31,6 +31,8 @@ Packs are loaded from two folders, the first one winning:
 1. **`REALIZE_PACKS_PATH`** (optional): a writable folder for your own packs, or a modified copy of a shipped pack. A pack here replaces the shipped pack with the same kind and id. Use the same layout: `<folder>/market/<id>/`, `<folder>/profession/<id>/`.
 2. **The shipped packs** in `packs/`. They come with each release. In the production image this folder is read-only; change a shipped pack by copying it into `REALIZE_PACKS_PATH`, not by editing it in place.
 
+A pack in `REALIZE_PACKS_PATH` that exists but can't be used (its folder is named after the pack and its `pack.yaml` is missing, doesn't parse or lacks `id`, `version` or `kind`, or the pack fails to load) is switched off, with a warning naming its folder: the shipped pack with the same id is **not** used in its place. A firm's copy is usually stricter (a `trust.yaml` that blocks what the shipped pack only holds for approval), so falling back silently would loosen it. Ventures that link the pack list it as missing until the folder is fixed or removed.
+
 In Docker, mount a folder for `REALIZE_PACKS_PATH` as a volume (see [self-hosting-guide.md](self-hosting-guide.md#volume-mounts)).
 
 A venture loads only the packs its `packs.yaml` names. Loading is tolerant: a file with the wrong shape (a skill that is a list, a glossary that is a mapping, a rule card whose `applies_to` isn't a mapping, an unreadable file) is skipped with a warning that names the file, logged once. A pack that can't be loaded at all is skipped with a warning naming its folder; other packs and ventures keep working. The cascade is cached per venture and rebuilt when any pack file, override, `packs.yaml` or recorded verification changes.

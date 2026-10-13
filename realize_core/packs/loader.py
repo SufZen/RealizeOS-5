@@ -531,18 +531,64 @@ def _kind_dirs(root: Path, kind: str) -> list[Path]:
         return []
 
 
+def _is_custom_root(root: Path, packs_root: Path | None) -> bool:
+    """True for the ``REALIZE_PACKS_PATH`` folder (never when an explicit ``packs_root`` is used)."""
+    if packs_root is not None:
+        return False
+    custom = custom_packs_root()
+    return custom is not None and Path(root) == custom
+
+
+def _read_manifest(pack_dir: Path) -> tuple[dict[str, Any] | None, str]:
+    """A folder's ``pack.yaml`` and, when it can't be used, why (reads the manifest only)."""
+    manifest = pack_dir / "pack.yaml"
+    if not manifest.is_file():
+        return None, "no pack.yaml"
+    problems: list[str] = []
+    data = _read_yaml(manifest, problems, pack_dir)
+    if problems:
+        return None, problems[0]
+    if not isinstance(data, dict):
+        return None, "pack.yaml is not a mapping"
+    if data.get("kind") not in PACK_KINDS or not is_scalar(data.get("id")) or not is_scalar(data.get("version")):
+        return None, f"pack.yaml needs id, version and kind (one of {', '.join(PACK_KINDS)})"
+    return data, ""
+
+
+def _warn_broken_custom(pack_dir: Path, kind: str, pack_id: str, reason: str) -> None:
+    """Say that a broken custom pack switched its id off instead of falling back to the shipped one."""
+    warn_once(
+        "Custom pack %s/%s at %s can't be used (%s). It is switched off, and the shipped pack with the "
+        "same id is NOT used in its place, so its stricter settings (such as trust.yaml) can't silently "
+        "revert to the shipped ones. Fix or remove that folder.",
+        kind,
+        pack_id,
+        pack_dir,
+        reason,
+    )
+
+
 def discover_packs(packs_root: Path | None = None) -> dict[tuple[str, str], Pack]:
     """All packs under ``<root>/<kind>/<id>/`` for every pack root, keyed by ``(kind, id)``.
 
     A pack in a higher-priority root replaces the same kind and id from a
     lower one. A pack that can't be loaded is skipped; the others still load.
+    A pack in ``REALIZE_PACKS_PATH`` that can't be loaded also takes the
+    shipped pack with the same kind and id out (fail closed, with a warning).
     """
     found: dict[tuple[str, str], Pack] = {}
     for root in reversed(pack_roots(packs_root)):
+        custom = _is_custom_root(root, packs_root)
         for kind in PACK_KINDS:
             for pack_dir in _kind_dirs(root, kind):
                 pack = _load_isolated(pack_dir)
                 if pack is None:
+                    if custom:
+                        data, reason = _read_manifest(pack_dir)
+                        pack_id = scalar_text(data["id"]) if data else pack_dir.name
+                        pack_kind = data["kind"] if data else kind
+                        _warn_broken_custom(pack_dir, pack_kind, pack_id, reason or "it can't be loaded")
+                        found.pop((pack_kind, pack_id), None)
                     continue
                 key = (pack.kind, pack.id)
                 previous = found.get(key)
@@ -554,11 +600,8 @@ def discover_packs(packs_root: Path | None = None) -> dict[tuple[str, str], Pack
 
 def _manifest_names(pack_dir: Path, kind: str, pack_id: str) -> bool:
     """True when the folder's ``pack.yaml`` declares this kind and id (reads the manifest only)."""
-    manifest = pack_dir / "pack.yaml"
-    if not manifest.is_file():
-        return False
-    data = _read_yaml(manifest, [], pack_dir)
-    return isinstance(data, dict) and data.get("kind") == kind and str(data.get("id")) == pack_id
+    data, _reason = _read_manifest(pack_dir)
+    return data is not None and data.get("kind") == kind and scalar_text(data.get("id")) == pack_id
 
 
 def find_pack(kind: str, pack_id: str, packs_root: Path | None = None) -> Pack | None:
@@ -567,18 +610,32 @@ def find_pack(kind: str, pack_id: str, packs_root: Path | None = None) -> Pack |
     Only that pack is loaded, so a broken pack nobody uses can't get in the
     way (audit N06). The folder named after the id is tried first; any other
     folder whose manifest declares the id is found too.
+
+    A pack in ``REALIZE_PACKS_PATH`` that exists but is broken (its folder is
+    named after the id and its ``pack.yaml`` can't be used, or it declares the
+    id but can't be loaded) gives None with a warning naming its folder: the
+    shipped pack with the same id is not used in its place (fail closed).
     """
     if kind not in PACK_KINDS or not isinstance(pack_id, str) or not pack_id:
         return None
     for root in pack_roots(packs_root):
+        custom = _is_custom_root(root, packs_root)
         dirs = _kind_dirs(root, kind)
         named = [d for d in dirs if is_safe_id(pack_id) and d.name == pack_id]
         for pack_dir in [*named, *(d for d in dirs if d.name != pack_id)]:
             if not _manifest_names(pack_dir, kind, pack_id):
+                if custom and pack_dir.name == pack_id:
+                    data, reason = _read_manifest(pack_dir)
+                    if data is None:
+                        _warn_broken_custom(pack_dir, kind, pack_id, reason)
+                        return None
                 continue
             pack = _load_isolated(pack_dir)
             if pack is not None and pack.kind == kind and pack.id == pack_id:
                 return pack
+            if custom:
+                _warn_broken_custom(pack_dir, kind, pack_id, "it can't be loaded")
+                return None
     return None
 
 

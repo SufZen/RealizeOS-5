@@ -371,3 +371,39 @@ def test_disabling_a_term_is_case_insensitive(tmp_path):
     assert resolver.resolve("term", "form 4") is None
     assert "form 4" not in resolver.list("term")
     assert resolver.terms_in("We filed Form 4 yesterday") == []
+
+
+def test_a_broken_custom_pack_fails_closed(shipped, tmp_path, monkeypatch, caplog):
+    custom = tmp_path / "custom"
+    broken = custom / "market" / "pt"
+    shutil.copytree(shipped / "market" / "pt", broken)
+    _write(broken / "trust.yaml", "sheets_append: block\n")
+    (broken / "pack.yaml").write_text("id: pt\nkind: market\nversion: [0.1.0\n", encoding="utf-8")  # bad YAML
+    monkeypatch.setenv(loader.PACKS_PATH_ENV, str(custom))
+    clear_cache()
+
+    with caplog.at_level(logging.WARNING, logger="realize_core.packs.loader"):
+        found = loader.find_pack("market", "pt")
+        discovered = loader.discover_packs()
+        resolver = PackResolver(_venture(tmp_path), enabled=True)
+
+    assert found is None  # never the shipped pt in its place
+    assert ("market", "pt") not in discovered
+    assert resolver.packs == []
+    assert resolver.missing == ["market/pt@*"]
+    messages = " ".join(r.getMessage() for r in caplog.records)
+    assert str(broken) in messages
+    assert "is NOT used in its place" in messages
+
+
+def test_a_custom_pack_that_loads_still_replaces_the_shipped_one(shipped, tmp_path, monkeypatch):
+    custom = tmp_path / "custom"
+    shutil.copytree(shipped / "market" / "pt", custom / "market" / "pt")
+    (custom / "market" / "other").mkdir(parents=True)  # an unrelated empty folder breaks nothing
+    monkeypatch.setenv(loader.PACKS_PATH_ENV, str(custom))
+    clear_cache()
+
+    pack = loader.find_pack("market", "pt")
+
+    assert pack is not None
+    assert pack.root.resolve() == (custom / "market" / "pt").resolve()
