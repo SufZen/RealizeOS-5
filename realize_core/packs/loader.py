@@ -556,15 +556,20 @@ def _read_manifest(pack_dir: Path) -> tuple[dict[str, Any] | None, str]:
 
 
 def _warn_broken_custom(pack_dir: Path, kind: str, pack_id: str, reason: str) -> None:
-    """Say that a broken custom pack switched its id off instead of falling back to the shipped one."""
+    """Say that a broken custom pack switched its id off instead of falling back to the shipped one.
+
+    The id, folder and reason (which can quote the broken file) are shown escaped: this reaches a terminal.
+    """
+    from realize_core.utils.text import escape_nonprintable
+
     warn_once(
         "Custom pack %s/%s at %s can't be used (%s). It is switched off, and the shipped pack with the "
         "same id is NOT used in its place, so its stricter settings (such as trust.yaml) can't silently "
         "revert to the shipped ones. Fix or remove that folder.",
         kind,
-        pack_id,
-        pack_dir,
-        reason,
+        escape_nonprintable(pack_id),
+        escape_nonprintable(pack_dir),
+        escape_nonprintable(reason),
     )
 
 

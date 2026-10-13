@@ -61,6 +61,7 @@ from pathlib import Path
 from typing import Any
 
 from realize_core.packs.models import Pack, RuleCard
+from realize_core.utils.text import escape_nonprintable
 
 logger = logging.getLogger(__name__)
 
@@ -300,10 +301,11 @@ def apply_state(pack: Pack) -> None:
             continue
         recorded = record.get("content")
         if recorded and recorded != card_fingerprint(card):
+            # The id and the reviewer's name are shown escaped: the warning is logged to a terminal.
+            by = f" by {escape_nonprintable(record['verified_by'])}" if record.get("verified_by") else ""
             pack.warnings.append(
-                f"rule card {card_id} changed since it was approved at verification {level}"
-                f"{' by ' + str(record['verified_by']) if record.get('verified_by') else ''}; "
-                f"it shows its own level ({card.verification}) until it is reviewed again"
+                f"rule card {escape_nonprintable(card_id)} changed since it was approved at verification "
+                f"{level}{by}; it shows its own level ({card.verification}) until it is reviewed again"
             )
             continue
         card.verification = level

@@ -354,6 +354,23 @@ def test_an_approval_recorded_before_fingerprints_still_applies(db, shipped):
     assert load_pack(shipped / "market" / "pt").rules["pt.vat.rates"].verification == 2
 
 
+def test_the_changed_card_warning_escapes_the_reviewer_name(db, shipped):
+    """The reviewer's name was typed by a person; the warning reaches a terminal, so it is shown escaped."""
+    approval_id = request_verification(
+        "ops", kind="market", pack_id="pt", level=2, reviewer="Ana\x1b[2J Silva", cards=["pt.vat.rates"]
+    )
+    assert _approve(approval_id)["execution"]["success"] is True
+    card = shipped / "market" / "pt" / "rules" / "vat-rates.md"
+    text = card.read_text(encoding="utf-8")
+    source = next(line for line in text.splitlines() if line.startswith("source:"))
+    card.write_text(text.replace(source, "source: https://firm.example/other"), encoding="utf-8")
+
+    [warning] = [w for w in load_pack(shipped / "market" / "pt").warnings if "changed since" in w]
+
+    assert "\x1b" not in warning
+    assert "Ana\\x1b[2J Silva" in warning
+
+
 # ---------------------------------------------------------------------------
 # P3: glossary disable, broken custom packs, inventory hash
 # ---------------------------------------------------------------------------

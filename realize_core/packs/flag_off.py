@@ -19,6 +19,7 @@ from pathlib import Path
 
 from realize_core.packs.loader import LOAD_ERRORS, read_venture_packs
 from realize_core.packs.resolver import get_resolver
+from realize_core.utils.text import escape_nonprintable
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +73,10 @@ def packs_off_warning(venture_key: str, venture_dir: Path, own_agents: dict) -> 
     if not missing:
         return None
     lost = " and ".join(f"{len(items)} {name}" for name, items in (("agents", agents), ("skills", skills)) if items)
-    links = ", ".join(f"{kind} {entry['id']}" for kind in ("profession", "market") for entry in wanted[kind])
+    # Pack ids come from the venture's packs.yaml: shown escaped, since the message reaches a terminal.
+    links = ", ".join(
+        f"{kind} {escape_nonprintable(entry['id'])}" for kind in ("profession", "market") for entry in wanted[kind]
+    )
     return (
         f"Venture {venture_key} links packs ({links}) but features.packs is off: it has no "
         f"{' or '.join(missing)} of its own, so it runs without the {lost} its packs provide. "
