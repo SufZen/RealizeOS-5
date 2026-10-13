@@ -30,7 +30,7 @@ from typing import Any
 
 import yaml
 
-from realize_core.packs.loader import LOAD_ERRORS, warn_once
+from realize_core.packs.loader import LOAD_ERRORS, is_scalar, scalar_text, warn_once
 from realize_core.packs.resolver import PackResolver, get_resolver
 
 logger = logging.getLogger(__name__)
@@ -59,7 +59,7 @@ def _read_skill(path: Path) -> dict[str, Any] | None:
         if not isinstance(value, list):
             warn_once("Pack skill %s skipped: %s must be a list", path, key)
             return None
-        kept = [str(v) for v in value if isinstance(v, (str, int, float)) and not isinstance(v, bool)]
+        kept = [scalar_text(v) for v in value if is_scalar(v)]
         if len(kept) != len(value):
             warn_once("Pack skill %s: %s that aren't text were dropped", path, key)
         data[key] = kept

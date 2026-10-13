@@ -99,7 +99,12 @@ async def status(request: Request):
         "status": "ok",
         "version": __version__,
         "systems": {
-            k: {"name": v.get("name", k), "agents": list(v.get("agents", {}).keys())} for k, v in systems.items()
+            k: {
+                "name": v.get("name", k),
+                "agents": list(v.get("agents", {}).keys()),
+                "warnings": list(v.get("warnings") or []),
+            }
+            for k, v in systems.items()
         },
         "llm": llm_status,
         "tools": tools_status,

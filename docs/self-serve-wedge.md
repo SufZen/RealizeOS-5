@@ -12,7 +12,7 @@ A free workflow that anyone can run from their own AI agent, in any market, with
 3. The agent reads the tender PDF itself and builds the register.
 4. The agent calls `tender_register_submit`. RealizeOS then:
    - checks the register: duplicates, categories, items without a page
-   - returns it as a finished document in English, Hebrew or Portuguese, stating its verification level and limits
+   - returns it as a finished document in English, Hebrew or Portuguese, stating its verification level (the lowest level of the market's rule cards, never more than the weakest rule) and limits
    - offers a hand-off: book an Audit Sprint, or a local partner where one exists
 5. If the user wants to talk, the agent calls `request_audit_call` with a contact the user chose to share.
 
@@ -116,6 +116,6 @@ Check it daily during the pilot. A person who asks again after being contacted g
 - per market: runs, users, **converted users** (people who asked for a call, each counted once), call requests (how many runs asked; volume only) and the rate, converted users ÷ users;
 - across all markets: the same, with each person counted once, and how many converted users ran a market outside Israel.
 
-The pilot passes if at least 30% of users ask for a call and at least one of them comes from outside Israel. `--format json` returns `{"markets": [...], "summary": {...}}`.
+The pilot passes if at least 30% of users ask for a call and at least one of them comes from outside Israel. Only a known market code other than `il` counts as outside Israel (`pt`, `es-ct`): a run with no market (`any`), with text that isn't a market code such as "Israel" (`other`), or with an Israeli sub-region (`il-north`) never does. `--format json` returns `{"markets": [...], "summary": {...}}`.
 
 Connection guides for each agent: [connect-your-agent.md](connect-your-agent.md).

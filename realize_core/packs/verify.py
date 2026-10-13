@@ -11,7 +11,8 @@ reject it (audit N01; enforced in
 :func:`realize_core.governance.gates.decide_approval`).
 
 When it is approved, :func:`apply_verification` records the reviewer, the
-date and the new level, for the reviewed cards or for the whole pack, in the
+date, the new level, the next review date and a fingerprint of each approved
+card's content, for the reviewed cards or for the whole pack, in the
 verification state under ``DATA_PATH`` (:mod:`realize_core.packs.state`), in
 one atomic write. Pack files are never edited by an approval, so shipped packs
 can stay read-only (audit N04). Nothing changes on rejection.
@@ -119,10 +120,14 @@ def apply_verification(
     The reviewer, the date and the level go to the verification state under
     ``DATA_PATH`` in one atomic write: for the listed ``cards`` only (the
     pack's own level stays as it was), or with no ``cards`` for the whole pack
-    and every card in it. The pack's files are not touched.
+    and every card in it. The pack's files are not touched. Each card also
+    gets its next review date (today plus the pack's review interval, six
+    months unless ``pack.yaml`` sets ``verification.review_interval_months``)
+    and a fingerprint of the content approved, so a later edit to the card
+    drops it back to its file's level.
 
     Returns:
-        ``{"pack", "level", "reviewer", "cards", "skipped", "pack_level_changed"}``.
+        ``{"pack", "level", "reviewer", "cards", "skipped", "pack_level_changed", "review_by"}``.
         ``skipped`` lists requested cards the pack no longer has.
 
     Raises:
@@ -150,6 +155,8 @@ def apply_verification(
     else:
         cards, skipped = sorted(pack.rules), []
     corrections = params.get("corrections")
+    today = datetime.now(UTC).date()
+    review_by = state.add_months(today, state.review_interval_months(pack)).isoformat()
     state.record_verification(
         kind,
         pack.id,
@@ -162,7 +169,9 @@ def apply_verification(
         whole_pack=not wanted,
         partner_agreement=str(partner_agreement) if level == 3 else None,
         corrections=corrections if isinstance(corrections, dict) else None,
-        today=datetime.now(UTC).date().isoformat(),
+        today=today.isoformat(),
+        review_by=review_by,
+        fingerprints={card_id: state.card_fingerprint(pack.rules[card_id]) for card_id in cards},
     )
     logger.info("Pack %s/%s verification %s applied to %d cards", kind, pack_id, level, len(cards))
     return {
@@ -172,6 +181,7 @@ def apply_verification(
         "cards": cards,
         "skipped": skipped,
         "pack_level_changed": not wanted,
+        "review_by": review_by,
     }
 
 
@@ -186,6 +196,8 @@ def describe_result(result: dict[str, Any]) -> str:
         text = f"{len(cards)} rule card(s) of {result.get('pack')} raised to verification {level} ({name}): "
         text += ", ".join(cards)
     text += f"; reviewed by {result.get('reviewer')}."
+    if result.get("review_by"):
+        text += f" Next review by {result['review_by']}."
     if result.get("skipped"):
         text += f" Not in the pack any more, so skipped: {', '.join(result['skipped'])}."
     return text

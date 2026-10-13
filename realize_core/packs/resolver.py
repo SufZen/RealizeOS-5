@@ -57,6 +57,7 @@ class PackResolver:
         self.venture_dir = Path(venture_dir)
         self.enabled = enabled
         self.firm = load_firm_layer(self.venture_dir)
+        self._disabled = {item.casefold() for item in self.firm.disabled}
         self.layers: list[tuple[str, Pack]] = [("firm", self.firm)]
         self.missing: list[str] = []
         if enabled:
@@ -81,15 +82,16 @@ class PackResolver:
         """Enabled packs (market and profession), highest layer first."""
         return [p for layer, p in self.layers if layer != "firm"]
 
-    def _is_disabled(self, key: str) -> bool:
-        return key in self.firm.disabled
+    def is_disabled(self, key: str) -> bool:
+        """True when the firm switched ``key`` off in ``disable.yaml`` (ids compared case-insensitively)."""
+        return key.casefold() in self._disabled
 
     def resolve(self, item_type: str, key: str) -> Resolved | None:
         """Resolve one item by key; the highest layer that defines it wins."""
         if item_type not in ITEM_TYPES:
             raise ValueError(f"Unknown item type '{item_type}'")
         lookup = key.casefold() if item_type == "term" else key
-        if self._is_disabled(key):
+        if self.is_disabled(key):
             return None
         for layer, pack in self.layers:
             items = getattr(pack, _ATTR[item_type])
@@ -110,7 +112,7 @@ class PackResolver:
             for key, value in getattr(pack, _ATTR[item_type]).items():
                 out[key] = self._wrap(item_type, value, layer, pack)
         for key in list(out):
-            if self._is_disabled(key):
+            if self.is_disabled(key):
                 del out[key]
         return out
 

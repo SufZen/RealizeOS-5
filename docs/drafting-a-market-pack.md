@@ -44,7 +44,7 @@ The sheet has one row per rule card, one for the defaults and one per glossary f
 
 `facts_checked` is pre-filled with an estimate (one fact per clause of the statement). The reviewer may change it.
 
-**2. Optional: desk-check before sending.** `python cli.py packs desk-check pt` checks every card mechanically with no network calls: an https source, sane `as_of` and `review_by` dates (the review date not passed), a statement, a core family in `applies_to`, unique ids, and a note where the body says the source is secondary. It is a pre-review aid, not a review. An agent may also open each source and write its notes to `reviews/desk-check-<date>.md`, labelled "agent desk check — not a professional review"; it never changes cards or levels.
+**2. Optional: desk-check before sending.** `python cli.py packs desk-check pt` checks every card mechanically with no network calls: an https source, sane `as_of` and `review_by` dates (the review date not passed), a statement, a core family in `applies_to`, unique ids, a note where the body says the source is secondary, and an error for any card the loader skipped (it would never reach an answer). It is a pre-review aid, not a review. An agent may also open each source and write its notes to `reviews/desk-check-<date>.md`, labelled "agent desk check — not a professional review"; it never changes cards or levels.
 
 **3. Record the filled sheet.**
 
@@ -63,7 +63,7 @@ This:
 
 The pass signal is computed over the rule cards: facts corrected ÷ facts checked must be below 1 in 5. A removed card counts all its facts as corrected unless the reviewer says otherwise. Glossary and defaults rows are reported separately.
 
-**4. Approve.** The pack is shared by every venture that uses it, so only an owner with access to every venture can approve or reject the request (an operator, an admin or an owner limited to some ventures gets 403, and the request stays pending). When the owner approves it, the level (2), the reviewer, the review date, the approver and the approval id of each reviewed card are recorded in the installation's verification state, `DATA_PATH/packs/verification.json`, in one atomic write. The card files are not edited, so this works with read-only shipped packs; answers show the new level straight away. The approval shows the outcome (`execution_status` `succeeded` or `failed`, with the reason in `error`). Rejecting it changes nothing. If you submit the same review again on the same day, the command names the earlier approval so you can reject it.
+**4. Approve.** The pack is shared by every venture that uses it, so only an owner with access to every venture can approve or reject the request (an operator, an admin or an owner limited to some ventures gets 403, and the request stays pending). When the owner approves it, the level (2), the reviewer, the review date, the next review date (`review_by`: six months later, or `verification.review_interval_months` from `pack.yaml`), the approver and the approval id of each reviewed card are recorded in the installation's verification state, `DATA_PATH/packs/verification.json`, in one atomic write. The card files are not edited, so this works with read-only shipped packs; answers show the new level straight away. The approval also records a fingerprint of each card's statement, source and `applies_to`: a card edited after the approval goes back to the level in its file, with a warning naming it, until it is reviewed again (changing only its `verification` or dates doesn't count as an edit). The approval shows the outcome (`execution_status` `succeeded` or `failed`, with the reason in `error`). Rejecting it changes nothing. If you submit the same review again on the same day, the command names the earlier approval so you can reject it.
 
 **5. Raise the pack's own level.** A card's effective level is the lower of its own and the pack's, so the cards only show level 2 once the pack's own level is raised too. Once every row, including the defaults and glossary rows, has a verdict and the corrections are in the cards, submit with `--whole-pack`: the approval then covers the pack's own level and every card, and records the corrections with it. To ship the reviewed level with the pack itself (for every installation), the maintainer also sets `verification` in `pack.yaml` and the cards and releases a new version.
 
@@ -88,7 +88,7 @@ With no `cards`, the whole pack is raised once approved: the reviewer and date a
 
 ## 3. Maintain (level 3)
 
-Level 3 needs a partner with a signed maintenance agreement (`partner_agreement="..."`). It is checked again when the approval is applied and recorded with the level. The partner owns updates and every card's `review_by` date. A card whose review date passes drops back to level 1 automatically, whatever level was approved.
+Level 3 needs a partner with a signed maintenance agreement (`partner_agreement="..."`). It is checked again when the approval is applied and recorded with the level. The partner owns updates and every card's `review_by` date. A card whose review date passes drops back to level 1 automatically, whatever level was approved; each approved review sets the next date.
 
 ## 4. Field-proven (level 4)
 

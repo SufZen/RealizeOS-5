@@ -28,11 +28,33 @@ INVENTORY_FORMAT = 1
 _IGNORED_DIRS = frozenset({"reviews"})
 
 
-def content_hash(pack_root: Path) -> str:
-    """SHA-256 over the pack's files (names and bytes), leaving out ``reviews/`` and hidden files.
+_BOM = b"\xef\xbb\xbf"
 
-    A file that can't be read gives ``unreadable: ...`` instead, so one bad
-    file never stops an export; the comparison then reports the pack.
+
+def normalised_bytes(data: bytes) -> bytes:
+    """A file's bytes as hashed: text loses a UTF-8 byte-order mark and ends lines with ``\\n``.
+
+    The same pack checked out on Windows (CRLF, sometimes a BOM) and in the
+    Linux image (LF) then hashes the same. Bytes that aren't UTF-8 text are
+    hashed as they are.
+    """
+    try:
+        data.decode("utf-8")
+    except UnicodeDecodeError:
+        return data
+    if data.startswith(_BOM):
+        data = data[len(_BOM) :]
+    return data.replace(b"\r\n", b"\n").replace(b"\r", b"\n")
+
+
+def content_hash(pack_root: Path) -> str:
+    """SHA-256 over the pack's files (names and contents), leaving out ``reviews/`` and hidden files.
+
+    Text files are hashed with their line endings and byte-order mark
+    normalised (:func:`normalised_bytes`), so a Windows checkout and the
+    Linux image of the same pack compare equal. A file that can't be read
+    gives ``unreadable: ...`` instead, so one bad file never stops an export;
+    the comparison then reports the pack.
     """
     digest = hashlib.sha256()
     root = Path(pack_root)
@@ -42,7 +64,7 @@ def content_hash(pack_root: Path) -> str:
             if not path.is_file() or rel.parts[0] in _IGNORED_DIRS or any(p.startswith(".") for p in rel.parts):
                 continue
             digest.update(rel.as_posix().encode("utf-8") + b"\0")
-            digest.update(path.read_bytes())
+            digest.update(normalised_bytes(path.read_bytes()))
             digest.update(b"\0")
     except OSError as exc:
         logger.warning("Pack at %s can't be hashed for the inventory: %s", root, exc)

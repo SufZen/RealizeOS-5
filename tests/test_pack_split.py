@@ -79,7 +79,8 @@ def test_scaffold_writes_packs_yaml(tmp_path):
     (tmp_path / "realize-os.yaml").write_text("name: test\nsystems: []\n", encoding="utf-8")
     scaffold_venture(tmp_path, "dev-co", template="real-estate-developer")
     data = yaml.safe_load((tmp_path / "systems" / "dev-co" / "packs.yaml").read_text(encoding="utf-8"))
-    assert data == {"profession": ["developer"], "market": []}
+    # The template is the Israeli developer demo: it links the Israel market pack explicitly.
+    assert data == {"profession": ["developer"], "market": ["il"]}
 
 
 def test_scaffold_without_packs_writes_nothing(tmp_path):
@@ -164,7 +165,7 @@ def test_scaffold_with_packs_on_links_instead_of_copying(tmp_path, fresh_skills)
     assert (venture / "F-foundations" / "venture-identity.md").is_file()  # firm starter files are copied
     assert yaml.safe_load((venture / "packs.yaml").read_text(encoding="utf-8")) == {
         "profession": ["developer"],
-        "market": [],
+        "market": ["il"],
     }
     settings_file = venture / "F-foundations" / "overrides" / "skill-settings.yaml"
     settings = yaml.safe_load(settings_file.read_text(encoding="utf-8"))
@@ -178,7 +179,10 @@ def test_scaffold_with_packs_on_links_instead_of_copying(tmp_path, fresh_skills)
     system = build_systems_dict(load_config(root / "realize-os.yaml"), root)["dev-co"]
     assert set(system["agents"]) >= TEAM
     fresh_skills.reload_skills(kb_path=root, packs=True)
-    assert {s["name"] for s in fresh_skills.get_skills_for_system("dev-co")} == SKILLS
+    skills = fresh_skills.get_skills_for_system("dev-co")
+    assert {s["name"] for s in skills} == SKILLS
+    # The Hebrew triggers live in the Israel market pack; the template links it, so they are kept.
+    assert "חשבון חלקי" in next(s for s in skills if s["name"] == "payment_milestone_check")["triggers"]
 
 
 def test_scaffold_with_packs_off_copies_as_before(tmp_path):

@@ -222,6 +222,8 @@ List all ventures with their configuration and status.
 
 The response also carries `config_writable` (bool). It is `false` when `realize-os.yaml` can't be edited (for example a read-only Docker mount); the dashboard then hides create and delete, because both edit that file.
 
+Each venture has `warnings`, a list of problems an operator should fix (empty when there are none): for example a venture whose agents and skills come from its packs while `features.packs` is off (see [packs.md](packs.md#templates-that-link-packs)). `GET /api/ventures/{key}` and `GET /api/status` (per system) return the same list.
+
 ### POST /api/ventures
 
 Create a new venture. The key must be a lowercase slug (letters, numbers, hyphens). Errors: `400` invalid key, `409` the venture already exists, `503` the config can't be written (nothing is left behind).

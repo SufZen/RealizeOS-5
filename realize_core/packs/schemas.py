@@ -55,7 +55,7 @@ def schema_registry_for(
     for layer, pack in reversed(resolver.layers):
         origin = "firm overrides" if layer == "firm" else f"{layer} pack {pack.ref}"
         for name, schema in sorted(pack.schemas.items()):
-            if name in resolver.firm.disabled:
+            if resolver.is_disabled(name):
                 continue
             registered, problems = registry.extend(name, schema)
             for problem in problems:
