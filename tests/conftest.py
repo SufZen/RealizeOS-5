@@ -1,6 +1,14 @@
 """Shared test fixtures for RealizeOS test suite."""
 
+import sys
+
 import pytest
+from realize_core.memory import conversation as _conversation
+
+#: The real conversation helpers, taken before any test can patch them.
+_REAL_CONVERSATION_HELPERS = {
+    name: getattr(_conversation, name) for name in ("add_message", "get_history", "to_llm_messages")
+}
 
 
 @pytest.fixture(scope="session")
@@ -67,6 +75,24 @@ def _isolated_skill_cascade(monkeypatch):
     from realize_core.skills import detector
 
     monkeypatch.setattr(detector, "_pack_cascade", False)
+
+
+@pytest.fixture(autouse=True)
+def _real_conversation_helpers():
+    """Start every test with ``base_handler`` using the real conversation helpers.
+
+    ``realize_core.base_handler`` binds ``add_message``, ``get_history`` and
+    ``to_llm_messages`` by name when it is first imported. When that first
+    import happens inside a test that has stubbed them on
+    ``realize_core.memory.conversation`` (the approval tests capture posted
+    messages that way), the stub outlived the test: later tests that go
+    through ``process_message`` stored no history, and the webinar API test
+    failed or passed depending on which test imported ``base_handler`` first.
+    """
+    base_handler = sys.modules.get("realize_core.base_handler")
+    if base_handler is not None:
+        for name, helper in _REAL_CONVERSATION_HELPERS.items():
+            setattr(base_handler, name, helper)
 
 
 @pytest.fixture
