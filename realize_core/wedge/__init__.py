@@ -8,12 +8,23 @@ measured. No model runs on RealizeOS's side, and no document is stored.
 """
 
 from realize_core.wedge.register import check_register, get_method, render_register
-from realize_core.wedge.store import funnel, purge_expired, record_run, request_call
+from realize_core.wedge.store import (
+    contacts,
+    funnel,
+    funnel_summary,
+    mark_contacted,
+    purge_expired,
+    record_run,
+    request_call,
+)
 
 __all__ = [
     "check_register",
+    "contacts",
     "funnel",
+    "funnel_summary",
     "get_method",
+    "mark_contacted",
     "purge_expired",
     "record_run",
     "render_register",

@@ -68,7 +68,9 @@ realize-os
 │
 ├── wedge                                        Self-serve tender register pilot
 │   ├── invite EMAIL                             Add an invite-only pilot user
-│   ├── funnel [--days N] [--format json]        Runs, users and calls per market
+│   ├── funnel [--days N] [--format json]        Converted users per market + pass check
+│   ├── contacts [--all]                         People waiting for a call
+│   ├── contacted EMAIL [--by NAME]              Mark a person as contacted
 │   └── purge [--days N]                         Delete expired runs now
 │
 ├── agent-token                                  Venture-scoped tokens for outside agents
@@ -261,7 +263,9 @@ Host the [self-serve tender register](self-serve-wedge.md) pilot. Run these on t
 
 ```bash
 realize-os wedge invite dana@example.com   # pilot-only viewer in an empty sandbox venture; prints the password once
-realize-os wedge funnel --days 30          # runs, users and call requests per market, from recorded runs
+realize-os wedge funnel --days 30          # runs, users and converted users per market, and the pass check
+realize-os wedge contacts [--all]          # people who asked for a call, oldest waiting first
+realize-os wedge contacted EMAIL [--by NAME]   # mark a person as contacted (out of the queue)
 realize-os wedge purge                     # delete runs older than 30 days unless the user opted in
 ```
 
