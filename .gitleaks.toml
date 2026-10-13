@@ -26,4 +26,7 @@ regexes = [
     '''test-api-key-1234567890abcdef''',
     # The dummy agent-token id the STORY-37 tests use (a public id, not a secret).
     '''0123456789ab''',
+    # The dummy agent-token id in the dashboard tests and the API docs' examples
+    # (a token's public id; the secret is never in the repo).
+    '''3f9a0c1d2e4b''',
 ]
