@@ -28,6 +28,12 @@ export interface ApprovalText {
   agent: string
   venture: string
   requestedFor: string
+  /** Badge label before an outside agent's token name; the name is rendered isolated (`<bdi>`). */
+  outsideAgent: string
+  /** Tooltip on that badge: who asked, as the approval queue records it. */
+  outsideAgentTitle: (requestedBy: string) => string
+  /** On a held item from an outside agent: where the approval boundary is. */
+  outsideAgentNote: string
   /** Label before who decided; the name is rendered isolated (`<bdi>`). */
   decidedBy: string
   expires: (relative: string) => string
@@ -99,6 +105,10 @@ const EN: ApprovalText = {
   agent: 'Agent',
   venture: 'Venture',
   requestedFor: 'For',
+  outsideAgent: 'Outside agent:',
+  outsideAgentTitle: (requestedBy) => `Requested by ${requestedBy} over MCP`,
+  outsideAgentNote:
+    'An outside agent asked for this over MCP. Nothing has run: if you approve, it runs once, as that agent and only in its ventures.',
   decidedBy: 'Decided by',
   expires: (relative) => `Expires ${relative}`,
   expiresAt: (when) => `Expires: ${when}`,
@@ -121,6 +131,8 @@ const EN: ApprovalText = {
     agent_input: 'Question from an agent',
     agent_credential: 'Credential requested by an agent',
     pack_verify: 'Pack verification',
+    'mcp:run_workflow': 'Run a workflow',
+    'mcp:trigger_skill': 'Run a skill',
   },
   reject: 'Reject',
   no: 'No',
@@ -196,6 +208,10 @@ const HE: ApprovalText = {
   agent: 'סוכן',
   venture: 'מיזם',
   requestedFor: 'עבור',
+  outsideAgent: 'סוכן חיצוני:',
+  outsideAgentTitle: (requestedBy) => `התבקש ע״י ${requestedBy} דרך MCP`,
+  outsideAgentNote:
+    'סוכן חיצוני ביקש את זה דרך MCP. שום דבר לא רץ: אם תאשרו, הפעולה תרוץ פעם אחת, בשם הסוכן ורק במיזמים שלו.',
   decidedBy: 'הוחלט ע״י',
   expires: (relative) => `יפוג ${relative}`,
   expiresAt: (when) => `תוקף עד: ${when}`,
@@ -218,6 +234,8 @@ const HE: ApprovalText = {
     agent_input: 'שאלה מסוכן',
     agent_credential: 'פרטי גישה שסוכן ביקש',
     pack_verify: 'אימות חבילה',
+    'mcp:run_workflow': 'הרצת תהליך עבודה',
+    'mcp:trigger_skill': 'הפעלת מיומנות',
   },
   reject: 'דחייה',
   no: 'לא',
