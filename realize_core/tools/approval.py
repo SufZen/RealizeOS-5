@@ -474,6 +474,8 @@ class ApprovalTool(BaseTool):
 
         # approval_queue is what the dashboard lists and decides; the request
         # only exists for the operator once it is written there.
+        from realize_core.governance.gates import TooManyPendingError
+
         try:
             from realize_core.governance.gates import create_approval_request
 
@@ -491,6 +493,8 @@ class ApprovalTool(BaseTool):
                 requested_by=origin.user_id or None,
                 session_ref=origin.session_ref or None,
             )
+        except TooManyPendingError as exc:
+            return ToolResult.fail(str(exc))
         except Exception as exc:
             logger.error("Could not record approval request: %s", exc)
             return ToolResult.fail("Could not reach the operator: the approval queue is unavailable.")

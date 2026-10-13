@@ -143,7 +143,7 @@ class TestRunWorkflow:
     async def test_not_found(self):
         from realize_core.mcp_server.tools.ops_tools import run_workflow
 
-        with patch("realize_core.skills.detector.get_skill_by_name", return_value=None):
+        with patch("realize_core.skills.detector.find_skill", return_value=None):
             result = await run_workflow({"name": "missing", "input_text": "hi"}, SimpleNamespace(), _user())
         assert result["code"] == "MCP_NOT_FOUND"
 
@@ -159,8 +159,8 @@ class TestRunWorkflow:
         )
         with (
             patch(
-                "realize_core.skills.detector.get_skill_by_name",
-                return_value=skill,
+                "realize_core.skills.detector.find_skill",
+                return_value=("personal", skill),
             ),
             patch(
                 "realize_core.skills.executor.execute_skill",

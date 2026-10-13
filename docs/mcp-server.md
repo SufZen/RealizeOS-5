@@ -137,6 +137,7 @@ With `features.wedge` on, `tender_register_method`, `tender_register_submit` and
 ### Ops tool behaviour
 
 * `run_workflow` (alias `trigger_skill`) executes a registered skill against an input message via `realize_core.skills.executor.execute_skill` in-process. Same auth + audit as the REST path. Returns `{ name, system_key, user_id, output }`.
+* The skill is the one of the venture named in `system_key`: that venture's own copy (every venture has its own copy of a pack skill, with its own `variables` such as its sheet ids), else a shared or global skill, never another venture's. Without `system_key` only a shared or global skill runs; a venture's skill returns `MCP_VALIDATION` (name the venture), even when only one venture has it. A caller limited to some ventures must name one of them as `system_key` (`MCP_FORBIDDEN` for any other, before the skill is looked up) and runs that venture's copy; a held write runs the copy of the venture it was held in. A venture can't be keyed `shared`: that name is reserved for the firm's shared skills, and such a venture's skills are not loaded.
 * `run_evolution` triggers `realize_core.evolution.gap_detector.run_gap_analysis(days=...)`. Default window is 7 days; capped at 90.
 * `approve_suggestion` / `dismiss_suggestion` operate on the in-memory `EvolutionEngine` proposal store (same singleton the dashboard uses).
 * `approve_request` / `reject_request` delegate to `realize_core.governance.gates` for the approval queue — preserves all governance checks. A pack verification (`pack_verify`) changes what every venture sees: only an owner without a venture limit may decide it; anyone else gets `MCP_FORBIDDEN` and the request stays pending.
@@ -192,13 +193,13 @@ What a token is:
 - **Limited to the ventures it names.** It must name at least one, each one the user may see. On every request the token's ventures are intersected with the user's current list, so a token never sees more than its user, and one whose ventures all fall away stops working.
 - **Its own identity.** Requests carry `agent:<id>` as the user: in the audit log, the approval queue (`requested_by`), conversation memory and the rate limiter. An agent always chats and reads history as itself, whatever its user's role.
 - **Stored as a SHA-256 hash** (migration 012) and compared in constant time. Optional expiry; `last_used_at` is recorded.
-- **Revocable:** `python cli.py agent-token revoke <id>` or `DELETE /api/agent-tokens/<id>`. It stops at once, and the agent's writes still waiting for approval are withdrawn.
+- **Revocable:** `python cli.py agent-token revoke <id>` or `DELETE /api/agent-tokens/<id>`. It stops at once, and everything the agent has waiting for approval is withdrawn: its held writes, writes held from its chat, and its decision proposals. Before anything an agent asked for runs, its token is checked again; a token that expired or was turned off meanwhile means the approved item is recorded as failed and nothing runs.
 
 `python cli.py agent-token list` (or `GET /api/agent-tokens`) shows every token without secrets. Creating, revoking and every refused use are audit-logged (`agent_token.*`).
 
 In the dashboard, an owner or admin with every venture manages tokens under **Configure → Agent tokens** (`/settings/agent-tokens`, or Ctrl/⌘ K): the list (no secrets), a form to create one (the token is shown once, with a copy button), and Revoke. Other people don't see the page.
 
-Agent tokens are on by default (`features.agent_tokens: true`). Nothing changes until you create one; turning the flag off makes every agent token stop working at once. They need auth to be on (`REALIZE_API_KEY` or JWT): with auth off the API is open and a token limits nothing.
+Agent tokens are on by default (`features.agent_tokens: true`). Nothing changes until you create one; turning the flag off makes every agent token stop working at once, including the writes its agents have waiting: approving one afterwards records it as failed, and nothing runs. They need auth to be on (`REALIZE_API_KEY` or JWT): with auth off the API is open and a token limits nothing.
 
 Over REST an agent reads within its ventures and may chat (`/api/chat`, its own conversation). Every other REST write is refused with `403`: an outside agent changes things through MCP, where a person approves first. Approve, reject and dismiss return `403` with the same "People decide" rule as MCP. Chat over REST (`/api/chat`, `/api/chat/stream`) follows the same chat rules as `realize_chat` below. Rules match the endpoint the router picked, never the URL, and any method other than GET, HEAD and OPTIONS counts as a write. REST and MCP use one predicate and one rule set (`realize_core/security/agent_access.py`), so the two surfaces can't drift.
 
@@ -231,10 +232,10 @@ It shows up in the dashboard's approval queue as `mcp:run_workflow`, from the ag
 
 - it runs **once**, as the agent with its own narrowed scope, never as the person who approved it: the row is claimed before anything runs, so a double click or a retry does nothing;
 - the token is checked again first: if it was revoked or expired, its user removed, or the venture taken away, nothing runs and the item records why. The stored call must still name the item's venture alone;
-- tool steps inside the workflow go through the `ToolGate` like any other run, recorded with the agent as the actor;
+- approving the run starts it; each write it makes still waits for a person. Its inputs came from the agent, so it stays the agent's run, under the same rule as an agent's chat: a tool step that writes is held as a new approval from the agent, even where the trust ladder would run it automatically (without `features.enforce_gates` it can't run at all). The workflow pauses there and continues once a person approves that write; the rest of it is still the agent's run, whoever resumes it. If the agent's token stops working (revoked, expired, agent tokens turned off, user removed) while the run is paused or between two steps, the run stops there and nothing after it runs;
 - the outcome is posted into the agent's own conversation in that venture.
 
-Held writes expire after 24 hours, and at most 25 per agent wait at once (`MCP_TOO_MANY_PENDING`).
+Held writes expire after 24 hours. At most 25 items per agent wait for a person at once, counting everything it asked for: its held writes, the writes held from its chat or its runs, its `log_decision` proposals and its questions. Past that, a new held write or proposal returns `MCP_TOO_MANY_PENDING`, and a write from its chat is blocked with the same reason ("25 of your requests are already waiting for approval; wait for a decision"). People are not capped.
 
 Follow an item with `list_approvals` (`venture_key` and `approval_id`). An agent sees status, not other people's parameters or results, plus the result of its own writes:
 
@@ -260,7 +261,7 @@ python cli.py mcp stdio --directory /path/to/RealizeOS --user dana@example.com [
 - **Configuration:** `--directory` (or `--root`) is the absolute path of the RealizeOS folder (config, `users.yaml`, `.env`, data, KB). Without it, the folder RealizeOS is installed in is used. The folder the agent starts the command in is never read, so a planted `users.yaml` or config there has no effect.
 - **Admin tools** are served over stdio only with `--allow-admin` on the command line (and only to an owner). `mcp.allow_admin` / `MCP_ALLOW_ADMIN` don't widen a stdio session. In production, `--allow-admin` still needs strong JWT settings. A stdio session is an outside agent, so it is still refused every admin tool (`MCP_AGENT_REFUSED`) and `tools/list` doesn't show them.
 - Needs `MCP_ENABLED=true`. stdout carries only JSON-RPC: logs, stray `print()` output and child processes go to stderr. A refused start exits with code 2 and the reason on stderr.
-- **A stdio session is an outside agent.** Its client is always an AI agent, so it is governed like an agent token: its user id is `agent:stdio:<email>`, it sees the ventures named with `--venture` (else the user's ventures, else every venture configured at start), [writes are held](#governed-writes-from-outside-agents) for a person, and it can't approve, reject or dismiss. `--user`'s role and ventures are the upper bound. The marker is set by the stdio entry point itself, so it can't be spoofed. Pilot accounts can't open a stdio session.
+- **A stdio session is an outside agent.** Its client is always an AI agent, so it is governed like an agent token: its user id is `agent:stdio:<email>` (everything it asks a person for, held writes, writes held from its chat and decision proposals, is requested by `agent:stdio:<email>`, so the queue shows the **Outside agent** badge, never the person), it sees the ventures named with `--venture` (else the user's ventures, else every venture configured at start), [writes are held](#governed-writes-from-outside-agents) for a person, and it can't approve, reject or dismiss. `--user`'s role and ventures are the upper bound. The marker is set by the stdio entry point itself, so it can't be spoofed. Pilot accounts can't open a stdio session.
 
 Client configs for Claude Code, Claude Desktop and Cursor are in [connect-your-agent.md](connect-your-agent.md).
 
@@ -314,7 +315,7 @@ Stable `code` values:
 | `MCP_INTERNAL` | Tool raised an exception. |
 | `MCP_AGENT_CANNOT_DECIDE` | An outside agent tried to approve, reject or dismiss. People decide. |
 | `MCP_AGENT_REFUSED` | The tool isn't available to an outside agent. |
-| `MCP_TOO_MANY_PENDING` | The agent already has 25 writes waiting for approval. |
+| `MCP_TOO_MANY_PENDING` | The agent already has 25 items (held writes, writes held from its chat, decision proposals) waiting for approval. |
 | `MCP_RATE_LIMITED` | The caller made too many tool calls this minute; `retry_after_seconds` says when to try again. See [Rate limits](#rate-limits). |
 
 ## Roadmap

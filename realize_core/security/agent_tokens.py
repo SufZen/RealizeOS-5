@@ -271,16 +271,34 @@ def principal_id_for(user_id: str | None, scopes: Iterable[str] | None) -> str |
     return None
 
 
+def tokens_enabled(config: dict | None = None) -> bool:
+    """Whether agent tokens work now (``features.agent_tokens``, on by default).
+
+    ``config`` defaults to the running app's config (else ``realize-os.yaml``),
+    so turning the flag off in Settings stops every token at once, also for
+    approved writes still waiting to run.
+    """
+    from realize_core.config import get_features
+
+    if config is None:
+        from realize_core.mcp_server.held_writes import live_config
+
+        config = live_config()
+    return bool(get_features(config if isinstance(config, dict) else {}).get("agent_tokens"))
+
+
 def live_agent(principal_id: str | None, known_ventures: Iterable[str] | None = None) -> AgentPrincipal | None:
     """The live agent behind a ``requested_by`` id, checked again now, or None.
 
-    An agent token must still be active (not revoked or expired, user still
-    configured, a venture left). A stdio session's user must still be in
-    ``users.yaml``; its ventures are the user's, or ``known_ventures`` for a
-    user limited to none. Pilot accounts are never agents.
+    An agent token must still be active (agent tokens turned on, not revoked
+    or expired, user still configured, a venture left). A stdio session's user
+    must still be in ``users.yaml``; its ventures are the user's, or
+    ``known_ventures`` for a user limited to none. Pilot accounts are never agents.
     """
     token_id = token_id_of(principal_id)
     if token_id:
+        if not tokens_enabled():
+            return None
         return principal_for(token_id)
     if not isinstance(principal_id, str) or not principal_id.startswith(STDIO_PRINCIPAL_PREFIX):
         return None
@@ -488,7 +506,8 @@ def revoke_token(token_id: str, *, revoked_by: str = "", channel: str = "api") -
     """Revoke a token at once and withdraw the writes it has waiting for approval.
 
     Returns ``(token, withdrawn)`` — ``withdrawn`` is how many of the agent's
-    pending held MCP writes were rejected — or None for an unknown id.
+    pending items (held writes, writes held from its chat, decision proposals)
+    were rejected — or None for an unknown id.
     Revoking twice is harmless.
     """
     token = get_token(token_id)
@@ -514,38 +533,58 @@ def revoke_token(token_id: str, *, revoked_by: str = "", channel: str = "api") -
         resource_id=token_id,
         metadata={"name": token.name, "withdrawn_approvals": withdrawn},
     )
-    logger.info("Agent token %s (%s) revoked; %d held write(s) withdrawn", token_id, token.name, withdrawn)
+    logger.info("Agent token %s (%s) revoked; %d pending item(s) withdrawn", token_id, token.name, withdrawn)
     return get_token(token_id) or token, withdrawn
 
 
 def _withdraw_pending_writes(principal_id: str, revoked_by: str) -> int:
-    """Reject the agent's pending held MCP writes (they have no paused skill or mission behind them)."""
-    from realize_core.governance.gates import MCP_WRITE_ACTION_TYPE
+    """Reject everything the agent has waiting for a person, and stop the skills paused on it.
 
+    Every pending item whose ``requested_by`` is the agent: its held MCP
+    writes, writes the governance gate held from its chat or its runs, its
+    ``log_decision`` proposals and its questions. A skill paused on one of
+    them is stopped, so nothing it would do next runs.
+    """
     now = _now().strftime("%Y-%m-%dT%H:%M:%S.%fZ")  # approval_queue's timestamp format
     conn = _conn()
     try:
-        cur = conn.execute(
-            """UPDATE approval_queue
-               SET status = 'rejected', decision_note = ?, decided_at = ?, updated_at = ?,
-                   decided_by = ?, decision_channel = 'agent_token_revoked'
-               WHERE requested_by = ? AND action_type = ? AND status = 'pending'""",
-            (
-                "Withdrawn: the agent's token was revoked",
-                now,
-                now,
-                revoked_by or "system",
-                principal_id,
-                MCP_WRITE_ACTION_TYPE,
-            ),
-        )
+        ids = [
+            row["id"]
+            for row in conn.execute(
+                "SELECT id FROM approval_queue WHERE requested_by = ? AND status = 'pending'", (principal_id,)
+            ).fetchall()
+        ]
+        withdrawn = 0
+        if ids:
+            cur = conn.execute(
+                f"""UPDATE approval_queue
+                   SET status = 'rejected', decision_note = ?, decided_at = ?, updated_at = ?,
+                       decided_by = ?, decision_channel = 'agent_token_revoked'
+                   WHERE requested_by = ? AND status = 'pending' AND id IN ({",".join("?" for _ in ids)})""",
+                ("Withdrawn: the agent's token was revoked", now, now, revoked_by or "system", principal_id, *ids),
+            )
+            withdrawn = cur.rowcount
         conn.commit()
-        return cur.rowcount
     except sqlite3.OperationalError as exc:  # no approval_queue table yet
         logger.warning("Could not withdraw held writes for %s: %s", principal_id, exc)
         return 0
     finally:
         conn.close()
+    for approval_id in ids:
+        _stop_paused_skill(approval_id)
+    return withdrawn
+
+
+def _stop_paused_skill(approval_id: str) -> None:
+    """Drop the skill run paused on a withdrawn item (best effort: it can't resume anyway)."""
+    try:
+        from realize_core.skills.executor import claim_skill_run, skill_run_for_approval
+
+        pending = skill_run_for_approval(approval_id)
+        if pending:
+            claim_skill_run(pending["id"])
+    except (sqlite3.Error, OSError, ValueError, KeyError) as exc:
+        logger.warning("Could not stop the skill paused on withdrawn item %s: %s", approval_id, exc)
 
 
 # ---------------------------------------------------------------------------

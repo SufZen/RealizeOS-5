@@ -41,7 +41,7 @@ realize-os
 │
 ├── workflow
 │   ├── list                                     List workflows
-│   └── run NAME [--input JSON]                  Run a workflow
+│   └── run NAME --venture KEY --message TEXT    Run a venture's workflow
 │
 ├── skill
 │   ├── list                                     List skills

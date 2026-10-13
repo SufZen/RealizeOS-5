@@ -356,15 +356,19 @@ List all workflows.
 
 ### POST /api/workflows
 
-Create a new workflow.
+Create a new workflow in `system_key`'s venture (or a global one when empty). `409` when that venture already has one with the name, or a shared or global one does; another venture's workflow with the same name doesn't conflict.
 
-### GET /api/workflows/{id}
+### GET /api/workflows/{name}
 
-Get workflow details and execution status.
+Get a workflow's definition. Two ventures can each have a workflow with the same name (every venture has its own copy of a pack skill, with its own sheet ids): `?system_key=<venture>` returns that venture's, else a shared or global one, never another venture's. Without it: the first venture you may see that has it, else a shared or global one.
 
-### POST /api/workflows/{id}/execute
+### PUT /api/workflows/{name} · DELETE /api/workflows/{name}
 
-Execute a workflow.
+Change or delete a workflow. `?system_key=<venture>` says whose; without it only a shared or global workflow is changed, and a venture's workflow returns `409`. A caller limited to some ventures can't use these (`403`).
+
+### POST /api/workflows/{name}/run
+
+Run a venture's workflow with an input message, as the MCP `run_workflow` tool does. Body: `{"system_key": "<venture>", "input_text": "..."}` (both required; unknown fields are refused). The venture's own copy runs, else a shared or global one, never another venture's. Needs `agents:execute`; a caller limited to some ventures must name one of them. Tool steps go through the governance gate like any run, so writes may wait for an approval. Outside agents can't use this over REST: they run workflows over MCP, where a person approves first. Returns `{"name", "system_key", "user_id", "output"}`; `404` for an unknown workflow, `403` for a venture you can't use, `422` for a missing field.
 
 ---
 

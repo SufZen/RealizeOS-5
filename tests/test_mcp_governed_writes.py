@@ -14,7 +14,11 @@ from types import SimpleNamespace
 
 import pytest
 from fastapi.testclient import TestClient
+from realize_core.skills import executor as _executor
 from realize_core.tools.base_tool import BaseTool, ToolCategory, ToolResult, ToolSchema
+
+#: The real skill runner (the ``world`` fixture replaces it with a recorder).
+_REAL_EXECUTE_SKILL = _executor.execute_skill
 
 API_KEY = "test-api-key-1234567890abcdef"
 MCP_HEADERS = {"Accept": "application/json, text/event-stream", "Content-Type": "application/json"}
@@ -270,6 +274,28 @@ async def test_approved_write_runs_once_as_the_agent(world):
     assert "payload" not in item
 
 
+async def test_approved_write_runs_its_ventures_own_copy_of_a_shared_name(world, monkeypatch):
+    """Two ventures each have 'site-report' with their own sheet: globex's agent gets globex's (G-1)."""
+    from realize_core.governance.gates import decide_approval
+    from realize_core.skills import detector
+
+    monkeypatch.setattr(
+        detector,
+        "_loaded_skills",
+        {
+            "acme": [{"name": "site-report", "variables": {"sheet": "acme-sheet"}}],
+            "globex": [{"name": "site-report", "variables": {"sheet": "globex-sheet"}}],
+        },
+    )
+    agent = _agent(user="owner@realization.co.il", ventures=("globex",))
+    held = await _call(world, agent, "run_workflow", {**RUN, "name": "site-report", "system_key": "globex"})
+    assert held["status"] == "pending_approval"
+    result = await decide_approval(held["approval_id"], approve=True, decided_by="owner@realization.co.il")
+    assert result["execution"]["success"] is True
+    assert world.runs[0]["system_key"] == "globex"
+    assert world.runs[0]["skill"]["variables"]["sheet"] == "globex-sheet"
+
+
 async def test_rejected_write_never_runs(world):
     from realize_core.governance.gates import decide_approval
 
@@ -316,6 +342,37 @@ async def test_an_agent_cannot_flood_the_queue(world, monkeypatch):
     assert (await _call(world, agent, "run_workflow", RUN))["code"] == "MCP_TOO_MANY_PENDING"
     # Another agent has its own allowance.
     assert (await _call(world, _agent(), "run_workflow", RUN))["status"] == "pending_approval"
+
+
+async def test_every_kind_of_agent_request_counts_toward_one_cap(world, ledger, monkeypatch):
+    """Decision proposals and writes held from chat are capped too, not only held MCP writes (S6)."""
+    from realize_core.governance import gates
+    from realize_core.governance.context import tool_call_context
+    from realize_core.security.agent_access import acting_for_outside_agent
+
+    monkeypatch.setattr(gates, "MAX_PENDING_PER_AGENT", 2)
+    registry, tool = ledger
+    agent = _agent()
+    await _proposal(world, agent)
+    await _chat_held_write(registry, agent)
+
+    refused = await _call(world, agent, "log_decision", {"venture_key": "acme", "title": "t", "statement": "s"})
+    assert refused["code"] == "MCP_TOO_MANY_PENDING"
+    assert "2 of your requests are already waiting" in refused["error"]
+    with (
+        acting_for_outside_agent(agent.user_id),
+        tool_call_context(system_key="acme", user_id=agent.user_id, channel="mcp"),
+    ):
+        blocked = await registry.execute("ledger_append", {"row": "one more"})
+    assert blocked.success is False
+    assert "waiting for approval" in blocked.error
+    assert (await _call(world, agent, "run_workflow", RUN))["code"] == "MCP_TOO_MANY_PENDING"
+    assert tool.calls == []
+    assert gates.pending_count_for(agent.user_id) == 2
+    # Another agent has its own allowance; people are not capped.
+    assert (await _proposal(world, _agent())) is not None
+    for _ in range(3):
+        gates.create_approval_request("acme", "writer", "sheets_append", {"row": "x"}, requested_by="dana@acme.io")
 
 
 async def test_deny_by_default_for_new_or_misspelt_tools(world):
@@ -390,6 +447,24 @@ async def test_runs_with_the_agents_narrowed_scope_not_the_approvers(world):
     assert world.runs == []
 
 
+async def test_turning_agent_tokens_off_stops_approved_writes(world):
+    """features.agent_tokens off stops every token at once, also a write approved later (S4)."""
+    from realize_core.governance.gates import decide_approval
+    from realize_core.security.agent_tokens import live_agent
+
+    agent = _agent()
+    held = await _call(world, agent, "run_workflow", RUN)
+    world.state.config = {"features": {"agent_tokens": False}}  # Settings: agent tokens off
+    assert live_agent(agent.user_id) is None
+    result = await decide_approval(held["approval_id"], approve=True, decided_by="owner@realization.co.il")
+    assert result["execution"]["success"] is False
+    assert "turned off" in result["execution"]["error"]
+    assert world.runs == []
+
+    world.state.config = {"features": {"agent_tokens": True}}
+    assert live_agent(agent.user_id) is not None
+
+
 async def test_list_approvals_never_leaks_other_ventures(world):
     """Even naming the venture through another argument (bypassing the input schema) shows only allowed items."""
     from realize_core.governance.gates import create_approval_request
@@ -458,6 +533,84 @@ async def test_revoking_the_token_withdraws_and_blocks_its_writes(world):
     assert execution["success"] is False
     assert "revoked" in execution["error"]
     assert world.runs == []
+
+
+async def _chat_held_write(registry, agent) -> str:
+    """A write the governance gate holds from the agent's chat (as the tool loop would call it)."""
+    from realize_core.governance.context import tool_call_context
+    from realize_core.security.agent_access import acting_for_outside_agent
+
+    with (
+        acting_for_outside_agent(agent.user_id),
+        tool_call_context(system_key="acme", user_id=agent.user_id, channel="mcp"),
+    ):
+        result = await registry.execute("ledger_append", {"row": "from chat"})
+    return result.metadata["request_id"]
+
+
+async def _proposal(world, agent) -> str:
+    args = {"venture_key": "acme", "title": "Switch supplier", "statement": "Agreed on site."}
+    return (await _call(world, agent, "log_decision", args))["approval_id"]
+
+
+def _expire_token(agent) -> None:
+    from realize_core.db.schema import get_connection
+    from realize_core.security.agent_tokens import token_id_of
+
+    conn = get_connection()
+    try:
+        conn.execute(
+            "UPDATE agent_tokens SET expires_at = '2000-01-01T00:00:00+00:00' WHERE id = ?",
+            (token_id_of(agent.user_id),),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+async def test_revoking_withdraws_everything_the_agent_has_waiting(world, ledger):
+    """Writes held from its chat and its decision proposals too, not only held MCP writes (S3)."""
+    from realize_core.governance import gates
+    from realize_core.security.agent_tokens import revoke_token, token_id_of
+
+    registry, tool = ledger
+    agent = _agent()
+    items = [await _chat_held_write(registry, agent), await _proposal(world, agent)]
+    items.append((await _call(world, agent, "run_workflow", RUN))["approval_id"])
+    assert {_row(i)["requested_by"] for i in items} == {agent.user_id}
+
+    _token, withdrawn = revoke_token(token_id_of(agent.user_id), revoked_by="owner@realization.co.il")
+    assert withdrawn == 3
+    for item in items:
+        assert _row(item)["status"] == "rejected"
+        assert await gates.decide_approval(item, approve=True, decided_by="owner@realization.co.il") is None
+    assert tool.calls == []
+    assert world.runs == []
+
+
+async def test_an_expired_agents_items_never_run_when_approved(world, ledger):
+    """A token that expired (not revoked) leaves items pending; approving one runs nothing (S3)."""
+    from realize_core.governance.gates import decide_approval
+
+    registry, tool = ledger
+    (world.path / "systems" / "acme").mkdir(parents=True)  # the decision log has a folder
+    agent = _agent()
+    chat_held, proposal = await _chat_held_write(registry, agent), await _proposal(world, agent)
+    _expire_token(agent)
+
+    write = await decide_approval(chat_held, approve=True, decided_by="owner@realization.co.il")
+    assert write["execution"]["success"] is False
+    assert "expired" in write["execution"]["error"]
+    assert _row(chat_held)["execution_status"] == "failed"
+    assert tool.calls == []
+
+    recorded = await decide_approval(proposal, approve=True, decided_by="owner@realization.co.il")
+    assert recorded["execution"]["success"] is False
+    assert recorded["decision_log"]["logged"] is False
+    from realize_core.governance.decision_log import list_decisions
+
+    # The person's decision on the write is logged; the gone agent's proposal is not recorded.
+    assert proposal not in {d["approval_id"] for d in list_decisions(world.path / "systems" / "acme")}
 
 
 async def test_held_write_is_audited(world, monkeypatch):
@@ -553,6 +706,196 @@ async def test_agent_chat_holds_writes_the_trust_ladder_would_run(world, ledger,
     await _call(world, _person(), "realize_chat", {"message": "Add the row", "system_key": "acme"})
     assert chat_calls_a_write[-1]["agent"] is False
     assert tool.calls == [{"action": "ledger_append", "row": "x"}]
+
+
+LEDGER_SKILL = {
+    "name": "ledger-run",
+    "_version": 2,
+    "steps": [
+        {"id": "record", "type": "tool", "tool": "ledger_append", "params": {"row": "{user_message}"}},
+        {"id": "check", "type": "tool", "tool": "ledger_read", "params": {}},
+        {"id": "total", "type": "tool", "tool": "ledger_append", "params": {"row": "total"}},
+    ],
+}
+
+
+def _pending_ledger_writes() -> list[dict]:
+    from realize_core.db.schema import get_connection
+
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            "SELECT * FROM approval_queue WHERE action_name = 'ledger_append' AND status = 'pending' "
+            "ORDER BY created_at"
+        ).fetchall()
+    finally:
+        conn.close()
+    return [dict(r) for r in rows]
+
+
+async def test_an_approved_agent_run_still_holds_each_write(world, ledger, monkeypatch):
+    """Approving an agent's held run starts it; the write it makes waits for a person again (G-3)."""
+    from realize_core.governance.gates import decide_approval
+    from realize_core.skills import detector
+
+    registry, tool = ledger  # trust level 5: a person's run would write at once
+    monkeypatch.setattr(_executor, "execute_skill", _REAL_EXECUTE_SKILL)
+    monkeypatch.setattr(detector, "_loaded_skills", {"acme": [dict(LEDGER_SKILL)]})
+    agent = _agent()
+    held = await _call(world, agent, "trigger_skill", {**RUN, "name": "ledger-run", "input_text": "row 7"})
+
+    started = await decide_approval(held["approval_id"], approve=True, decided_by="owner@realization.co.il")
+    assert started["execution"]["success"] is True
+    assert tool.calls == []  # the write was held, not run
+    [write] = _pending_ledger_writes()
+    assert write["requested_by"] == agent.user_id
+    assert write["venture_key"] == "acme"
+
+    # Approving the write runs it and the skill continues, still as the agent's run:
+    # the read runs, the next write is held again.
+    resumed = await decide_approval(write["id"], approve=True, decided_by="owner@realization.co.il")
+    assert resumed["execution"]["success"] is True
+    assert tool.calls == [{"action": "ledger_append", "row": "row 7"}, {"action": "ledger_read"}]
+    [total] = _pending_ledger_writes()
+    assert json.loads(total["params_json"]) == {"row": "total"}
+    assert total["requested_by"] == agent.user_id
+
+    done = await decide_approval(total["id"], approve=True, decided_by="owner@realization.co.il")
+    assert done["execution"]["success"] is True
+    assert tool.calls[-1] == {"action": "ledger_append", "row": "total"}
+    assert done["skill_output"] is not None  # the skill ran to its end
+    assert _pending_ledger_writes() == []
+
+
+def _run_skill_for(monkeypatch, steps: list[dict]) -> None:
+    """acme's 'agent-run' skill with these steps, run by the real skill runner."""
+    from realize_core.skills import detector
+
+    monkeypatch.setattr(_executor, "execute_skill", _REAL_EXECUTE_SKILL)
+    monkeypatch.setattr(detector, "_loaded_skills", {"acme": [{"name": "agent-run", "_version": 2, "steps": steps}]})
+
+
+async def _start_agent_run(world, agent) -> dict:
+    """The agent asks for the run and a person approves it."""
+    from realize_core.governance.gates import decide_approval
+
+    held = await _call(world, agent, "trigger_skill", {**RUN, "name": "agent-run", "input_text": "go"})
+    return await decide_approval(held["approval_id"], approve=True, decided_by="owner@realization.co.il")
+
+
+async def test_a_paused_agent_run_is_not_resumed_once_the_agent_is_gone(world, ledger, monkeypatch):
+    """A person answers the question of a run whose agent's token expired meanwhile: nothing more runs."""
+    from realize_core.db.schema import get_connection
+    from realize_core.governance.gates import decide_approval
+
+    registry, tool = ledger
+    _run_skill_for(
+        monkeypatch,
+        [
+            {"id": "ask", "type": "human", "question": "Which supplier?"},
+            {"id": "read", "type": "tool", "tool": "ledger_read", "params": {}},
+        ],
+    )
+    agent = _agent()
+    started = await _start_agent_run(world, agent)
+    assert started["execution"]["output"] == "Which supplier?"
+    conn = get_connection()
+    try:
+        question = conn.execute("SELECT id FROM approval_queue WHERE action_type = 'skill_input'").fetchone()["id"]
+    finally:
+        conn.close()
+
+    _expire_token(agent)
+    answered = await decide_approval(question, approve=True, decision_note="B", decided_by="owner@realization.co.il")
+    assert "stopped" in answered["skill_output"]
+    assert "expired" in answered["skill_output"]
+    assert tool.calls == []
+
+
+async def test_an_agent_run_stops_before_its_next_step_once_the_agent_is_gone(world, ledger, monkeypatch):
+    registry, tool = ledger
+    real_execute = tool.execute
+
+    async def read_then_tokens_off(action, params):
+        out = await real_execute(action, params)
+        world.state.config = {"features": {"agent_tokens": False}}  # an owner turns agent tokens off
+        return out
+
+    monkeypatch.setattr(tool, "execute", read_then_tokens_off)
+    _run_skill_for(
+        monkeypatch,
+        [
+            {"id": "first", "type": "tool", "tool": "ledger_read", "params": {}},
+            {"id": "second", "type": "tool", "tool": "ledger_read", "params": {}},
+        ],
+    )
+    started = await _start_agent_run(world, _agent())
+    assert tool.calls == [{"action": "ledger_read"}]
+    assert "stopped before step 'second'" in started["execution"]["output"]
+
+
+async def test_a_resumed_agent_run_is_marked_from_what_was_stored(world, ledger, monkeypatch):
+    """A person's approval resumes the run; its steps still run as the agent's, whoever resumed it."""
+    from realize_core.governance.gates import decide_approval
+    from realize_core.security.agent_access import outside_agent_active
+
+    registry, tool = ledger
+    marked: list[bool] = []
+    real_execute = tool.execute
+
+    async def record_marker(action, params):
+        marked.append(outside_agent_active())
+        return await real_execute(action, params)
+
+    monkeypatch.setattr(tool, "execute", record_marker)
+    _run_skill_for(
+        monkeypatch,
+        [
+            {"id": "write", "type": "tool", "tool": "ledger_append", "params": {"row": "x"}},
+            {"id": "read", "type": "tool", "tool": "ledger_read", "params": {}},
+        ],
+    )
+    await _start_agent_run(world, _agent())
+    [write] = _pending_ledger_writes()
+    assert not outside_agent_active()  # the person's context
+    await decide_approval(write["id"], approve=True, decided_by="owner@realization.co.il")
+    # The approved write itself runs as approved; the resumed read runs marked as the agent's.
+    assert marked == [False, True]
+
+
+def test_the_agent_marker_is_reset_after_an_error():
+    from realize_core.security.agent_access import acting_for_outside_agent, outside_agent_active
+
+    seen: list[bool] = []
+
+    def failing_agent_work() -> None:
+        with acting_for_outside_agent("agent:0123456789ab"):
+            seen.append(outside_agent_active())
+            raise RuntimeError("the tool failed")
+
+    with pytest.raises(RuntimeError):
+        failing_agent_work()
+    assert seen == [True]
+    assert not outside_agent_active()
+
+
+async def test_a_failed_agent_call_leaves_no_marker_for_the_next_person(world, monkeypatch):
+    from realize_core import base_handler
+    from realize_core.security.agent_access import outside_agent_active
+
+    seen: list[bool] = []
+
+    async def process(**kwargs):
+        seen.append(outside_agent_active())
+        if outside_agent_active():
+            raise RuntimeError("model unavailable")
+        return "ok"
+
+    monkeypatch.setattr(base_handler, "process_message", process)
+    failed = await _call(world, _agent(), "realize_chat", {"message": "hi", "system_key": "acme"})
+    assert "error" in failed
+    await _call(world, _person(), "realize_chat", {"message": "hi", "system_key": "acme"})
+    assert seen == [True, False]
 
 
 async def test_without_a_gate_an_agents_write_never_runs(world, monkeypatch):
@@ -656,6 +999,24 @@ async def test_stdio_session_is_governed_as_an_agent(world):
     status = await _call(world, session, "list_approvals", {"venture_key": "acme", "approval_id": held["approval_id"]})
     assert status["approvals"][0]["outcome"] == "succeeded"
     assert status["approvals"][0]["result"] == "Report ready"
+
+
+async def test_a_stdio_sessions_requests_are_the_agents_not_the_persons(world, ledger, chat_calls_a_write):
+    """Its decision proposals and the writes held from its chat name agent:stdio:<email> (S5)."""
+    from realize_core.mcp_server.stdio import resolve_stdio_user
+    from realize_core.security.agent_tokens import describe_requesters
+
+    session = resolve_stdio_user("dana@acme.io")
+    proposal = await _proposal(world, session)
+    assert _row(proposal)["requested_by"] == "agent:stdio:dana@acme.io"
+
+    await _call(world, session, "realize_chat", {"message": "Add the row", "system_key": "acme"})
+    held = chat_calls_a_write[-1]["result"].metadata["request_id"]
+    assert _row(held)["requested_by"] == "agent:stdio:dana@acme.io"
+    # So the person deciding sees the "Outside agent" badge.
+    assert describe_requesters([_row(held)["requested_by"]]) == {
+        "agent:stdio:dana@acme.io": {"token_id": None, "name": "stdio"}
+    }
 
 
 async def test_stdio_owner_session_cannot_act_for_others_or_reach_admin(world, monkeypatch):

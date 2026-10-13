@@ -76,6 +76,10 @@ def _isolated_skill_cascade(monkeypatch):
 
     monkeypatch.setattr(detector, "_pack_cascade", False)
     monkeypatch.setattr(detector, "_venture_dirs", None)
+    # Workflows created or changed through the API are kept across reloads until restart.
+    monkeypatch.setattr(detector, "_runtime_skills", {})
+    monkeypatch.setattr(detector, "_runtime_edits", {})
+    monkeypatch.setattr(detector, "_runtime_removed", set())
 
 
 @pytest.fixture(autouse=True)

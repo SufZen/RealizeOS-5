@@ -177,13 +177,16 @@ def load_venture_pack_skills(
     *,
     packs_root: Path | None = None,
     ventures: dict[str, Path] | None = None,
+    reserved: frozenset[str] = frozenset(),
 ) -> int:
     """Add every venture's pack skills to ``loaded`` (the detector's skills by venture).
 
     Ventures come from ``ventures`` (configured key to folder) when given,
     otherwise the folders under ``<kb>/systems/`` keyed by folder name, like
     their own skills. A venture whose packs can't be read is skipped with a
-    warning; the others still load.
+    warning; the others still load. Ventures keyed with a ``reserved`` owner
+    (the detector's shared and global owners) are skipped: their copies would
+    be handed to every venture.
 
     Returns:
         How many pack skills were added.
@@ -195,6 +198,7 @@ def load_venture_pack_skills(
         if not systems.is_dir():
             return 0
         pairs = [(p.name, p) for p in sorted(systems.iterdir()) if p.is_dir()]
+    pairs = [(key, folder) for key, folder in pairs if key not in reserved]
     shared = {s.get("name") for s in loaded.get("shared", []) if s.get("name")}
     added = 0
     for key, venture_dir in pairs:

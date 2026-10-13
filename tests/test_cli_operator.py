@@ -133,21 +133,24 @@ class TestWorkflowCommands:
     @mock.patch("realize_core.cli_app.commands.workflow.api_post")
     def test_workflow_run(self, mock_post: mock.MagicMock) -> None:
         mock_post.return_value = {"status": "completed", "output": "done"}
-        result = runner.invoke(app, ["--format", "json", "workflow", "run", "onboard"])
+        result = runner.invoke(
+            app, ["--format", "json", "workflow", "run", "onboard", "--venture", "acme", "--message", "start"]
+        )
         assert result.exit_code == 0
         assert "completed" in result.output
+        assert mock_post.call_args[0][0] == "/api/workflows/onboard/run"
 
     @mock.patch("realize_core.cli_app.commands.workflow.api_post")
     def test_workflow_run_with_input(self, mock_post: mock.MagicMock) -> None:
         mock_post.return_value = {"status": "ok"}
-        result = runner.invoke(app, ["workflow", "run", "test", "--input", '{"key": "val"}'])
+        result = runner.invoke(app, ["workflow", "run", "test", "-v", "acme", "--input", '{"input_text": "go"}'])
         assert result.exit_code == 0
         call_body = mock_post.call_args[1]["json_body"]
-        assert call_body["input"] == {"key": "val"}
+        assert call_body == {"system_key": "acme", "input_text": "go"}
 
     @mock.patch("realize_core.cli_app.commands.workflow.api_post")
     def test_workflow_run_invalid_json(self, mock_post: mock.MagicMock) -> None:
-        result = runner.invoke(app, ["workflow", "run", "test", "--input", "not-json"])
+        result = runner.invoke(app, ["workflow", "run", "test", "-v", "acme", "--input", "not-json"])
         assert result.exit_code == 1
 
 

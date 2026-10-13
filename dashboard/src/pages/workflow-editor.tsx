@@ -149,7 +149,10 @@ export default function WorkflowEditorPage() {
     setView('code')
     setLoadError(null)
     try {
-      const detail = await api.get<WorkflowDetail>(`/workflows/${encodeURIComponent(file.name)}`)
+      const venture = file.system_key ? `?system_key=${encodeURIComponent(file.system_key)}` : ''
+      const detail = await api.get<WorkflowDetail>(
+        `/workflows/${encodeURIComponent(file.name)}${venture}`,
+      )
       setFormat('yaml')
       setContent(workflowToYaml(detail))
     } catch (err) {

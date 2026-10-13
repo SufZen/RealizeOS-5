@@ -137,15 +137,17 @@ def _approval_venture(approval_id: str) -> str | None:
     return row["venture_key"] if row else None
 
 
-def _skill_venture(skill_name: str) -> str | None:
-    """The venture that owns a skill ('' for global skills, None if unknown).
+def _skill_venture(skill_name: str, venture: str | None) -> str | None:
+    """The venture that owns the skill a run for ``venture`` would use ('' for shared or global, None if none).
 
-    Uses the owner the skill was loaded under: skills from a venture's YAML
-    don't carry ``system_key`` in their dict.
+    The skill is looked up for the venture the call names: its own copy, else
+    a shared or global one, never another venture's (two ventures can each
+    have a skill with the same name). Uses the owner the skill was loaded
+    under: skills from a venture's YAML don't carry ``system_key`` in their dict.
     """
     from realize_core.skills.detector import GLOBAL_SKILL_OWNERS, find_skill
 
-    found = find_skill(skill_name)
+    found = find_skill(skill_name, venture or None)
     if found is None:
         return None
     owner = found[0]
@@ -179,8 +181,12 @@ def check_call(name: str, arguments: dict[str, Any], allowed: frozenset[str] | N
         if not named:
             return f"Tool '{name}' needs one of your ventures as an argument"
         if name in SKILL_TOOLS:
-            # The skill runs by name: it must be global or belong to an allowed venture.
-            skill_venture = _skill_venture(str(arguments.get("name", "")).strip())
+            # The skill runs by name for the venture the call names (system_key): that
+            # venture must have it, or it must be shared or global.
+            run_for = arguments.get("system_key")
+            skill_venture = _skill_venture(
+                str(arguments.get("name", "")).strip(), run_for if isinstance(run_for, str) else None
+            )
             if skill_venture is None or (skill_venture and skill_venture not in allowed):
                 return "Workflow not found"
         return None
