@@ -24,4 +24,6 @@ paths = [
 # by value so new test files using it don't need a path entry each time.
 regexes = [
     '''test-api-key-1234567890abcdef''',
+    # The dummy agent-token id the STORY-37 tests use (a public id, not a secret).
+    '''0123456789ab''',
 ]
