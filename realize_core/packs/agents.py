@@ -18,8 +18,10 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 from realize_core.packs.loader import LOAD_ERRORS, warn_once
+from realize_core.packs.models import Resolved
 from realize_core.packs.resolver import get_resolver
 
 logger = logging.getLogger(__name__)
@@ -31,10 +33,17 @@ class PackAgents:
 
     #: Agent key → definition path, in the form the prompt builder reads (see :func:`display_path`).
     agents: dict[str, str] = field(default_factory=dict)
-    #: Agent key → provenance label, e.g. ``profession developer@0.1.0``.
-    layers: dict[str, str] = field(default_factory=dict)
+    #: Agent key → where it came from: ``layer``, ``pack`` (``id@version``) and,
+    #: for a market pack, ``verification``. The trail shows these (spec 010 §3.2).
+    provenance: dict[str, dict[str, Any]] = field(default_factory=dict)
     #: The routing guide to use when the venture has none of its own.
     readme: str | None = None
+
+
+def provenance(resolved: Resolved) -> dict[str, Any]:
+    """``layer``, ``pack`` and ``verification`` of a resolved pack item, leaving out what it hasn't."""
+    out: dict[str, Any] = {"layer": resolved.layer, "pack": resolved.pack_id, "verification": resolved.verification}
+    return {k: v for k, v in out.items() if v is not None}
 
 
 def display_path(path: Path, kb_path: Path) -> str:
@@ -76,7 +85,7 @@ def pack_agents(venture_dir: Path, kb_path: Path, own: dict[str, str], *, packs_
             logger.debug("Venture %s has its own agent '%s'; the pack's is not used", Path(venture_dir).name, key)
             continue
         out.agents[key] = display_path(resolved.value, kb_path)
-        out.layers[key] = resolved.label()
+        out.provenance[key] = provenance(resolved)
     if not (Path(venture_dir) / "A-agents" / "_README.md").is_file():
         for _layer, pack in resolver.layers:
             if pack.agents_readme is not None:

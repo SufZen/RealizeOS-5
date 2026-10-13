@@ -258,6 +258,13 @@ async def execute_skill(
 
     logger.info(f"Executing skill: {skill_name} (v{version}, format={skill_format}) for system={system_key}")
 
+    if skill.get("_layer"):
+        # A skill from a profession or market pack: the trail says where it came from.
+        from realize_core.agents.tool_loop import emit_event
+        from realize_core.packs.skills import skill_trail_source
+
+        await emit_event(emit, skill_trail_source(skill))
+
     # V5: SKILL.md format — use markdown instructions
     if skill_format == "skill_md":
         return await _execute_skill_md(

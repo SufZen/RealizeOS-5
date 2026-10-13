@@ -222,7 +222,8 @@ def test_seed_creates_the_hebrew_demo_venture(project):
     if _packs_on(project):
         # Linked, not copied: the team comes from the developer pack.
         assert agents == set()
-        assert set(_systems(project)[DEMO]["agent_layers"].values()) == {"profession developer@0.1.0"}
+        provenance = _systems(project)[DEMO]["agent_provenance"].values()
+        assert {(p["layer"], p["pack"]) for p in provenance} == {("profession", "developer@0.1.0")}
     else:
         assert {"orchestrator", "tenders", "procurement", "site-payments", "finance-investors", "reviewer"} <= agents
     assert team <= set(_systems(project)[DEMO]["agents"])

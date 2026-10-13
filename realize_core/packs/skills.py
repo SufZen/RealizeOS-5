@@ -49,6 +49,8 @@ def _read_skill(path: Path) -> dict[str, Any] | None:
     if not isinstance(data, dict):
         warn_once("Pack skill %s skipped: a skill must be a mapping", path)
         return None
+    # Keys starting with "_" are the loader's own markers (format, provenance); a pack can't set them.
+    data = {k: v for k, v in data.items() if not str(k).startswith("_")}
     for key in _TEXT_LISTS:
         value = data.get(key)
         if value is None:
@@ -115,7 +117,7 @@ def pack_skills(venture_dir: Path, *, taken: set[str], packs_root: Path | None =
         Fresh skill dicts in the shape the detector loads from YAML, each
         marked with where it came from: ``_layer`` (``firm``, ``market`` or
         ``profession``), ``_pack`` (``id@version``, None for the firm),
-        ``_skill_id`` and ``_source`` (the file).
+        ``_verification`` (market packs), ``_skill_id`` and ``_source`` (the file).
     """
     venture_dir = Path(venture_dir)
     resolver = get_resolver(venture_dir, enabled=True, packs_root=packs_root)
@@ -138,9 +140,34 @@ def pack_skills(venture_dir: Path, *, taken: set[str], packs_root: Path | None =
         data["_skill_id"] = skill_id
         data["_layer"] = resolved.layer
         data["_pack"] = resolved.pack_id
+        if resolved.verification is not None:
+            data["_verification"] = resolved.verification
         taken = taken | {skill_id, name}
         out.append(data)
     return out
+
+
+def skill_trail_source(skill: dict[str, Any]) -> dict[str, Any] | None:
+    """The trail ``source`` event for a skill that came from the pack cascade, else None.
+
+    A pack skill used in an answer is listed in its "What I used" trail with
+    the layer and pack it came from (spec 010 §3.2), like a rule card. The
+    path is the file name only: pack files live on the server.
+    """
+    if not skill.get("_layer"):
+        return None
+    event: dict[str, Any] = {
+        "type": "source",
+        "id": "W1",
+        "title": f"Workflow: {skill.get('name', '')}",
+        "path": Path(str(skill.get("_source") or "")).name,
+        "layer": skill["_layer"],
+    }
+    if skill.get("_pack"):
+        event["pack"] = skill["_pack"]
+    if skill.get("_verification") is not None:
+        event["verification"] = skill["_verification"]
+    return event
 
 
 def load_venture_pack_skills(

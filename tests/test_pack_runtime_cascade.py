@@ -346,7 +346,16 @@ async def test_a_pack_skill_runs_through_the_executor_gate_and_approval(kb, skil
     assert "Checks quotes line by line." in llm[0]["system_prompt"]
     assert "waiting for operator approval" in out
     assert ledger.calls == []
-    assert [e["type"] for e in events] == ["tool_call", "approval_requested", "tool_result"]
+    assert [e["type"] for e in events] == ["source", "tool_call", "approval_requested", "tool_result"]
+    # The trail says where the workflow came from, like a rule card (no server path).
+    assert events[0] == {
+        "type": "source",
+        "id": "W1",
+        "title": "Workflow: quote_check",
+        "path": "quote-check.yaml",
+        "layer": "profession",
+        "pack": "acme@0.1.0",
+    }
     [held] = _pending(ops_db)
     assert (held["action_name"], held["venture_key"]) == ("ledger_append", VENTURE)
     assert json.loads(held["params_json"])["sheet"] == "sheet-acme"  # the firm's id, not the market pack's
@@ -389,7 +398,7 @@ def test_pack_agents_join_the_venture_and_its_own_win(kb):
     assert set(system["agents"]) == {"estimator", "reviewer"}
     assert Path(system["agents"]["reviewer"]).parts[-3:] == (VENTURE, "A-agents", "reviewer.md")
     assert (kb / system["agents"]["estimator"]).read_text(encoding="utf-8").startswith("# Estimator")
-    assert system["agent_layers"] == {"estimator": "profession acme@0.1.0"}
+    assert system["agent_provenance"] == {"estimator": {"layer": "profession", "pack": "acme@0.1.0"}}
     assert (kb / system["agents_readme"]).read_text(encoding="utf-8") == "# Acme routing guide\n"
 
 
@@ -407,7 +416,7 @@ def test_flag_off_agents_are_exactly_the_ventures_own(kb):
     off = build_systems_dict(_config(packs=False), kb)
     assert off == build_systems_dict({**_config(packs=False), "features": {"packs": False}}, kb)
     assert {k: sorted(v["agents"]) for k, v in off.items()} == {VENTURE: ["reviewer"], "plain": ["writer"]}
-    assert all("agent_layers" not in v for v in off.values())
+    assert all("agent_provenance" not in v for v in off.values())
     assert off[VENTURE]["agents_readme"] == f"systems/{VENTURE}/A-agents/_README.md"
 
 
@@ -421,15 +430,31 @@ def test_routing_to_a_pack_agent_validates_with_packs_on(kb):
     assert unknown(packs=True) == []
 
 
-def test_a_pack_agent_prompt_uses_its_definition(kb):
+def test_a_pack_agent_prompt_uses_its_definition_and_shows_in_the_trail(kb):
+    from realize_core.agents.trail import trail_source
     from realize_core.config import build_systems_dict
     from realize_core.prompt import builder
 
     builder.clear_cache()
     system = build_systems_dict(_config(packs=True), kb)[VENTURE]
-    prompt = builder.build_system_prompt(kb, system, VENTURE, agent_key="estimator", features={"packs": True})
+    sources: list[dict] = []
+    prompt = builder.build_system_prompt(
+        kb, system, VENTURE, agent_key="estimator", features={"packs": True}, sources_out=sources
+    )
     assert "## Active Agent: estimator\n# Estimator" in prompt
     assert "# Acme routing guide" in prompt
+    agent = next(s for s in sources if s["id"] == "A1")
+    assert trail_source(agent) == {
+        "id": "A1",
+        "title": "Agent: estimator",
+        "path": "estimator.md",
+        "layer": "profession",
+        "pack": "acme@0.1.0",
+    }
+    # The venture's own agent adds no trail row.
+    own: list[dict] = []
+    builder.build_system_prompt(kb, system, VENTURE, agent_key="reviewer", features={"packs": True}, sources_out=own)
+    assert not any(s["id"] == "A1" for s in own)
 
 
 def test_pack_agents_get_no_extra_tools(kb, monkeypatch):

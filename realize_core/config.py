@@ -249,15 +249,15 @@ def build_systems_dict(config: dict, kb_path: Path | None = None) -> dict:
 def _add_pack_agents(system: dict, venture_dir: Path, kb_path: Path) -> None:
     """Add the agents of the venture's linked packs (``features.packs``, spec 010).
 
-    The venture's own ``A-agents/`` files win. ``agent_layers`` records where
-    each pack agent came from; the pack's routing guide is used when the
-    venture has none.
+    The venture's own ``A-agents/`` files win. ``agent_provenance`` records
+    where each pack agent came from (layer, pack, verification); the pack's
+    routing guide is used when the venture has none.
     """
     from realize_core.packs.agents import pack_agents
 
     added = pack_agents(venture_dir, kb_path, system["agents"])
     system["agents"] = {**system["agents"], **added.agents}
-    system["agent_layers"] = added.layers
+    system["agent_provenance"] = added.provenance
     if added.readme:
         system["agents_readme"] = added.readme
 
