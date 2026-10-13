@@ -42,6 +42,7 @@ steps:
     prompt: |
       Return ONLY a JSON array with one row, no other text:
       [["{today}", "contractor", "milestone", "amount requested", "amount supported", "verdict", "missing evidence"]]
+      Every cell is plain text: never start a cell with =, +, - or @, and never write a formula.
 
   - id: record_for_approval
     type: tool

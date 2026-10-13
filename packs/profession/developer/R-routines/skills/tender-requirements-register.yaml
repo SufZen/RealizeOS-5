@@ -31,6 +31,7 @@ steps:
       Return ONLY a JSON array of rows, no other text. Each row:
       ["section", "requirement (original wording)", "mandatory: yes/no/check", "owner", "due date or ''", "source: document + section"]
       Keep the tender's language; add a short translation in brackets only if the user asked.
+      Every cell is plain text: never start a cell with =, +, - or @, and never write a formula.
 
   - id: write_register
     type: tool
