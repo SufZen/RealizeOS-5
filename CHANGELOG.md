@@ -4,6 +4,12 @@ All notable changes to RealizeOS are documented in this file.
 This changelog is automatically generated from [Conventional Commits](https://conventionalcommits.org).
 
 
+## [5.16.0](https://github.com/SufZen/RealizeOS-5/compare/v5.15.6...v5.16.0) (2026-10-13)
+
+### Features
+
+* **dashboard:** design system v2 "Drawing Set" — tokens, motion, primitives, /design ([b7d86f5](https://github.com/SufZen/RealizeOS-5/commit/b7d86f5b18f9d607a83a9389f10aa01cc5cced91))
+
 ## [5.15.6](https://github.com/SufZen/RealizeOS-5/compare/v5.15.5...v5.15.6) (2026-10-12)
 
 ### Bug Fixes
