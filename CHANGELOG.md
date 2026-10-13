@@ -4,6 +4,12 @@ All notable changes to RealizeOS are documented in this file.
 This changelog is automatically generated from [Conventional Commits](https://conventionalcommits.org).
 
 
+## [5.29.1](https://github.com/SufZen/RealizeOS-5/compare/v5.29.0...v5.29.1) (2026-10-13)
+
+### Security
+
+* **sheets:** back to RAW appends; amounts travel as JSON numbers ([8087f14](https://github.com/SufZen/RealizeOS-5/commit/8087f14d28769f1c7c5517ed83b9745c5bd0938e)), closes [#53](https://github.com/SufZen/RealizeOS-5/issues/53)
+
 ## [5.29.0](https://github.com/SufZen/RealizeOS-5/compare/v5.28.5...v5.29.0) (2026-10-13)
 
 ### Features
