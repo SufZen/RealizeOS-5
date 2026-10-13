@@ -29,16 +29,24 @@ _IGNORED_DIRS = frozenset({"reviews"})
 
 
 def content_hash(pack_root: Path) -> str:
-    """SHA-256 over the pack's files (names and bytes), leaving out ``reviews/`` and hidden files."""
+    """SHA-256 over the pack's files (names and bytes), leaving out ``reviews/`` and hidden files.
+
+    A file that can't be read gives ``unreadable: ...`` instead, so one bad
+    file never stops an export; the comparison then reports the pack.
+    """
     digest = hashlib.sha256()
     root = Path(pack_root)
-    for path in sorted(root.rglob("*")):
-        rel = path.relative_to(root)
-        if not path.is_file() or rel.parts[0] in _IGNORED_DIRS or any(p.startswith(".") for p in rel.parts):
-            continue
-        digest.update(rel.as_posix().encode("utf-8") + b"\0")
-        digest.update(path.read_bytes())
-        digest.update(b"\0")
+    try:
+        for path in sorted(root.rglob("*")):
+            rel = path.relative_to(root)
+            if not path.is_file() or rel.parts[0] in _IGNORED_DIRS or any(p.startswith(".") for p in rel.parts):
+                continue
+            digest.update(rel.as_posix().encode("utf-8") + b"\0")
+            digest.update(path.read_bytes())
+            digest.update(b"\0")
+    except OSError as exc:
+        logger.warning("Pack at %s can't be hashed for the inventory: %s", root, exc)
+        return f"unreadable: {exc}"
     return digest.hexdigest()
 
 
