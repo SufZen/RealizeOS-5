@@ -376,7 +376,7 @@ Run a venture's workflow with an input message, as the MCP `run_workflow` tool d
 
 ### GET /api/approvals
 
-List approval requests, newest first, in the caller's ventures. Query: `status` (default `pending`; `decided` for approved, rejected and answered items; empty for every status), `venture_key` and `limit` (default 50, at most 500; outside that range is `422`). Decided items (`decided`, `approved`, `rejected`, `answered`) come most recently decided first (`decided_at`); the rest newest first. The dashboard's Decided tab asks for `?status=decided&limit=50`.
+List approval requests, newest first, in the caller's ventures. Query: `status` (default `pending`; `decided` for approved, rejected and answered items; empty for every status), `venture_key` and `limit` (at most 500; outside 1–500 is `422`). Without `limit`, pending items are all listed (each waits for a person) and other statuses return the 50 most recent. Decided items (`decided`, `approved`, `rejected`, `answered`) come most recently decided first (`decided_at`); the rest newest first. The dashboard's Decided tab asks for `?status=decided&limit=50`.
 
 Each row's `status` is its **effective** status, and every row carries `expired` (bool):
 

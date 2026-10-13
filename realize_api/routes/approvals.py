@@ -64,14 +64,16 @@ async def list_approvals(
     request: Request,
     venture_key: str = None,
     status: str = "pending",
-    limit: int = Query(DEFAULT_LIST_LIMIT, ge=1, le=MAX_LIST_LIMIT),
+    limit: int | None = Query(None, ge=1, le=MAX_LIST_LIMIT),
 ):
     """List approvals, defaulting to pending (only the caller's ventures).
 
     ``pending`` means still decidable; ``expired`` includes pending items whose
     time ran out; ``decided`` means approved, rejected or answered, most
-    recently decided first; an empty status lists everything. ``limit``
-    (default 50, at most 500) caps the list. Every row reports its effective
+    recently decided first; an empty status lists everything. ``limit`` (at
+    most 500) caps the list; without one, pending items are all listed (each
+    is waiting for a person, and hiding one could let it expire unseen) and
+    other statuses return the 50 most recent. Every row reports its effective
     ``status`` and ``expired``. For people, every row also carries
     ``requested_by_agent``: ``{"token_id", "name"}`` when an outside agent
     asked for it, else None.
@@ -93,10 +95,13 @@ async def list_approvals(
             params.extend(keys)
 
         where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
-        rows = conn.execute(
-            f"SELECT * FROM approval_queue {where} ORDER BY {order} LIMIT ?",
-            [*params, limit],
-        ).fetchall()
+        if limit is None and status != "pending":
+            limit = DEFAULT_LIST_LIMIT
+        sql = f"SELECT * FROM approval_queue {where} ORDER BY {order}"
+        if limit is not None:
+            sql += " LIMIT ?"
+            params.append(limit)
+        rows = conn.execute(sql, params).fetchall()
     finally:
         conn.close()
     approvals = [with_effective_status(dict(r), now) for r in rows]

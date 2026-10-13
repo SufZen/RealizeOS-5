@@ -108,15 +108,21 @@ def _names_may_hold_colons() -> bool:
     return os.name != "nt"
 
 
-def _check_segment(name: str, part: str) -> None:
-    """Refuse a path segment that names a drive, or that Windows would rewrite or reserve."""
-    if _DRIVE.match(part):
-        raise RestoreError(f"{name!r} names a drive")
-    if part.endswith((" ", ".")):
-        # Windows drops a trailing space or dot, so ".. " would be written as "..".
-        raise RestoreError(f"{name!r} has a name ending in a space or a dot ({part!r})")
-    if part.split(".", 1)[0].rstrip(" ").casefold() in _WINDOWS_DEVICE_NAMES:
-        raise RestoreError(f"{name!r} uses a name Windows reserves for a device ({part!r})")
+def _windows_name_problem(path: PurePosixPath) -> str | None:
+    """Why Windows can't store ``path`` as written, or None.
+
+    Windows rewrites a name ending in a space or a dot (so ``.. `` would be
+    written as ``..``), reserves device names (``CON``, ``nul.txt``, ``COM1``)
+    and reads ``X:`` as a drive. These are ordinary names on Linux and macOS.
+    """
+    for part in path.parts:
+        if _DRIVE.match(part):
+            return f"names a drive ({part!r})"
+        if part.endswith((" ", ".")):
+            return f"ends in a space or a dot ({part!r})"
+        if part.split(".", 1)[0].rstrip(" ").casefold() in _WINDOWS_DEVICE_NAMES:
+            return f"is a Windows device name ({part!r})"
+    return None
 
 
 def check_member(info: zipfile.ZipInfo, target: Path | None = None) -> PurePosixPath | None:
@@ -124,13 +130,13 @@ def check_member(info: zipfile.ZipInfo, target: Path | None = None) -> PurePosix
 
     The name must already be in canonical form: relative, ``/``-separated,
     no ``.`` or ``..`` segments, no empty segments, no drive letter or UNC
-    prefix, no backslash or control character. No segment may name a drive
-    (``C:``), end in a space or a dot, or be a Windows device name (``CON``,
-    ``NUL``, ``COM1``, ``nul.txt``, ...), on any platform. A colon elsewhere
-    in a name is accepted here (:func:`restore_export` skips such files on
-    Windows). Only regular files and folders are accepted. With ``target``,
-    the resolved destination must also lie inside ``target`` (a check on real
-    paths, not on strings).
+    prefix, no backslash or control character. Names Windows can't store as
+    written (a colon, ``C:``, a trailing space or dot, a device name such as
+    ``CON`` or ``nul.txt``) are legal on Linux and macOS, so they are accepted
+    here; on Windows :func:`restore_export` leaves them out with a warning
+    and never writes them. Only regular files and folders are accepted. With
+    ``target``, the resolved destination must also lie inside ``target`` (a
+    check on real paths, not on strings).
 
     Raises:
         RestoreError: The entry is unsafe or isn't part of an export's layout.
@@ -146,8 +152,6 @@ def check_member(info: zipfile.ZipInfo, target: Path | None = None) -> PurePosix
     path = PurePosixPath(bare)
     if ".." in path.parts:
         raise RestoreError(f"{name!r} leaves the restore folder")
-    for part in path.parts:
-        _check_segment(name, part)
     kind = _file_type(info)
     if stat.S_ISLNK(kind):
         raise RestoreError(f"{name!r} is a link; an export never contains links")
@@ -193,24 +197,27 @@ def _checked_members(
 ) -> tuple[list[tuple[zipfile.ZipInfo, PurePosixPath | None]], list[str]]:
     """Every entry through :func:`check_member`, and the files this system must skip.
 
-    Where a file name can't hold a colon (Windows), an entry with one is
-    checked like any other, except that it isn't resolved under ``target``
-    (that would name an alternate data stream), and then left out with a
-    warning.
+    On Windows, an entry whose name Windows can't store as written (a
+    colon, which would name an alternate data stream; ``C:``; a trailing
+    space or dot; a device name) is checked like any other, except that it
+    isn't resolved under ``target``, and then left out with a warning. It is
+    never written, so ``.. `` can't become ``..``.
     """
     members: list[tuple[zipfile.ZipInfo, PurePosixPath | None]] = []
     skipped: list[str] = []
-    colons_ok = _names_may_hold_colons()
+    windows = not _names_may_hold_colons()
     for info in infos:
-        if colons_ok or ":" not in info.filename:
+        if not windows:
             members.append((info, check_member(info, target)))
             continue
         path = check_member(info)
-        if path is not None:
+        if path is not None and (":" in info.filename or _windows_name_problem(path)):
             skipped.append(str(path))
+            continue
+        members.append((info, check_member(info, target)))
     if skipped:
         logger.warning(
-            "Skipping %d file(s) whose names hold a colon, which this system can't store: %s",
+            "Skipping %d file(s) whose names this system can't store as written: %s",
             len(skipped),
             ", ".join(skipped),
         )

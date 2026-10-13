@@ -2,7 +2,6 @@
  * Login page — collects email + password, calls /api/auth/login, redirects
  * to the `next` query param (or /) on success.
  */
-
 import { useEffect, useState, type FormEvent } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { LogIn } from 'lucide-react'
@@ -16,6 +15,7 @@ import {
   pilotSentence,
   type LoginProblem,
 } from '@/lib/login-text'
+import { clearSignedOut } from '@/lib/sign-out-state'
 
 /** The browser's language, when there is a browser. */
 function browserLanguage(): string {
@@ -77,7 +77,10 @@ export default function LoginPage() {
 
   // If a session check completes and we're already authenticated, jump to next.
   useEffect(() => {
-    if (!loading && user) navigate(next, { replace: true })
+    if (!loading && user) {
+      clearSignedOut()
+      navigate(next, { replace: true })
+    }
   }, [loading, user, next, navigate])
 
   async function onSubmit(e: FormEvent) {

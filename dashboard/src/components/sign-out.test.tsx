@@ -11,6 +11,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { apiQueryKey } from '@/hooks/use-api'
 import { endSession } from '@/hooks/use-auth'
 import { principalKey } from '@/lib/query-client'
+import { clearSignedOut, loginRedirect, markSignedOut } from '@/lib/sign-out-state'
 import { shellText, signOutCommand } from '@/lib/shell-text'
 import { SignOutButton } from './sign-out-button'
 
@@ -89,5 +90,19 @@ describe('signOutCommand', () => {
     expect(run).toHaveBeenCalledOnce()
     const he = signOutCommand(shellText('he'), run)
     expect(he).toMatchObject({ label: 'התנתקות', group: 'חשבון' })
+  })
+})
+
+describe('loginRedirect', () => {
+  it('a session that ended by itself returns the same person to their page', () => {
+    clearSignedOut()
+    expect(loginRedirect('/approvals', '?tab=held')).toBe('/login?next=%2Fapprovals%3Ftab%3Dheld')
+  })
+
+  it('a deliberate sign-out sends the next person to plain /login', () => {
+    markSignedOut()
+    expect(loginRedirect('/approvals', '')).toBe('/login')
+    clearSignedOut() // the next sign-in clears it
+    expect(loginRedirect('/approvals', '')).toBe('/login?next=%2Fapprovals')
   })
 })
