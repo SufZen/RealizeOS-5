@@ -53,9 +53,18 @@ async def list_approvals(
             f"SELECT * FROM approval_queue {where} ORDER BY created_at DESC",
             params,
         ).fetchall()
-        return {"approvals": [dict(r) for r in rows]}
     finally:
         conn.close()
+    approvals = [dict(r) for r in rows]
+    from realize_core.security.agent_access import is_agent_subject
+
+    viewer = getattr(request.state, "user_id", None)
+    if is_agent_subject(request.state):
+        # An outside agent sees status, not other people's parameters or results (STORY-37).
+        from realize_core.mcp_server.held_writes import agent_view
+
+        approvals = [agent_view(row, viewer) for row in approvals]
+    return {"approvals": approvals}
 
 
 def _decider(request: Request) -> tuple[str | None, str]:

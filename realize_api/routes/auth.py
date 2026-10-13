@@ -257,6 +257,11 @@ async def create_token(body: TokenRequest):
     expected_key = os.environ.get("REALIZE_API_KEY", "")
     if expected_key and body.api_key != expected_key:
         raise HTTPException(status_code=401, detail="Invalid API key")
+    from realize_core.security.agent_access import is_agent
+
+    if is_agent(body.user_id):
+        # An outside agent's identity comes only from its agent token (STORY-37).
+        raise HTTPException(status_code=400, detail="Use an agent token for an outside agent")
 
     try:
         from realize_core.security.jwt_auth import create_token_pair

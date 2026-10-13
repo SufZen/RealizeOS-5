@@ -104,13 +104,14 @@ async def _dispatch(
         code = MCPErrorCode.ADMIN_DISABLED if tool.family == "admin" else MCPErrorCode.DISABLED
         return _error(code, f"Tool '{name}' is not enabled on this RealizeOS instance.")
 
-    from realize_core.mcp_server import agent_policy
+    from realize_core.security import agent_access
 
-    # Outside agents (agent tokens, STORY-37): people decide, and some tools
-    # are not theirs to call at all. Checked before any lookup by id.
-    agent = agent_policy.is_agent(user)
+    # Outside agents (agent tokens, STORY-37): the same rules as the REST guard.
+    # People decide, and a tool without a rule is refused. Checked before any
+    # lookup by id.
+    agent = agent_access.is_agent_subject(user)
     if agent:
-        refused = agent_policy.refusal(name)
+        refused = agent_access.tool_refusal(name)
         if refused:
             _audit_call(tool, user, status="forbidden", duration_ms=0, mcp_config=mcp_config)
             return _error(*refused)
@@ -139,11 +140,11 @@ async def _dispatch(
         return _error(MCPErrorCode.FORBIDDEN, refusal)
 
     try:
-        if agent and agent_policy.must_hold(name):
+        if agent and agent_access.must_hold(name):
             # A write by an outside agent: queued for a person, nothing runs now.
             from realize_core.mcp_server.held_writes import hold_write
 
-            result = hold_write(name, arguments, user)
+            result = hold_write(tool, arguments, user)
             held_id = result.get("approval_id")
             _audit_call(
                 tool,
@@ -158,7 +159,9 @@ async def _dispatch(
             return [mcp_types.TextContent(type="text", text=_to_text(result))]
         result = venture_guard.filter_result(name, await tool.handler(arguments, app_state, user), allowed)
         if agent:
-            result = agent_policy.filter_result(name, result, user)
+            from realize_core.mcp_server.held_writes import agent_result
+
+            result = agent_result(name, result, user)
     except Exception as exc:
         logger.exception("MCP tool '%s' raised an exception", name)
         _audit_call(

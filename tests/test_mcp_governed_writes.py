@@ -148,14 +148,14 @@ def _row(approval_id: str) -> dict:
 def test_every_mcp_tool_has_a_rule_for_agents():
     """A new tool needs a decision before outside agents can call it."""
     from realize_core.mcp_server import registry as registry_mod
-    from realize_core.mcp_server.agent_policy import AGENT_TOOL_POLICY
+    from realize_core.security.agent_access import MCP_TOOL_RULES
 
     registry_mod.reset_for_tests()
     try:
         names = {tool.name for tool in registry_mod.get_registry().all()}
     finally:
         registry_mod.reset_for_tests()
-    assert names - set(AGENT_TOOL_POLICY) == set()
+    assert names - set(MCP_TOOL_RULES) == set()
 
 
 @pytest.mark.parametrize("tool", ["approve_request", "reject_request", "approve_suggestion", "dismiss_suggestion"])
@@ -315,6 +315,89 @@ async def test_an_agent_cannot_flood_the_queue(world, monkeypatch):
     assert (await _call(world, agent, "run_workflow", RUN))["code"] == "MCP_TOO_MANY_PENDING"
     # Another agent has its own allowance.
     assert (await _call(world, _agent(), "run_workflow", RUN))["status"] == "pending_approval"
+
+
+async def test_deny_by_default_for_new_or_misspelt_tools(world):
+    from realize_core.mcp_server.registry import MCPTool, get_registry
+    from realize_core.security.agent_access import tool_rule
+
+    async def handler(args, app_state, user):
+        return {"ran": True}
+
+    get_registry().register(
+        MCPTool(name="brand_new_tool", family="ops", description="", input_schema={}, scope="read", handler=handler)
+    )
+    agent = _agent()
+    assert (await _call(world, agent, "brand_new_tool"))["code"] == "MCP_AGENT_REFUSED"
+    owner = _person("owner@realization.co.il", "owner")
+    assert (await _call(world, owner, "brand_new_tool"))["ran"] is True  # people are unaffected
+    assert (await _call(world, agent, "RUN_WORKFLOW", RUN))["code"] == "MCP_TOOL_NOT_FOUND"
+    for variant in ("Run_Workflow", " run_workflow", "run_workflow ", "approve_request\n"):
+        assert tool_rule(variant) == "refuse"
+
+
+async def test_only_a_live_agent_token_can_hold_a_write(world):
+    """A principal that merely looks like an agent (no token row) can't queue or run anything."""
+    from realize_api.dependencies import CurrentUser
+
+    pseudo = CurrentUser(user_id="agent:000000000000", role="owner", scopes=["agent:000000000000", "venture:acme"])
+    out = await _call(world, pseudo, "run_workflow", RUN)
+    assert out["code"] == "MCP_AGENT_REFUSED"
+    assert (await _call(world, pseudo, "approve_request", {"approval_id": "x"}))["code"] == "MCP_AGENT_CANNOT_DECIDE"
+    assert world.runs == []
+
+
+async def test_only_declared_arguments_are_stored_and_run(world):
+    agent = _agent()
+    held = await _call(world, agent, "run_workflow", {**RUN, "approval_id": "other-item", "venture_key": "acme"})
+    stored = json.loads(_row(held["approval_id"])["params_json"])
+    assert set(stored) == {"name", "input_text", "system_key", "user_id"}
+
+
+async def test_a_tampered_item_does_not_run(world):
+    """The stored call must still name the approval's venture alone when it runs."""
+    from realize_core.db.schema import get_connection
+    from realize_core.governance.gates import decide_approval
+
+    agent = _agent(user="owner@realization.co.il", ventures=("acme", "globex"))
+    held = await _call(world, agent, "run_workflow", RUN)
+    conn = get_connection()
+    try:
+        params = {**RUN, "name": "globex-report", "system_key": "globex", "user_id": agent.user_id}
+        conn.execute(
+            "UPDATE approval_queue SET params_json = ? WHERE id = ?", (json.dumps(params), held["approval_id"])
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    result = await decide_approval(held["approval_id"], approve=True, decided_by="dana@acme.io")
+    assert result["execution"]["success"] is False
+    assert "nothing was done" in result["execution"]["error"]
+    assert world.runs == []
+
+
+async def test_runs_with_the_agents_narrowed_scope_not_the_approvers(world):
+    """The owner approves, but the run uses the agent's current scope: here it lost the venture."""
+    from realize_core.governance.gates import decide_approval
+
+    agent = _agent()
+    held = await _call(world, agent, "run_workflow", RUN)
+    (world.path / "users.yaml").write_text(USERS_YAML.replace("ventures: [acme]\n", "ventures: [globex]\n", 1), "utf-8")
+    result = await decide_approval(held["approval_id"], approve=True, decided_by="owner@realization.co.il")
+    assert result["execution"]["success"] is False
+    assert "token" in result["execution"]["error"] or "access" in result["execution"]["error"]
+    assert world.runs == []
+
+
+async def test_list_approvals_never_leaks_other_ventures(world):
+    """Even naming the venture through another argument (bypassing the input schema) shows only allowed items."""
+    from realize_core.governance.gates import create_approval_request
+
+    create_approval_request("acme", "writer", "sheets_append", {"row": "acme"})
+    create_approval_request("globex", "writer", "sheets_append", {"row": "globex"})
+    for user in (_agent(), _person()):
+        items = (await _call(world, user, "list_approvals", {"system_key": "acme"}))["approvals"]
+        assert {i["venture_key"] for i in items} == {"acme"}
 
 
 async def test_restart_with_unknown_outcome_never_reruns(world):

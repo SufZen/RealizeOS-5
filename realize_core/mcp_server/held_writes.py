@@ -2,11 +2,12 @@
 Held MCP writes from outside agents (STORY-37).
 
 When an agent principal calls a tool whose rule is ``hold``
-(:mod:`realize_core.mcp_server.agent_policy`), nothing runs. The call is
+(:mod:`realize_core.security.agent_access`), nothing runs. The call is
 stored in the durable ``approval_queue`` as an ``mcp_write`` item:
 
-- ``action_name`` is ``mcp:<tool>`` and ``params_json`` the call's arguments,
-  with ``user_id`` pinned to the agent (it acts as itself);
+- ``action_name`` is ``mcp:<tool>`` and ``params_json`` the call's declared
+  arguments (nothing else), naming exactly one of the agent's ventures, with
+  ``user_id`` pinned to the agent (it acts as itself);
 - ``requested_by`` is the agent principal (``agent:<token id>``), so the
   dashboard and the trail show who asked;
 - ``session_ref`` is the agent's own conversation in that venture, which is
@@ -23,6 +24,8 @@ step before anything runs, so the write runs at most once, and a row left
 ``claimed`` after a restart has an unknown outcome and is never re-run.
 Just before running, the agent's token is checked again: a token revoked or
 expired in the meantime, a removed user or a lost venture means nothing runs.
+It runs as the agent, with the agent's narrowed scope, never as the person
+who approved it.
 """
 
 from __future__ import annotations
@@ -64,40 +67,57 @@ def _validator(name: str) -> Callable[[dict[str, Any]], dict[str, Any] | None] |
     return {"run_workflow": validate_run_args, "trigger_skill": validate_run_args}.get(name)
 
 
-def _venture_of(arguments: dict[str, Any]) -> str | None:
-    for key in _VENTURE_ARGS:
-        value = arguments.get(key)
-        if isinstance(value, str) and value:
-            return value
-    return None
+def _named_ventures(arguments: dict[str, Any]) -> set[str] | None:
+    """Every venture the arguments name, or None when one isn't plain text."""
+    named = [arguments[k] for k in _VENTURE_ARGS if arguments.get(k) not in (None, "")]
+    if not all(isinstance(v, str) for v in named):
+        return None
+    return set(named)
 
 
-def hold_write(name: str, arguments: dict[str, Any], user: Any) -> dict[str, Any]:
+def _declared(tool: Any, arguments: dict[str, Any]) -> dict[str, Any]:
+    """Only the arguments the tool's input schema declares: nothing else is stored or run."""
+    properties = (getattr(tool, "input_schema", None) or {}).get("properties") or {}
+    return {key: value for key, value in arguments.items() if key in properties}
+
+
+def hold_write(tool: Any, arguments: dict[str, Any], user: Any) -> dict[str, Any]:
     """Queue an agent's write for a person's approval instead of running it.
 
-    The caller has already passed RBAC and the venture guard. Invalid calls are
-    refused here, so a person never approves a run that can't start.
+    The caller has already passed RBAC and the venture guard. The call must
+    come from a live agent token and name exactly one of its ventures; only the
+    tool's declared arguments are kept. Invalid calls are refused here, so a
+    person never approves a run that can't start.
     """
     from realize_core.governance.gates import create_approval_request
-    from realize_core.security.agent_tokens import get_token, token_id_of
+    from realize_core.security.agent_access import CODE_REFUSED
+    from realize_core.security.agent_tokens import principal_for, token_id_of
 
-    venture = _venture_of(arguments)
-    if not venture:
-        return {"error": f"Tool '{name}' needs one of your ventures as system_key", "code": "MCP_VALIDATION"}
+    name = tool.name
+    principal_id = getattr(user, "user_id", "") or ""
+    agent = principal_for(token_id_of(principal_id))
+    if agent is None:
+        return {"error": "Only a live agent token can ask for a held write", "code": CODE_REFUSED}
+    arguments = _declared(tool, arguments)
+    ventures = _named_ventures(arguments)
+    if not ventures or len(ventures) != 1:
+        return {"error": f"Tool '{name}' needs exactly one of your ventures as system_key", "code": "MCP_VALIDATION"}
+    venture = next(iter(ventures))
+    if venture not in agent.ventures:
+        return {"error": f"You don't have access to venture '{venture}'", "code": "MCP_FORBIDDEN"}
     validator = _validator(name)
     invalid = validator(arguments) if validator else None
     if invalid:
         return invalid
 
-    principal = getattr(user, "user_id", "") or ""
+    principal = agent.user_id
     if _pending_count(principal) >= MAX_PENDING_PER_AGENT:
         return {
             "error": f"{MAX_PENDING_PER_AGENT} of your writes are already waiting for approval; wait for a decision",
             "code": "MCP_TOO_MANY_PENDING",
         }
     stored = {**arguments, "user_id": principal}
-    token = get_token(token_id_of(principal) or "")
-    agent_name = token.name if token else principal
+    agent_name = agent.name
     approval_id = create_approval_request(
         venture_key=venture,
         agent_key=agent_name,
@@ -187,15 +207,18 @@ async def run_approved_write(row: dict, params: dict[str, Any]) -> tuple[bool, s
     """
     from realize_api.dependencies import CurrentUser
 
-    from realize_core.mcp_server import agent_policy, venture_guard
+    from realize_core.mcp_server import venture_guard
     from realize_core.mcp_server.registry import get_registry
+    from realize_core.security.agent_access import must_hold
     from realize_core.security.agent_tokens import principal_for, token_id_of
 
     action = str(row.get("action_name") or "")
     name = action[len(ACTION_PREFIX) :] if action.startswith(ACTION_PREFIX) else ""
-    if not agent_policy.must_hold(name):
+    tool = get_registry().get(name)
+    if not must_hold(name) or tool is None:
         return False, "", f"'{action}' is not a held MCP write; nothing was done"
 
+    # The agent's own, current, narrowed identity — never the approver's.
     principal = principal_for(token_id_of(row.get("requested_by")))
     if principal is None:
         return (
@@ -206,17 +229,18 @@ async def run_approved_write(row: dict, params: dict[str, Any]) -> tuple[bool, s
     venture = row.get("venture_key") or ""
     if venture not in principal.ventures:
         return False, "", f"The agent no longer has access to venture '{venture}'; nothing was done"
+    # Run exactly what was approved: the declared arguments, all in the approval's venture.
+    arguments = _declared(tool, params)
+    if _named_ventures(arguments) != {venture}:
+        return False, "", f"The stored call doesn't name venture '{venture}' alone; nothing was done"
     refused = venture_guard.permission_refusal(name, principal.role) or venture_guard.check_call(
-        name, params, principal.ventures
+        name, arguments, principal.ventures
     )
     if refused:
         return False, "", f"{refused}; nothing was done"
-    tool = get_registry().get(name)
-    if tool is None:
-        return False, "", f"Tool '{name}' is no longer registered; nothing was done"
 
     user = CurrentUser(user_id=principal.user_id, role=principal.role, scopes=principal.scopes)
-    arguments = {**params, "user_id": principal.user_id}
+    arguments["user_id"] = principal.user_id
     try:
         result = await tool.handler(arguments, _runtime_state(), user)
     except Exception as exc:  # any tool failure is recorded on the item, never re-run
@@ -303,6 +327,14 @@ def describe(row: dict) -> tuple[str, str]:
     if row.get("action_name"):
         return "approved_not_started", "Approved, but it has not started. It will not start on its own later."
     return "approved", "Approved."
+
+
+def agent_result(name: str, result: Any, user: Any) -> Any:
+    """What an agent gets back from a tool: approval items come back as status summaries."""
+    if name != "list_approvals" or not isinstance(result, dict) or not isinstance(result.get("approvals"), list):
+        return result
+    viewer = getattr(user, "user_id", "") or ""
+    return {**result, "approvals": [agent_view(row, viewer) for row in result["approvals"] if isinstance(row, dict)]}
 
 
 def agent_view(row: dict, viewer: str) -> dict:

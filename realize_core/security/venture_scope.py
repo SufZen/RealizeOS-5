@@ -110,16 +110,13 @@ def allowed_ventures(user_id: str | None, scopes: list[str] | None = None) -> fr
     token_ventures = {s[len(VENTURE_SCOPE_PREFIX) :] for s in scopes or [] if s.startswith(VENTURE_SCOPE_PREFIX)}
     if token_ventures:
         allowed = frozenset(token_ventures) if allowed is None else allowed & token_ventures
-    elif _is_agent(user_id, scopes):
-        # An outside agent is never unrestricted: no venture scope means no venture.
-        return frozenset()
+    else:
+        from realize_core.security.agent_access import is_agent
+
+        if is_agent(user_id, scopes):
+            # An outside agent is never unrestricted: no venture scope means no venture.
+            return frozenset()
     return allowed
-
-
-def _is_agent(user_id: str | None, scopes: list[str] | None) -> bool:
-    from realize_core.security.agent_tokens import has_agent_scope, is_agent_principal
-
-    return is_agent_principal(user_id) or has_agent_scope(scopes)
 
 
 def is_global_write(method: str, path: str) -> bool:
@@ -148,22 +145,6 @@ def required_permission(method: str, path: str) -> str | None:
     if is_global_write(method, path):
         return "system:manage"
     return "system:write"
-
-
-def agent_write_refusal(method: str, path: str) -> str | None:
-    """Why an outside agent (agent token) may not make this REST write, or None when it may.
-
-    Agents read through REST within their ventures and chat like their user,
-    but every other change goes through MCP, where it waits for a person's
-    approval. Approving, rejecting and dismissing are for people only.
-    """
-    if method not in MUTATING_METHODS or path.startswith(_AUTH_PREFIX):
-        return None
-    if path.startswith(_DECISION_PREFIXES) and path.endswith(_DECISION_SUFFIXES):
-        return "People decide: an outside agent can't approve, reject or dismiss"
-    if path in _CHAT_PATHS or path.startswith(_CONVERSATIONS_PREFIX):
-        return None
-    return "An outside agent makes changes through MCP, where a person approves them first"
 
 
 def is_system_area(path: str) -> bool:

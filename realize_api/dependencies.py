@@ -36,13 +36,25 @@ class CurrentUser:
         return f"CurrentUser(user_id={self.user_id!r}, role={self.role!r})"
 
 
+def header_user_id(headers: Any) -> str:
+    """The caller-supplied ``X-User-ID`` (used only when no principal was authenticated).
+
+    It can never claim an outside agent's identity: that comes only from a
+    verified agent token (STORY-37).
+    """
+    from realize_core.security.agent_access import is_agent
+
+    value = (headers or {}).get("X-User-ID", "anonymous") or "anonymous"
+    return "anonymous" if is_agent(value) else value
+
+
 async def get_current_user(request: Request) -> CurrentUser:
     """
     Extract the current user from request state.
 
     Falls back to "anonymous" / "owner" when auth is off (dev mode).
     """
-    user_id = getattr(request.state, "user_id", None) or request.headers.get("X-User-ID", "anonymous")
+    user_id = getattr(request.state, "user_id", None) or header_user_id(request.headers)
     role = getattr(request.state, "role", None) or "owner"  # default to owner when no auth
     scopes = getattr(request.state, "scopes", None) or []
     return CurrentUser(user_id=user_id, role=role, scopes=scopes)
@@ -313,9 +325,8 @@ async def enforce_access(request: Request) -> None:
     # Only the REST API; MCP checks scope per tool in its dispatcher.
     if not getattr(request.state, "user_id", None) or not request.url.path.startswith("/api/"):
         return
-    from realize_core.security.agent_tokens import is_agent_principal
+    from realize_core.security.agent_access import is_agent_subject, rest_refusal
     from realize_core.security.venture_scope import (
-        agent_write_refusal,
         has_permission,
         is_global_write,
         is_id_only_write,
@@ -326,10 +337,11 @@ async def enforce_access(request: Request) -> None:
 
     allowed = get_allowed_ventures(request)
     method, path = request.method.upper(), request.url.path
-    if is_agent_principal(getattr(request.state, "user_id", None)):
-        refusal = agent_write_refusal(method, path)
+    if is_agent_subject(request.state):
+        # Outside agents: the same rules as the MCP dispatcher (agent_access).
+        refusal = rest_refusal(method, path)
         if refusal:
-            raise _deny(request, refusal, "agent_write")
+            raise _deny(request, refusal, "agent_access")
     if allowed is not None:
         named = [request.path_params.get(n) for n in VENTURE_PARAMS]
         named += [v for n in VENTURE_PARAMS for v in request.query_params.getlist(n)]

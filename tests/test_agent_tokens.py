@@ -276,7 +276,12 @@ class TestRestAccess:
         assert [v["key"] for v in c.get("/api/ventures", headers=_bearer(secret)).json()["ventures"]] == ["acme"]
         rows = c.get("/api/approvals", headers=_bearer(secret)).json()["approvals"]
         assert {r["venture_key"] for r in rows} == {"acme"}
+        # Status, not other people's parameters.
+        assert rows[0]["outcome"] == "pending_approval"
+        assert "payload" not in rows[0]
+        assert "params_json" not in rows[0]
         assert c.get("/api/approvals", params={"venture_key": "globex"}, headers=_bearer(secret)).status_code == 403
+        assert c.get("/api/ventures/acme/export", headers=_bearer(secret)).status_code != 403
         assert c.get("/api/ventures/globex/export", headers=_bearer(secret)).status_code == 403
         # Also via X-API-Key.
         assert c.get("/api/ventures", headers={"X-API-Key": secret}).status_code == 200
@@ -298,25 +303,30 @@ class TestRestAccess:
         assert r.json()["decided_by"] == "api-key"
 
     @pytest.mark.parametrize(
-        ("method", "path", "refused"),
+        ("method", "path", "rule"),
         [
-            ("GET", "/api/ventures", False),
-            ("POST", "/api/chat", False),
-            ("POST", "/api/chat/stream", False),
-            ("DELETE", "/api/conversations/acme/agent:0123456789ab", False),
-            ("POST", "/api/auth/logout", False),
-            ("POST", "/api/approvals/a1/approve", True),
-            ("POST", "/api/dreams/p1/reject", True),
-            ("POST", "/api/evolution/suggestions/s1/dismiss", True),
-            ("POST", "/api/workflows/acme-report/test", True),
-            ("PUT", "/api/fabric/entities/e1", True),
-            ("POST", "/api/ventures/acme/kb/file", True),
+            ("GET", "/api/ventures", "allow"),
+            ("GET", "/api/approvals", "allow"),
+            ("POST", "/api/chat", "allow"),
+            ("POST", "/api/chat/stream", "allow"),
+            ("DELETE", "/api/conversations/acme/agent:0123456789ab", "allow"),
+            ("POST", "/api/approvals/a1/approve", "people_decide"),
+            ("POST", "/api/approvals/a1/reject/", "people_decide"),
+            ("POST", "/api/dreams/p1/reject", "people_decide"),
+            ("POST", "/api/evolution/suggestions/s1/dismiss", "people_decide"),
+            ("POST", "/api/auth/logout", "refuse"),
+            ("DELETE", "/api/auth/sessions", "refuse"),
+            ("POST", "/api/workflows/acme-report/test", "refuse"),
+            ("PUT", "/api/fabric/entities/e1", "refuse"),
+            ("POST", "/api/ventures/acme/kb/file", "refuse"),
+            ("POST", "/api/agent-tokens", "refuse"),
+            ("PATCH", "/api/some-future-route", "refuse"),  # deny by default
         ],
     )
-    def test_agent_write_policy(self, method, path, refused):
-        from realize_core.security.venture_scope import agent_write_refusal
+    def test_rest_rules(self, method, path, rule):
+        from realize_core.security.agent_access import rest_rule
 
-        assert (agent_write_refusal(method, path) is not None) is refused
+        assert rest_rule(method, path) == rule
 
     def test_revoked_unknown_and_query_string_tokens_get_401(self, api):
         from realize_core.security.agent_tokens import revoke_token
@@ -348,6 +358,125 @@ class TestRestAccess:
         assert {r["venture_key"] for r in rows} == {"acme", "globex"}
         assert all("params_json" in r for r in rows)
         assert api.client.get("/api/ventures").status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# REST mirrors MCP: one predicate, one rule set (agent_access)
+# ---------------------------------------------------------------------------
+
+#: Each MCP tool an agent may not run directly, and its REST counterparts.
+REST_COUNTERPARTS = {
+    "run_workflow": [("POST", "/api/workflows/acme-report/test"), ("POST", "/api/workflows")],
+    "trigger_skill": [("POST", "/api/workflows/acme-report/test")],
+    "approve_request": [("POST", "/api/approvals/{acme}/approve")],
+    "reject_request": [("POST", "/api/approvals/{acme}/reject")],
+    "approve_suggestion": [("POST", "/api/evolution/suggestions/s1/approve")],
+    "dismiss_suggestion": [("POST", "/api/evolution/suggestions/s1/dismiss")],
+    "create_venture": [("POST", "/api/ventures")],
+    "delete_venture": [("DELETE", "/api/ventures/acme")],
+    "update_setting": [("PUT", "/api/settings/features")],
+    "reload_agents": [("POST", "/api/agents/reload")],
+    "run_evolution": [],  # no REST route
+}
+
+
+class TestRestMirrorsMcp:
+    def test_every_non_allowed_tool_has_a_rest_counterpart_listed(self):
+        from realize_core.security.agent_access import ALLOW, MCP_TOOL_RULES
+
+        assert {n for n, rule in MCP_TOOL_RULES.items() if rule != ALLOW} == set(REST_COUNTERPARTS)
+
+    @pytest.mark.parametrize("tool", sorted(REST_COUNTERPARTS))
+    def test_what_mcp_holds_or_refuses_rest_refuses(self, api, tool):
+        """REST has no hold path: anything MCP would hold or refuse is a 403 over REST."""
+        from realize_core.security.agent_access import (
+            PEOPLE_DECIDE,
+            PEOPLE_DECIDE_MESSAGE,
+            REST_WRITE_MESSAGE,
+            tool_refusal,
+            tool_rule,
+        )
+
+        _, secret = _create(user="owner@realization.co.il", ventures=("acme",))
+        for method, path in REST_COUNTERPARTS[tool]:
+            r = api.client.request(method, path.format(acme=api.approvals["acme"]), headers=_bearer(secret), json={})
+            assert r.status_code == 403, (method, path, r.text)
+            expected = PEOPLE_DECIDE_MESSAGE if tool_rule(tool) == PEOPLE_DECIDE else REST_WRITE_MESSAGE
+            assert expected in r.json()["detail"]
+        refusal = tool_refusal(tool)
+        if tool_rule(tool) == PEOPLE_DECIDE:
+            assert PEOPLE_DECIDE_MESSAGE in refusal[1]  # same words on both surfaces
+        # The person's decisions are untouched.
+        rows = api.client.get("/api/approvals", headers={"X-API-Key": API_KEY}).json()["approvals"]
+        assert {r["status"] for r in rows} == {"pending"}
+
+    @pytest.mark.parametrize(
+        ("method", "path"),
+        [
+            ("GET", "/api/agent-tokens"),
+            ("POST", "/api/agent-tokens"),
+            ("DELETE", "/api/agent-tokens/0123456789ab"),
+            ("DELETE", "/api/auth/sessions"),
+            ("POST", "/api/auth/logout"),
+            ("PUT", "/api/ventures/acme/kb/file"),
+            ("POST", "/api/ventures/acme/ingest"),
+        ],
+    )
+    def test_agents_stay_out_of_management_and_session_endpoints(self, api, method, path):
+        _, secret = _create(user="owner@realization.co.il", ventures=("acme", "globex"))
+        r = api.client.request(method, path, headers=_bearer(secret), json={})
+        assert r.status_code == 403, r.text
+
+    def test_same_scope_on_both_surfaces(self, env):
+        """REST (get_allowed_ventures) and MCP (caller_ventures) resolve an agent's ventures the same way."""
+        from realize_api.dependencies import CurrentUser, get_allowed_ventures
+        from realize_core.mcp_server.venture_guard import caller_ventures
+        from realize_core.security.agent_tokens import resolve_token
+
+        _, secret = _create(user="olga@acme.io", ventures=("acme", "globex"))
+        principal = resolve_token(secret)
+        state = SimpleNamespace(user_id=principal.user_id, scopes=principal.scopes)
+        rest = get_allowed_ventures(SimpleNamespace(state=state))
+        mcp = caller_ventures(CurrentUser(principal.user_id, principal.role, principal.scopes))
+        assert rest == mcp == {"acme", "globex"}
+
+
+class TestIdentityComesOnlyFromTheToken:
+    def test_a_jwt_claiming_an_agent_identity_is_refused(self, env, monkeypatch):
+        from realize_api.main import create_app
+        from realize_core.security.jwt_auth import create_token
+
+        monkeypatch.setenv("REALIZE_API_KEY", API_KEY)
+        monkeypatch.setenv("REALIZE_JWT_ENABLED", "true")
+        monkeypatch.setenv("REALIZE_JWT_SECRET", "x" * 40)
+        app = create_app()
+        app.state.systems = dict(SYSTEMS)
+        client = TestClient(app)
+        forged_sub = create_token("agent:0123456789ab", role="owner", scopes=["venture:acme"])
+        forged_scope = create_token("bob@acme.io", role="owner", scopes=["agent:0123456789ab", "venture:acme"])
+        person = create_token("owner@realization.co.il", role="owner")
+        assert client.get("/api/ventures", headers=_bearer(forged_sub)).status_code == 401
+        assert client.get("/api/ventures", headers=_bearer(forged_scope)).status_code == 401
+        assert client.get("/api/ventures", headers=_bearer(person)).status_code == 200
+        r = client.post("/api/auth/token", json={"user_id": "agent:0123456789ab", "api_key": API_KEY})
+        assert r.status_code == 400
+
+    def test_x_user_id_header_cannot_claim_an_agent(self):
+        from realize_api.dependencies import header_user_id
+
+        assert header_user_id({"X-User-ID": "agent:0123456789ab"}) == "anonymous"
+        assert header_user_id({"X-User-ID": "hermes-user-7"}) == "hermes-user-7"
+        assert header_user_id({}) == "anonymous"
+
+    def test_users_yaml_cannot_define_an_agent(self, env):
+        from realize_core.security.users import get_user
+
+        (env / "users.yaml").write_text(
+            USERS_YAML + '  - email: "agent:0123456789ab"\n    role: owner\n    password_hash: "$2b$12$x"\n',
+            encoding="utf-8",
+        )
+        assert get_user("agent:0123456789ab") is None
+        assert get_user("dana@acme.io") is not None
 
 
 # ---------------------------------------------------------------------------

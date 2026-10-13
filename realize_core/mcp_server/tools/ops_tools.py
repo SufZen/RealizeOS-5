@@ -400,6 +400,14 @@ async def list_approvals(args: dict[str, Any], app_state: Any, user: CurrentUser
         if venture_key:
             clauses.append("venture_key = ?")
             params.append(venture_key)
+        from realize_core.mcp_server.venture_guard import caller_ventures
+
+        allowed = caller_ventures(user)
+        if allowed is not None:
+            # Never another venture's items, whichever argument named the venture.
+            keys = sorted(allowed) or [""]
+            clauses.append(f"venture_key IN ({','.join('?' for _ in keys)})")
+            params.extend(keys)
         where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
         rows = conn.execute(
             f"SELECT * FROM approval_queue {where} ORDER BY created_at DESC",

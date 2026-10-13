@@ -50,12 +50,12 @@ def _require_manager(request: Request) -> str:
     With auth off (dev mode) there is no caller and the route is open, like
     every other route.
     """
-    from realize_core.security.agent_tokens import is_agent_principal
+    from realize_core.security.agent_access import is_agent_subject
 
     user_id, role = _caller(request)
     if user_id is None:
         return "dev-mode"
-    if is_agent_principal(user_id) or role not in MANAGER_ROLES or get_allowed_ventures(request) is not None:
+    if is_agent_subject(request.state) or role not in MANAGER_ROLES or get_allowed_ventures(request) is not None:
         raise HTTPException(status_code=403, detail="Only an owner or admin can manage agent tokens")
     return user_id
 

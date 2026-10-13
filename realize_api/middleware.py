@@ -352,6 +352,15 @@ class AuthMiddleware(BaseHTTPMiddleware):
             )
 
             claims = verify_token(token, require_type="access")
+            from realize_core.security.agent_access import is_agent
+
+            if is_agent(claims.sub, claims.scopes):
+                # Agent identities come only from verified agent tokens (STORY-37).
+                logger.warning("JWT refused: it claims an agent identity")
+                return JSONResponse(
+                    status_code=401,
+                    content={"error": "invalid_token", "message": "Agent identities need an agent token."},
+                )
             request.state.user_id = claims.sub
             request.state.role = claims.role
             request.state.scopes = claims.scopes

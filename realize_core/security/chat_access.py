@@ -16,9 +16,9 @@ ACT_FOR_OTHERS_ROLES = frozenset({"owner", "admin"})
 
 
 def _acts_for_others(principal: str, role: str | None) -> bool:
-    from realize_core.security.agent_tokens import is_agent_principal
+    from realize_core.security.agent_access import is_agent
 
-    return (role or "") in ACT_FOR_OTHERS_ROLES and not is_agent_principal(principal)
+    return (role or "") in ACT_FOR_OTHERS_ROLES and not is_agent(principal)
 
 
 def chat_user_for(principal: str | None, role: str | None, requested: str) -> str:
