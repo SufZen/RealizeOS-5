@@ -170,9 +170,20 @@ def create_approval_request(
     once approved (:func:`execute_approved_action`), plus ``requested_by``
     and ``session_ref`` (``<venture>|<user>``) to report the outcome back.
 
+    Work done for an outside agent (:func:`realize_core.security.agent_access.acting_for_outside_agent`)
+    is requested by the agent: ``requested_by`` becomes its principal
+    (``agent:<id>``, or ``agent:stdio:<email>`` for a stdio session) unless
+    it already names one, so the queue shows the request came from outside.
+
     Returns the approval ID.
     """
     from realize_core.db.schema import get_connection
+    from realize_core.security.agent_access import current_outside_agent
+    from realize_core.security.agent_tokens import is_agent_principal
+
+    outside_agent = current_outside_agent()
+    if outside_agent and not is_agent_principal(requested_by):
+        requested_by = outside_agent
 
     approval_id = str(uuid.uuid4())
     now = datetime.now(UTC)

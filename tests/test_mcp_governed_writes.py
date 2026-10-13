@@ -970,6 +970,24 @@ async def test_stdio_session_is_governed_as_an_agent(world):
     assert status["approvals"][0]["result"] == "Report ready"
 
 
+async def test_a_stdio_sessions_requests_are_the_agents_not_the_persons(world, ledger, chat_calls_a_write):
+    """Its decision proposals and the writes held from its chat name agent:stdio:<email> (S5)."""
+    from realize_core.mcp_server.stdio import resolve_stdio_user
+    from realize_core.security.agent_tokens import describe_requesters
+
+    session = resolve_stdio_user("dana@acme.io")
+    proposal = await _proposal(world, session)
+    assert _row(proposal)["requested_by"] == "agent:stdio:dana@acme.io"
+
+    await _call(world, session, "realize_chat", {"message": "Add the row", "system_key": "acme"})
+    held = chat_calls_a_write[-1]["result"].metadata["request_id"]
+    assert _row(held)["requested_by"] == "agent:stdio:dana@acme.io"
+    # So the person deciding sees the "Outside agent" badge.
+    assert describe_requesters([_row(held)["requested_by"]]) == {
+        "agent:stdio:dana@acme.io": {"token_id": None, "name": "stdio"}
+    }
+
+
 async def test_stdio_owner_session_cannot_act_for_others_or_reach_admin(world, monkeypatch):
     from realize_core import base_handler
     from realize_core.mcp_server.stdio import resolve_stdio_user

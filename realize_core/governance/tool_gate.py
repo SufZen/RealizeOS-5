@@ -236,6 +236,8 @@ class ToolGate:
                 "params": _safe_params(params),
             },
         )
+        from realize_core.security.agent_access import current_outside_agent
+
         try:
             from realize_core.governance.gates import create_approval_request
 
@@ -246,7 +248,8 @@ class ToolGate:
                 payload={"gate_status": status, "params": _safe_params(params)},
                 action_name=action_name if status == "approve" else None,
                 params=params if status == "approve" else None,
-                requested_by=origin.user_id or None,
+                # Done for an outside agent: the agent asked (agent:stdio:<email> for a stdio session).
+                requested_by=current_outside_agent() or origin.user_id or None,
                 session_ref=origin.session_ref or None,
             )
         except Exception as exc:

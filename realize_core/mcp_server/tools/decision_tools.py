@@ -53,8 +53,13 @@ async def log_decision(args: dict[str, Any], app_state: Any, user: CurrentUser) 
         return {"error": "title and statement are required", "code": "MCP_VALIDATION"}
 
     from realize_core.governance.decision_log import propose_decision
+    from realize_core.security.agent_tokens import principal_id_for
 
     basis = args.get("basis") or []
+    user_id = getattr(user, "user_id", None)
+    # An outside agent proposes as itself (agent:<id>, or agent:stdio:<email> for a
+    # stdio session), so the queue shows it came from outside.
+    requested_by = principal_id_for(user_id, getattr(user, "scopes", None)) or user_id or "mcp"
     approval_id = propose_decision(
         venture_key,
         title=title,
@@ -62,7 +67,7 @@ async def log_decision(args: dict[str, Any], app_state: Any, user: CurrentUser) 
         basis=basis,
         affects=args.get("affects"),
         project=args.get("project"),
-        requested_by=getattr(user, "user_id", None) or "mcp",
+        requested_by=requested_by,
     )
     located = any(isinstance(b, dict) and b.get("locator") for b in basis)
     return {
