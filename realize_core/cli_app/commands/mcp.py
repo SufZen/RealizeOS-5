@@ -112,7 +112,6 @@ def mcp_stdio(
         typer.Option(
             "--user",
             "-u",
-            envvar="REALIZE_MCP_USER",
             help="Email of the users.yaml user the agent acts as (required; their role and ventures apply).",
         ),
     ] = None,
@@ -120,7 +119,6 @@ def mcp_stdio(
         list[str] | None,
         typer.Option(
             "--venture",
-            envvar="REALIZE_MCP_VENTURE",
             help="Limit the session to this venture (repeatable). Must be one of the user's ventures.",
         ),
     ] = None,
@@ -139,19 +137,19 @@ def mcp_stdio(
     """Serve MCP over stdin/stdout for a local agent (Claude Desktop, Claude Code, Cursor).
 
     No network port is opened. stdout carries only JSON-RPC; logs go to
-    stderr. The server never runs as an anonymous owner: it needs a
-    ``users.yaml`` identity and refuses to start without one. MCP must be on
-    (``MCP_ENABLED=true``). See docs/connect-your-agent.md.
+    stderr. The server never runs as an anonymous owner: it needs
+    ``--user`` naming a ``users.yaml`` user and refuses to start without one
+    (identity is taken from arguments only, never from the environment).
+    MCP must be on (``MCP_ENABLED=true``). See docs/connect-your-agent.md.
     """
-    ventures = list(venture or [])
-    if directory is not None and directory.resolve() != Path.cwd().resolve():
-        raise typer.Exit(code=_relaunch_stdio_in(directory.resolve(), user, ventures))
+    if directory is not None:
+        _enter_project_directory(directory.resolve())
 
     from realize_core.mcp_server.auth import MCPProductionAuthError
     from realize_core.mcp_server.stdio import StdioStartupError, run_stdio
 
     try:
-        run_stdio(user, ventures)
+        run_stdio(user, list(venture or []))
     except (StdioStartupError, MCPProductionAuthError) as exc:
         typer.echo(f"RealizeOS MCP stdio server not started: {exc}", err=True)
         raise typer.Exit(code=2) from exc
@@ -159,40 +157,30 @@ def mcp_stdio(
         logger.info("MCP stdio server stopped")
 
 
-def _relaunch_stdio_in(directory: Path, user: str | None, ventures: list[str]) -> int:
-    """Run ``mcp stdio`` in a fresh process whose working directory is ``directory``.
+def _enter_project_directory(directory: Path) -> None:
+    """Work in ``directory`` as if RealizeOS had been started there, in this process.
 
-    RealizeOS reads realize-os.yaml, users.yaml, .env and the KB relative to
-    the working directory, and some settings are fixed when modules are
-    imported, so a new process is the reliable way to switch folders. The
-    child uses this process's stdin, stdout and stderr unchanged. Values from
-    ``directory/.env`` are added for keys not already in the environment.
+    Desktop agents can't set a working directory, and RealizeOS reads
+    realize-os.yaml, users.yaml, .env and the KB relative to it. Relative
+    ``sys.path`` entries are pinned first, so the project folder never
+    becomes an import location. Then the folder's ``.env`` is loaded (values
+    already in the environment win, as at normal startup) and the settings
+    :mod:`realize_core.config` computes at import time (``KB_PATH``,
+    ``DATA_PATH``, model names) are recomputed: the CLI imports that module
+    before any command runs.
     """
-    import subprocess
+    import importlib
     import sys
 
-    import realize_core
-
-    env = dict(os.environ)
+    sys.path[:] = [p if os.path.isabs(p) else os.path.abspath(p) for p in sys.path]
+    os.chdir(directory)
     try:
-        from dotenv import dotenv_values
+        from dotenv import load_dotenv
     except ImportError:
         pass
     else:
-        for key, value in dotenv_values(directory / ".env").items():
-            if value is not None:
-                env.setdefault(key, value)
+        load_dotenv(directory / ".env")
 
-    # A source checkout isn't on the child's import path once the working
-    # directory changes; an installed package already is.
-    code_root = Path(realize_core.__file__).resolve().parent.parent
-    if not {"site-packages", "dist-packages"} & set(code_root.parts):
-        env["PYTHONPATH"] = os.pathsep.join(p for p in (str(code_root), env.get("PYTHONPATH", "")) if p)
+    import realize_core.config
 
-    args = ["mcp", "stdio"]
-    if user:
-        args += ["--user", user]
-    for key in ventures:
-        args += ["--venture", key]
-    cmd = [sys.executable, "-c", "from realize_core.cli_app import main; main()", *args]
-    return subprocess.call(cmd, cwd=directory, env=env)
+    importlib.reload(realize_core.config)

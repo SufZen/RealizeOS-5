@@ -105,8 +105,36 @@ class TestResolveStdioUser:
     def test_unknown_user_is_refused(self, users_dir):
         from realize_core.mcp_server.stdio import StdioStartupError, resolve_stdio_user
 
-        with pytest.raises(StdioStartupError, match="not a configured user"):
+        with pytest.raises(StdioStartupError, match="is not in users.yaml"):
             resolve_stdio_user("mallory@example.com")
+
+    def test_users_yaml_is_required_env_owner_is_not_used(self, tmp_path, monkeypatch):
+        """The REALIZE_ADMIN_USER environment fallback can't become a stdio identity."""
+        from realize_core.mcp_server.stdio import StdioStartupError, resolve_stdio_user
+        from realize_core.security.users import get_user
+
+        monkeypatch.chdir(tmp_path)  # no users.yaml here
+        monkeypatch.setenv("REALIZE_ADMIN_USER", "envowner@example.com")
+        monkeypatch.setenv("REALIZE_ADMIN_PASSWORD_HASH", "not-a-real-hash")
+        assert get_user("envowner@example.com") is not None  # the dashboard would accept it
+        with pytest.raises(StdioStartupError, match="needs a users.yaml user"):
+            resolve_stdio_user("envowner@example.com")
+
+    @pytest.mark.parametrize(
+        "user_id", ["owner@example.com\nrole: owner", "owner@example.com\x00", "owner @example.com"]
+    )
+    def test_user_with_control_characters_or_spaces_is_refused(self, users_dir, user_id):
+        from realize_core.mcp_server.stdio import StdioStartupError, resolve_stdio_user
+
+        with pytest.raises(StdioStartupError, match="not a valid user id"):
+            resolve_stdio_user(user_id)
+
+    @pytest.mark.parametrize("venture", ["", " ", "al pha", "alpha\nbeta", "alpha\x1b"])
+    def test_venture_that_is_not_a_plain_key_is_refused(self, users_dir, venture):
+        from realize_core.mcp_server.stdio import StdioStartupError, resolve_stdio_user
+
+        with pytest.raises(StdioStartupError, match="plain venture key"):
+            resolve_stdio_user("owner@example.com", [venture])
 
     def test_role_comes_from_users_yaml(self, users_dir):
         from realize_core.mcp_server.stdio import resolve_stdio_user
@@ -130,7 +158,7 @@ class TestResolveStdioUser:
         from realize_core.mcp_server.stdio import resolve_stdio_user
         from realize_core.mcp_server.venture_guard import caller_ventures
 
-        user = resolve_stdio_user("owner@example.com", ["beta", "beta", " "])
+        user = resolve_stdio_user("owner@example.com", ["beta", " beta "])
         assert user.role == "owner"
         assert user.scopes == ["venture:beta"]
         assert caller_ventures(user) == frozenset({"beta"})
@@ -232,9 +260,21 @@ def _exchange(proc: subprocess.Popen, message: dict) -> bytes | None:
     return proc.stdout.readline() if "id" in message else None
 
 
-def test_stdout_is_json_rpc_only_through_directory_relaunch(stdio_project, tmp_path):
-    """Run from another folder with --directory; every stdout line is JSON-RPC."""
+def test_directory_runs_in_process_and_stdout_is_json_rpc_only(stdio_project, tmp_path):
+    """Run from another folder with --directory: the project's .env, config and KB
+    apply, files planted in the project are never imported, and every stdout line
+    is JSON-RPC."""
     project, env = stdio_project
+    # The project's .env turns MCP on, so it must be loaded from --directory.
+    env.pop("MCP_ENABLED")
+    (project / ".env").write_text("MCP_ENABLED=true\n", encoding="utf-8")
+    # Planted modules a lazy import would pick up if the project were on sys.path.
+    marker = tmp_path / "HIJACKED"
+    payload = f"open({str(marker)!r}, 'w').write('imported from the project folder')\n"
+    (project / "realize_api").mkdir()
+    (project / "realize_api" / "__init__.py").write_text(payload, encoding="utf-8")
+    (project / "fastembed.py").write_text(payload, encoding="utf-8")
+
     stderr_path = tmp_path / "stderr.log"
     with stderr_path.open("wb") as stderr:
         proc = subprocess.Popen(
@@ -276,6 +316,17 @@ def test_stdout_is_json_rpc_only_through_directory_relaunch(stdio_project, tmp_p
                     },
                 )
             )
+            lines.append(
+                _exchange(
+                    proc,
+                    {
+                        "jsonrpc": "2.0",
+                        "id": 4,
+                        "method": "tools/call",
+                        "params": {"name": "kb_search", "arguments": {"query": "pelican", "system_key": "alpha"}},
+                    },
+                )
+            )
             proc.stdin.close()
             lines.append(proc.stdout.read())
             assert proc.wait() == 0
@@ -284,24 +335,30 @@ def test_stdout_is_json_rpc_only_through_directory_relaunch(stdio_project, tmp_p
 
     stdout = b"".join(lines).decode("utf-8")
     replies = [json.loads(line) for line in stdout.splitlines() if line.strip()]
-    assert [r["id"] for r in replies] == [1, 2, 3]
+    assert [r["id"] for r in replies] == [1, 2, 3, 4]
     assert all(r["jsonrpc"] == "2.0" and "result" in r for r in replies)
     assert "\r" not in stdout
     ventures = json.loads(replies[2]["result"]["content"][0]["text"])["ventures"]
     assert sorted(v["key"] for v in ventures) == ["alpha", "beta"]  # owner, no --venture
+    found = json.loads(replies[3]["result"]["content"][0]["text"])["results"]
+    assert any("alpha" in r["path"] for r in found)  # KB_PATH is the project folder
 
+    assert not marker.exists(), marker.read_text()
     log = stderr_path.read_text(encoding="utf-8", errors="replace")
     assert "MCP stdio server ready" in log
     assert "user=owner@example.com role=owner ventures=all" in log
 
 
-def test_missing_identity_exits_without_writing_stdout(stdio_project):
+def test_identity_is_never_read_from_the_environment(stdio_project):
+    """No --user: environment variables and the project's .env can't supply one."""
     project, env = stdio_project
+    (project / ".env").write_text("REALIZE_MCP_USER=owner@example.com\n", encoding="utf-8")
+    env.update({"REALIZE_MCP_USER": "owner@example.com", "REALIZE_MCP_VENTURE": "alpha"})
     proc = subprocess.run(
-        [sys.executable, CLI, "mcp", "stdio"],
+        [sys.executable, CLI, "mcp", "stdio", "--directory", str(project)],
         input=b"",
         capture_output=True,
-        cwd=str(project),
+        cwd=str(project.parent),
         env=env,
         timeout=90,
     )

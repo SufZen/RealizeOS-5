@@ -5,11 +5,12 @@ A desktop agent (Claude Desktop, Claude Code, Cursor, ...) starts
 JSON-RPC over the process's stdin and stdout. No port is opened.
 
 Identity: there is no HTTP request to authenticate, so the caller is named
-when the server starts and must be a ``users.yaml`` user (or the
-``REALIZE_ADMIN_USER`` owner). Their role and ventures apply exactly as on
-the HTTP transports; ``--venture`` narrows the session further. There is no
-anonymous or default-owner fallback: without a valid identity the server
-refuses to start, in every environment.
+with ``--user`` when the server starts and must have an entry in
+``users.yaml``. Identity comes from arguments only, never from environment
+variables. The user's role and ventures apply exactly as on the HTTP
+transports; ``--venture`` can only narrow the session to some of the user's
+ventures. There is no anonymous or default-owner fallback: without a valid
+identity the server refuses to start, in every environment.
 
 stdout carries only JSON-RPC. Before anything else runs, the real stdout is
 kept for the transport and file descriptor 1 is pointed at stderr, so stray
@@ -45,20 +46,21 @@ from realize_core.mcp_server.server import build_mcp_server
 
 logger = logging.getLogger(__name__)
 
-#: Environment variables the CLI reads when ``--user`` / ``--venture`` are not given.
-USER_ENV = "REALIZE_MCP_USER"
-VENTURE_ENV = "REALIZE_MCP_VENTURE"
-
 
 class StdioStartupError(RuntimeError):
     """The stdio server refused to start (no identity, MCP off, unknown venture, ...)."""
+
+
+def _is_plain_token(value: str) -> bool:
+    """True for a non-empty value without whitespace or control characters."""
+    return bool(value) and all(c.isprintable() and not c.isspace() for c in value)
 
 
 def resolve_stdio_user(user_id: str | None, ventures: Sequence[str] = ()) -> CurrentUser:
     """The MCP caller for a stdio session, from ``users.yaml``.
 
     Args:
-        user_id: Email of a configured user. Required: there is no default.
+        user_id: Email of a user in ``users.yaml``. Required: there is no default.
         ventures: Venture keys that narrow the session. Each must be one of the
             user's own ventures when ``users.yaml`` limits them.
 
@@ -67,25 +69,33 @@ def resolve_stdio_user(user_id: str | None, ventures: Sequence[str] = ()) -> Cur
         carried as ``venture:<key>`` scopes, the same way a scoped JWT does it.
 
     Raises:
-        StdioStartupError: No user named, the user isn't configured, or a
-            venture is outside the user's ventures.
+        StdioStartupError: No user named, no ``users.yaml``, the user isn't in
+            it, a value isn't a plain token, or a venture is outside the user's
+            ventures.
     """
-    from realize_core.security.users import get_user
+    from realize_core.security.users import USERS_FILE, get_user
     from realize_core.security.venture_scope import VENTURE_SCOPE_PREFIX
 
     name = (user_id or "").strip()
     if not name:
         raise StdioStartupError(
-            f"No identity: pass --user <email of a users.yaml user> (or set {USER_ENV}). "
-            "The stdio server never runs as an anonymous owner."
+            "No identity: pass --user <email of a users.yaml user>. The stdio server never runs as an anonymous owner."
         )
+    if not _is_plain_token(name):
+        raise StdioStartupError(f"--user {name!r} is not a valid user id")
+    # users.yaml only: the REALIZE_ADMIN_USER environment fallback doesn't apply here.
+    if not Path(USERS_FILE).is_file():
+        raise StdioStartupError(f"No {USERS_FILE} in {Path.cwd()}: the stdio server needs a users.yaml user")
     user = get_user(name)
     if user is None:
         raise StdioStartupError(
-            f"'{name}' is not a configured user. Add them to users.yaml (role and ventures decide what the agent can do)."
+            f"{name!r} is not in {USERS_FILE}. Add them there (role and ventures decide what the agent can do)."
         )
 
-    requested = tuple(dict.fromkeys(v.strip() for v in ventures if v and v.strip()))
+    requested = tuple(dict.fromkeys((v or "").strip() for v in ventures))
+    invalid = [v for v in requested if not _is_plain_token(v)]
+    if invalid:
+        raise StdioStartupError(f"--venture needs a plain venture key, got {invalid[0]!r}")
     if user.ventures:
         outside = [v for v in requested if v not in user.ventures]
         if outside:
