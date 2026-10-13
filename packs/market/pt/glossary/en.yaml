@@ -1,0 +1,12 @@
+- term: measurement certificate
+  family: money-event
+  kind: payment_claim
+- term: complementary works
+  family: change
+  kind: variation
+- term: construction licence
+  family: milestone
+  kind: permit
+- term: provisional acceptance
+  family: milestone
+  kind: handover

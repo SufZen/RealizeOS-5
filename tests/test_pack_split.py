@@ -104,7 +104,7 @@ def test_israeli_developer_venture_resolves_through_both_packs(tmp_path):
     assert r.resolve("measure", "payment_claims_checked").layer == "profession"
 
 
-def test_webinar_demo_venture_gets_the_developer_pack(tmp_path):
+def test_webinar_demo_venture_gets_developer_and_portugal_packs(tmp_path):
     from realize_core.demo_seed import DEMO_KEY, seed_webinar_demo
 
     clear_cache()
@@ -112,7 +112,8 @@ def test_webinar_demo_venture_gets_the_developer_pack(tmp_path):
     seed_webinar_demo(tmp_path)
     venture = tmp_path / "systems" / DEMO_KEY
     r = PackResolver(venture, enabled=True, packs_root=PACKS)
-    assert [p.id for p in r.packs] == ["developer"]
+    assert [p.id for p in r.packs] == ["pt", "developer"]
+    assert r.resolve("term", "auto de medição").pack_id == "pt@0.1.0"
     assert r.resolve("measure", "payment_claims_checked") is not None
     off = PackResolver(venture, enabled=False, packs_root=PACKS)
     assert off.packs == []

@@ -1,0 +1,33 @@
+id: pt
+kind: market
+version: 0.1.0
+title: Portugal
+requires:
+  core: '>=0.1'
+languages:
+- pt
+- en
+defaults:
+  country: PT
+  currency: EUR
+  units: metric
+  locale: pt-PT
+  work_week:
+  - mon
+  - tue
+  - wed
+  - thu
+  - fri
+verification:
+  level: 1
+  reviewed_by: null
+  reviewed_at: null
+  review_by: '2027-04-13'
+limits:
+- Drafted by an agent from public sources and not yet reviewed by a Portuguese professional (verification
+  1).
+- Does not replace an advogado, a solicitador, an engenheiro or a contabilista certificado.
+- Mainland rules only; the Azores and Madeira have their own rates and procedures.
+authors:
+- Realization (agent-drafted)
+license: BSL-1.1

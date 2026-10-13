@@ -24,6 +24,8 @@ DEMO_KEY = "tower-b-demo"
 DEMO_NAME = "מגדל B — פרויקט הדגמה"
 DEMO_DESCRIPTION = "Webinar demo: a 24-unit development in Barreiro (demo data only)"
 DEMO_LOCALE = "he"
+#: The demo project is in Barreiro, so the Portugal market pack applies (spec 010).
+DEMO_MARKET = "pt"
 
 _ENGINE_ROOT = Path(__file__).resolve().parent.parent
 DEMO_DOCS = _ENGINE_ROOT / "templates" / "demos" / "tower-b-he"
@@ -58,6 +60,21 @@ def _configure_system(root: Path, key: str) -> None:
     )
 
 
+def _add_market_pack(venture_dir: Path, market: str) -> None:
+    """Add a market pack to the venture's packs.yaml (active with features.packs on)."""
+    import yaml
+
+    path = venture_dir / "packs.yaml"
+    data = yaml.safe_load(path.read_text(encoding="utf-8")) if path.is_file() else {}
+    data = data or {}
+    markets = list(data.get("market") or [])
+    if market not in markets:
+        markets.append(market)
+    data["market"] = markets
+    data.setdefault("profession", [])
+    path.write_text(yaml.safe_dump(data, allow_unicode=True, sort_keys=False), encoding="utf-8")
+
+
 def seed_webinar_demo(project_root: str | Path, key: str = DEMO_KEY, name: str = DEMO_NAME) -> dict:
     """Create the Hebrew demo venture with its documents.
 
@@ -87,5 +104,6 @@ def seed_webinar_demo(project_root: str | Path, key: str = DEMO_KEY, name: str =
             documents += 1
 
     _configure_system(root, key)
+    _add_market_pack(venture_dir, DEMO_MARKET)
     logger.info("Seeded demo venture '%s' with %d documents", key, documents)
     return {"key": key, "venture_dir": str(venture_dir), "documents": documents}

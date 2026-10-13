@@ -1,0 +1,63 @@
+- term: auto de medição
+  family: money-event
+  kind: payment_claim
+- term: orçamento
+  family: money-event
+  kind: quote
+- term: proposta
+  family: money-event
+  kind: quote
+- term: revisão de preços
+  family: money-event
+  field: indexation
+- term: caução
+  family: requirement
+  kind: covenant
+- term: garantia bancária
+  family: requirement
+  kind: covenant
+- term: trabalhos complementares
+  family: change
+  kind: variation
+- term: trabalhos a mais
+  family: change
+  kind: variation
+- term: caderno de encargos
+  family: source
+  kind: contract
+- term: mapa de quantidades
+  family: source
+  kind: contract
+- term: empreitada
+  family: source
+  kind: contract
+- term: empreiteiro
+  family: contact
+  kind: contractor
+- term: subempreiteiro
+  family: contact
+  kind: subcontractor
+- term: dono da obra
+  family: contact
+  kind: client
+- term: fiscalização
+  family: contact
+  kind: supervisor
+- term: licença de construção
+  family: milestone
+  kind: permit
+- term: comunicação prévia
+  family: milestone
+  kind: permit
+- term: autorização de utilização
+  family: milestone
+  kind: handover
+- term: receção provisória
+  family: milestone
+  kind: handover
+- term: receção definitiva
+  family: milestone
+  kind: handover
+- term: defeito
+  family: issue
+  kind: defect
