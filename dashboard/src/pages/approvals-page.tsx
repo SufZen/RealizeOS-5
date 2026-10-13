@@ -1,9 +1,15 @@
 import { useState } from 'react'
-import { ShieldCheck, AlertCircle, RefreshCw, CheckCircle2, XCircle } from 'lucide-react'
+import { AlertCircle, RefreshCw, CheckCircle2, XCircle, X } from 'lucide-react'
 import { useApi } from '@/hooks/use-api'
 import { ApprovalCard, type Approval } from '@/components/approval-card'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
+import { TitleBlock } from '@/components/ui/title-block'
+import { Tabs } from '@/components/ui/tabs'
+import { IconButton } from '@/components/ui/button'
+import { EmptyState } from '@/components/ui/empty-state'
+import { Stamp } from '@/components/ui/stamp'
+import { SkeletonCard } from '@/components/ui/skeleton'
 
 interface ApprovalsResponse {
   approvals: Approval[]
@@ -51,82 +57,74 @@ export default function ApprovalsPage() {
     .slice(0, 50)
 
   return (
-    <div className="space-y-6 rz-animate-fade-up">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <ShieldCheck className="h-6 w-6 text-brand-400" />
-          <h1 className="text-2xl font-bold text-foreground">Approvals</h1>
-          {tab === 'pending' && approvals.length > 0 && (
-            <span className="rz-badge rz-badge--accent">{approvals.length} pending</span>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          {(['pending', 'history'] as Tab[]).map((t) => (
-            <button
-              key={t}
-              onClick={() => setTab(t)}
-              className={cn(
-                'rounded-lg px-3 py-1.5 text-xs font-medium capitalize transition-colors',
-                tab === t
-                  ? 'bg-brand-400/15 text-brand-400'
-                  : 'text-muted-foreground hover:bg-surface-700',
-              )}
-            >
-              {t}
-            </button>
-          ))}
-          <button
-            onClick={refetch}
-            aria-label="Refresh"
-            className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-surface-700 hover:text-foreground"
-          >
-            <RefreshCw className="h-4 w-4" />
-          </button>
-        </div>
-      </div>
+    <div className="mx-auto max-w-[960px]">
+      <TitleBlock
+        title="Approvals"
+        description="Payments, messages and questions your agents prepared. Nothing runs until someone here decides."
+        actions={
+          <IconButton label="Refresh" onClick={refetch}>
+            <RefreshCw />
+          </IconButton>
+        }
+      />
+
+      <Tabs
+        label="Approvals"
+        className="mb-6"
+        value={tab}
+        onChange={setTab}
+        items={[
+          {
+            value: 'pending',
+            label: 'Held for you',
+            count: tab === 'pending' && !loading ? approvals.length : undefined,
+          },
+          { value: 'history', label: 'Decided' },
+        ]}
+      />
 
       {outcome && <OutcomeBanner outcome={outcome} onClose={() => setOutcome(null)} />}
 
       {loading ? (
-        <div className="flex h-64 items-center justify-center text-muted-foreground">
-          Loading approvals...
+        <div className="grid gap-4" aria-busy="true" aria-label="Loading approvals">
+          <SkeletonCard />
+          <SkeletonCard />
         </div>
       ) : error ? (
-        <div className="flex h-64 flex-col items-center justify-center">
-          <AlertCircle className="mx-auto mb-2 h-8 w-8 text-red-400" />
-          <p className="text-sm text-red-400">{error}</p>
+        <div
+          role="alert"
+          className="flex items-start gap-2 rounded-[10px] border border-red-400/30 bg-red-400/10 p-4 text-sm text-red-400"
+        >
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>{error}</span>
         </div>
       ) : approvals.length === 0 ? (
-        <div className="py-16 text-center">
-          <ShieldCheck className="mx-auto mb-3 h-12 w-12 text-muted-foreground/30 rz-animate-float" />
-          <p className="text-muted-foreground">
-            {tab === 'pending' ? 'No pending approvals' : 'No decisions yet'}
-          </p>
-          <p className="mt-1 text-xs text-muted-foreground/70">
-            Approvals appear here when agents attempt gated actions
-          </p>
-        </div>
+        <EmptyState
+          art="approvals"
+          title={tab === 'pending' ? 'Nothing is waiting for you' : 'No decisions yet'}
+          body="Approvals appear here when agents attempt gated actions: payments, messages to clients, anything that touches money, contracts or people."
+        />
       ) : (
-        <div className="space-y-4">
-          {approvals.map((approval) => (
-            <div key={approval.id} className="space-y-2">
-              <ApprovalCard
-                approval={approval}
-                busy={busyId === approval.id}
-                onApprove={(id) => decide(id, 'approve')}
-                onReject={(id) => decide(id, 'reject')}
+        <div className="grid gap-4 rz-stagger">
+          {approvals.map((approval, i) => (
+            <ApprovalCard
+              key={approval.id}
+              style={{ ['--i' as string]: i }}
+              approval={approval}
+              busy={busyId === approval.id}
+              onApprove={(id) => decide(id, 'approve')}
+              onReject={(id) => decide(id, 'reject')}
+            >
+              <input
+                type="text"
+                dir="auto"
+                aria-label="Note for this decision"
+                placeholder={notePlaceholder(approval.action_type)}
+                value={noteMap[approval.id] || ''}
+                onChange={(e) => setNoteMap((m) => ({ ...m, [approval.id]: e.target.value }))}
+                className="rz-input rz-input--sm"
               />
-              {approval.status === 'pending' && (
-                <input
-                  type="text"
-                  dir="auto"
-                  placeholder={notePlaceholder(approval.action_type)}
-                  value={noteMap[approval.id] || ''}
-                  onChange={(e) => setNoteMap((m) => ({ ...m, [approval.id]: e.target.value }))}
-                  className="w-full rounded-lg border border-border bg-surface-800 px-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-brand-400"
-                />
-              )}
-            </div>
+            </ApprovalCard>
           ))}
         </div>
       )}
@@ -134,6 +132,7 @@ export default function ApprovalsPage() {
   )
 }
 
+/** What happened after a decision. The stamp strikes here, once, as the decision lands. */
 function OutcomeBanner({ outcome, onClose }: { outcome: DecisionResponse; onClose: () => void }) {
   const exec = outcome.execution
   const failed = exec?.executed && !exec.success
@@ -144,25 +143,35 @@ function OutcomeBanner({ outcome, onClose }: { outcome: DecisionResponse; onClos
     : outcome.skill_output
       ? outcome.skill_output
       : `Request ${outcome.status}.`
+  const decision = outcome.status === 'rejected' ? 'rejected' : 'approved'
   return (
     <div
-      dir="auto"
+      role="status"
       className={cn(
-        'flex items-start gap-2 rounded-xl border p-3 text-sm',
-        failed
-          ? 'border-red-400/30 bg-red-500/10 text-red-300'
-          : 'border-emerald-400/30 bg-emerald-500/10 text-emerald-200',
+        'mb-6 flex items-center gap-4 rounded-[10px] border p-4 rz-enter',
+        failed ? 'border-red-400/30 bg-red-400/10' : 'border-border bg-card',
       )}
     >
-      {failed ? (
-        <XCircle className="mt-0.5 h-4 w-4 shrink-0" />
-      ) : (
-        <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
+      {(outcome.status === 'approved' || outcome.status === 'rejected') && (
+        <Stamp decision={decision} strike className="shrink-0" />
       )}
-      <span className="min-w-0 flex-1 whitespace-pre-wrap break-words">{text}</span>
-      <button onClick={onClose} className="text-xs opacity-70 hover:opacity-100">
-        Dismiss
-      </button>
+      <div
+        dir="auto"
+        className={cn(
+          'flex min-w-0 flex-1 items-start gap-2 text-sm',
+          failed ? 'text-red-400' : 'text-foreground',
+        )}
+      >
+        {failed ? (
+          <XCircle className="mt-0.5 h-4 w-4 shrink-0" />
+        ) : (
+          <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
+        )}
+        <span className="min-w-0 whitespace-pre-wrap break-words">{text}</span>
+      </div>
+      <IconButton label="Dismiss" size="sm" onClick={onClose}>
+        <X />
+      </IconButton>
     </div>
   )
 }

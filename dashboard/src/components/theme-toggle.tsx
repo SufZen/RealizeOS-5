@@ -19,8 +19,8 @@ export function ThemeToggle() {
     <button
       onClick={() => setTheme(next)}
       className={cn(
-        'flex items-center gap-2 w-full rounded-lg px-3 py-2 text-xs',
-        'text-muted-foreground hover:text-foreground hover:bg-surface-700',
+        'flex items-center gap-2.5 w-full h-8 rounded-[5px] px-2.5 text-[13px]',
+        'text-muted-foreground hover:text-foreground hover:bg-surface-700/60',
         'transition-colors',
       )}
       title={`Theme: ${label} — click for ${META[next].label}`}
