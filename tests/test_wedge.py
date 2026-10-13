@@ -143,7 +143,7 @@ def test_submit_and_call_through_mcp(db):
     assert out["local_partner"]["name"] == "Partner PT"
     assert out["booking_url"] == "https://example.com/book"
     call = asyncio.run(wedge_tools.request_audit_call({"run_id": out["run_id"], "contact": "+351 900"}, state, user))
-    assert call["status"] == "requested"
+    assert call["status"] == "recorded"
     bad = asyncio.run(wedge_tools.tender_register_submit({"items": []}, state, user))
     assert bad["code"] == "MCP_VALIDATION"
 
