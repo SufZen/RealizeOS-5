@@ -50,4 +50,4 @@ Additional protections:
 
 ## Dependencies
 
-Dependencies are pinned in `requirements.txt` and scanned for known vulnerabilities in CI using [Safety](https://pypi.org/project/safety/) and [Bandit](https://bandit.readthedocs.io/). Secrets are scanned with [Gitleaks](https://github.com/gitleaks/gitleaks).
+Python dependencies are declared with minimum versions in `requirements.txt` and scanned for known vulnerabilities in CI using [Safety](https://pypi.org/project/safety/) and [Bandit](https://bandit.readthedocs.io/). Secrets are scanned with [Gitleaks](https://github.com/gitleaks/gitleaks). The current advisory status of every ecosystem (Python, dashboard, npm CLI, release tooling), and why anything still open was not fixed, is recorded in [docs/dependency-advisories.md](docs/dependency-advisories.md).
