@@ -152,7 +152,7 @@ async def _run_skill(args: dict[str, Any], app_state: Any, user: CurrentUser) ->
     system_key = (args.get("system_key") or skill.get("system_key") or "").strip() or "default"
     # Same rule as chat: callers act for themselves unless owner/admin.
     requested = (args.get("user_id") or user.user_id or "mcp-user").strip()
-    user_id = chat_user_for(user.user_id, getattr(user, "role", None), requested)
+    user_id = chat_user_for(user.user_id, getattr(user, "role", None), requested, scopes=getattr(user, "scopes", None))
 
     systems = getattr(app_state, "systems", {}) or {}
     system_config = systems.get(system_key)

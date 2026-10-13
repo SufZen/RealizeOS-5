@@ -475,6 +475,81 @@ async def test_held_write_is_audited(world, monkeypatch):
 
 
 # ---------------------------------------------------------------------------
+# A local stdio session is an outside agent too
+# ---------------------------------------------------------------------------
+
+
+async def test_stdio_session_is_governed_as_an_agent(world):
+    from realize_core.governance.gates import decide_approval
+    from realize_core.mcp_server.stdio import resolve_stdio_user
+
+    session = resolve_stdio_user("dana@acme.io")
+    assert session.user_id == "dana@acme.io"  # the person it acts for (pilot rules, audit)
+    held = await _call(world, session, "run_workflow", RUN)
+    assert held["status"] == "pending_approval"
+    assert world.runs == []
+    row = _row(held["approval_id"])
+    assert row["requested_by"] == "agent:stdio:dana@acme.io"
+
+    refused = await _call(world, session, "approve_request", {"approval_id": held["approval_id"]})
+    assert refused["code"] == "MCP_AGENT_CANNOT_DECIDE"
+    assert _row(held["approval_id"])["status"] == "pending"
+
+    # A person approves; it runs once, as the session's user, within the user's ventures.
+    result = await decide_approval(held["approval_id"], approve=True, decided_by="owner@realization.co.il")
+    assert result["execution"]["success"] is True
+    assert [r["user_id"] for r in world.runs] == ["dana@acme.io"]
+    status = await _call(world, session, "list_approvals", {"venture_key": "acme", "approval_id": held["approval_id"]})
+    assert status["approvals"][0]["outcome"] == "succeeded"
+    assert status["approvals"][0]["result"] == "Report ready"
+
+
+async def test_stdio_owner_session_cannot_act_for_others_or_reach_admin(world, monkeypatch):
+    from realize_core import base_handler
+    from realize_core.mcp_server.stdio import resolve_stdio_user
+
+    seen: dict = {}
+
+    async def fake_process(**kwargs):
+        seen.update(kwargs)
+        return "ok"
+
+    monkeypatch.setattr(base_handler, "process_message", fake_process)
+    session = resolve_stdio_user("owner@realization.co.il", ["acme"])
+    await _call(world, session, "realize_chat", {"message": "hi", "system_key": "acme", "user_id": "dana@acme.io"})
+    assert seen["user_id"] == "owner@realization.co.il"
+    assert (await _call(world, session, "update_setting", {"features": {"x": True}}))["code"] == "MCP_AGENT_REFUSED"
+
+
+# ---------------------------------------------------------------------------
+# Pilot accounts never act through an agent token
+# ---------------------------------------------------------------------------
+
+
+def test_pilot_accounts_cannot_have_or_use_agent_tokens(world):
+    from realize_core.security.agent_tokens import AgentTokenError, create_token, resolve_token
+
+    pilot_yaml = USERS_YAML + (
+        "  - email: pia@acme.io\n    role: viewer\n    ventures: [acme]\n    pilot: true\n"
+        '    password_hash: "$2b$12$pia"\n'
+    )
+    (world.path / "users.yaml").write_text(pilot_yaml, encoding="utf-8")
+    with pytest.raises(AgentTokenError, match="Pilot accounts"):
+        create_token(name="pia", user_email="pia@acme.io", ventures=["acme"])
+
+    # A user who becomes a pilot after the token was issued: the token stops.
+    _token, secret = create_token(name="vic", user_email="vic@acme.io", ventures=["acme"])
+    assert resolve_token(secret) is not None
+    (world.path / "users.yaml").write_text(
+        pilot_yaml.replace(
+            "  - email: vic@acme.io\n    role: viewer\n", "  - email: vic@acme.io\n    role: viewer\n    pilot: true\n"
+        ),
+        encoding="utf-8",
+    )
+    assert resolve_token(secret) is None
+
+
+# ---------------------------------------------------------------------------
 # Chat: the agent is the actor
 # ---------------------------------------------------------------------------
 
@@ -567,6 +642,13 @@ def test_one_agent_end_to_end_over_mcp(world, monkeypatch):
         # A bad token gets no MCP at all.
         bad = {**MCP_HEADERS, "Authorization": "Bearer rzag_000000000000_" + "x" * 43}
         assert client.post("/mcp", headers=bad, content="{}").status_code == 401
+        # Revocation applies to the very next request: nothing is cached.
+        from realize_core.security.agent_tokens import revoke_token, token_id_of
+
+        revoke_token(token_id_of(held_by(secret)))
+        body = {"jsonrpc": "2.0", "id": 9, "method": "tools/list", "params": {}}
+        r = client.post("/mcp", headers={**MCP_HEADERS, "Authorization": f"Bearer {secret}"}, content=json.dumps(body))
+        assert r.status_code == 401
 
 
 def held_by(secret: str) -> str:

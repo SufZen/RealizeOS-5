@@ -20,6 +20,14 @@ conversation memory and the rate limiter) and its scopes are
 apply unchanged; governance uses :func:`is_agent_principal` to tell an
 outside agent from a person (an agent never approves its own held write).
 
+A local stdio session (``realize-os mcp stdio --user <email>``) is an agent
+principal too: its client is always an AI agent. It keeps the user's email
+as ``user_id`` (pilot confinement and the audit log see the person it acts
+for) and carries the ``agent:stdio`` scope, set by the stdio entry point.
+Its held writes are requested by ``agent:stdio:<email>``.
+
+Pilot accounts (``pilot: true``) can't have agent tokens.
+
 Tokens live in the ``agent_tokens`` table (migration 012). The table is also
 created on first use, like the other small stores.
 """
@@ -47,6 +55,10 @@ PRINCIPAL_PREFIX = "agent:"
 AGENT_SCOPE_PREFIX = "agent:"
 #: Same prefix as :data:`realize_core.security.venture_scope.VENTURE_SCOPE_PREFIX`.
 VENTURE_SCOPE_PREFIX = "venture:"
+#: Scope of a local stdio session (an agent acting as its ``--user``).
+STDIO_SCOPE = "agent:stdio"
+#: ``requested_by`` of a stdio session's held writes: ``agent:stdio:<email>``.
+STDIO_PRINCIPAL_PREFIX = "agent:stdio:"
 
 _ID_HEX_CHARS = 12
 _NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9 ._-]{0,63}$")
@@ -127,9 +139,9 @@ class AgentToken:
 
 @dataclass(frozen=True)
 class AgentPrincipal:
-    """Who a live agent token stands for on this request."""
+    """Who a live agent stands for: an agent token, or a local stdio session (``token_id`` None)."""
 
-    token_id: str
+    token_id: str | None
     name: str
     bound_user: str
     role: str
@@ -137,13 +149,19 @@ class AgentPrincipal:
 
     @property
     def user_id(self) -> str:
-        """The principal id (``agent:<token id>``)."""
-        return f"{PRINCIPAL_PREFIX}{self.token_id}"
+        """The caller's user id: ``agent:<token id>``, or the user's email for a stdio session."""
+        return f"{PRINCIPAL_PREFIX}{self.token_id}" if self.token_id else self.bound_user
+
+    @property
+    def principal_id(self) -> str:
+        """Who asked, on approval items: ``agent:<token id>`` or ``agent:stdio:<email>``."""
+        return f"{PRINCIPAL_PREFIX}{self.token_id}" if self.token_id else f"{STDIO_PRINCIPAL_PREFIX}{self.bound_user}"
 
     @property
     def scopes(self) -> list[str]:
         """The agent marker plus one ``venture:<key>`` scope per effective venture."""
-        return [f"{AGENT_SCOPE_PREFIX}{self.token_id}"] + [f"{VENTURE_SCOPE_PREFIX}{v}" for v in sorted(self.ventures)]
+        marker = f"{AGENT_SCOPE_PREFIX}{self.token_id}" if self.token_id else STDIO_SCOPE
+        return [marker] + [f"{VENTURE_SCOPE_PREFIX}{v}" for v in sorted(self.ventures)]
 
 
 # ---------------------------------------------------------------------------
@@ -240,6 +258,43 @@ def has_agent_scope(scopes: Iterable[str] | None) -> bool:
     return any(isinstance(s, str) and s.startswith(AGENT_SCOPE_PREFIX) for s in scopes or ())
 
 
+def principal_id_for(user_id: str | None, scopes: Iterable[str] | None) -> str | None:
+    """The ``requested_by`` id of an agent caller, or None for a person.
+
+    ``agent:<token id>`` for an agent token, ``agent:stdio:<email>`` for a
+    stdio session.
+    """
+    if token_id_of(user_id):
+        return user_id
+    if user_id and STDIO_SCOPE in (scopes or ()):
+        return f"{STDIO_PRINCIPAL_PREFIX}{user_id}"
+    return None
+
+
+def live_agent(principal_id: str | None, known_ventures: Iterable[str] | None = None) -> AgentPrincipal | None:
+    """The live agent behind a ``requested_by`` id, checked again now, or None.
+
+    An agent token must still be active (not revoked or expired, user still
+    configured, a venture left). A stdio session's user must still be in
+    ``users.yaml``; its ventures are the user's, or ``known_ventures`` for a
+    user limited to none. Pilot accounts are never agents.
+    """
+    token_id = token_id_of(principal_id)
+    if token_id:
+        return principal_for(token_id)
+    if not isinstance(principal_id, str) or not principal_id.startswith(STDIO_PRINCIPAL_PREFIX):
+        return None
+    from realize_core.security.users import get_user
+
+    user = get_user(principal_id[len(STDIO_PRINCIPAL_PREFIX) :])
+    if user is None or user.pilot:
+        return None
+    ventures = frozenset(user.ventures) if user.ventures else frozenset(known_ventures or ())
+    if not ventures:
+        return None
+    return AgentPrincipal(None, "stdio", user.email, user.role, ventures)
+
+
 def token_id_of(user_id: str | None) -> str | None:
     """The token id inside an agent principal id, or None."""
     if not is_agent_principal(user_id):
@@ -317,6 +372,8 @@ def create_token(
     user = get_user(user_email or "")
     if user is None:
         raise AgentTokenError(f"No user '{user_email}' in users.yaml; an agent token acts for a configured user")
+    if user.pilot:
+        raise AgentTokenError("Pilot accounts can't have agent tokens; they use the pilot tools from their own agent")
     cleaned = _clean_ventures(ventures)
     if known_ventures is not None:
         known = set(known_ventures)
@@ -474,6 +531,9 @@ def _principal(token: AgentToken) -> tuple[AgentPrincipal | None, str]:
     user = get_user(token.user_email)
     if user is None:
         return None, "user_removed"
+    if user.pilot:
+        # A pilot account stays confined to the pilot tools; it never acts through a token.
+        return None, "pilot_user"
     ventures = frozenset(token.ventures)
     if user.ventures:
         ventures &= frozenset(user.ventures)

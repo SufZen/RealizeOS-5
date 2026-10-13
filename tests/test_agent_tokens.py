@@ -306,27 +306,66 @@ class TestRestAccess:
         ("method", "path", "rule"),
         [
             ("GET", "/api/ventures", "allow"),
-            ("GET", "/api/approvals", "allow"),
+            ("HEAD", "/api/approvals", "allow"),
+            ("OPTIONS", "/api/approvals", "allow"),
             ("POST", "/api/chat", "allow"),
             ("POST", "/api/chat/stream", "allow"),
-            ("DELETE", "/api/conversations/acme/agent:0123456789ab", "allow"),
-            ("POST", "/api/approvals/a1/approve", "people_decide"),
-            ("POST", "/api/approvals/a1/reject/", "people_decide"),
-            ("POST", "/api/dreams/p1/reject", "people_decide"),
-            ("POST", "/api/evolution/suggestions/s1/dismiss", "people_decide"),
+            ("DELETE", "/api/conversations/{system_key}/{user_id}", "allow"),
+            ("PUT", "/api/conversations/{system_key}/{user_id}", "refuse"),  # only DELETE
+            ("PATCH", "/api/chat", "refuse"),
+            ("POST", "/api/approvals/{approval_id}/approve", "people_decide"),
+            ("POST", "/api/dreams/{proposal_id}/reject", "people_decide"),
+            ("POST", "/api/evolution/suggestions/{suggestion_id}/dismiss", "people_decide"),
             ("POST", "/api/auth/logout", "refuse"),
             ("DELETE", "/api/auth/sessions", "refuse"),
-            ("POST", "/api/workflows/acme-report/test", "refuse"),
-            ("PUT", "/api/fabric/entities/e1", "refuse"),
-            ("POST", "/api/ventures/acme/kb/file", "refuse"),
+            ("POST", "/api/workflows/{skill_name}/test", "refuse"),
+            ("PUT", "/api/fabric/entities/{entity_id}", "refuse"),
+            ("POST", "/api/ventures/{venture_key}/kb/search", "refuse"),  # POST that reads is still a write
+            ("POST", "/api/ventures/{venture_key}/export", "refuse"),
             ("POST", "/api/agent-tokens", "refuse"),
             ("PATCH", "/api/some-future-route", "refuse"),  # deny by default
+            ("PROPFIND", "/api/ventures", "refuse"),  # unknown methods are writes
+            ("GET", None, "refuse"),  # no route matched
+            ("POST", "", "refuse"),
+            # Raw URLs are not templates: they never match the allow or decide lists.
+            ("POST", "/api/chat/", "refuse"),
+            ("POST", "/api/approvals/a1/approve", "refuse"),
+            ("POST", "/api/approvals-x/a1/approve", "refuse"),
+            ("POST", "/api/agent-tokens/../chat", "refuse"),
         ],
     )
     def test_rest_rules(self, method, path, rule):
         from realize_core.security.agent_access import rest_rule
 
         assert rest_rule(method, path) == rule
+
+    def test_rule_templates_match_real_routes(self):
+        """The allow and decide lists name routes that exist, so a rename can't silently drop a rule."""
+        from realize_api.main import create_app
+        from realize_core.security.agent_access import REST_AGENT_WRITES, REST_DECISION_ROUTES
+
+        routes = {(m, r.path) for r in create_app().routes for m in getattr(r, "methods", None) or ()}
+        assert routes >= REST_AGENT_WRITES
+        assert {("POST", p) for p in REST_DECISION_ROUTES} <= routes
+
+    @pytest.mark.parametrize(
+        ("method", "url"),
+        [
+            ("POST", "/api/approvals/{acme}/approve?next=/api/chat"),
+            ("POST", "/api/approvals/{acme}%2F..%2F..%2Fchat/approve"),
+            ("PUT", "/api/approvals/{acme}/approve"),
+            ("PATCH", "/api/ventures/acme"),
+            ("DELETE", "/api/agent-tokens/0123456789ab"),
+            ("POST", "/api/ventures/acme/kb/search"),
+        ],
+    )
+    def test_odd_urls_and_methods_are_refused_over_http(self, api, method, url):
+        _, secret = _create()
+        r = api.client.request(method, url.format(acme=api.approvals["acme"]), headers=_bearer(secret), json={})
+        assert r.status_code in (403, 404, 405), (r.status_code, r.text)
+        assert r.status_code != 200
+        rows = api.client.get("/api/approvals", headers={"X-API-Key": API_KEY}).json()["approvals"]
+        assert {r["status"] for r in rows} == {"pending"}
 
     def test_revoked_unknown_and_query_string_tokens_get_401(self, api):
         from realize_core.security.agent_tokens import revoke_token

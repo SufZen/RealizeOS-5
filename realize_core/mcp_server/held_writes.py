@@ -85,38 +85,40 @@ def hold_write(tool: Any, arguments: dict[str, Any], user: Any) -> dict[str, Any
     """Queue an agent's write for a person's approval instead of running it.
 
     The caller has already passed RBAC and the venture guard. The call must
-    come from a live agent token and name exactly one of its ventures; only the
+    come from a live agent (token or stdio session) and name exactly one of its
+    ventures; only the
     tool's declared arguments are kept. Invalid calls are refused here, so a
     person never approves a run that can't start.
     """
     from realize_core.governance.gates import create_approval_request
+    from realize_core.mcp_server.venture_guard import caller_ventures
     from realize_core.security.agent_access import CODE_REFUSED
-    from realize_core.security.agent_tokens import principal_for, token_id_of
+    from realize_core.security.agent_tokens import live_agent, principal_id_for
 
     name = tool.name
-    principal_id = getattr(user, "user_id", "") or ""
-    agent = principal_for(token_id_of(principal_id))
-    if agent is None:
-        return {"error": "Only a live agent token can ask for a held write", "code": CODE_REFUSED}
+    principal = principal_id_for(getattr(user, "user_id", None), getattr(user, "scopes", None))
+    agent = live_agent(principal, known_ventures=_known_ventures(principal))
+    if principal is None or agent is None:
+        return {"error": "Only a live agent token or stdio session can ask for a held write", "code": CODE_REFUSED}
     arguments = _declared(tool, arguments)
     ventures = _named_ventures(arguments)
     if not ventures or len(ventures) != 1:
         return {"error": f"Tool '{name}' needs exactly one of your ventures as system_key", "code": "MCP_VALIDATION"}
     venture = next(iter(ventures))
-    if venture not in agent.ventures:
+    session = caller_ventures(user)
+    if venture not in agent.ventures or (session is not None and venture not in session):
         return {"error": f"You don't have access to venture '{venture}'", "code": "MCP_FORBIDDEN"}
     validator = _validator(name)
     invalid = validator(arguments) if validator else None
     if invalid:
         return invalid
 
-    principal = agent.user_id
     if _pending_count(principal) >= MAX_PENDING_PER_AGENT:
         return {
             "error": f"{MAX_PENDING_PER_AGENT} of your writes are already waiting for approval; wait for a decision",
             "code": "MCP_TOO_MANY_PENDING",
         }
-    stored = {**arguments, "user_id": principal}
+    stored = {**arguments, "user_id": agent.user_id}
     agent_name = agent.name
     approval_id = create_approval_request(
         venture_key=venture,
@@ -127,7 +129,7 @@ def hold_write(tool: Any, arguments: dict[str, Any], user: Any) -> dict[str, Any
         action_name=f"{ACTION_PREFIX}{name}",
         params=stored,
         requested_by=principal,
-        session_ref=f"{venture}|{principal}",
+        session_ref=f"{venture}|{agent.user_id}",
     )
     _log_activity(venture, principal, "mcp_write_held", approval_id, {"tool": name})
     logger.info("Held MCP write %s from %s in %s (approval %s)", name, principal, venture, approval_id)
@@ -190,6 +192,16 @@ def _runtime_state() -> Any:
     )
 
 
+def _known_ventures(principal: str | None) -> list[str]:
+    """Configured venture keys, for a stdio session (an unrestricted user's agent may use any of them)."""
+    from realize_core.security.agent_tokens import STDIO_PRINCIPAL_PREFIX
+
+    if not (principal or "").startswith(STDIO_PRINCIPAL_PREFIX):
+        return []
+    systems = getattr(_runtime_state(), "systems", None)
+    return list(systems) if isinstance(systems, dict) else []
+
+
 def _to_text(value: Any) -> str:
     if isinstance(value, str):
         return value
@@ -210,7 +222,7 @@ async def run_approved_write(row: dict, params: dict[str, Any]) -> tuple[bool, s
     from realize_core.mcp_server import venture_guard
     from realize_core.mcp_server.registry import get_registry
     from realize_core.security.agent_access import must_hold
-    from realize_core.security.agent_tokens import principal_for, token_id_of
+    from realize_core.security.agent_tokens import live_agent
 
     action = str(row.get("action_name") or "")
     name = action[len(ACTION_PREFIX) :] if action.startswith(ACTION_PREFIX) else ""
@@ -219,7 +231,8 @@ async def run_approved_write(row: dict, params: dict[str, Any]) -> tuple[bool, s
         return False, "", f"'{action}' is not a held MCP write; nothing was done"
 
     # The agent's own, current, narrowed identity — never the approver's.
-    principal = principal_for(token_id_of(row.get("requested_by")))
+    requested_by = row.get("requested_by")
+    principal = live_agent(requested_by, known_ventures=_known_ventures(requested_by))
     if principal is None:
         return (
             False,
@@ -333,7 +346,9 @@ def agent_result(name: str, result: Any, user: Any) -> Any:
     """What an agent gets back from a tool: approval items come back as status summaries."""
     if name != "list_approvals" or not isinstance(result, dict) or not isinstance(result.get("approvals"), list):
         return result
-    viewer = getattr(user, "user_id", "") or ""
+    from realize_core.security.agent_tokens import principal_id_for
+
+    viewer = principal_id_for(getattr(user, "user_id", None), getattr(user, "scopes", None)) or ""
     return {**result, "approvals": [agent_view(row, viewer) for row in result["approvals"] if isinstance(row, dict)]}
 
 

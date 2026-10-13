@@ -145,7 +145,12 @@ class TestResolveStdioUser:
         from realize_core.mcp_server.stdio import resolve_stdio_user
 
         user = resolve_stdio_user("Dana@Example.com")
-        assert (user.user_id, user.role, user.scopes) == ("dana@example.com", "operator", [])
+        # An outside agent (STORY-37), limited to the user's ventures.
+        assert (user.user_id, user.role, user.scopes) == (
+            "dana@example.com",
+            "operator",
+            ["agent:stdio", "venture:alpha"],
+        )
 
     def test_venture_limited_user_keeps_their_limit(self, users_dir):
         from realize_core.mcp_server.stdio import resolve_stdio_user
@@ -165,7 +170,7 @@ class TestResolveStdioUser:
 
         user = resolve_stdio_user("owner@example.com", ["beta", " beta "])
         assert user.role == "owner"
-        assert user.scopes == ["venture:beta"]
+        assert user.scopes == ["agent:stdio", "venture:beta"]
         assert caller_ventures(user) == frozenset({"beta"})
 
 
@@ -377,7 +382,8 @@ def test_directory_runs_in_process_and_stdout_is_json_rpc_only(stdio_project, tm
     assert not marker.exists(), marker.read_text()
     log = stderr_path.read_text(encoding="utf-8", errors="replace")
     assert "MCP stdio server ready" in log
-    assert "user=owner@example.com role=owner ventures=all" in log
+    # A stdio session is an outside agent: always venture-scoped (an owner gets every configured venture).
+    assert "user=owner@example.com role=owner ventures=alpha,beta" in log
 
 
 def test_identity_is_never_read_from_the_environment(stdio_project):

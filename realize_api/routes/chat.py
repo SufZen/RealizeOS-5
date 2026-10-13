@@ -34,18 +34,23 @@ def _principal(request: Request) -> tuple[str | None, str]:
     return getattr(state, "user_id", None), getattr(state, "role", None) or ""
 
 
+def _scopes(request: Request) -> list[str]:
+    """The caller's scopes (an outside agent's marker lives there)."""
+    return list(getattr(getattr(request, "state", None), "scopes", None) or [])
+
+
 def _chat_user(request: Request, requested: str) -> str:
     """The user a chat request acts for: the signed-in user unless owner/admin."""
     from realize_core.security.chat_access import chat_user_for
 
-    return chat_user_for(*_principal(request), requested)
+    return chat_user_for(*_principal(request), requested, scopes=_scopes(request))
 
 
 def _require_own_conversation(request: Request, user_id: str) -> None:
     """403 unless the caller may read or clear ``user_id``'s conversation."""
     from realize_core.security.chat_access import may_access_conversation
 
-    if not may_access_conversation(*_principal(request), user_id):
+    if not may_access_conversation(*_principal(request), user_id, scopes=_scopes(request)):
         raise HTTPException(status_code=403, detail="You can only access your own conversations")
 
 

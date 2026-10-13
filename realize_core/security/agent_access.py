@@ -8,10 +8,13 @@ One predicate and one rule set, used by both the REST guard
 **Who is an outside agent.** A caller authenticated with a venture-scoped
 agent token (:mod:`realize_core.security.agent_tokens`): its user id is
 ``agent:<token id>`` and its scopes carry ``agent:<token id>``. Only the auth
-middleware sets these, after verifying the token against its stored hash. A
-JWT, an ``X-User-ID`` header or a ``users.yaml`` entry can't claim the marker
-(they are refused or ignored), so :func:`is_agent` can trust it. People
-(dashboard sessions, the API key, OAuth connectors, JWTs) are never agents.
+middleware sets these, after verifying the token against its stored hash.
+A local stdio session (``realize-os mcp stdio``) is one too: its client is
+always an AI agent, and the stdio entry point marks it with the
+``agent:stdio`` scope server-side. A JWT, an ``X-User-ID`` header or a
+``users.yaml`` entry can't claim a marker (they are refused or ignored), so
+:func:`is_agent` can trust it. People (dashboard sessions, the API key,
+OAuth connectors, JWTs) are never agents.
 
 **Rules.** Every action gets one of four rules:
 
@@ -97,13 +100,30 @@ MCP_TOOL_RULES: dict[str, str] = {
     "reload_agents": REFUSE,
 }
 
-_MUTATING = frozenset({"POST", "PUT", "PATCH", "DELETE"})
-#: REST writes an agent may make: chatting, and clearing its own conversation.
-_REST_CHAT_PATHS = frozenset({"/api/chat", "/api/chat/stream"})
-_REST_CONVERSATIONS_PREFIX = "/api/conversations/"
-#: REST decisions on held actions and proposals (``/api/<area>/<id>/<verb>``).
-_REST_DECISION_PREFIXES = ("/api/approvals/", "/api/dreams/", "/api/evolution/suggestions/")
-_REST_DECISION_VERBS = ("approve", "reject", "dismiss", "accept", "answer", "decide")
+#: Methods that only read. Every other method (POST, PUT, PATCH, DELETE, and
+#: any method nobody listed) is a write.
+_READ_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
+#: The only REST writes an agent may make, by method and routed path template:
+#: chatting, and clearing its own conversation. Everything else is refused,
+#: including POST routes that read (search, export, reindex).
+REST_AGENT_WRITES = frozenset(
+    {
+        ("POST", "/api/chat"),
+        ("POST", "/api/chat/stream"),
+        ("DELETE", "/api/conversations/{system_key}/{user_id}"),
+    }
+)
+#: REST decisions on held actions and proposals, by routed path template.
+REST_DECISION_ROUTES = frozenset(
+    {
+        "/api/approvals/{approval_id}/approve",
+        "/api/approvals/{approval_id}/reject",
+        "/api/dreams/{proposal_id}/approve",
+        "/api/dreams/{proposal_id}/reject",
+        "/api/evolution/suggestions/{suggestion_id}/approve",
+        "/api/evolution/suggestions/{suggestion_id}/dismiss",
+    }
+)
 
 
 def is_agent(user_id: str | None, scopes: Iterable[str] | None = None) -> bool:
@@ -123,14 +143,24 @@ def tool_rule(name: str) -> str:
     return MCP_TOOL_RULES.get(name, REFUSE) if isinstance(name, str) else REFUSE
 
 
-def rest_rule(method: str, path: str) -> str:
-    """The rule for a REST request (``hold`` never applies: REST can't hold)."""
+def rest_rule(method: str, route_path: str | None) -> str:
+    """The rule for a REST request (``hold`` never applies: REST can't hold).
+
+    Args:
+        method: The HTTP method.
+        route_path: The routed path *template* (``request.scope["route"].path``,
+            e.g. ``/api/approvals/{approval_id}/approve``), never the raw URL,
+            so trailing slashes, ``//``, ``%2F``, ``..`` and query strings can't
+            change the rule. None (no route matched) is refused.
+    """
+    if not isinstance(route_path, str) or not route_path:
+        return REFUSE
     method = (method or "").upper()
-    if method not in _MUTATING:
+    if method in _READ_METHODS:
+        return ALLOW  # venture scope still applies
+    if (method, route_path) in REST_AGENT_WRITES:
         return ALLOW
-    if path in _REST_CHAT_PATHS or path.startswith(_REST_CONVERSATIONS_PREFIX):
-        return ALLOW
-    if path.startswith(_REST_DECISION_PREFIXES) and path.rstrip("/").rsplit("/", 1)[-1] in _REST_DECISION_VERBS:
+    if route_path in REST_DECISION_ROUTES:
         return PEOPLE_DECIDE
     return REFUSE
 
@@ -145,9 +175,9 @@ def tool_refusal(name: str) -> tuple[str, str] | None:
     return None
 
 
-def rest_refusal(method: str, path: str) -> str | None:
-    """Why an agent may not make this REST request, or None when it may."""
-    rule = rest_rule(method, path)
+def rest_refusal(method: str, route_path: str | None) -> str | None:
+    """Why an agent may not make this REST request, or None when it may (see :func:`rest_rule`)."""
+    rule = rest_rule(method, route_path)
     if rule == PEOPLE_DECIDE:
         return PEOPLE_DECIDE_MESSAGE
     if rule == REFUSE:
