@@ -13,7 +13,7 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, SerializerFunctionWrapHandler, field_validator, model_serializer
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -72,12 +72,35 @@ class ChatRequest(BaseModel):
         return stripped
 
 
+#: Rule-card provenance fields on a trail source (see ``realize_core.agents.trail``).
+_PROVENANCE = frozenset({"layer", "pack", "verification", "as_of", "review_by"})
+
+
 class TrailSource(BaseModel):
-    """A numbered KB source the answer's prompt included."""
+    """A numbered source the answer's prompt included.
+
+    KB hits ([S1]…) carry id, title and path. Pack rule cards ([R1]…) add
+    where they came from: ``layer`` (firm, market, profession), ``pack``
+    (``id@version``; absent for the firm's own rules), ``verification`` (0
+    unverified … 4 field-proven, ADR 0005) and the card's ``as_of`` and
+    ``review_by`` dates. Fields a source doesn't have are left out.
+    """
 
     id: str
     title: str
     path: str
+    layer: str | None = None
+    pack: str | None = None
+    verification: int | None = Field(default=None, ge=0, le=4)
+    as_of: str | None = None
+    review_by: str | None = None
+
+    # No return annotation: one would replace this model's OpenAPI schema with a bare object.
+    @model_serializer(mode="wrap")
+    def _omit_absent_provenance(self, handler: SerializerFunctionWrapHandler):
+        """Leave out provenance a source doesn't have, matching stored trails."""
+        data = handler(self)
+        return {k: v for k, v in data.items() if v is not None or k not in _PROVENANCE}
 
 
 class Trail(BaseModel):
