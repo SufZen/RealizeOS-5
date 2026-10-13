@@ -4,6 +4,12 @@ All notable changes to RealizeOS are documented in this file.
 This changelog is automatically generated from [Conventional Commits](https://conventionalcommits.org).
 
 
+## [5.19.0](https://github.com/SufZen/RealizeOS-5/compare/v5.18.0...v5.19.0) (2026-10-13)
+
+### Features
+
+* **packs:** developer profession pack and Israel market pack (STORY-43) ([3867ede](https://github.com/SufZen/RealizeOS-5/commit/3867ede61816776402c6ce08ce2336e1bca6a0ec))
+
 ## [5.18.0](https://github.com/SufZen/RealizeOS-5/compare/v5.17.0...v5.18.0) (2026-10-13)
 
 ### Features
