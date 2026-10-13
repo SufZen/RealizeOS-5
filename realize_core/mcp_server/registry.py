@@ -68,12 +68,18 @@ class ToolRegistry:
         return self._tools.get(name)
 
     def visible_tools(self, mcp_cfg: McpConfig) -> list[MCPTool]:
-        """Return tools whose family is currently exposed."""
-        families = set(mcp_cfg.families)
-        return [t for t in self._tools.values() if t.family in families]
+        """Return tools whose family is exposed and that pass the ``mcp.tools`` allowlist."""
+        return [t for t in self._tools.values() if self.is_visible(t, mcp_cfg)]
 
     def is_visible(self, tool: MCPTool, mcp_cfg: McpConfig) -> bool:
-        return tool.family in mcp_cfg.families
+        """True when ``tool`` is served: its family is exposed and the allowlist (if any) names it."""
+        if tool.family not in mcp_cfg.families:
+            return False
+        return mcp_cfg.tools is None or tool.name in mcp_cfg.tools
+
+    def unknown_names(self, mcp_cfg: McpConfig) -> list[str]:
+        """Allowlist entries that match no registered tool (likely typos)."""
+        return [name for name in mcp_cfg.tools or () if name not in self._tools]
 
     def all(self) -> list[MCPTool]:
         return list(self._tools.values())

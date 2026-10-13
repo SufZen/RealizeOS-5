@@ -71,12 +71,19 @@ def mount_mcp(app: Any, *, config: dict | None = None) -> McpConfig:
         _mount_oauth(app, mcp_config)
 
     logger.info(
-        "MCP server mounted at /mcp/sse%s — families=%s, allow_admin=%s, oauth=%s",
+        "MCP server mounted at /mcp/sse%s — families=%s, allow_admin=%s, oauth=%s, tools=%s",
         " and /mcp (Streamable HTTP)" if mcp_config.streamable_http else "",
         ",".join(mcp_config.families),
         mcp_config.allow_admin,
         app.state.mcp_oauth is not None,
+        "all" if mcp_config.tools is None else ",".join(mcp_config.tools) or "none",
     )
+    if mcp_config.tools:
+        from realize_core.mcp_server.registry import get_registry
+
+        unknown = get_registry().unknown_names(mcp_config)
+        if unknown:
+            logger.warning("mcp.tools names tools that don't exist: %s", ", ".join(unknown))
     return mcp_config
 
 
