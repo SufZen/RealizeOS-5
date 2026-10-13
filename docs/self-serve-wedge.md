@@ -62,7 +62,7 @@ wedge:
     pt: {name: "Partner name", url: "https://partner.example"}
 ```
 
-`.env`: production posture (`REALIZE_ENV=production`, `REALIZE_API_KEY`, `REALIZE_JWT_ENABLED=true` and a strong `REALIZE_JWT_SECRET`), plus `MCP_PUBLIC_URL` if you prefer it to the YAML. Behind a reverse proxy, set `REALIZE_TRUSTED_PROXIES` so rate limits see real client addresses, and start uvicorn with `--proxy-headers` (see [mcp-server.md](mcp-server.md#connect-claudeai-custom-connector-oauth)).
+`.env`: production posture (`REALIZE_ENV=production`, `REALIZE_API_KEY`, `REALIZE_JWT_ENABLED=true` and a strong `REALIZE_JWT_SECRET`), plus `MCP_PUBLIC_URL` if you prefer it to the YAML. Behind a reverse proxy, set `REALIZE_TRUSTED_PROXIES` to the proxy's address so rate limits see real client addresses, and start uvicorn with `--proxy-headers --forwarded-allow-ips=<proxy ip>` (both flags; the image's default command has neither, so override it; see [mcp-server.md](mcp-server.md#connect-claudeai-custom-connector-oauth)).
 
 With `docker-compose.prod.yml`, use a separate project and data volume, and bind-mount a writable `users.yaml` (the container's root is read-only):
 
@@ -83,7 +83,7 @@ Sign-in is by invitation for now; there is no public sign-up. `invite` refuses t
 realize-os wedge invite dana@example.com
 ```
 
-This adds a `viewer` marked `pilot: true` and limited to an empty sandbox venture of their own (`pilot-<hash>`), and prints a password once. The marker confines the account on the server, whatever the host's config: over MCP it can only call the four pilot tools, and the REST API and dashboard sign-in refuse it. Send them the password privately, with the connector URL (`https://pilot.example.com/mcp`) and the guide for their agent ([connect-your-agent.md](connect-your-agent.md)). Their agent signs in with OAuth and sees only the pilot tools. Inside Docker, run it with `docker compose -p realizeos-pilot exec api python cli.py wedge invite …`.
+This adds a `viewer` marked `pilot: true` and limited to an empty sandbox venture of their own (`pilot-<hash>`), and prints a password once. The marker confines the account on the server, whatever the host's config: over MCP it can only call the four pilot tools, and the REST API, dashboard sign-in and a local stdio session (`mcp stdio --user`) refuse it. Send them the password privately, with the connector URL (`https://pilot.example.com/mcp`) and the guide for their agent ([connect-your-agent.md](connect-your-agent.md)). Their agent signs in with OAuth and sees only the pilot tools. Inside Docker, run it with `docker compose -p realizeos-pilot exec api python cli.py wedge invite …`.
 
 ### Retention
 

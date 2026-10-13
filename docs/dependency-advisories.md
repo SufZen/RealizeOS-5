@@ -10,7 +10,8 @@ What a user actually receives matters most:
 
 | Artifact | What ships | Audited as |
 |---|---|---|
-| Docker image / PyPI wheel | Python packages resolved from `requirements.txt` / `pyproject.toml`, plus the built dashboard in `static/` | `pip-audit -r requirements.txt`; dashboard runtime dependencies |
+| Docker image | Python packages resolved from `requirements.txt` / `pyproject.toml`, plus the built dashboard in `static/` | `pip-audit -r requirements.txt`; dashboard runtime dependencies |
+| PyPI wheel | Python packages from `pyproject.toml` (the wheel doesn't include the dashboard) | `pip-audit -r requirements.txt` |
 | Built dashboard bundle (`static/`) | Browser code from `dashboard/` runtime dependencies (React, React Router, TanStack Query, etc.) | `pnpm audit --prod` |
 | npm package `@realize-os/cli` | `dependencies` in `realize-os-cli/package.json` | `npm audit --omit=dev` |
 | Build, test and release tooling | Vite, Vitest, ESLint, TypeScript, semantic-release, commitlint, pytest, ruff | full audits; never shipped |

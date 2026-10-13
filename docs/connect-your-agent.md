@@ -21,8 +21,8 @@ For the server side (tool families, configuration keys, OAuth internals, error c
 | Claude Desktop, Claude.ai, Cowork | Custom connector (OAuth) | Not yet verified: needs a public HTTPS host |
 | ChatGPT | Custom MCP server (OAuth) | Not yet verified: needs a public HTTPS host |
 | Cursor and other clients | stdio or HTTP with a header | Not yet verified |
-| MCP Python SDK client | stdio | Verified on 2026-10-13 with `mcp` 1.27.1 (`tests/test_mcp_stdio.py`, run in CI) |
-| MCP Python SDK client | Streamable HTTP with an agent token | Verified on 2026-10-13 with `mcp` 1.27.1 against a real server process (`tests/e2e/test_one_client_agent.py`, run in CI) |
+| MCP Python SDK client | stdio | Verified on 2026-10-13 with `mcp` 1.27.1; CI runs `tests/test_mcp_stdio.py` on every change with the current supported version (`mcp>=1.28.1,<2`) |
+| MCP Python SDK client | Streamable HTTP with an agent token | Verified on 2026-10-13 against a real server process; CI runs `tests/e2e/test_one_client_agent.py` on every change with the current supported version (`mcp>=1.28.1,<2`) |
 
 What "verified" covered: the agent connected, listed the tools, and called them as a user limited to one venture. `list_ventures` showed only that venture, `kb_search` found a document in it, and `get_system` for another venture returned `MCP_FORBIDDEN`.
 
@@ -239,7 +239,7 @@ Any other MCP client works the same way: either start the stdio command, or poin
 | `MCP_FORBIDDEN`: "… spans every venture" | The tool needs someone without a venture limit | Ask an owner or admin, or use a venture-specific tool (`venture_kb_search`). |
 | `MCP_INSUFFICIENT_SCOPE` | The role lacks the permission (for example a `viewer` running a workflow) | Use a user with the right role. |
 | A tool is missing from the list | Its family is off (`expose_kb`, `expose_ops`, `allow_admin`) or `mcp.tools` doesn't name it | Check the `mcp:` block; the server logs `families=` and `tools=` at startup. |
-| The stdio server disconnects at once | It refused to start: no `--user`, user not in `users.yaml`, MCP off, unknown `--venture`, a relative `--directory` | Read the last line of the server's log (stderr). It exits with code 2. |
+| The stdio server disconnects at once | It refused to start: no `--user`, user not in `users.yaml`, a pilot account (pilots connect only to the hosted pilot), MCP off, unknown `--venture`, a relative `--directory` | Read the last line of the server's log (stderr). It exits with code 2. |
 | The client reports invalid JSON from the stdio server | Something other than RealizeOS wrote to stdout, usually a wrapper (a shell profile that echoes, `conda run`, a batch file) | Start Python directly as the command. RealizeOS itself writes only JSON-RPC to stdout and sends logs, `print()` output and child processes to stderr. |
 | The stdio server can't find the config or users ("No users.yaml in …") | Without `--directory` it reads the folder RealizeOS is installed in, which isn't your RealizeOS folder (for example a `pip` install) | Pass `--directory /absolute/path/to/RealizeOS`. |
 | Admin tools are missing over stdio | Over stdio they need `--allow-admin` on the command line | Add `--allow-admin` (owner only). An agent still can't call them (`MCP_AGENT_REFUSED`). |

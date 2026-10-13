@@ -236,6 +236,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ inputs.tag || github.ref }}
+          fetch-depth: 0 # all tags and history, for the notes below
 
       - name: Extract version from tag
         id: version
@@ -246,13 +247,28 @@ jobs:
 
       - name: Generate release notes
         id: notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag || github.ref_name }}
         run: |
-          # Get commits since last tag
-          PREV_TAG=$(git tag --sort=-version:refname | head -2 | tail -1 || echo "")
-          if [ -n "$PREV_TAG" ]; then
-            NOTES=$(git log --pretty=format:"- %s (%h)" "$PREV_TAG"..HEAD)
+          # Changes since the last *published* release: versions between them may never
+          # have been published (each merge to main bumps the version), so the previous
+          # git tag is not enough. Fall back to the previous tag by version.
+          PREV_TAG=$(gh release list --exclude-drafts --exclude-pre-releases --limit 20 --json tagName --jq '.[].tagName' | grep -vx "$TAG" | head -1 || true)
+          if [ -z "$PREV_TAG" ]; then
+            PREV_TAG=$(git tag --sort=-version:refname | grep -vx "$TAG" | head -1 || true)
+          fi
+          if [ -n "$PREV_TAG" ] && git rev-parse -q --verify "refs/tags/$PREV_TAG" >/dev/null; then
+            NOTES=$(git log --no-merges --pretty=format:"- %s (%h)" "$PREV_TAG".."$TAG" | grep -v "chore(release):" || true)
+            SINCE="Changes since $PREV_TAG"
           else
-            NOTES=$(git log --pretty=format:"- %s (%h)" -20)
+            NOTES=$(git log --no-merges --pretty=format:"- %s (%h)" -50 "$TAG" | grep -v "chore(release):" || true)
+            SINCE="Recent changes"
+          fi
+          MINOR=$(echo "${{ steps.version.outputs.version }}" | cut -d. -f1-2)
+          UPGRADE=""
+          if [ -f "docs/upgrade-to-$MINOR.md" ]; then
+            UPGRADE="Upgrading? Read [docs/upgrade-to-$MINOR.md](https://github.com/${{ github.repository }}/blob/$TAG/docs/upgrade-to-$MINOR.md) first."
           fi
           # Write to file for the release
           {
@@ -268,7 +284,11 @@ jobs:
             echo "npx @realize-os/cli@${{ steps.version.outputs.version }} init"
             echo '```'
             echo ""
-            echo "### Changes"
+            if [ -n "$UPGRADE" ]; then
+              echo "$UPGRADE"
+              echo ""
+            fi
+            echo "### $SINCE"
             echo "$NOTES"
           } > release-notes.md
 

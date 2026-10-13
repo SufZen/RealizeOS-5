@@ -206,10 +206,9 @@ systems/my-business/R-routines/skills/
   meeting-prep.yaml
 ```
 
-With `features.packs` on, the API loads every venture's skills (its own and its packs') at
-startup and again on every config reload, such as POST `/api/systems/reload`. With the flag off,
-venture skill files are loaded when a skill is installed from the library
-(POST `/api/skills/install`), as before packs.
+The API loads every venture's skills at startup and again on every config reload, such as POST
+`/api/systems/reload` (see [When skills load](#when-skills-load)). With `features.packs` on, the
+skills of the venture's packs are added too.
 
 ## Skills from profession and market packs
 

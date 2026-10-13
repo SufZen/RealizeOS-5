@@ -36,7 +36,7 @@ Best for: Technical users, teams, businesses wanting the complete engine.
 > 💡 **Tip:** Use `realize-os doctor` to diagnose any installation issues.
 
 > 📖 Full setup: [QUICKSTART.md](../QUICKSTART.md) | [Self-Hosting Guide](self-hosting-guide.md)
-> 🐳 Docker: [QUICKSTART.md](../QUICKSTART.md#step-1-pull--run)
+> 🐳 Docker: [QUICKSTART.md](../QUICKSTART.md#step-3-launch)
 
 > **Tip:** You can also use the Venture Wizard in the Lite vault's `shared/venture-worksheet.md` to quickly define your venture identity and voice, then copy the generated files into your Full system's `F-foundations/` directory.
 

@@ -130,7 +130,7 @@ Protection levels control which files AI tools may modify:
 | `standard` | Core engine protected, config editable with auto-backup |
 | `relaxed` | Only security/DB files protected, everything else open |
 
-See the [User Guide](docs/user-guide.html#devmode) for full documentation.
+See [Developer Mode in the API reference](api-reference.md#developer-mode) for the endpoints.
 
 ### Storage & Backup (Optional)
 

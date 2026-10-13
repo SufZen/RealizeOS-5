@@ -9,6 +9,7 @@ module.exports = {
       [
         'feat',     // new feature
         'fix',      // bug fix
+        'security', // security fix (cuts a patch release, see .releaserc.json)
         'docs',     // documentation only
         'style',    // formatting, no code change
         'refactor', // code change, no feature/fix
