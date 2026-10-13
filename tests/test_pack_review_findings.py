@@ -351,3 +351,23 @@ def test_an_approval_recorded_before_fingerprints_still_applies(db, shipped):
     clear_cache()
 
     assert load_pack(shipped / "market" / "pt").rules["pt.vat.rates"].verification == 2
+
+
+# ---------------------------------------------------------------------------
+# P3: glossary disable, broken custom packs, inventory hash
+# ---------------------------------------------------------------------------
+
+
+def test_disabling_a_term_is_case_insensitive(tmp_path):
+    root = tmp_path / "packs"
+    _write(root / "market" / "zz" / "pack.yaml", "id: zz\nkind: market\nversion: 1.0.0\n")
+    _write(root / "market" / "zz" / "glossary" / "en.yaml", "- term: Form 4\n  family: milestone\n  kind: permit\n")
+    venture = _venture(tmp_path, "market: [zz]\n")
+    _write(venture / "F-foundations" / "overrides" / "disable.yaml", "- Form 4\n")
+
+    resolver = PackResolver(venture, enabled=True, packs_root=root)
+
+    assert resolver.resolve("term", "Form 4") is None
+    assert resolver.resolve("term", "form 4") is None
+    assert "form 4" not in resolver.list("term")
+    assert resolver.terms_in("We filed Form 4 yesterday") == []

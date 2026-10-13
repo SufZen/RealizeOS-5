@@ -75,7 +75,7 @@ A firm overrides any pack inside its own venture folder, so the overrides travel
 ```
 systems/<venture>/F-foundations/overrides/
   defaults.yaml        e.g. {currency: USD}
-  disable.yaml         list of rule, term, measure, skill, agent, schema or trust ids to switch off
+  disable.yaml         list of rule, term, measure, skill, agent, schema or trust ids to switch off (case-insensitive)
   skill-settings.yaml  the venture's ids (and extra triggers) for skills that come from packs
   glossary/ rules/ documents/ trust.yaml measures.yaml
 ```

@@ -98,7 +98,7 @@ def explain_with(resolver: PackResolver, decision: str, names: Iterable[str]) ->
     base = TRUST_STRICTNESS.get(decision)
     if base is None:
         return TrustExplanation(decision, decision)
-    keys = [n for n in dict.fromkeys(names) if n and n not in resolver.firm.disabled]
+    keys = [n for n in dict.fromkeys(names) if n and not resolver.is_disabled(n)]
     result = decision
     tightened_by: TrustSource | None = None
     ignored: list[tuple[TrustSource, str]] = []
