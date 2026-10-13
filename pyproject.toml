@@ -178,6 +178,7 @@ ignore = [
 "tests/**/*" = ["S101", "S105", "S106", "S108", "S311", "S603", "S607", "S608", "T20", "PLR0913", "B008", "B017", "B018", "PT011", "RUF043"]
 "cli.py" = ["T20"]  # CLI uses print statements
 "realize_core/cli_app/**" = ["T20"]  # CLI uses print statements
+"scripts/**" = ["T20"]  # command-line scripts: print is their output
 "realize_core/setup_wizard.py" = ["T20"]
 "realize_core/scaffold.py" = ["T20"]
 "realize_api/**" = ["B008"]  # FastAPI Depends() in function defaults is idiomatic
