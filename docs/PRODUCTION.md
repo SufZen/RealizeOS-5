@@ -57,9 +57,11 @@ only those ventures in the dashboard (the venture switcher is locked when there
 is one), the API and MCP. Another venture's data returns 403 or "not found",
 wherever the venture is named (path, query or anywhere in a JSON body). The
 system-wide areas (settings, security, setup, integrations, storage, tools,
-shared files, evolution, pipelines) are closed to them, reads included, and
-their pages are hidden; changes that affect every venture (agent definitions,
-routing, reloads) are refused. Knowledge-base files are checked against the
+shared files, evolution, pipelines, LLM usage and `/api/memory/stats`) are
+closed to them, reads included, and their pages are hidden; changes that affect
+every venture (agent definitions, routing, reloads) are refused. Lists and
+searches that don't name a venture (memory search, approvals, missions, the
+Dream Inbox and its counts) cover only their ventures. Knowledge-base files are checked against the
 venture's own directory, not just the knowledge base.
 
 Leave `ventures` out for access to every venture; a `ventures` entry that is

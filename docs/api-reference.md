@@ -206,7 +206,7 @@ List available skills for a system.
 
 ### GET /api/systems/{system_key}/sessions/{user_id}
 
-Get active creative session.
+Get active creative session. Same rule as `/api/conversations`: a caller reads their own session; only owner and admin people may name another user, and an outside agent (agent token) never may (`403`).
 
 ### POST /api/systems/reload
 

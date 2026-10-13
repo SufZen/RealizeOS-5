@@ -6,7 +6,7 @@ import logging
 
 from fastapi import APIRouter, HTTPException, Request
 
-from realize_api.dependencies import visible_systems
+from realize_api.dependencies import require_own_conversation, visible_systems
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -83,8 +83,14 @@ async def list_skills(system_key: str, request: Request):
 
 
 @router.get("/systems/{system_key}/sessions/{user_id}")
-async def get_session(system_key: str, user_id: str):
-    """Get the active creative session for a user."""
+async def get_session(system_key: str, user_id: str, request: Request):
+    """Get the active creative session for a user.
+
+    Same rule as the conversation routes and the MCP ``get_session`` tool: a
+    caller reads their own session; only owner and admin people may read
+    someone else's, and an outside agent never may.
+    """
+    require_own_conversation(request, user_id)
     from realize_core.pipeline.session import get_session as _get
 
     session = _get(system_key, user_id)

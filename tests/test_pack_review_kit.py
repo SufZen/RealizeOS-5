@@ -133,9 +133,100 @@ def test_csv_cells_are_quoted_and_cannot_start_a_formula():
 
     text = render_csv([SheetRow(id="x.1", type="rule", statement="=HYPERLINK(1)", details="line 1\nline 2  ")])
     header, rows, _ = _read_table_from_text(text)
-    assert rows[0][2] == " =HYPERLINK(1)"
+    assert rows[0][2] == "'=HYPERLINK(1)"
     assert rows[0][3] == "line 1\nline 2"
     assert text.splitlines()[0].startswith('"id"')
+
+
+@pytest.mark.parametrize(
+    ("statement", "cell"),
+    [
+        ("=IMPORTXML(A1)", "'=IMPORTXML(A1)"),
+        ("+SUM(1)", "'+SUM(1)"),
+        ("-2+3", "'-2+3"),
+        ("@cmd", "'@cmd"),
+        ("\uff1dIMPORTXML(A1)", "'\uff1dIMPORTXML(A1)"),  # full-width equals sign
+        ("\uff0b1", "'\uff0b1"),
+        ("\u3000=HYPERLINK(1)", "'=HYPERLINK(1)"),  # leading spaces (ideographic, no-break) don't hide it
+        ("\u00a0 =HYPERLINK(1)", "'=HYPERLINK(1)"),
+        ("-1200", "-1200"),  # a plain number stays a number
+        ("VAT is 23%", "VAT is 23%"),
+    ],
+)
+def test_csv_cells_never_start_a_formula_spreadsheets_would_run(statement, cell):
+    """The guard is the spreadsheet convention (a leading apostrophe), not a space some spreadsheets skip."""
+    from realize_core.packs.review import SheetRow
+
+    for field_name in ("statement", "details", "source", "applies_to"):
+        row = SheetRow(id="x.1", type="rule", **{"statement": "ok", field_name: statement})
+        _, rows, _ = _read_table_from_text(render_csv([row]))
+        column = {"statement": 2, "details": 3, "source": 4, "applies_to": 7}[field_name]
+        assert rows[0][column] == cell, field_name
+
+
+def test_a_guarded_statement_round_trips_without_a_changed_card_warning(packs_root, tmp_path, monkeypatch):
+    """The apostrophe the export adds (or a spreadsheet's removal of it) isn't a change to the card."""
+    from realize_core.packs import review
+    from realize_core.packs.review import SheetRow
+
+    rows = [SheetRow(id="x.1", type="rule", statement="=1 rule, two facts", facts_checked=2)]
+    monkeypatch.setattr(review, "build_sheet_rows", lambda pack: rows)
+    pack = load_market_pack("pt")
+    for exported in ("'=1 rule, two facts", "=1 rule, two facts"):
+        parsed = parse_review(pack, [{"id": "x.1", "statement": exported, "verdict": "correct"}])
+        assert parsed.warnings == []
+    changed = parse_review(pack, [{"id": "x.1", "statement": "'=2 rules", "verdict": "correct"}])
+    assert any("changed after this sheet was exported" in w for w in changed.warnings)
+
+
+ESC = "\x1b"
+
+
+def test_sheet_values_in_error_messages_cannot_drive_the_terminal(packs_root, tmp_path):
+    """Values from the reviewer's CSV are shown escaped, never as raw control characters."""
+    pack = load_market_pack("pt")
+    first = build_sheet_rows(pack)[0].id
+    raw_rows = [
+        {"id": f"pt.nope{ESC}]0;owned{chr(7)}", "verdict": "correct"},
+        {"id": first, "verdict": f"fine{ESC}[2J", "facts_checked": ""},
+    ]
+    with pytest.raises(ReviewSheetError) as caught:
+        parse_review(pack, raw_rows)
+    errors = "\n".join(caught.value.errors)
+    assert ESC not in errors
+    assert chr(7) not in errors
+    assert "pt.nope\\x1b]0;owned\\x07" in errors
+    assert "fine\\x1b[2J" in errors
+
+    for column in ("facts_checked", "facts_corrected"):
+        with pytest.raises(ReviewSheetError) as caught:
+            parse_review(pack, [{"id": first, "verdict": "correct", column: f"1{ESC}[31m"}])
+        assert ESC not in "\n".join(caught.value.errors)
+        assert "1\\x1b[31m" in "\n".join(caught.value.errors)
+        # Not a number a person writes, and no crash either.
+        with pytest.raises(ReviewSheetError, match="'inf' must be a whole number"):
+            parse_review(pack, [{"id": first, "verdict": "correct", column: "inf"}])
+
+
+def test_cli_shows_sheet_values_escaped(packs_root, tmp_path):
+    """review-submit's problem list and correction diff carry no raw escape sequences."""
+    bad = _fill(_sheet(tmp_path), {"*": {"verdict": f"yes{ESC}[2J"}})
+    result = _submit(bad)
+    assert result.exit_code == 1
+    assert ESC not in result.output
+    assert "yes\\x1b[2J" in result.output
+
+    # The card's YAML escapes ESC itself; a right-to-left override passes through YAML as text.
+    rlo = "\u202e"
+    answers = {
+        **MIXED,
+        "pt.vat.rates": {**MIXED["pt.vat.rates"], "corrected_statement": f"VAT is 23%.{rlo} Really.{ESC}[2J"},
+    }
+    result = _submit(_fill(_sheet(tmp_path), answers), "--apply-corrections", "--yes")
+    assert result.exit_code == 0, result.output
+    assert ESC not in result.output
+    assert rlo not in result.output
+    assert "VAT is 23%.\\u202e Really." in result.output
 
 
 def _read_table_from_text(text: str):

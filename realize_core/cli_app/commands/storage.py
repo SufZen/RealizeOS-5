@@ -48,6 +48,16 @@ def storage_restore(
 
     target = result.target
     typer.echo(f"Restored {len(result.files)} file(s) into {target}.")
+    if result.skipped:
+        from realize_core.utils.text import escape_nonprintable
+
+        typer.echo(
+            f"Skipped {len(result.skipped)} file(s) whose names hold a colon, which this system can't store "
+            "(copy them by hand under another name if you need them):",
+            err=True,
+        )
+        for name in result.skipped:
+            typer.echo(f"  - {escape_nonprintable(name)}", err=True)
     typer.echo("Next:")
     typer.echo("  1. Copy .env, users.yaml and .credentials/ from the old server (they are not in an export).")
     env = f"DATA_PATH={result.data_path}"

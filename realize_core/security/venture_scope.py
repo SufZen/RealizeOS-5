@@ -74,6 +74,8 @@ _SYSTEM_AREA_PREFIXES = (
     # Inbound webhook payloads have no trusted owner; LLM usage isn't split by venture.
     "/api/webhooks/events",
     "/api/llm",
+    # LLM usage again, under the memory routes (search is scoped in its handler).
+    "/api/memory/stats",
     # Issuing agent tokens spans ventures (STORY-37).
     "/api/agent-tokens",
 )
