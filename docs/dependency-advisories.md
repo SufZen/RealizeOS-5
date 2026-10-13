@@ -59,6 +59,8 @@ Not covered yet: CI does not fail on new advisories. It runs `safety check` (non
 
 ## Re-running the checks
 
+When you refresh `dashboard/pnpm-lock.yaml`, keep every entry at least a day old. The Docker build installs with the latest pnpm, which rejects lockfile entries published less than a day before the build (`ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION`). Resolve with a minimum age, for example `pnpm update --depth Infinity <pkg> --config.minimum-release-age=4320` (3 days, in minutes).
+
 From the repository root:
 
 ```bash
