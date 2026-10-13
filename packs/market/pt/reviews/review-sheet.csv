@@ -1,0 +1,42 @@
+﻿"id";"type";"statement";"details";"source";"as_of";"review_by";"applies_to";"verification";"facts_checked";"verdict";"facts_corrected";"corrected_statement";"reviewer_note"
+"pt.contracts.complementary-works";"rule";"In public works, complementary works (trabalhos complementares) are works of a kind or quantity not in the contract that are needed to carry it out (Article 370 of the Public Contracts Code); they are approved by the owner, usually by an addendum, within legal limits.";"Log every requested complementary work as a Change with its price basis (contract prices where they exist). The Court of Auditors noted that complementary works cannot be offset against works not done. Source is an opinion article; confirm against the consolidated Code.";"https://eco.sapo.pt/opiniao/os-trabalhos-complementares-nas-empreitadas-de-obras-publicas";"2026-10-13";"2027-04-13";"change: variation";"1 (drafted)";"2";"";"";"";""
+"pt.contractors.alvara";"rule";"Construction companies need an alvará issued by IMPIC under Law 41/2015 to carry out construction works; its class caps the value of works the company may take.";"Before levelling quotes, check each contractor's alvará and class against the value of the works. Class thresholds are set by ordinance (Portaria 212/2022 per secondary sources) and change; check the current one.";"https://diariodarepublica.pt/dr/detalhe/lei/41-2015-67377968";"2026-10-13";"2027-04-13";"contact: contractor, subcontractor";"1 (drafted)";"2";"";"";"";""
+"pt.sales.energy-certificate";"rule";"A valid energy certificate (SCE, Decree-Law 101-D/2020) is required to sell or let a building or unit, with listed exemptions; certificates are issued by experts registered with ADENE.";"Add the certificate to every property dossier and sales milestone. Source is secondary press; confirm exemptions in the consolidated decree.";"https://www.idealista.pt/news/node/45207";"2026-10-13";"2027-04-13";"milestone: handover";"1 (drafted)";"2";"";"";"";""
+"pt.taxes.imt-current-table";"rule";"IMT (property transfer tax) rates and brackets are updated yearly; an IMT assessment remains valid for two years.";"Agents must not quote an IMT bracket without the current table. Secondary sources disagree on thresholds because they come from different years.";"https://info.portaldasfinancas.gov.pt/pt/apoio_ao_contribuinte/Cidadaos/Casa_e_propriedades/Compra_da_casa/Paginas/default.aspx";"2026-10-13";"2027-04-13";"money-event: budget_line";"1 (drafted)";"2";"";"";"";""
+"pt.sales.permit-statement";"rule";"Since Simplex Urbanístico 2.0, a property transaction must state expressly whether a permit (title for the use) exists, or the deed can be annulled.";"Add permit status to every property dossier and to the checklist before a promissory contract or deed. Source summarises the decree; a solicitador or notary confirms the wording needed.";"https://www.idealista.pt/news/node/72170";"2026-10-13";"2027-04-13";"milestone: handover";"1 (drafted)";"1";"";"";"";""
+"pt.contracts.price-revision";"rule";"Price revision (revisão de preços) in Portuguese construction contracts follows Decree-Law 6/2004, in force with amendments (last in 2021); for public works, Article 382 of the Public Contracts Code makes ordinary revision mandatory.";"When a claim includes revision, check the method and formula the contract names (Article 5 of Decree-Law 6/2004) and the base month (the month before the tender deadline in public works). Private contracts apply it only if the contract says so.";"https://diariodarepublica.pt/dr/legislacao-consolidada/decreto-lei/2004-169820399";"2026-10-13";"2027-04-13";"money-event: payment_claim, quote";"1 (drafted)";"2";"";"";"";""
+"pt.planning.technicians-responsibility";"rule";"Under Simplex Urbanístico, technicians and developers bear more responsibility for compliance, through the statements of responsibility (termos de responsabilidade) they sign, while municipalities control more after the fact.";"Keep the evidence behind every signed statement in the decision log: the requirement, the drawings and calculations relied on, and who approved them. This is the architect pack's responsibility evidence file.";"https://www.cuatrecasas.com/en/global/real-estate/art/practical-guide-simplex-urban-2-0-rjue";"2026-10-13";"2027-04-13";"decision: technical";"1 (drafted)";"1";"";"";"";""
+"pt.planning.simplex-2";"rule";"Decree-Law 108/2026 (Simplex Urbanístico 2.0), published 29 May 2026, revised the urban development legal regime (RJUE) and entered into force on 3 August 2026; it reduces prior control and shortens procedures.";"Applies to new procedures and to pending files still at an early stage. Check which regime a project's licensing file is under before planning permit milestones.";"https://www.cuatrecasas.com/en/global/real-estate/art/practical-guide-simplex-urban-2-0-rjue";"2026-10-13";"2027-04-13";"milestone: permit";"1 (drafted)";"2";"";"";"";""
+"pt.taxes.stamp-duty-on-purchase";"rule";"Stamp duty (Imposto do Selo) of 0.8% applies to property purchases, on the same base as IMT; both are paid before the deed.";"Include both IMT and stamp duty in acquisition budgets. IMT brackets change every year; always take them from the current table on the Portal das Finanças, never from memory.";"https://info.portaldasfinancas.gov.pt/pt/apoio_ao_contribuinte/Cidadaos/Casa_e_propriedades/Compra_da_casa/Paginas/default.aspx";"2026-10-13";"2027-04-13";"money-event: budget_line";"1 (drafted)";"2";"";"";"";""
+"pt.vat.rates";"rule";"Mainland Portugal's standard VAT (IVA) rate is 23%. A 6% rate (List I, item 2.23 of the VAT Code) applies to building rehabilitation works in urban rehabilitation areas; the Supreme Administrative Court's uniformizing ruling 3/2026 narrowed when it applies.";"Agents state the IVA rate and the reason for it on every amount. Never apply 6% on a project's say-so: flag it for the contabilista, because ruling 3/2026 (Diário da República, 17 March 2026) may require an approved urban rehabilitation operation.
+The source is a Tax Authority binding ruling on item 2.23 after Lei 56/2023.";"https://info.portaldasfinancas.gov.pt/pt/informacao_fiscal/informacoes_vinculativas/despesa/civa/Documents/PIV_29545.pdf";"2026-10-13";"2027-04-13";"money-event: payment_claim, invoice, quote";"1 (drafted)";"3";"";"";"";""
+"defaults";"defaults";"country: PT
+currency: EUR
+units: metric
+locale: pt-PT
+work_week: mon, tue, wed, thu, fri";"Defaults the pack sets for every venture in this market.";"";"";"";"";"1 (drafted)";"5";"";"";"";""
+"glossary:en";"glossary";"measurement certificate → money-event / payment_claim
+complementary works → change / variation
+construction licence → milestone / permit
+provisional acceptance → milestone / handover";"Glossary (en): each local term mapped to a core family and kind. Check that each term means what its mapping says.";"";"";"";"";"1 (drafted)";"4";"";"";"";""
+"glossary:pt";"glossary";"auto de medição → money-event / payment_claim
+orçamento → money-event / quote
+proposta → money-event / quote
+revisão de preços → money-event (field: indexation)
+caução → requirement / covenant
+garantia bancária → requirement / covenant
+trabalhos complementares → change / variation
+trabalhos a mais → change / variation
+caderno de encargos → source / contract
+mapa de quantidades → source / contract
+empreitada → source / contract
+empreiteiro → contact / contractor
+subempreiteiro → contact / subcontractor
+dono da obra → contact / client
+fiscalização → contact / supervisor
+licença de construção → milestone / permit
+comunicação prévia → milestone / permit
+autorização de utilização → milestone / handover
+receção provisória → milestone / handover
+receção definitiva → milestone / handover
+defeito → issue / defect";"Glossary (pt): each local term mapped to a core family and kind. Check that each term means what its mapping says.";"";"";"";"";"1 (drafted)";"21";"";"";"";""

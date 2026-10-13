@@ -1,0 +1,38 @@
+﻿"id","type","statement","details","source","as_of","review_by","applies_to","verification","facts_checked","verdict","facts_corrected","corrected_statement","reviewer_note"
+"il.planning.building-permit","rule","Building works generally require a building permit under the Planning and Building Law, 1965; the licensing procedure is set by the Planning and Building (Building Licensing) Regulations, 2016, and applications are filed online.","A State Comptroller report measured an average of about 319 days to a permit in the second half of 2019. Use it only as a historical reference, never as a forecast for a specific committee.","https://library.mevaker.gov.il/sites/DigitalLibrary/Pages/Reports/7098-10.aspx","2026-10-13","2027-04-13","milestone: permit","1 (drafted)","2","","","",""
+"il.indexation.construction-input-index","rule","Residential construction contracts and new-apartment payment schedules are commonly linked to the residential construction input index, published monthly by the Central Bureau of Statistics.","When a claim or quote is linked, check which base month the contract names and which published index month the claim uses. The index is published around the 15th of each month for the previous month.
+The contract's own linkage clause governs; this card only says that linkage to this index is common.","https://www.cbs.gov.il/","2026-10-13","2027-04-13","money-event: payment_claim, quote, budget_line","1 (drafted)","1","","","",""
+"il.contracts.form-3210","rule","Government and many public building works in Israel use the standard contract form 3210 (Conditions of contract for the construction of a building by a contractor), published by the Accountant General; public bodies often adapt it.","Under form 3210, changes are ordered in writing as a ""פקודת שינויים"" and priced against the bill of quantities. Check which edition and which amendments the specific contract uses.","https://www.online.mod.gov.il/Online2016/Documents/General/Binuy/Contract3210.pdf","2026-10-13","2027-04-13","change: variation","1 (drafted)","2","","","",""
+"il.contractors.registration","rule","Contractors for building engineering works must be registered with the Registrar of Contractors under the Contractors Registration Law, 1969; registration is by classification, which limits the size and type of works a contractor may take.","Before levelling quotes, check each contractor's registration and classification against the scope and value of the works.","https://www.gov.il/he/departments/units/contractors_registrar_and_head_of_sales_laws_moch","2026-10-13","2027-04-13","contact: contractor, subcontractor","1 (drafted)","2","","","",""
+"il.sale-law.buyer-funds-secured","rule","Under the Sale (Apartments) (Securing Investments of Apartment Buyers) Law, 1974, a developer may not take more than 7% of the price from a buyer of a new apartment unless the money is secured, most often by a bank guarantee.","The threshold was lowered from 15% to 7% by Amendment 4 (2008). Other permitted securities exist (for example insurance or a registered caveat); the guarantee is the common one.
+Agents flag any buyer payment schedule that collects more than 7% before a security is recorded. A lawyer confirms.","https://boi.org.il/media/gsdkkm1q/184f.pdf","2026-10-13","2027-04-13","requirement: covenant","1 (drafted)","1","","","",""
+"il.vat.standard-rate","rule","Israel's standard VAT rate is 18% from 1 January 2025 (previously 17%). The applicable rate follows the date of taxation, not the invoice date.","Agents state the VAT treatment on every amount they check or report (included or excluded, and at which rate).
+Secondary source: a law-firm summary of the Israel Tax Authority's announcement and interpretation directive 01/2025. Confirm against the Tax Authority for transactions that straddle the change date.","https://herzoglaw.co.il/en/news-and-insights/vat-updates-for-2025-vat-rate-increase-israel-invoices-reform-and-the-economic-plan-bill/","2026-10-13","2027-04-13","money-event: payment_claim, invoice, quote","1 (drafted)","2","","","",""
+"defaults","defaults","country: IL
+currency: ILS
+units: metric
+locale: he-IL
+work_week: sun, mon, tue, wed, thu","Defaults the pack sets for every venture in this market.","","","","","1 (drafted)","5","","","",""
+"glossary:en","glossary","Form 4 → milestone / handover
+Sale Law guarantee → requirement / covenant
+accompanying bank → contact / lender
+construction input index → money-event (field: indexation)","Glossary (en): each local term mapped to a core family and kind. Check that each term means what its mapping says.","","","","","1 (drafted)","4","","","",""
+"glossary:he","glossary","חשבון חלקי → money-event / payment_claim
+חשבון סופי → money-event / payment_claim
+הצעת מחיר → money-event / quote
+כתב כמויות → source / contract
+מכרז → source / contract
+פקודת שינויים → change / variation
+היתר בנייה → milestone / permit
+טופס 4 → milestone / handover
+תעודת גמר → milestone / handover
+אבן דרך → milestone / construction_stage
+ערבות בנקאית → requirement / covenant
+ערבות חוק מכר → requirement / covenant
+ליווי בנקאי → contact / lender
+מפקח → contact / supervisor
+קבלן ראשי → contact / contractor
+קבלן משנה → contact / subcontractor
+ליקוי → issue / defect
+עיכוב → issue / delay
+הצמדה למדד תשומות הבנייה → money-event (field: indexation)","Glossary (he): each local term mapped to a core family and kind. Check that each term means what its mapping says.","","","","","1 (drafted)","19","","","",""
