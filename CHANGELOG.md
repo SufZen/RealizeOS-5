@@ -4,6 +4,12 @@ All notable changes to RealizeOS are documented in this file.
 This changelog is automatically generated from [Conventional Commits](https://conventionalcommits.org).
 
 
+## [5.22.0](https://github.com/SufZen/RealizeOS-5/compare/v5.21.0...v5.22.0) (2026-10-13)
+
+### Features
+
+* **wedge:** self-serve tender register pilot (STORY-46) ([9fdf8ca](https://github.com/SufZen/RealizeOS-5/commit/9fdf8ca1c0123d9ab2add601e5244d3bf1016560))
+
 ## [5.21.0](https://github.com/SufZen/RealizeOS-5/compare/v5.20.0...v5.21.0) (2026-10-13)
 
 ### Features
