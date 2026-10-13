@@ -15,6 +15,8 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, SerializerFunctionWrapHandler, field_validator, model_serializer
 
+from realize_api.dependencies import require_own_conversation
+
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
@@ -44,14 +46,6 @@ def _chat_user(request: Request, requested: str) -> str:
     from realize_core.security.chat_access import chat_user_for
 
     return chat_user_for(*_principal(request), requested, scopes=_scopes(request))
-
-
-def _require_own_conversation(request: Request, user_id: str) -> None:
-    """403 unless the caller may read or clear ``user_id``'s conversation."""
-    from realize_core.security.chat_access import may_access_conversation
-
-    if not may_access_conversation(*_principal(request), user_id, scopes=_scopes(request)):
-        raise HTTPException(status_code=403, detail="You can only access your own conversations")
 
 
 class ChatRequest(BaseModel):
@@ -333,7 +327,7 @@ async def chat_stream(body: ChatRequest, request: Request):
 @router.get("/conversations/{system_key}/{user_id}")
 async def get_conversations(system_key: str, user_id: str, request: Request, limit: int = 50):
     """Get conversation history for a user in a system, with each answer's trail."""
-    _require_own_conversation(request, user_id)
+    require_own_conversation(request, user_id)
     try:
         from realize_core.memory.conversation import get_history, get_trails
 
@@ -349,7 +343,7 @@ async def get_conversations(system_key: str, user_id: str, request: Request, lim
 @router.delete("/conversations/{system_key}/{user_id}")
 async def clear_conversations(system_key: str, user_id: str, request: Request):
     """Clear conversation history for a user."""
-    _require_own_conversation(request, user_id)
+    require_own_conversation(request, user_id)
     try:
         from realize_core.memory.conversation import clear_history
 

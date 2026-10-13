@@ -376,7 +376,6 @@ def test_restore_uses_an_empty_existing_folder(tmp_path):
         {"/etc/cron.d/x": b"x"},
         {"//server/share/x": b"x"},
         {"C:/Windows/x": b"x"},
-        {"systems/acme/notes.md:stream": b"x"},
         {"systems/acme/x\x01.md": b"x"},  # control character (zipfile itself cuts names at NUL)
         {"systems\\..\\x": b"x"},
         {".env": b"REALIZE_API_KEY=x"},
@@ -477,3 +476,124 @@ def test_a_damaged_archive_leaves_the_target_untouched(tmp_path):
         restore_export(path, tmp_path / "new")
     assert list((tmp_path / "new").iterdir()) == []
     assert [p.name for p in tmp_path.iterdir() if p.name.startswith(".")] == []
+
+
+# ---------------------------------------------------------------------------
+# Names Windows rewrites or reserves (security review S8), and colons (packs review)
+# ---------------------------------------------------------------------------
+
+
+def _leftovers(parent: Path) -> list[str]:
+    """Staging folders a restore left next to its target."""
+    return sorted(p.name for p in parent.iterdir() if ".restore-" in p.name)
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [
+        "systems/.. /.. /x.md",  # Windows drops the trailing space: ".." once written
+        "systems/../ ../x.md",
+        "systems/acme./x.md",
+        "systems/acme /x.md",
+        "systems/acme/notes.md.",
+        "systems/acme/notes.md ",
+        "systems/.../x.md",
+        "systems/CON/x.md",
+        "systems/acme/nul.txt",
+        "systems/acme/Aux",
+        "data/COM1",
+        "data/lpt9.db",
+        "custom-packs/prn .md",
+        "systems/acme/C:x.md",  # drive-relative on Windows
+        "systems/c:/x.md",
+    ],
+)
+def test_restore_refuses_names_windows_rewrites_or_reserves(tmp_path, bad):
+    from realize_core.storage.restore import RestoreError, restore_export
+
+    with pytest.raises(RestoreError):
+        restore_export(_zip(tmp_path / "x.zip", {**GOOD, bad: b"x"}), tmp_path / "new")
+    assert not (tmp_path / "new").exists()
+    assert _leftovers(tmp_path) == []
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["x.zip"]
+
+
+@pytest.mark.parametrize(
+    "name", ["systems/acme/console.md", "systems/acme/con-notes.md", "data/com10.db", "systems/a.b/c", "data/.hidden"]
+)
+def test_names_close_to_reserved_ones_still_restore(tmp_path, name):
+    from realize_core.storage.restore import restore_export
+
+    restore_export(_zip(tmp_path / "x.zip", {**GOOD, name: b"ok"}), tmp_path / "new")
+    assert (tmp_path / "new").joinpath(*name.split("/")).read_bytes() == b"ok"
+
+
+def _extended(path: Path) -> str:
+    """``path`` in a form that keeps a trailing dot or space on Windows."""
+    return "\\\\?\\" + str(path) if os.name == "nt" else str(path)
+
+
+def test_staging_cleanup_removes_names_windows_cannot_reach_normally(tmp_path):
+    """A staging folder holding ``acme.`` or ``notes `` is still deleted, never left behind."""
+    from realize_core.storage.restore import _remove_staging
+
+    staging = tmp_path / ".new.restore-abc"
+    odd = staging / "systems" / "acme." / "notes "
+    os.makedirs(_extended(odd))
+    with open(_extended(odd / "a.md."), "wb") as fh:
+        fh.write(b"x")
+    _remove_staging(staging)
+    assert not os.path.exists(_extended(staging))
+    _remove_staging(staging)  # already gone: no error
+
+
+COLON_NAME = "systems/acme/B-brain/standup 10:30.md"
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX file names can hold a colon")
+def test_colons_in_names_restore_on_posix(tmp_path):
+    from realize_core.storage.restore import restore_export
+
+    result = restore_export(_zip(tmp_path / "x.zip", {**GOOD, COLON_NAME: b"notes"}), tmp_path / "new")
+    assert (tmp_path / "new" / "systems" / "acme" / "B-brain" / "standup 10:30.md").read_bytes() == b"notes"
+    assert COLON_NAME in result.files
+    assert result.skipped == []
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows can't store a colon in a file name")
+def test_colons_in_names_are_skipped_with_a_warning_on_windows(tmp_path, caplog):
+    from realize_core.storage.restore import restore_export
+
+    with caplog.at_level("WARNING", logger="realize_core.storage.restore"):
+        result = restore_export(_zip(tmp_path / "x.zip", {**GOOD, COLON_NAME: b"notes"}), tmp_path / "new")
+    brain = tmp_path / "new" / "systems" / "acme" / "B-brain"
+    assert result.skipped == [COLON_NAME]
+    assert COLON_NAME not in result.files
+    assert [p.name for p in brain.iterdir()] == ["a.md"]  # no alternate data stream written on a.md either
+    assert "standup 10:30.md" in caplog.text
+    assert _leftovers(tmp_path) == []
+
+
+def test_restore_cli_reports_skipped_names(tmp_path, monkeypatch):
+    from realize_core.cli_app import app
+    from realize_core.storage import restore
+    from typer.testing import CliRunner
+
+    monkeypatch.setattr(restore, "_names_may_hold_colons", lambda: False)  # as on Windows
+    archive = _zip(tmp_path / "x.zip", {**GOOD, COLON_NAME: b"notes"})
+    result = CliRunner().invoke(app, ["storage", "restore", str(archive), "--directory", str(tmp_path / "new")])
+    assert result.exit_code == 0, result.output
+    assert "Skipped 1 file" in result.output
+    assert COLON_NAME in result.output
+    assert not (tmp_path / "new" / "systems" / "acme" / "B-brain" / "standup 10:30.md").exists()
+
+
+@pytest.mark.parametrize("bad", ["../x:y.md", "users.yaml:x", "systems/acme./a:b.md", "systems/C:/a:b.md"])
+@pytest.mark.parametrize("posix", [True, False])
+def test_colon_names_that_are_unsafe_otherwise_still_refuse_the_restore(tmp_path, monkeypatch, bad, posix):
+    from realize_core.storage import restore
+
+    monkeypatch.setattr(restore, "_names_may_hold_colons", lambda: posix)
+    with pytest.raises(restore.RestoreError):
+        restore.restore_export(_zip(tmp_path / "x.zip", {**GOOD, bad: b"x"}), tmp_path / "new")
+    assert not (tmp_path / "new").exists()

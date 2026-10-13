@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Callable
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -200,14 +201,20 @@ class DreamInbox:
             reverse=True,
         )[:limit]
 
-    def stats(self) -> dict:
-        """Get proposal statistics."""
+    def stats(self, include: Callable[[DreamProposal], bool] | None = None) -> dict:
+        """Get proposal statistics.
+
+        Args:
+            include: Count only proposals it accepts (a caller's visible ventures);
+                None counts every proposal.
+        """
+        proposals = [p for p in self._proposals.values() if include is None or include(p)]
         counts = {}
-        for p in self._proposals.values():
+        for p in proposals:
             counts[p.status.value] = counts.get(p.status.value, 0) + 1
 
         return {
-            "total": len(self._proposals),
+            "total": len(proposals),
             "pending": counts.get("pending", 0),
             "approved": counts.get("approved", 0),
             "rejected": counts.get("rejected", 0),
