@@ -516,8 +516,22 @@ async def decide_approval(
         await _notify_missions(approval_id, False, None)
     elif action_type in _AGENT_REQUEST_OUTCOMES:
         report_to_conversation(record.get("session_ref"), _agent_request_outcome(action_type, approve, decision_note))
+    if approve and action_type == "pack_verify":
+        out["execution"] = _apply_pack_verification(record)
     _record_decision(record, approve, action_type)
     return out
+
+
+def _apply_pack_verification(record: dict) -> dict:
+    """Write an approved pack verification (spec 010 §5). Errors are returned, not raised."""
+    from realize_core.governance.decision_log import _params
+    from realize_core.packs.verify import PackVerificationError, apply_verification
+
+    try:
+        return apply_verification(_params(record), record.get("decided_by") or "unknown")
+    except (PackVerificationError, OSError) as exc:
+        logger.warning("Pack verification %s not applied: %s", record.get("id"), exc)
+        return {"error": str(exc)}
 
 
 def _record_decision(record: dict, approve: bool, action_type: str | None) -> None:
