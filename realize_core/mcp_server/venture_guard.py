@@ -38,6 +38,9 @@ NEEDS_VENTURE = frozenset(
         "list_workflows",
         "run_workflow",
         "trigger_skill",
+        "list_packs",
+        "resolve_pack_item",
+        "glossary_lookup",
     }
 )
 #: Tools that run a skill by name: the skill's own venture is checked too.
@@ -70,6 +73,9 @@ TOOL_PERMISSIONS = {
             "list_workflows",
             "list_suggestions",
             "list_approvals",
+            "list_packs",
+            "resolve_pack_item",
+            "glossary_lookup",
         ),
         "system:read",
     ),

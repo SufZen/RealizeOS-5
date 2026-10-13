@@ -93,7 +93,7 @@ Rules:
 | Family | Gating | Tools |
 |---|---|---|
 | `chat` | always on | `realize_chat`, `realize_health`, `realize_status`, `list_systems`, `get_system`, `list_agents`, `list_skills`, `get_history`, `clear_history`, `get_session` |
-| `kb`   | `mcp.expose_kb` (on by default) | `kb_search`, `venture_kb_search`, `kb_get_document`, `list_ventures` |
+| `kb`   | `mcp.expose_kb` (on by default) | `kb_search`, `venture_kb_search`, `kb_get_document`, `list_ventures`, `list_packs`, `resolve_pack_item`, `glossary_lookup` |
 | `ops`  | `mcp.expose_ops` (on by default) | `list_workflows`, `run_workflow`, `trigger_skill`, `run_evolution`, `list_suggestions`, `approve_suggestion`, `dismiss_suggestion`, `list_approvals`, `approve_request`, `reject_request` |
 | `admin`| `mcp.allow_admin` + `role=owner` + production JWT | `create_venture`, `delete_venture`, `update_setting`, `reload_agents` |
 
@@ -131,6 +131,7 @@ A caller limited to some ventures (a `users.yaml` user with `ventures`, or a JWT
 * `kb_get_document` enforces path-traversal protection: the resolved path must live under `app.state.kb_path`. Absolute paths and `..` segments are rejected with `MCP_VALIDATION` / `MCP_FORBIDDEN`.
 * `venture_kb_search` is a convenience: it validates the venture exists, then delegates to `kb_search` with the venture as `system_key`.
 * `list_ventures` mirrors `GET /api/ventures` — venture key, name, agent count, skill count, FABRIC completeness.
+* `list_packs`, `resolve_pack_item` and `glossary_lookup` expose a venture's profession and market packs ([packs.md](packs.md)). Each needs `venture_key`; resolved items come back with their layer, pack and verification level. With `features.packs` off they show only the firm layer and core.
 
 ## Plug into Claude Code or a header-based client
 
