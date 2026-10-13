@@ -167,6 +167,10 @@ Refresh an expired access token.
 
 Verify current token and return user claims.
 
+### GET /api/auth/session
+
+The dashboard's cookie session: `authenticated`, `user_id`, `role`, `ventures` (the ventures the user is limited to, or `null` for all) and `permissions` (the role's RBAC permissions, sorted). `POST /api/auth/login` returns `permissions` too. The dashboard uses them to hide or explain controls the role can't use (for example, a viewer sees no Approve or Reject); the server still checks every request.
+
 ---
 
 ## Systems
@@ -307,17 +311,36 @@ Execute a workflow.
 
 ### GET /api/approvals
 
-List pending approval requests.
+List approval requests, newest first, in the caller's ventures. Query: `status` (default `pending`; empty for every status) and `venture_key`.
+
+Each row's `status` is its **effective** status, and every row carries `expired` (bool):
+
+- `pending` means it can still be decided: a pending item whose `expires_at` has passed is listed as `expired`, not `pending`, and `?status=pending` leaves it out.
+- `?status=expired` returns the items no one decided in time. Nothing ran for them, and they can't be approved or rejected any more.
+
+The MCP `list_approvals` tool and the morning briefing use the same rule.
 
 ### POST /api/approvals/{id}/approve
 
-Approve an approval request.
+Approve an approval request. The response is the decided row plus `execution` (`{executed, success, output, error}` for an action that ran, else `null`) and `skill_output`. Approved does not mean done: check `execution`, or later the row's `execution_status` (`succeeded`, `failed`, or `claimed`, which means started with no result recorded, so a person must check).
 
 ### POST /api/approvals/{id}/reject
 
 Reject an approval request.
 
 People decide: a caller with an agent token gets `403` on approve and reject.
+
+When the item exists but can't be decided any more, approve and reject return `409` and change nothing:
+
+```json
+{
+  "detail": "This request was already approved by dana@acme.io. Your decision was not applied.",
+  "reason": "already_decided",
+  "approval": {"id": "…", "status": "approved", "expired": false, "decided_by": "dana@acme.io", "decided_at": "…", "execution_status": "succeeded", "…": "…"}
+}
+```
+
+`reason` is `expired` (no one decided in time) or `already_decided` (someone else decided first; of two concurrent decisions exactly one wins). An item that doesn't exist, or isn't in the caller's ventures, is `404` as before. (Earlier versions returned `404` for a repeat or expired decision too.)
 
 ---
 
@@ -517,9 +540,11 @@ Get recent activity log entries.
 
 ## Dashboard
 
-### GET /api/dashboard/overview
+### GET /api/dashboard
 
-Get dashboard overview statistics (ventures, agents, activity counts).
+Dashboard overview for the caller's ventures: `ventures` (each with `agent_count` and `skill_count`), `venture_count`, `recent_activity`, `agent_total` and `agent_summary`.
+
+`agent_total` is the number of configured agents, the sum of the ventures' `agent_count`. `agent_summary` counts those same agents by runtime state (`idle`, `running`, `paused`, `error`), so its values add up to `agent_total`. An agent with no runtime state yet (a fresh install, or one that has never run) counts as `idle`; state left over for an agent that is no longer configured is not counted.
 
 ---
 
