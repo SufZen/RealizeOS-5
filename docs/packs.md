@@ -132,7 +132,7 @@ Each glossary entry maps a local term to a core family and, optionally, a kind:
 
 ### Rule cards
 
-A rule card is a dated fact with its source. A card without `source` and `as_of` is skipped with a warning.
+A rule card is a dated fact with its source. A card without `source` and `as_of` is skipped with a warning. Dates can be written with or without quotes (`as_of: 2026-10-13` or `as_of: '2026-10-13'`); YAML reads the unquoted form as a date, and RealizeOS keeps it as `YYYY-MM-DD` text. The same holds everywhere else a pack or override takes text (skill `variables`, triggers, glossary terms, `disable.yaml`). `python cli.py packs desk-check <id>` reports a card the loader skipped as an error and exits 1, so a card that would never reach an answer can't pass unnoticed.
 
 ```markdown
 ---

@@ -1097,8 +1097,13 @@ def desk_check(code: str, *, packs_root: Path | None = None, today: date | None 
     today = today or datetime.now(UTC).date()
     findings: list[DeskFinding] = []
     seen: dict[str, str] = {}
+    loaded = {card.path.resolve() for card in pack.rules.values() if card.path}
     for path in sorted((pack.root / "rules").glob("*.md")):
         findings.extend(_check_card(path, code, today, seen))
+        if path.resolve() not in loaded:  # skipped by the loader, or replaced by a card with the same id
+            reason = next((w for w in pack.warnings if w.startswith(f"rules/{path.name}:")), "")
+            message = "the loader did not load this card, so no answer uses it"
+            findings.append(DeskFinding("error", path.name, message + (f" ({reason})" if reason else "")))
     for language, entries in _glossary_files(pack):
         target = f"glossary/{language}.yaml"
         terms: set[str] = set()

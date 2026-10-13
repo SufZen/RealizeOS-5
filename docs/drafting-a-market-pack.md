@@ -44,7 +44,7 @@ The sheet has one row per rule card, one for the defaults and one per glossary f
 
 `facts_checked` is pre-filled with an estimate (one fact per clause of the statement). The reviewer may change it.
 
-**2. Optional: desk-check before sending.** `python cli.py packs desk-check pt` checks every card mechanically with no network calls: an https source, sane `as_of` and `review_by` dates (the review date not passed), a statement, a core family in `applies_to`, unique ids, and a note where the body says the source is secondary. It is a pre-review aid, not a review. An agent may also open each source and write its notes to `reviews/desk-check-<date>.md`, labelled "agent desk check — not a professional review"; it never changes cards or levels.
+**2. Optional: desk-check before sending.** `python cli.py packs desk-check pt` checks every card mechanically with no network calls: an https source, sane `as_of` and `review_by` dates (the review date not passed), a statement, a core family in `applies_to`, unique ids, a note where the body says the source is secondary, and an error for any card the loader skipped (it would never reach an answer). It is a pre-review aid, not a review. An agent may also open each source and write its notes to `reviews/desk-check-<date>.md`, labelled "agent desk check — not a professional review"; it never changes cards or levels.
 
 **3. Record the filled sheet.**
 
