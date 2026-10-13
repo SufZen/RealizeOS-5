@@ -58,6 +58,11 @@ realize-os
 │   ├── status                                   Show MCP health
 │   └── token [--user USER] [--role ROLE]        Issue bearer token
 │
+├── packs
+│   ├── review-sheet MARKET [--format csv|md]    Export a review sheet for a market pack
+│   ├── review-submit MARKET --sheet --reviewer  Record a review; queue pack_verify
+│   └── desk-check MARKET [--on DATE]            Mechanical card checks (no network)
+│
 ├── config
 │   ├── show [KEY]                               Show config value(s)
 │   ├── set KEY VALUE                            Set a config value
@@ -166,6 +171,31 @@ realize-os mcp token --user admin --role admin
 ```
 
 Use the output token in Claude Desktop's `mcpServers` config or any MCP client.
+
+### `realize-os packs`
+
+Reviewer kit for market packs (STORY-45). A named local professional fills in a sheet; the CLI records it and queues the level change for approval. See [drafting-a-market-pack.md](drafting-a-market-pack.md#2-review-level-2).
+
+```bash
+realize-os packs review-sheet pt                        # packs/market/pt/reviews/review-sheet.csv
+realize-os packs review-sheet pt --format md            # printable sheet with instructions
+realize-os packs review-sheet gr --delimiter comma --out gr.csv
+realize-os packs desk-check pt                          # exit 1 if any card has an error
+realize-os packs review-submit pt --sheet filled.csv --reviewer "Ana Silva, advogada (OA 12345)" --venture ops --apply-corrections
+```
+
+| Option | Command | Meaning |
+|---|---|---|
+| `--format csv\|md` | `review-sheet` | CSV to fill in (UTF-8 with BOM, every cell quoted) or a printable sheet. |
+| `--out PATH` | `review-sheet` | Where to write. Default: `packs/market/<id>/reviews/review-sheet.<format>`. |
+| `--delimiter` | `review-sheet` | `auto` (`;` for decimal-comma locales, else `,`), `comma`, `semicolon` or `tab`. |
+| `--sheet PATH` | `review-submit` | The filled CSV. Comma, semicolon and tab separated files are read. |
+| `--reviewer TEXT` | `review-submit` | `"Name, title (registration)"`. Recorded on the cards when approved. |
+| `--venture KEY` | `review-submit` | Venture whose approval queue gets the request. Default: the first configured venture. |
+| `--apply-corrections` | `review-submit` | Write corrected statements into the cards and move removed cards to `reviews/removed/`, after showing a diff. |
+| `--yes` | `review-submit` | Apply without asking. |
+| `--whole-pack` | `review-submit` | Also raise `pack.yaml`. Needs every row reviewed and the corrections applied. |
+| `--on DATE` | `desk-check` | Check dates as of this day. |
 
 ## Multi-Instance Profiles
 
