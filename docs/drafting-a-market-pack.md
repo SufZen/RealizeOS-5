@@ -22,12 +22,54 @@ Put the result in `packs/market/<id>/`. Then:
 
 ## 2. Review (level 2)
 
-A named local professional (lawyer, solicitor, engineer, quantity surveyor or accountant, depending on the card) reviews each card. For every card, record:
+A named local professional (lawyer, solicitor, engineer, quantity surveyor or accountant, depending on the card) reviews each card. They need no access to RealizeOS: they fill in a sheet, and the CLI does the rest. Send them [reviewing-a-market-pack.md](reviewing-a-market-pack.md) with the sheet.
 
-- whether it is correct as drafted, corrected or removed;
-- the number of facts corrected (the STORY-45 pass signal is fewer than 1 in 5 facts corrected across the pack).
+**1. Export the sheet.** Every shipped level-1 pack already has one in `packs/market/<id>/reviews/`. To export it again after a card changes:
 
-Then request the level change. It goes into the approval queue like any held action:
+```bash
+python cli.py packs review-sheet pt                # reviews/review-sheet.csv, to fill in
+python cli.py packs review-sheet pt --format md    # reviews/review-sheet.md, printable
+```
+
+The CSV is UTF-8 with a byte-order mark and every cell quoted, so Greek, Hebrew and Portuguese text and multi-line cells open cleanly in Excel and Google Sheets. It uses `;` as the separator for markets whose Excel uses a decimal comma (Portugal, Spain, Greece, Cyprus) and `,` elsewhere; `--delimiter comma|semicolon|tab` overrides it. The printable sheet starts with short instructions in English and, where the pack has another language, an agent-translated copy.
+
+The sheet has one row per rule card, one for the defaults and one per glossary file. The reviewer fills in four columns per row:
+
+| Column | Meaning |
+|---|---|
+| `verdict` | `correct`, `corrected` or `removed`. Required on every rule card; optional on the defaults and glossary rows. |
+| `facts_corrected` | Whole number, 0 or more. Blank means 0 for `correct` and every checked fact for `removed`. |
+| `corrected_statement` | The reviewer's wording. A `corrected` row needs this or a note. |
+| `reviewer_note` | Anything else: a better source, an exception. |
+
+`facts_checked` is pre-filled with an estimate (one fact per clause of the statement). The reviewer may change it.
+
+**2. Optional: desk-check before sending.** `python cli.py packs desk-check pt` checks every card mechanically with no network calls: an https source, sane `as_of` and `review_by` dates (the review date not passed), a statement, a core family in `applies_to`, unique ids, and a note where the body says the source is secondary. It is a pre-review aid, not a review. An agent may also open each source and write its notes to `reviews/desk-check-<date>.md`, labelled "agent desk check — not a professional review"; it never changes cards or levels.
+
+**3. Record the filled sheet.**
+
+```bash
+python cli.py packs review-submit pt --sheet filled.csv --reviewer "Ana Silva, advogada (OA 12345)" --venture <key> --apply-corrections
+```
+
+This:
+
+- validates the sheet and lists every problem at once (a missing verdict, a card left out, an unknown id, a facts count that is not a whole number, `correct` with facts corrected), and records nothing if there is one;
+- with `--apply-corrections`, shows a diff and asks before writing (`--yes` skips the question): corrected statements go into the cards; removed cards move to `reviews/removed/`, which the loader ignores; both are logged in the pack's `CHANGELOG.md`. Glossary and defaults corrections are listed for you to edit by hand. Without the flag no card changes;
+- writes the review record to `reviews/<date>-<reviewer>.yaml`: reviewer, date, every row's verdict, facts checked and corrected, notes, totals, the correction ratio and pass or fail;
+- queues a `pack_verify` approval through `request_verification(...)` for the reviewed, non-removed cards, with `corrections={card_id: n}`. Nothing is raised until a person approves it in the dashboard (Approvals).
+
+The pass signal is computed over the rule cards: facts corrected ÷ facts checked must be below 1 in 5. A removed card counts all its facts as corrected unless the reviewer says otherwise. Glossary and defaults rows are reported separately.
+
+**4. Approve.** When the owner approves the request, the reviewer and date are written to each reviewed card (`verification: 2`, `verified_by`, `reviewed_at`). Rejecting it changes nothing. If you submit the same review again on the same day, the command names the earlier approval so you can reject it.
+
+**5. Raise the pack's own level.** A card's effective level is the lower of its own and the pack's, so the cards only show level 2 once `pack.yaml` is raised too. Once every row, including the defaults and glossary rows, has a verdict and the corrections are in the cards, submit with `--whole-pack`: the approval then covers `pack.yaml` and every card, and records the corrections in the manifest.
+
+**6. Record the result.** Write pass or fail, with the numbers from the review record, into ADR 0005's validation note. Spec 010 §9.3 also asks for a version bump when you release the corrected pack: patch for wording, major if cards were removed.
+
+### From Python
+
+The CLI wraps the same API. To queue a request directly, for example from an agent:
 
 ```python
 from realize_core.packs.verify import request_verification
@@ -40,7 +82,7 @@ request_verification(
 )
 ```
 
-When the owner approves it, the reviewer and date are written to `pack.yaml` and to every reviewed card. Pass `cards=[...]` to verify only some cards; the pack's own level then stays as it was.
+With no `cards`, the whole pack is raised: the reviewer and date go to `pack.yaml` and every card. Pass `cards=[...]` to verify only some cards; the pack's own level then stays as it was. `realize_core.packs.review.submit_review(...)` runs the full sheet flow above.
 
 ## 3. Maintain (level 3)
 
