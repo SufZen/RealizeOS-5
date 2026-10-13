@@ -23,6 +23,8 @@ import {
   Moon,
   Sun,
   Languages,
+  KeyRound,
+  type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ThemeProvider } from '@/components/theme-provider'
@@ -43,6 +45,7 @@ import { useLocale } from '@/components/locale-provider'
 import { CommandPalette, type Command } from '@/components/ui/command-palette'
 import { Kbd } from '@/components/ui/badge'
 import { BrandMark } from '@/components/ui/brand-mark'
+import { canOpenPage } from '@/lib/permissions'
 
 const OverviewPage = lazy(() => import('@/pages/overview'))
 const ChatPage = lazy(() => import('@/pages/chat-page'))
@@ -66,6 +69,7 @@ const MissionsPage = lazy(() => import('@/pages/missions-page'))
 const KnowledgeMapPage = lazy(() => import('@/pages/knowledge-map-page'))
 const DreamInboxPage = lazy(() => import('@/pages/dream-inbox-page'))
 const DesignPage = lazy(() => import('@/pages/design-page'))
+const AgentTokensPage = lazy(() => import('@/pages/agent-tokens-page'))
 
 import OnboardingWizard, {
   isOnboardingComplete,
@@ -73,7 +77,15 @@ import OnboardingWizard, {
   serverHasAiProvider,
 } from '@/components/onboarding-wizard'
 
-const navGroups = [
+interface NavItem {
+  to: string
+  icon: LucideIcon
+  label: string
+  /** Extra words the command palette matches (synonyms, Hebrew). */
+  keywords?: string
+}
+
+const navGroups: { label: string; items: NavItem[] }[] = [
   {
     label: 'Core',
     items: [
@@ -115,33 +127,35 @@ const navGroups = [
       { to: '/docs', icon: BookOpen, label: 'Docs' },
       { to: '/setup', icon: Plug, label: 'Setup' },
       { to: '/settings', icon: Settings, label: 'Settings' },
+      {
+        to: '/settings/agent-tokens',
+        icon: KeyRound,
+        label: 'Agent tokens',
+        keywords: 'mcp outside agent connect claude chatgpt cursor api key revoke טוקן סוכן',
+      },
     ],
   },
 ]
 
-/** Pages that work on what every venture shares; hidden from venture-limited users (STORY-18). */
-const SYSTEM_WIDE_PAGES = new Set([
-  '/pipelines',
-  '/evolution',
-  '/tools',
-  '/integrations',
-  '/setup',
-  '/settings',
-])
+/** Links that stay active only on their own page, not on the pages under them. */
+const EXACT_NAV = new Set(['/', '/settings'])
 
-/** Nav groups the signed-in user may see (venture-limited users lose system-wide pages). */
+/**
+ * Nav groups the signed-in user may see: venture-limited users lose
+ * system-wide pages, and only owners and admins with every venture get agent
+ * tokens (`canOpenPage`). The server checks every request anyway.
+ */
 function useVisibleNav() {
   const { user } = useAuth()
-  const scoped = Array.isArray(user?.ventures)
   return useMemo(
     () =>
       navGroups
         .map((group) => ({
           ...group,
-          items: group.items.filter((item) => !(scoped && SYSTEM_WIDE_PAGES.has(item.to))),
+          items: group.items.filter((item) => canOpenPage(user, item.to)),
         }))
         .filter((group) => group.items.length > 0),
-    [scoped],
+    [user],
   )
 }
 
@@ -167,7 +181,7 @@ function NavContent({ onNavigate }: { onNavigate?: () => void }) {
               <li key={to}>
                 <NavLink
                   to={to}
-                  end={to === '/'}
+                  end={EXACT_NAV.has(to)}
                   viewTransition
                   onClick={onNavigate}
                   data-tour={`nav-${label.toLowerCase()}`}
@@ -346,6 +360,7 @@ function useShellCommands(): Command[] {
           label: item.label,
           icon: item.icon,
           hint: g.label,
+          keywords: item.keywords,
           run: () => navigate(item.to, { viewTransition: true }),
         })),
       ),
@@ -499,8 +514,16 @@ function AuthenticatedShell() {
     }
   }, [wantsOnboarding])
 
+  // The wizard sits inside the locale provider too, so it reads in the person's
+  // language and direction (Hebrew → RTL), and the shell keeps them after it.
   if (wantsOnboarding && serverSetup === 'needed') {
-    return <OnboardingWizard onComplete={() => setShowOnboarding(false)} />
+    return (
+      <VentureProvider>
+        <LocaleProvider>
+          <OnboardingWizard onComplete={() => setShowOnboarding(false)} />
+        </LocaleProvider>
+      </VentureProvider>
+    )
   }
 
   return (
@@ -547,6 +570,7 @@ function AuthenticatedShell() {
                     <Route path="/integrations" element={<IntegrationsPage />} />
                     <Route path="/setup" element={<SetupPage />} />
                     <Route path="/settings" element={<SettingsPage />} />
+                    <Route path="/settings/agent-tokens" element={<AgentTokensPage />} />
                     <Route path="/docs" element={<DocsPage />} />
                     <Route path="/missions" element={<MissionsPage />} />
                     <Route path="/knowledge" element={<KnowledgeMapPage />} />
