@@ -212,6 +212,10 @@ def test_the_ventures_own_agents_keep_their_behaviour(kb):
     r = client.put("/api/agents/reviewer", params={"venture": VENTURE}, json={"description": "x"})
     assert r.status_code == 400
     assert "V1" in r.json()["detail"]
+    # Naming a venture the agent doesn't belong to finds nothing.
+    assert client.put("/api/agents/writer", params={"venture": VENTURE}, json={"description": "x"}).status_code == 404
+    assert client.delete("/api/agents/writer", params={"venture": VENTURE}).status_code == 404
+    assert client.get("/api/agents/writer").status_code == 200  # still registered
 
 
 def test_a_venture_limited_caller_sees_only_their_ventures_pack_agents(kb):

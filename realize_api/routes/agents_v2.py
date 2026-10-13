@@ -248,6 +248,12 @@ def _pack_agent(request: Request, agent_key: str, venture: str | None):
     return entries[0]
 
 
+def _require_in_venture(request: Request, agent, agent_key: str, venture: str | None) -> None:
+    """404 when ``venture`` is named and the registry's agent isn't that venture's own."""
+    if venture is not None and (agent is None or _venture_of(agent, _venture_dirs(request)) != venture):
+        raise HTTPException(status_code=404, detail=f"Agent '{agent_key}' not found")
+
+
 def _read_only_error(entry) -> HTTPException:
     """409 for a change to a pack agent: say where the venture's own copy goes."""
     origin = entry.provenance.get("layer", "pack")
@@ -465,6 +471,7 @@ async def update_agent(agent_key: str, body: UpdateAgentBody, request: Request, 
         raise _read_only_error(entry)
     registry = _get_registry(request)
     existing = registry.get(agent_key)
+    _require_in_venture(request, existing, agent_key, venture)
 
     if not existing:
         raise HTTPException(status_code=404, detail=f"Agent '{agent_key}' not found")
@@ -495,6 +502,7 @@ async def delete_agent(agent_key: str, request: Request, venture: str | None = N
     if entry is not None:
         raise _read_only_error(entry)
     registry = _get_registry(request)
+    _require_in_venture(request, registry.get(agent_key), agent_key, venture)
 
     if not registry.unregister(agent_key):
         raise HTTPException(status_code=404, detail=f"Agent '{agent_key}' not found")
