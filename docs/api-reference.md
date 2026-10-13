@@ -539,6 +539,40 @@ Update general system settings.
 
 ---
 
+## Trust
+
+### GET /api/trust
+
+The trust ladder: `level` (1-5) and `actions` (each governance action's decision per level: `block`, `approve` or `auto`). The ladder spans every venture: a venture-limited caller gets `403`.
+
+With `features.packs` on, `ventures` adds each venture's **effective** decisions at the current level, after its packs and firm overrides ([packs.md](packs.md#what-packs-change-at-run-time)). Packs only tighten trust, so `effective` is never looser than `ladder`:
+
+```json
+"ventures": {
+  "acme": {
+    "name": "Acme Tower",
+    "layers": [{"layer": "firm", "pack": null}, {"layer": "market", "pack": "pt@0.1.0"}, {"layer": "profession", "pack": "developer@0.1.0"}],
+    "actions": [
+      {"action": "data_write", "governed_by": null, "ladder": "approve", "effective": "block", "tightened": true,
+       "source": {"layer": "market", "pack": "pt@0.1.0", "key": "data_write", "value": "block", "label": "market pack pt@0.1.0"},
+       "ignored": []},
+      {"action": "gmail_send", "governed_by": "send_email", "ladder": "approve", "effective": "approve", "tightened": false,
+       "source": null,
+       "ignored": [{"layer": "profession", "pack": "developer@0.1.0", "key": "gmail_send", "value": "auto", "label": "profession pack developer@0.1.0", "reason": "loosen"}]}
+    ],
+    "warnings": ["profession pack developer@0.1.0 would loosen gmail_send from approve to auto; ignored (packs only tighten trust)"]
+  }
+}
+```
+
+There is one row per governance action of the ladder and one per tool action a pack or the firm names on its own (`governed_by` is the governance action it falls under; a tool action the ladder has no rule for is shown as a write, `unknown_write`). `source` is the layer whose default set the effective decision (`label` is `firm overrides` for the firm's own `F-foundations/overrides/trust.yaml`). `ignored` lists defaults that were not applied: `loosen` (it would loosen the ladder's decision) or `invalid` (not `auto`, `approve` or `block`); `warnings` says the same once per venture. The governance gate uses the same calculation, so the matrix and the gate agree. With the flag off the response has no `ventures`.
+
+### PUT /api/trust/level
+
+Body `{"level": 1-5}`: set the trust level in `realize-os.yaml` and reload. Needs `system:manage`.
+
+---
+
 ## Storage
 
 ### GET /api/settings/storage

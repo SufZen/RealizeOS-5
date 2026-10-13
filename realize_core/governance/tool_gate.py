@@ -42,7 +42,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
-from realize_core.governance.trust_ladder import ACTION_MAP, TrustDecision, check_trust, get_trust_rules
+from realize_core.governance.trust_ladder import TrustDecision, check_trust, trust_keys
 from realize_core.tools.approval import (
     ApprovalAction,
     ApprovalRequest,
@@ -192,10 +192,7 @@ class ToolGate:
             return decision
         from realize_core.packs.trust import tighten
 
-        trust_action = ACTION_MAP.get(action_name, action_name)
-        names = [action_name, trust_action]
-        if is_destructive and trust_action not in get_trust_rules(self._config):
-            names.append("unknown_write")
+        names = trust_keys(action_name, self._config, is_destructive=is_destructive)
         return TrustDecision(tighten(decision.value, names, venture_dir))
 
     def _venture_dir(self, system_key: str) -> Path | None:

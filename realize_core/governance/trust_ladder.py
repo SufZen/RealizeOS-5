@@ -158,6 +158,20 @@ def check_trust(
         return TrustDecision.APPROVE
 
 
+def trust_keys(action: str, config: dict | None = None, *, is_destructive: bool | None = None) -> list[str]:
+    """The keys a pack or firm trust default may name for ``action`` (spec 010).
+
+    The tool action itself (``sheets_append``), the governance action the
+    ladder files it under (``data_write``), and ``unknown_write`` for a write
+    the ladder has no rule for. The gate and the trust matrix both use this.
+    """
+    trust_action = ACTION_MAP.get(action, action)
+    names = list(dict.fromkeys([action, trust_action]))
+    if is_destructive and trust_action not in get_trust_rules(config):
+        names.append("unknown_write")
+    return names
+
+
 def is_action_allowed(action: str, config: dict = None, channel: str = "dashboard") -> bool:
     """Check if an action is allowed (not blocked)."""
     return check_trust(action, config, channel) != TrustDecision.BLOCK
