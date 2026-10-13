@@ -38,6 +38,11 @@ users:
     role: operator
     ventures: [alpha]
     password_hash: "not-a-real-hash"
+  - email: pilot@example.com
+    role: viewer
+    ventures: [alpha]
+    pilot: true
+    password_hash: "not-a-real-hash"
 """
 
 CONFIG_YAML = """\
@@ -476,6 +481,48 @@ def test_allow_admin_flag_serves_admin_tools(stdio_project):
     finally:
         watchdog.cancel()
     assert "delete_venture" in {t["name"] for t in tools}
+
+
+def test_pilot_account_stays_confined_over_stdio(stdio_project):
+    """A pilot: true account gets only the pilot tools, as over HTTP."""
+    from realize_core.wedge.pilot import PILOT_TOOLS
+
+    project, env = stdio_project
+    proc = subprocess.Popen(
+        [sys.executable, CLI, "mcp", "stdio", "--directory", str(project), "--user", "pilot@example.com"],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        env=env,
+    )
+    watchdog = threading.Timer(90, proc.kill)
+    watchdog.start()
+    try:
+        _exchange(
+            proc,
+            {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {
+                    "protocolVersion": "2025-06-18",
+                    "capabilities": {},
+                    "clientInfo": {"name": "t", "version": "0"},
+                },
+            },
+        )
+        _exchange(proc, {"jsonrpc": "2.0", "method": "notifications/initialized"})
+        tools = json.loads(_exchange(proc, {"jsonrpc": "2.0", "id": 2, "method": "tools/list"}))["result"]["tools"]
+        call = {"name": "list_ventures", "arguments": {}}
+        refused = json.loads(_exchange(proc, {"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": call}))
+        proc.stdin.close()
+        assert proc.wait() == 0
+    finally:
+        watchdog.cancel()
+    names = {t["name"] for t in tools}
+    assert names
+    assert names <= PILOT_TOOLS
+    assert json.loads(refused["result"]["content"][0]["text"])["code"] == "MCP_FORBIDDEN"
 
 
 def test_claim_stdout_sends_stray_output_to_stderr(tmp_path):

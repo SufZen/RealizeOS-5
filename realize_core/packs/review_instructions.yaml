@@ -1,0 +1,118 @@
+# Instructions printed at the top of a market-pack review sheet (STORY-45).
+#
+# English is the original. Every other language is agent-translated and the
+# sheet says so. Keep them short and factual, and keep the four column names
+# (verdict, facts corrected, corrected statement, reviewer note) and the three
+# verdict words (correct, corrected, removed) in English: the sheet is parsed
+# by those words.
+#
+# Placeholders: {minutes} estimated time, {title} pack title.
+
+en:
+  heading: "How to review (about {minutes} minutes)"
+  label: ""
+  intro: >-
+    An AI agent drafted this pack from public sources. It is labelled verification
+    level 1 (a draft). Your review lets it be marked as reviewed (level 2), with your
+    name on each card you review.
+  check_title: "For each card, check:"
+  checks:
+    - "Is the statement correct and current for {title}?"
+    - "Does the source support it? A better or official source is welcome."
+    - "Is anything important missing, misleading or out of date?"
+  fill_title: "Then fill in:"
+  fill:
+    - "verdict: correct, corrected or removed."
+    - "facts corrected: how many separate facts you changed (0 if correct). facts checked is our estimate of the facts in the statement; change it if you count differently."
+    - "corrected statement: your wording, if you corrected the card."
+    - "reviewer note: anything else, such as a better source or an exception."
+  closing: >-
+    The glossary and defaults rows are optional. Your name, title and registration
+    number are recorded on every card you review.
+
+pt:
+  heading: "Como rever (cerca de {minutes} minutos)"
+  label: "Tradução feita por um agente de IA a partir das instruções em inglês."
+  intro: >-
+    Este pacote foi redigido por um agente de IA a partir de fontes públicas. Está
+    marcado com o nível de verificação 1 (rascunho). A sua revisão permite marcá-lo como
+    revisto (nível 2), com o seu nome em cada ficha que rever.
+  check_title: "Em cada ficha, verifique:"
+  checks:
+    - "A afirmação está correta e atual neste mercado?"
+    - "A fonte sustenta-a? Uma fonte melhor ou oficial é bem-vinda."
+    - "Falta algo importante, ou há algo enganador ou desatualizado?"
+  fill_title: "Depois preencha (escreva as palavras do veredicto em inglês):"
+  fill:
+    - "verdict: correct (correta), corrected (corrigida) ou removed (removida)."
+    - "facts corrected: quantos factos distintos alterou (0 se estiver correta). facts checked é a nossa estimativa dos factos na afirmação; altere-a se contar de outra forma."
+    - "corrected statement: a sua redação, se corrigiu a ficha."
+    - "reviewer note: qualquer outra observação, como uma fonte melhor ou uma exceção."
+  closing: >-
+    As linhas do glossário e dos valores predefinidos são opcionais. O seu nome, título
+    e número de inscrição ficam registados em cada ficha que rever.
+
+es:
+  heading: "Cómo revisar (unos {minutes} minutos)"
+  label: "Traducción hecha por un agente de IA a partir de las instrucciones en inglés."
+  intro: >-
+    Un agente de IA redactó este paquete a partir de fuentes públicas. Está marcado con
+    el nivel de verificación 1 (borrador). Su revisión permite marcarlo como revisado
+    (nivel 2), con su nombre en cada ficha que revise.
+  check_title: "En cada ficha, compruebe:"
+  checks:
+    - "¿La afirmación es correcta y está vigente en este mercado?"
+    - "¿La fuente la respalda? Se agradece una fuente mejor u oficial."
+    - "¿Falta algo importante, o hay algo engañoso o desactualizado?"
+  fill_title: "Después rellene (escriba las palabras del veredicto en inglés):"
+  fill:
+    - "verdict: correct (correcta), corrected (corregida) o removed (eliminada)."
+    - "facts corrected: cuántos datos distintos ha cambiado (0 si es correcta). facts checked es nuestra estimación de los datos de la afirmación; cámbiela si cuenta de otra forma."
+    - "corrected statement: su redacción, si ha corregido la ficha."
+    - "reviewer note: cualquier otra observación, como una fuente mejor o una excepción."
+  closing: >-
+    Las filas del glosario y de los valores por defecto son opcionales. Su nombre, título
+    y número de colegiado quedan registrados en cada ficha que revise.
+
+el:
+  heading: "Πώς γίνεται ο έλεγχος (περίπου {minutes} λεπτά)"
+  label: "Μετάφραση από πράκτορα τεχνητής νοημοσύνης, με βάση τις αγγλικές οδηγίες."
+  intro: >-
+    Αυτό το πακέτο συντάχθηκε από πράκτορα τεχνητής νοημοσύνης με βάση δημόσιες πηγές.
+    Φέρει επίπεδο επαλήθευσης 1 (προσχέδιο). Ο έλεγχός σας επιτρέπει να σημειωθεί ως
+    ελεγμένο (επίπεδο 2), με το όνομά σας σε κάθε κάρτα που ελέγχετε.
+  check_title: "Σε κάθε κάρτα ελέγξτε:"
+  checks:
+    - "Είναι η διατύπωση σωστή και επίκαιρη για αυτή την αγορά;"
+    - "Την τεκμηριώνει η πηγή; Μια καλύτερη ή επίσημη πηγή είναι ευπρόσδεκτη."
+    - "Λείπει κάτι σημαντικό, ή υπάρχει κάτι παραπλανητικό ή ξεπερασμένο;"
+  fill_title: "Στη συνέχεια συμπληρώστε (γράψτε τις λέξεις της κρίσης στα αγγλικά):"
+  fill:
+    - "verdict: correct (σωστή), corrected (διορθωμένη) ή removed (αφαιρείται)."
+    - "facts corrected: πόσα διακριτά στοιχεία αλλάξατε (0 αν είναι σωστή). Το facts checked είναι η εκτίμησή μας για τα στοιχεία της διατύπωσης· αλλάξτε το αν μετράτε διαφορετικά."
+    - "corrected statement: η δική σας διατύπωση, αν διορθώσατε την κάρτα."
+    - "reviewer note: οτιδήποτε άλλο, όπως μια καλύτερη πηγή ή μια εξαίρεση."
+  closing: >-
+    Οι γραμμές του γλωσσαρίου και των προεπιλογών είναι προαιρετικές. Το όνομά σας, ο
+    τίτλος σας και ο αριθμός μητρώου σας καταγράφονται σε κάθε κάρτα που ελέγχετε.
+
+he:
+  heading: "איך בודקים (כ-{minutes} דקות)"
+  label: "תורגם על ידי סוכן בינה מלאכותית מההנחיות באנגלית."
+  intro: >-
+    סוכן בינה מלאכותית ניסח את החבילה הזו ממקורות ציבוריים. היא מסומנת ברמת אימות 1
+    (טיוטה). הבדיקה שלך מאפשרת לסמן אותה כנבדקת (רמה 2), עם שמך על כל כרטיס שבדקת.
+  check_title: "בכל כרטיס, בדקו:"
+  checks:
+    - "האם הקביעה נכונה ועדכנית בשוק הזה?"
+    - "האם המקור תומך בה? מקור טוב יותר או רשמי יתקבל בברכה."
+    - "האם חסר משהו חשוב, או שיש משהו מטעה או לא עדכני?"
+  fill_title: "אחר כך מלאו (את מילות ההכרעה כתבו באנגלית):"
+  fill:
+    - "verdict: correct (נכון), corrected (תוקן) או removed (הוסר)."
+    - "facts corrected: כמה עובדות נפרדות שיניתם (0 אם הכרטיס נכון). facts checked הוא ההערכה שלנו למספר העובדות בקביעה; שנו אותו אם אתם סופרים אחרת."
+    - "corrected statement: הנוסח שלכם, אם תיקנתם את הכרטיס."
+    - "reviewer note: כל דבר אחר, כמו מקור טוב יותר או חריג."
+  closing: >-
+    שורות המילון וברירות המחדל הן רשות. שמכם, התואר ומספר הרישיון נרשמים על כל כרטיס
+    שבדקתם.

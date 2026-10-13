@@ -60,6 +60,11 @@ realize-os
 │   ├── status                                   Show MCP health
 │   └── token [--user USER] [--role ROLE]        Issue bearer token
 │
+├── packs
+│   ├── review-sheet MARKET [--format csv|md]    Export a review sheet for a market pack
+│   ├── review-submit MARKET --sheet --reviewer  Record a review; queue pack_verify
+│   └── desk-check MARKET [--on DATE]            Mechanical card checks (no network)
+│
 ├── wedge                                        Self-serve tender register pilot
 │   ├── invite EMAIL                             Add an invite-only pilot user
 │   ├── funnel [--days N] [--format json]        Runs, users and calls per market
@@ -189,12 +194,37 @@ python cli.py mcp stdio --directory /path/to/RealizeOS --user owner@example.com 
 - `--allow-admin` serves admin tools (owner only). Over stdio, `mcp.allow_admin` doesn't turn them on.
 - MCP must be on (`MCP_ENABLED=true`). stdout carries only JSON-RPC; logs go to stderr. It exits with code 2 and a reason on stderr when it refuses to start.
 
+### `realize-os packs`
+
+Reviewer kit for market packs (STORY-45). A named local professional fills in a sheet; the CLI records it and queues the level change for approval. See [drafting-a-market-pack.md](drafting-a-market-pack.md#2-review-level-2).
+
+```bash
+realize-os packs review-sheet pt                        # packs/market/pt/reviews/review-sheet.csv
+realize-os packs review-sheet pt --format md            # printable sheet with instructions
+realize-os packs review-sheet gr --delimiter comma --out gr.csv
+realize-os packs desk-check pt                          # exit 1 if any card has an error
+realize-os packs review-submit pt --sheet filled.csv --reviewer "Ana Silva, advogada (OA 12345)" --venture ops --apply-corrections
+```
+
+| Option | Command | Meaning |
+|---|---|---|
+| `--format csv\|md` | `review-sheet` | CSV to fill in (UTF-8 with BOM, every cell quoted) or a printable sheet. |
+| `--out PATH` | `review-sheet` | Where to write. Default: `packs/market/<id>/reviews/review-sheet.<format>`. |
+| `--delimiter` | `review-sheet` | `auto` (`;` for decimal-comma locales, else `,`), `comma`, `semicolon` or `tab`. |
+| `--sheet PATH` | `review-submit` | The filled CSV. Comma, semicolon and tab separated files are read. |
+| `--reviewer TEXT` | `review-submit` | `"Name, title (registration)"`. Recorded on the cards when approved. |
+| `--venture KEY` | `review-submit` | Venture whose approval queue gets the request. Default: the first configured venture. |
+| `--apply-corrections` | `review-submit` | Write corrected statements into the cards and move removed cards to `reviews/removed/`, after showing a diff. |
+| `--yes` | `review-submit` | Apply without asking. |
+| `--whole-pack` | `review-submit` | Also raise `pack.yaml`. Needs every row reviewed and the corrections applied. |
+| `--on DATE` | `desk-check` | Check dates as of this day. |
+
 ### `realize-os wedge`
 
 Host the [self-serve tender register](self-serve-wedge.md) pilot. Run these on the server, in the directory that holds `users.yaml` and the database.
 
 ```bash
-realize-os wedge invite dana@example.com   # viewer limited to an empty sandbox venture; prints the password once
+realize-os wedge invite dana@example.com   # pilot-only viewer in an empty sandbox venture; prints the password once
 realize-os wedge funnel --days 30          # runs, users and call requests per market, from recorded runs
 realize-os wedge purge                     # delete runs older than 30 days unless the user opted in
 ```

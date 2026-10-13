@@ -1,0 +1,36 @@
+﻿"id";"type";"statement";"details";"source";"as_of";"review_by";"applies_to";"verification";"facts_checked";"verdict";"facts_corrected";"corrected_statement";"reviewer_note"
+"cy.contractors.registration";"rule";"Building and civil engineering contractors in Cyprus must be on the Contractors' Register and hold an annual licence from the Council for the Registration and Control of Building and Civil Engineering Contractors (Law 29(I)/2001); projects are classified by type and value, and contractors may only take work within their class.";"Check class and annual licence before levelling quotes. EU-registered contractors can notify instead of fully registering.";"https://www.businessincyprus.gov.cy/business-sectors/contractor/";"2026-10-13";"2027-04-13";"contact: contractor, subcontractor";"1 (drafted)";"2";"";"";"";""
+"cy.sales.energy-certificate";"rule";"An energy performance certificate is required when selling property in Cyprus and has been mandatory since 2009, though it is often neglected in practice.";"Secondary source. Add it to every sales dossier and confirm current rules with the Energy Service.";"https://dom.com.cy/en/live/blog/what-documents-are-required-for-the-sale-of-real-estate-in-cyprus/";"2026-10-13";"2027-04-13";"milestone: handover";"1 (drafted)";"1";"";"";"";""
+"cy.engineers.etek-registration";"rule";"Firms providing engineering and design services in Cyprus must register with the Cyprus Scientific and Technical Chamber (ETEK); this is separate from contractor registration.";"A firm that both designs and builds may need both registrations.";"https://businessincyprus.gov.cy/?p=4671";"2026-10-13";"2027-04-13";"contact: supervisor";"1 (drafted)";"2";"";"";"";""
+"cy.planning.permits-and-final-approval";"rule";"Development in Cyprus needs a planning permit and a building permit from the competent authorities; a Certificate of Final Approval is issued when the works comply with them, and is a precondition for separate title deeds.";"Law-firm commentary; check the municipality or district office for the project's permits.";"https://www.mondaq.com/cyprus/real-estate/1374078/due-diligence-regarding-the-purchase-of-real-estate-in-cyprus";"2026-10-13";"2027-04-13";"milestone: permit, handover";"1 (drafted)";"2";"";"";"";""
+"cy.sales.deposit-contract";"rule";"A buyer should deposit the contract of sale at the Land Registry within six months of signing (Sale of Immovable Property (Specific Performance) Law 81(I)/2011); the deposit creates an encumbrance protecting the buyer, and later deposits need a court order.";"Since the 2023 amendment (132(I)/2023), on mortgaged property the court grants specific performance only once the full price is paid. Track the deposit deadline as a milestone.";"https://www.mondaq.com/cyprus/real-estate/788808/new-legislation-article-under-real-estate";"2026-10-13";"2027-04-13";"requirement: covenant";"1 (drafted)";"2";"";"";"";""
+"cy.taxes.stamp-duty-abolished";"rule";"Stamp duty on property transactions in Cyprus was abolished from 1 January 2026.";"Secondary source. Remove stamp duty lines from budgets for contracts after that date, after confirming with the advocate.";"https://www.cyprustaxlife.com/news/cyprus-land-registry-transfer-fees";"2026-10-13";"2027-04-13";"money-event: budget_line";"1 (drafted)";"1";"";"";"";""
+"cy.sales.title-deed-delay";"rule";"In Cyprus, new units often have no separate title deed until the whole project gets its Certificate of Final Approval, which can take years; buyers rely on the deposited contract and the developer's mortgage position until then.";"Check for developer mortgages and whether the contract allows release on payment.";"https://www.mondaq.com/cyprus/real-estate/1815414/buying-property-in-cyprus-without-title-deeds-what-it-means-and-how-to-protect-yourself";"2026-10-13";"2027-04-13";"issue: compliance";"1 (drafted)";"2";"";"";"";""
+"cy.land-registry.transfer-fees";"rule";"Land Registry transfer fees in Cyprus are progressive (3%, 5% and 8% bands, with a 50% reduction currently applied); purchases subject to VAT pay no transfer fee on the VAT-able part.";"Secondary source with bands from 2025. Check the Department of Lands and Surveys before budgeting.";"https://globallawexperts.com/property-transfer-fees-cyprus-2/";"2026-10-13";"2027-04-13";"money-event: budget_line";"1 (drafted)";"2";"";"";"";""
+"cy.vat.2026-changes";"rule";"Amendments to Schedules 5 and 8 of the Cyprus VAT Law, effective 1 September 2026, redefine a 'new building' and tighten the conditions for the 5% primary-residence rate.";"Developer-site source. Apply the old or new rules according to the dates in each contract, with the accountant.";"https://aktihomes.com/2026/02/11/cyprus-vat-regulatory-changes-effective-from-june-2026/";"2026-10-13";"2027-04-13";"money-event: invoice";"1 (drafted)";"1";"";"";"";""
+"cy.vat.rates";"rule";"Cyprus's standard VAT rate on new residential property is 19%; a reduced 5% rate can apply to an individual's primary residence on the first 130 m², up to €350,000, with a total area cap of 190 m², a €475,000 transaction cap, a ten-year occupancy condition and an application to the Tax Department.";"Amendments effective 1 September 2026 changed the definition of a new building and the conditions; a Tax Department notice of May 2026 allowed 200 m² for some earlier planning applications. Confirm each case with the Tax Department.";"https://gk-lawfirm.com/publications/new-reduced-scheme-5-vat-on-property-cyprus/";"2026-10-13";"2027-04-13";"money-event: invoice, budget_line";"1 (drafted)";"2";"";"";"";""
+"defaults";"defaults";"country: CY
+currency: EUR
+units: metric
+locale: el-CY
+work_week: mon, tue, wed, thu, fri";"Defaults the pack sets for every venture in this market.";"";"";"";"";"1 (drafted)";"5";"";"";"";""
+"glossary:el";"glossary";"τίτλος ιδιοκτησίας → source / contract
+πωλητήριο έγγραφο → source / contract
+πολεοδομική άδεια → milestone / permit
+άδεια οικοδομής → milestone / permit
+πιστοποιητικό τελικής έγκρισης → milestone / handover
+πιστοποιητικό ενεργειακής απόδοσης → milestone / handover
+εργολάβος → contact / contractor
+υπεργολάβος → contact / subcontractor
+προσφορά → money-event / quote
+τιμολόγιο → money-event / invoice
+κακοτεχνία → issue / defect
+υποθήκη → requirement / covenant";"Glossary (el): each local term mapped to a core family and kind. Check that each term means what its mapping says.";"";"";"";"";"1 (drafted)";"12";"";"";"";""
+"glossary:en";"glossary";"title deed → source / contract
+contract of sale → source / contract
+planning permit → milestone / permit
+building permit → milestone / permit
+certificate of final approval → milestone / handover
+interim payment certificate → money-event / payment_claim
+variation → change / variation
+encumbrance → requirement / covenant";"Glossary (en): each local term mapped to a core family and kind. Check that each term means what its mapping says.";"";"";"";"";"1 (drafted)";"8";"";"";"";""
