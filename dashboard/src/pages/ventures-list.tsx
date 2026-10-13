@@ -1,6 +1,9 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Briefcase, AlertCircle, Plus, Trash2, Download } from 'lucide-react'
+import { AlertCircle, Plus, Trash2, Download, Info } from 'lucide-react'
+import { TitleBlock } from '@/components/ui/title-block'
+import { Button } from '@/components/ui/button'
+import { EmptyState } from '@/components/ui/empty-state'
 import { useApi } from '@/hooks/use-api'
 import { VentureHealthCard } from '@/components/venture-health-card'
 import { CreateVentureModal } from '@/components/create-venture-modal'
@@ -89,33 +92,37 @@ export default function VenturesListPage() {
   }
 
   return (
-    <div className="space-y-6 rz-animate-fade-up">
+    <div className="mx-auto max-w-[1240px] space-y-6">
+      <TitleBlock
+        title="Ventures"
+        description="Each venture is one business or project with its own agents, skills and company brain."
+        actions={
+          canEdit && (
+            <Button variant="primary" onClick={() => setShowCreate(true)}>
+              <Plus aria-hidden />
+              Create venture
+            </Button>
+          )
+        }
+      />
+
       {errorMessage && (
-        <div className="bg-red-500/10 text-red-400 p-3 rounded-lg flex items-center gap-2 text-sm border border-red-500/20">
-          <AlertCircle className="h-4 w-4" />
+        <div
+          role="alert"
+          className="flex items-center gap-2 rounded-[10px] border border-red-400/30 bg-red-400/10 p-3 text-sm text-red-400"
+        >
+          <AlertCircle className="h-4 w-4 shrink-0" />
           {errorMessage}
         </div>
       )}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Briefcase className="h-6 w-6 text-brand-400" />
-          <h1 className="text-2xl font-bold text-foreground">Ventures</h1>
-        </div>
-        {canEdit && (
-          <button
-            onClick={() => setShowCreate(true)}
-            className="rz-btn rz-btn--primary fx-glow-hover"
-          >
-            <Plus className="h-4 w-4" />
-            Create Venture
-          </button>
-        )}
-      </div>
 
       {!canEdit && (
-        <p className="text-xs text-muted-foreground">
-          The server configuration is read-only here, so ventures can&apos;t be created or deleted
-          from the dashboard. Change them in realize-os.yaml on the server.
+        <p className="m-0 flex items-start gap-2 rounded-[7px] border border-border bg-card px-3 py-2.5 text-[13px] text-muted-foreground">
+          <Info className="mt-0.5 h-4 w-4 shrink-0 text-blue-400" aria-hidden />
+          <span>
+            The server configuration is read-only here, so ventures can&apos;t be created or deleted
+            from the dashboard. Change them in realize-os.yaml on the server.
+          </span>
         </p>
       )}
 
@@ -127,13 +134,13 @@ export default function VenturesListPage() {
               ventureKey={v.key}
               agentCount={v.agent_count}
               skillCount={v.skill_count}
-              onClick={() => navigate(`/ventures/${v.key}`)}
+              onClick={() => navigate(`/ventures/${v.key}`, { viewTransition: true })}
             />
             {/* Action buttons overlay */}
-            <div className="absolute top-3 end-3 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <div className="absolute top-3 end-3 flex gap-0.5 rounded-[7px] border border-border bg-card p-0.5 opacity-0 shadow-sm transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
               <button
                 onClick={(e) => handleExport(v.key, e)}
-                className="p-1.5 rounded-lg bg-surface-800/80 border border-border text-muted-foreground hover:text-foreground transition-colors"
+                className="rz-icon-btn rz-icon-btn--sm"
                 title="Export"
                 aria-label={`Export ${v.key}`}
               >
@@ -143,7 +150,7 @@ export default function VenturesListPage() {
                 <button
                   onClick={(e) => handleDeleteClick(v.key, e)}
                   disabled={deleting === v.key}
-                  className="p-1.5 rounded-lg bg-surface-800/80 border border-border text-muted-foreground hover:text-red-400 transition-colors"
+                  className="rz-icon-btn rz-icon-btn--sm hover:text-red-400"
                   title="Delete"
                   aria-label={`Delete ${v.key}`}
                 >
@@ -156,20 +163,19 @@ export default function VenturesListPage() {
       </div>
 
       {data?.ventures.length === 0 && (
-        <div className="flex flex-col items-center justify-center py-16 text-center relative">
-          <div className="fx-dot-grid absolute inset-0 pointer-events-none rounded-xl" />
-          <Briefcase className="h-12 w-12 text-muted-foreground/30 mb-4 rz-animate-float relative z-10" />
-          <p className="text-muted-foreground text-sm mb-4">No ventures configured yet.</p>
-          {canEdit && (
-            <button
-              onClick={() => setShowCreate(true)}
-              className="flex items-center gap-2 px-4 py-2 text-sm rounded-lg bg-brand-400 text-black hover:bg-brand-400/90 font-medium transition-colors"
-            >
-              <Plus className="h-4 w-4" />
-              Create your first venture
-            </button>
-          )}
-        </div>
+        <EmptyState
+          art="documents"
+          title="No ventures yet"
+          body="Create a venture for each business or project. Its agents, skills and documents stay separate from the others."
+          action={
+            canEdit && (
+              <Button variant="primary" onClick={() => setShowCreate(true)}>
+                <Plus aria-hidden />
+                Create your first venture
+              </Button>
+            )
+          }
+        />
       )}
 
       <CreateVentureModal
@@ -180,10 +186,10 @@ export default function VenturesListPage() {
 
       <ConfirmDialog
         isOpen={!!confirmDeleteKey}
-        title="Delete Venture"
+        title="Delete venture?"
         message={`Delete venture "${confirmDeleteKey}"? This removes all FABRIC files and cannot be undone.`}
         isDestructive={true}
-        confirmText={deleting ? 'Deleting...' : 'Delete Venture'}
+        confirmText={deleting ? 'Deleting...' : 'Delete venture'}
         onConfirm={executeDelete}
         onCancel={() => setConfirmDeleteKey(null)}
       />
