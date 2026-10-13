@@ -1,21 +1,15 @@
 import { useParams, useNavigate } from 'react-router-dom'
-import {
-  Briefcase,
-  FolderOpen,
-  AlertCircle,
-  ChevronLeft,
-  FileText,
-  Check,
-  X,
-  Network,
-  Download,
-  BookOpen,
-} from 'lucide-react'
+import { AlertCircle, ChevronRight, FileText, Check, Download } from 'lucide-react'
 import { useApi } from '@/hooks/use-api'
 import { AgentStatusBadge, type AgentStatus } from '@/components/agent-status-badge'
 import { OrgChart } from '@/components/org-chart'
 import { KBBrowser } from '@/components/kb-browser'
 import { cn } from '@/lib/utils'
+import { TitleBlock } from '@/components/ui/title-block'
+import { Panel } from '@/components/ui/panel'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { SkeletonCard } from '@/components/ui/skeleton'
 
 interface FabricDir {
   exists: boolean
@@ -58,6 +52,7 @@ const fabricLabels: Record<string, { letter: string; name: string }> = {
   'C-creations': { letter: 'C', name: 'Creations' },
 }
 
+/** The company brain's six parts. Quiet when present; only a missing part asks for attention. */
 function FabricGrid({
   directories,
   completeness,
@@ -66,12 +61,16 @@ function FabricGrid({
   completeness: number
 }) {
   return (
-    <div>
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-semibold text-foreground">FABRIC Structure</h3>
-        <span className="text-xs text-muted-foreground">{completeness}% complete</span>
+    <Panel
+      title="FABRIC structure"
+      actions={
+        <span className="text-xs tabular text-muted-foreground">{completeness}% complete</span>
+      }
+    >
+      <div className="rz-progress mb-4" aria-hidden>
+        <div className="rz-progress__bar" style={{ ['--_v' as string]: `${completeness}%` }} />
       </div>
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+      <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6">
         {Object.entries(fabricLabels).map(([dirKey, { letter, name }]) => {
           const dir = directories[dirKey]
           const exists = dir?.exists ?? false
@@ -80,34 +79,37 @@ function FabricGrid({
             <div
               key={dirKey}
               className={cn(
-                'rounded-lg border p-3 text-center',
-                exists && count > 0
-                  ? 'border-brand-400/30 bg-brand-400/5'
-                  : exists
-                    ? 'border-border bg-card'
-                    : 'border-border/50 bg-surface-800 opacity-50',
+                'flex items-center gap-3 rounded-[7px] border px-3 py-2.5',
+                exists ? 'border-border bg-background/40' : 'border-dashed border-amber-400/50',
               )}
             >
-              <div className="text-lg font-bold text-brand-400">{letter}</div>
-              <div className="text-xs text-foreground">{name}</div>
-              <div className="text-xs text-muted-foreground mt-1">
-                {exists ? (
-                  <span className="inline-flex items-center gap-1">
-                    <Check className="h-3 w-3 text-emerald-400" />
-                    {count} files
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center gap-1">
-                    <X className="h-3 w-3" />
-                    missing
-                  </span>
+              <span
+                className={cn(
+                  'grid h-8 w-8 shrink-0 place-items-center rounded-[5px] font-mono text-sm font-medium',
+                  exists ? 'bg-surface-700 text-foreground' : 'bg-amber-400/10 text-amber-400',
                 )}
+                aria-hidden
+              >
+                {letter}
+              </span>
+              <div className="min-w-0">
+                <div className="truncate text-[13px] font-medium text-foreground">{name}</div>
+                <div className="text-xs text-subtle-foreground">
+                  {exists ? (
+                    <span className="inline-flex items-center gap-1">
+                      <Check className="h-3 w-3 text-emerald-400" />
+                      {count} files
+                    </span>
+                  ) : (
+                    <span className="text-amber-400">Missing</span>
+                  )}
+                </div>
               </div>
             </div>
           )
         })}
       </div>
-    </div>
+    </Panel>
   )
 }
 
@@ -131,15 +133,9 @@ function OrgChartSection({ ventureKey, agents }: { ventureKey: string; agents: A
   for (const a of agents) statusMap[a.key] = a.status
 
   return (
-    <section>
-      <div className="flex items-center gap-2 mb-3">
-        <Network className="h-4 w-4 text-brand-400" />
-        <h2 className="text-lg font-semibold text-foreground">Organization</h2>
-      </div>
-      <div className="rounded-xl border border-border bg-card p-4">
-        <OrgChart tree={data.tree} ventureKey={ventureKey} agentStatuses={statusMap} />
-      </div>
-    </section>
+    <Panel title="Organization">
+      <OrgChart tree={data.tree} ventureKey={ventureKey} agentStatuses={statusMap} />
+    </Panel>
   )
 }
 
@@ -150,19 +146,21 @@ export default function VentureDetailPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-muted-foreground">Loading venture...</div>
+      <div className="grid gap-4" aria-busy="true" aria-label="Loading venture">
+        <SkeletonCard />
+        <SkeletonCard />
       </div>
     )
   }
 
   if (error) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <AlertCircle className="h-8 w-8 text-red-400 mx-auto mb-2" />
-          <p className="text-red-400 text-sm">{error}</p>
-        </div>
+      <div
+        role="alert"
+        className="flex items-start gap-2 rounded-[10px] border border-red-400/30 bg-red-400/10 p-4 text-sm text-red-400"
+      >
+        <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+        <span>{error}</span>
       </div>
     )
   }
@@ -170,116 +168,103 @@ export default function VentureDetailPage() {
   if (!data) return null
 
   return (
-    <div className="space-y-6 rz-animate-fade-up">
-      {/* Header */}
-      <div>
-        <button
-          onClick={() => navigate('/ventures')}
-          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground mb-2 transition-colors"
-        >
-          <ChevronLeft className="h-3 w-3" />
-          Back to ventures
-        </button>
-        <div className="flex items-center gap-3">
-          <Briefcase className="h-6 w-6 text-brand-400" />
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">{data.name}</h1>
-            {data.description && (
-              <p className="text-sm text-muted-foreground">{data.description}</p>
-            )}
-          </div>
-          <div className="ms-auto flex items-center gap-2">
-            <button
-              onClick={() => window.open(`/api/ventures/${data.key}/export`, '_blank')}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-border text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <Download className="h-3.5 w-3.5" />
-              Export
-            </button>
-            <span className="text-xs text-muted-foreground font-mono">{data.key}</span>
-          </div>
-        </div>
-      </div>
+    <div className="mx-auto max-w-[1240px]">
+      <TitleBlock
+        crumbs={[{ label: 'Ventures', to: '/ventures' }, { label: data.name }]}
+        title={<span dir="auto">{data.name}</span>}
+        description={data.description || undefined}
+        reference={[data.key]}
+        actions={
+          <Button onClick={() => window.open(`/api/ventures/${data.key}/export`, '_blank')}>
+            <Download aria-hidden />
+            Export
+          </Button>
+        }
+      />
 
-      {/* FABRIC */}
-      <section className="rounded-xl border border-border bg-card p-4">
+      <div className="flex flex-col gap-6">
         <FabricGrid directories={data.fabric.directories} completeness={data.fabric.completeness} />
-      </section>
 
-      {/* Org Chart */}
-      <OrgChartSection ventureKey={data.key} agents={data.agents} />
+        <OrgChartSection ventureKey={data.key} agents={data.agents} />
 
-      {/* Agents */}
-      <section>
-        <h2 className="text-lg font-semibold text-foreground mb-3">
-          Agents ({data.agents.length})
-        </h2>
-        <div className="space-y-2">
-          {data.agents.map((agent) => (
-            <div
-              key={agent.key}
-              onClick={() => navigate(`/ventures/${key}/agents/${agent.key}`)}
-              className="flex items-center justify-between rounded-xl border border-border bg-card p-4 cursor-pointer hover:border-brand-400/50 transition-colors"
-            >
-              <div className="flex items-center gap-3">
-                <FolderOpen className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm font-medium text-foreground">{agent.key}</span>
-              </div>
-              <div className="flex items-center gap-4">
-                {agent.last_run_at && (
-                  <span className="text-xs text-muted-foreground">
-                    Last run: {new Date(agent.last_run_at).toLocaleString()}
-                  </span>
-                )}
-                <AgentStatusBadge status={agent.status} />
-              </div>
-            </div>
-          ))}
-          {data.agents.length === 0 && (
-            <p className="text-muted-foreground text-sm">No agents defined.</p>
-          )}
+        <div className="grid gap-6 lg:grid-cols-2">
+          <Panel
+            title={
+              <span className="inline-flex items-center gap-2">
+                Agents <Badge>{data.agents.length}</Badge>
+              </span>
+            }
+            flush
+          >
+            {data.agents.length === 0 ? (
+              <p className="m-0 p-4 text-sm text-muted-foreground">No agents defined.</p>
+            ) : (
+              <ul className="m-0 list-none divide-y divide-border p-0">
+                {data.agents.map((agent) => (
+                  <li key={agent.key}>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        navigate(`/ventures/${key}/agents/${agent.key}`, { viewTransition: true })
+                      }
+                      className="group flex w-full items-center gap-3 px-4 py-3 text-start transition-colors hover:bg-surface-700/50"
+                    >
+                      <span className="rz-avatar rz-avatar--agent rz-avatar--sm" aria-hidden>
+                        {agent.key.slice(0, 2).toUpperCase()}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium text-foreground">
+                          {agent.key}
+                        </span>
+                        {agent.last_run_at && (
+                          <span className="block text-xs text-subtle-foreground">
+                            Last run: {new Date(agent.last_run_at).toLocaleString()}
+                          </span>
+                        )}
+                      </span>
+                      <AgentStatusBadge status={agent.status} />
+                      <ChevronRight className="h-4 w-4 text-subtle-foreground opacity-0 transition-opacity group-hover:opacity-100 rtl:rotate-180" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Panel>
+
+          <Panel
+            title={
+              <span className="inline-flex items-center gap-2">
+                Skills <Badge>{data.skills.length}</Badge>
+              </span>
+            }
+            flush
+          >
+            {data.skills.length === 0 ? (
+              <p className="m-0 p-4 text-sm text-muted-foreground">No skills defined.</p>
+            ) : (
+              <ul className="m-0 list-none divide-y divide-border p-0">
+                {data.skills.map((skill) => (
+                  <li key={skill.name} className="flex items-center gap-3 px-4 py-3">
+                    <FileText className="h-4 w-4 shrink-0 text-subtle-foreground" />
+                    <span className="min-w-0 flex-1 truncate text-sm">
+                      <span className="font-medium text-foreground">{skill.name}</span>
+                      <span className="ms-2 text-xs text-subtle-foreground">{skill.version}</span>
+                    </span>
+                    <Badge>{skill.task_type}</Badge>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Panel>
         </div>
-      </section>
 
-      {/* Skills */}
-      <section>
-        <h2 className="text-lg font-semibold text-foreground mb-3">
-          Skills ({data.skills.length})
-        </h2>
-        <div className="space-y-2">
-          {data.skills.map((skill) => (
-            <div
-              key={skill.name}
-              className="flex items-center justify-between rounded-xl border border-border bg-card p-4"
-            >
-              <div className="flex items-center gap-3">
-                <FileText className="h-4 w-4 text-muted-foreground" />
-                <div>
-                  <span className="text-sm font-medium text-foreground">{skill.name}</span>
-                  <span className="text-xs text-muted-foreground ms-2">{skill.version}</span>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs bg-surface-700 text-muted-foreground px-2 py-0.5 rounded">
-                  {skill.task_type}
-                </span>
-              </div>
-            </div>
-          ))}
-          {data.skills.length === 0 && (
-            <p className="text-muted-foreground text-sm">No skills defined.</p>
-          )}
-        </div>
-      </section>
-
-      {/* Knowledge Base */}
-      <section>
-        <div className="flex items-center gap-2 mb-3">
-          <BookOpen className="h-5 w-5 text-brand-400" />
-          <h2 className="text-lg font-semibold text-foreground">Knowledge Base</h2>
-        </div>
-        <KBBrowser ventureKey={data.key} />
-      </section>
+        <section aria-labelledby="vd-kb">
+          <h2 id="vd-kb" className="mb-3 text-[15px] font-semibold text-foreground">
+            Knowledge base
+          </h2>
+          <KBBrowser ventureKey={data.key} />
+        </section>
+      </div>
     </div>
   )
 }
