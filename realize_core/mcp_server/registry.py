@@ -96,13 +96,22 @@ def get_registry() -> ToolRegistry:
 
 def _populate(registry: ToolRegistry) -> None:
     """Eager-load all tool families."""
-    from realize_core.mcp_server.tools import admin_tools, chat_tools, decision_tools, kb_tools, ops_tools, pack_tools
+    from realize_core.mcp_server.tools import (
+        admin_tools,
+        chat_tools,
+        decision_tools,
+        kb_tools,
+        ops_tools,
+        pack_tools,
+        wedge_tools,
+    )
 
     chat_tools.register(registry)
     kb_tools.register(registry)
     pack_tools.register(registry)
     ops_tools.register(registry)
     decision_tools.register(registry)
+    wedge_tools.register(registry)
     admin_tools.register(registry)
 
 

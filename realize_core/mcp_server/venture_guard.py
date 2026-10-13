@@ -51,7 +51,7 @@ APPROVAL_TOOLS = frozenset({"approve_request", "reject_request"})
 #: Tools whose output is filtered to the caller's ventures.
 FILTERED_LISTS = {"list_systems": "systems", "list_ventures": "ventures"}
 #: Tools with no venture data.
-ALWAYS_ALLOWED = frozenset({"realize_health"})
+ALWAYS_ALLOWED = frozenset({"realize_health", "tender_register_method", "tender_register_submit", "request_audit_call"})
 
 
 #: The RBAC permission each MCP tool needs — the same rules as the REST API
@@ -77,6 +77,9 @@ TOOL_PERMISSIONS = {
             "list_packs",
             "resolve_pack_item",
             "glossary_lookup",
+            "tender_register_method",
+            "tender_register_submit",
+            "request_audit_call",
         ),
         "system:read",
     ),
