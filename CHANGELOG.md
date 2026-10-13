@@ -4,6 +4,13 @@ All notable changes to RealizeOS are documented in this file.
 This changelog is automatically generated from [Conventional Commits](https://conventionalcommits.org).
 
 
+## [5.28.0](https://github.com/SufZen/RealizeOS-5/compare/v5.27.0...v5.28.0) (2026-10-13)
+
+### Features
+
+* **mcp:** hold outside agents' writes for a person's approval (STORY-37) ([ca31244](https://github.com/SufZen/RealizeOS-5/commit/ca31244be0881f0e224316510bc32f0f857d915f))
+* **security:** venture-scoped agent tokens (STORY-37) ([c19b298](https://github.com/SufZen/RealizeOS-5/commit/c19b298e53516ba0513e3a72cf407d022cd22cfb))
+
 ## [5.27.0](https://github.com/SufZen/RealizeOS-5/compare/v5.26.0...v5.27.0) (2026-10-13)
 
 ### Features
