@@ -87,15 +87,25 @@ def test_the_append_path_writes_values_as_data(sheets, option):
     _sheets_append_sync("sheet-1", "Requirements", [["6.1", MALICIOUS, "yes"]], **kwargs)
     [call] = sheets.appends
     assert call["body"]["values"] == [["6.1", "'" + MALICIOUS, "yes"]]
-    assert call["valueInputOption"] == ("USER_ENTERED" if option == "USER_ENTERED" else "RAW")
+    assert call["valueInputOption"] == ("RAW" if option == "RAW" else "USER_ENTERED")
 
 
-def test_the_tool_schema_defaults_to_raw():
+@pytest.mark.parametrize(
+    ("cell", "kept"),
+    [("-1200", True), ("+5", True), ("-1,200.50", True), ("0.5", True), ("-1+2", False), ("-x", False), ("=1", False)],
+)
+def test_plain_signed_numbers_stay_numbers(cell, kept):
+    from realize_core.utils.cells import neutralize_cell
+
+    assert neutralize_cell(cell) == (cell if kept else "'" + cell)
+
+
+def test_the_tool_schema_defaults_to_user_entered():
     from realize_core.tools.google_sheets import SHEETS_TOOL_SCHEMAS
 
     append = next(s for s in SHEETS_TOOL_SCHEMAS if s["name"] == "sheets_append")
     option = append["input_schema"]["properties"]["value_input_option"]
-    assert option["default"] == "RAW"
+    assert option["default"] == "USER_ENTERED"
     assert option["enum"] == ["RAW", "USER_ENTERED"]
 
 
@@ -217,7 +227,7 @@ async def test_a_tender_with_a_formula_is_registered_as_text(
 
     [call] = sheets.appends
     assert call["spreadsheetId"] == "sheet-r"
-    assert call["valueInputOption"] == "RAW"
+    assert call["valueInputOption"] == "USER_ENTERED"
     assert call["body"]["values"] == [["6.1", "'" + MALICIOUS, "yes", "Dana", "", "Tender 6.1"]]
 
 

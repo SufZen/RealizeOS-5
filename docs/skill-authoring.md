@@ -123,9 +123,10 @@ before anything is written.
 ```
 
 **Rows are written as data.** Values in a step often come from an untrusted document through the
-model, so `sheets_append` stores them as typed (`value_input_option` defaults to `RAW`), and any
-text cell that starts with `=`, `+`, `-`, `@`, a tab or a line break gets an apostrophe in front,
-whichever option a step asks for. A tender line like `=IMPORTXML(...)` stays text in the sheet
+model, so any text cell that `sheets_append` writes and that starts with `=`, `+`, `-`, `@`, a tab
+or a line break gets an apostrophe in front, whichever `value_input_option` a step asks for
+(`USER_ENTERED` by default, so numbers and dates stay numbers and dates). Plain signed numbers such
+as `-1200` are left alone, so amounts stay summable. A tender line like `=IMPORTXML(...)` stays text in the sheet
 and in its exports. Ask the model for plain-text cells as well, but don't rely on it.
 
 **A failed tool step stops the workflow.** An unknown tool, unusable JSON, a wrong shape, a
