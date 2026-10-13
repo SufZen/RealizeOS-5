@@ -79,8 +79,8 @@ def resolve_stdio_user(user_id: str | None, ventures: Sequence[str] = ()) -> Cur
 
     Raises:
         StdioStartupError: No user named, no ``users.yaml``, the user isn't in
-            it, a value isn't a plain token, or a venture is outside the user's
-            ventures.
+            it or is a pilot account (hosted-only, STORY-46), a value isn't a
+            plain token, or a venture is outside the user's ventures.
     """
     from realize_core.security.agent_tokens import STDIO_SCOPE
     from realize_core.security.users import USERS_FILE, get_user
@@ -103,6 +103,13 @@ def resolve_stdio_user(user_id: str | None, ventures: Sequence[str] = ()) -> Cur
     if user is None:
         raise StdioStartupError(
             f"{name!r} is not in {USERS_FILE}. Add them there (role and ventures decide what the agent can do)."
+        )
+    if user.pilot:
+        # A pilot account (STORY-46) is hosted-only: its agent connects to the pilot
+        # server's /mcp with OAuth. A local session would sit next to the host's files.
+        raise StdioStartupError(
+            f"{user.email} is a pilot account: pilot accounts connect only to the hosted pilot "
+            "(its /mcp URL, signing in with OAuth), never over stdio."
         )
 
     requested = tuple(dict.fromkeys((v or "").strip() for v in ventures))
