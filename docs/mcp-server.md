@@ -193,7 +193,7 @@ What a token is:
 - **Limited to the ventures it names.** It must name at least one, each one the user may see. On every request the token's ventures are intersected with the user's current list, so a token never sees more than its user, and one whose ventures all fall away stops working.
 - **Its own identity.** Requests carry `agent:<id>` as the user: in the audit log, the approval queue (`requested_by`), conversation memory and the rate limiter. An agent always chats and reads history as itself, whatever its user's role.
 - **Stored as a SHA-256 hash** (migration 012) and compared in constant time. Optional expiry; `last_used_at` is recorded.
-- **Revocable:** `python cli.py agent-token revoke <id>` or `DELETE /api/agent-tokens/<id>`. It stops at once, and the agent's writes still waiting for approval are withdrawn.
+- **Revocable:** `python cli.py agent-token revoke <id>` or `DELETE /api/agent-tokens/<id>`. It stops at once, and everything the agent has waiting for approval is withdrawn: its held writes, writes held from its chat, and its decision proposals. Before anything an agent asked for runs, its token is checked again; a token that expired or was turned off meanwhile means the approved item is recorded as failed and nothing runs.
 
 `python cli.py agent-token list` (or `GET /api/agent-tokens`) shows every token without secrets. Creating, revoking and every refused use are audit-logged (`agent_token.*`).
 

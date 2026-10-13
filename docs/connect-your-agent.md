@@ -58,7 +58,7 @@ python cli.py agent-token create --name dana-claude --user dana@example.com --ve
 
 It prints the token (`rzag_<id>_<secret>`) once; RealizeOS keeps only a hash. The agent sends it as `Authorization: Bearer <token>` (or `X-API-Key: <token>`), never in the URL. An owner or admin can do the same over REST: `POST /api/agent-tokens` with `{"name", "user", "ventures", "expires_in_days"}` (see [api-reference.md](api-reference.md#agent-tokens)).
 
-`python cli.py agent-token list` shows every token without secrets, and `python cli.py agent-token revoke <id>` stops one at once. Revoking also withdraws that agent's writes still waiting for approval. Removing the user from `users.yaml`, or taking away all of the token's ventures, also stops it.
+`python cli.py agent-token list` shows every token without secrets, and `python cli.py agent-token revoke <id>` stops one at once. Revoking also withdraws everything that agent has waiting for approval: its held writes, writes held from its chat, and its decision proposals. Anything an agent asked for runs only while its token still works: if the token expired or agent tokens were turned off, approving the item records it as failed and nothing runs. Removing the user from `users.yaml`, or taking away all of the token's ventures, also stops it.
 
 **In the dashboard.** An owner or admin with every venture can do all of this under **Configure → Agent tokens** (or Ctrl/⌘ K, "Agent tokens"): pick the user, the ventures and an optional expiry, and the token is shown once with a copy button. The list shows each token's user, ventures, expiry and last use (never the secret), with a Revoke button. People who can't manage tokens don't see the page.
 

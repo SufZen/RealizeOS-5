@@ -504,6 +504,84 @@ async def test_revoking_the_token_withdraws_and_blocks_its_writes(world):
     assert world.runs == []
 
 
+async def _chat_held_write(registry, agent) -> str:
+    """A write the governance gate holds from the agent's chat (as the tool loop would call it)."""
+    from realize_core.governance.context import tool_call_context
+    from realize_core.security.agent_access import acting_for_outside_agent
+
+    with (
+        acting_for_outside_agent(agent.user_id),
+        tool_call_context(system_key="acme", user_id=agent.user_id, channel="mcp"),
+    ):
+        result = await registry.execute("ledger_append", {"row": "from chat"})
+    return result.metadata["request_id"]
+
+
+async def _proposal(world, agent) -> str:
+    args = {"venture_key": "acme", "title": "Switch supplier", "statement": "Agreed on site."}
+    return (await _call(world, agent, "log_decision", args))["approval_id"]
+
+
+def _expire_token(agent) -> None:
+    from realize_core.db.schema import get_connection
+    from realize_core.security.agent_tokens import token_id_of
+
+    conn = get_connection()
+    try:
+        conn.execute(
+            "UPDATE agent_tokens SET expires_at = '2000-01-01T00:00:00+00:00' WHERE id = ?",
+            (token_id_of(agent.user_id),),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+async def test_revoking_withdraws_everything_the_agent_has_waiting(world, ledger):
+    """Writes held from its chat and its decision proposals too, not only held MCP writes (S3)."""
+    from realize_core.governance import gates
+    from realize_core.security.agent_tokens import revoke_token, token_id_of
+
+    registry, tool = ledger
+    agent = _agent()
+    items = [await _chat_held_write(registry, agent), await _proposal(world, agent)]
+    items.append((await _call(world, agent, "run_workflow", RUN))["approval_id"])
+    assert {_row(i)["requested_by"] for i in items} == {agent.user_id}
+
+    _token, withdrawn = revoke_token(token_id_of(agent.user_id), revoked_by="owner@realization.co.il")
+    assert withdrawn == 3
+    for item in items:
+        assert _row(item)["status"] == "rejected"
+        assert await gates.decide_approval(item, approve=True, decided_by="owner@realization.co.il") is None
+    assert tool.calls == []
+    assert world.runs == []
+
+
+async def test_an_expired_agents_items_never_run_when_approved(world, ledger):
+    """A token that expired (not revoked) leaves items pending; approving one runs nothing (S3)."""
+    from realize_core.governance.gates import decide_approval
+
+    registry, tool = ledger
+    (world.path / "systems" / "acme").mkdir(parents=True)  # the decision log has a folder
+    agent = _agent()
+    chat_held, proposal = await _chat_held_write(registry, agent), await _proposal(world, agent)
+    _expire_token(agent)
+
+    write = await decide_approval(chat_held, approve=True, decided_by="owner@realization.co.il")
+    assert write["execution"]["success"] is False
+    assert "expired" in write["execution"]["error"]
+    assert _row(chat_held)["execution_status"] == "failed"
+    assert tool.calls == []
+
+    recorded = await decide_approval(proposal, approve=True, decided_by="owner@realization.co.il")
+    assert recorded["execution"]["success"] is False
+    assert recorded["decision_log"]["logged"] is False
+    from realize_core.governance.decision_log import list_decisions
+
+    # The person's decision on the write is logged; the gone agent's proposal is not recorded.
+    assert proposal not in {d["approval_id"] for d in list_decisions(world.path / "systems" / "acme")}
+
+
 async def test_held_write_is_audited(world, monkeypatch):
     from realize_core.security import audit
 

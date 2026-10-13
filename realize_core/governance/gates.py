@@ -35,6 +35,10 @@ MCP_WRITE_ACTION_TYPE = "mcp_write"
 #: ``action_type`` of a request to raise a shared pack's verification (spec 010 §5).
 PACK_VERIFY_ACTION_TYPE = "pack_verify"
 
+#: ``action_type`` of a decision made elsewhere that an agent proposes for the
+#: decision log (``decision_log.DECISION_LOG_ACTION``, STORY-44).
+DECISION_PROPOSAL_ACTION_TYPE = "decision_log"
+
 #: Requests whose outcome changes something every venture shares. Only a
 #: global maintainer may approve or reject them, whatever the row's venture
 #: (audit N01): a pack's verification level shows on every venture's answers.
@@ -470,6 +474,47 @@ def report_to_conversation(session_ref: str | None, text: str) -> None:
         logger.warning("Could not post approval outcome to conversation %s", session_ref, exc_info=True)
 
 
+def requester_refusal(row: dict) -> str | None:
+    """Why an approved item an outside agent asked for must not run now, or None.
+
+    None when the item was not asked for by an outside agent
+    (``requested_by`` isn't an ``agent:`` principal). Otherwise the agent is
+    checked again now (:func:`realize_core.mcp_server.held_writes.live_requester`).
+    """
+    from realize_core.security.agent_tokens import is_agent_principal
+
+    requested_by = row.get("requested_by")
+    if not is_agent_principal(requested_by):
+        return None
+    from realize_core.mcp_server.held_writes import live_requester
+
+    _principal, refusal = live_requester(requested_by, row.get("venture_key") or "")
+    return refusal
+
+
+def _record_refused_execution(approval_id: str, action_type: str, refusal: str, db_path=None) -> dict:
+    """Claim an approved item that must not run and record why (a failed execution, nothing run)."""
+    row = _claim_for_execution(approval_id, db_path, action_type=action_type)
+    if row is None:
+        return {"executed": False, "success": False, "output": "", "error": None}
+    _store_execution_result(approval_id, "", refusal, db_path)
+    try:
+        from realize_core.activity.logger import log_event
+
+        log_event(
+            venture_key=row["venture_key"],
+            actor_type="system",
+            actor_id="gate",
+            action="approval_execution_failed",
+            entity_type="approval",
+            entity_id=approval_id,
+            details=json.dumps({"action": action_type, "error": refusal}),
+        )
+    except Exception:
+        logger.debug("activity log failed for a refused approval", exc_info=True)
+    return {"executed": True, "success": False, "output": "", "error": refusal}
+
+
 async def execute_approved_action(approval_id: str, db_path=None) -> dict:
     """Dispatch an approved tool action at most once and record the outcome.
 
@@ -482,10 +527,16 @@ async def execute_approved_action(approval_id: str, db_path=None) -> dict:
     on the approval row, logged as ``approval_executed``, and a fixed status
     line is posted into the originating conversation.
 
+    An item an outside agent asked for (``requested_by`` is an agent
+    principal: a write held from its chat or its runs, its held MCP write)
+    runs only while the agent is still live: a token revoked or expired, agent
+    tokens turned off, a removed user or a lost venture records a failed
+    execution with the reason, and nothing runs (S3).
+
     Returns:
         ``{"executed": bool, "success": bool, "output": str, "error": str | None}``.
         ``executed`` is False when there was nothing to run (not a tool action,
-        not approved, already dispatched, or expired).
+        not approved, or already dispatched).
     """
     row = _claim_for_execution(approval_id, db_path)
     if row is None:
@@ -498,7 +549,10 @@ async def execute_approved_action(approval_id: str, db_path=None) -> dict:
         params = json.loads(row.get("params_json") or "{}")
     except json.JSONDecodeError:
         params = None
-    if not isinstance(params, dict):
+    refusal = requester_refusal(row)
+    if refusal:
+        result_ok, output, error = False, "", refusal
+    elif not isinstance(params, dict):
         result_ok, output, error = False, "", "Stored parameters are unreadable"
     elif row.get("action_type") == MCP_WRITE_ACTION_TYPE:
         # An outside agent's held MCP write: same claim, same single dispatch.
@@ -668,6 +722,10 @@ async def decide_approval(
         # Never store or relay what was typed: a secret pasted here would land
         # in the DB and the conversation. Credentials go in Setup.
         decision_note = None
+    # An outside agent's decision proposal is recorded only while the agent is live (S3).
+    proposal_refusal = None
+    if approve and action_type == DECISION_PROPOSAL_ACTION_TYPE:
+        proposal_refusal = requester_refusal(_get_row(approval_id, db_path) or {})
     if is_question and approve:
         record = answer_request(approval_id, decision_note or "yes", db_path, answered_by=decided_by, channel=channel)
     elif approve:
@@ -678,7 +736,7 @@ async def decide_approval(
             decided_by=decided_by,
             channel=channel,
             global_authorized=global_authorized,
-            log_intent=True,
+            log_intent=proposal_refusal is None,
         )
     else:
         record = reject_request(
@@ -694,6 +752,14 @@ async def decide_approval(
         return None
 
     out: dict = {"approval": record, "execution": None, "skill_output": None, "decision_log": None}
+    if proposal_refusal:
+        # Approved, but the agent that proposed it is gone: nothing is recorded.
+        out["execution"] = _record_refused_execution(
+            approval_id, DECISION_PROPOSAL_ACTION_TYPE, proposal_refusal, db_path
+        )
+        out["approval"] = _get_row(approval_id, db_path) or record
+        out["decision_log"] = {"logged": False, "pending": False, "error": proposal_refusal, "decision_id": None}
+        return out
     if is_question:
         if approve:
             out["skill_output"] = await _resume_skill_from_approval(record, decision_note or "yes")

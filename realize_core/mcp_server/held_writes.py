@@ -205,6 +205,27 @@ def _runtime_state() -> Any:
     )
 
 
+def live_requester(requested_by: str | None, venture: str) -> tuple[Any, str | None]:
+    """``(principal, None)`` when the agent that asked still may act in ``venture`` now, else ``(None, why)``.
+
+    Checked just before anything an outside agent asked for runs (its held
+    MCP writes, writes held from its chat, its decision proposals): a token
+    revoked or expired meanwhile, agent tokens turned off, a removed user or a
+    lost venture means nothing runs.
+    """
+    from realize_core.security.agent_tokens import live_agent
+
+    principal = live_agent(requested_by, known_ventures=_known_ventures(requested_by))
+    if principal is None:
+        return None, (
+            "The agent's token was revoked or expired, agent tokens were turned off, or its user was removed "
+            "before this ran; nothing was done"
+        )
+    if venture not in principal.ventures:
+        return None, f"The agent no longer has access to venture '{venture}'; nothing was done"
+    return principal, None
+
+
 def _known_ventures(principal: str | None) -> list[str]:
     """Configured venture keys, for a stdio session (an unrestricted user's agent may use any of them)."""
     from realize_core.security.agent_tokens import STDIO_PRINCIPAL_PREFIX
@@ -235,7 +256,6 @@ async def run_approved_write(row: dict, params: dict[str, Any]) -> tuple[bool, s
     from realize_core.mcp_server import venture_guard
     from realize_core.mcp_server.registry import get_registry
     from realize_core.security.agent_access import must_hold
-    from realize_core.security.agent_tokens import live_agent
 
     action = str(row.get("action_name") or "")
     name = action[len(ACTION_PREFIX) :] if action.startswith(ACTION_PREFIX) else ""
@@ -245,17 +265,10 @@ async def run_approved_write(row: dict, params: dict[str, Any]) -> tuple[bool, s
 
     # The agent's own, current, narrowed identity — never the approver's.
     requested_by = row.get("requested_by")
-    principal = live_agent(requested_by, known_ventures=_known_ventures(requested_by))
-    if principal is None:
-        return (
-            False,
-            "",
-            "The agent's token was revoked or expired, agent tokens were turned off, or its user was removed "
-            "before this ran; nothing was done",
-        )
     venture = row.get("venture_key") or ""
-    if venture not in principal.ventures:
-        return False, "", f"The agent no longer has access to venture '{venture}'; nothing was done"
+    principal, refusal = live_requester(requested_by, venture)
+    if principal is None:
+        return False, "", refusal or "nothing was done"
     # Run exactly what was approved: the declared arguments, all in the approval's venture.
     arguments = _declared(tool, params)
     if _named_ventures(arguments) != {venture}:
