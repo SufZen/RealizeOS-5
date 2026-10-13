@@ -195,7 +195,7 @@ export default function PipelineBuilderPage() {
   /* ---- Render ---- */
 
   return (
-    <div className="space-y-6 max-w-5xl rz-animate-fade-up">
+    <div className="space-y-6 max-w-5xl">
       <div className="rounded-lg border border-amber-400/30 bg-amber-400/10 p-3 text-xs text-amber-200">
         Preview only: test runs are simulated, and no agent, tool, approval or condition runs. For
         real runs, use a skill under Workflows.
@@ -203,8 +203,10 @@ export default function PipelineBuilderPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <GitBranch className="h-6 w-6 text-brand-400" />
-          <h1 className="text-2xl font-bold text-foreground">Pipeline Builder</h1>
+          <GitBranch className="h-5 w-5 text-subtle-foreground" />
+          <h1 className="m-0 text-[1.375rem] font-semibold tracking-tight text-foreground">
+            Pipeline Builder
+          </h1>
         </div>
       </div>
 
@@ -474,7 +476,7 @@ function StepCard({ step, index, total, allSteps, onUpdate, onRemove, onMove }: 
             {step.type === 'agent' && (
               <>
                 <div>
-                  <label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">
+                  <label className="text-xs text-muted-foreground block mb-1 font-medium">
                     Agent
                   </label>
                   <select
@@ -490,7 +492,7 @@ function StepCard({ step, index, total, allSteps, onUpdate, onRemove, onMove }: 
                   </select>
                 </div>
                 <div>
-                  <label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">
+                  <label className="text-xs text-muted-foreground block mb-1 font-medium">
                     Prompt Override
                   </label>
                   <textarea
@@ -502,7 +504,7 @@ function StepCard({ step, index, total, allSteps, onUpdate, onRemove, onMove }: 
                   />
                 </div>
                 <div>
-                  <label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">
+                  <label className="text-xs text-muted-foreground block mb-1 font-medium">
                     Inject Context From
                   </label>
                   <div className="flex flex-wrap gap-1.5">
@@ -544,9 +546,7 @@ function StepCard({ step, index, total, allSteps, onUpdate, onRemove, onMove }: 
 
             {step.type === 'tool' && (
               <div>
-                <label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">
-                  Tool
-                </label>
+                <label className="text-xs text-muted-foreground block mb-1 font-medium">Tool</label>
                 <select
                   value={step.tool ?? ''}
                   onChange={(e) => onUpdate({ tool: e.target.value })}
@@ -563,7 +563,7 @@ function StepCard({ step, index, total, allSteps, onUpdate, onRemove, onMove }: 
 
             {step.type === 'condition' && (
               <div>
-                <label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">
+                <label className="text-xs text-muted-foreground block mb-1 font-medium">
                   Condition Field
                 </label>
                 <input
@@ -577,7 +577,7 @@ function StepCard({ step, index, total, allSteps, onUpdate, onRemove, onMove }: 
 
             {step.type === 'human' && (
               <div>
-                <label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">
+                <label className="text-xs text-muted-foreground block mb-1 font-medium">
                   Question
                 </label>
                 <textarea

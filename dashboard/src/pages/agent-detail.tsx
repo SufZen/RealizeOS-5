@@ -198,7 +198,7 @@ export default function AgentDetailPage() {
   const isError = data.status === 'error'
 
   return (
-    <div className="space-y-6 rz-animate-fade-up">
+    <div className="space-y-6">
       {/* Header */}
       <div>
         <button
@@ -210,9 +210,11 @@ export default function AgentDetailPage() {
         </button>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Bot className="h-6 w-6 text-brand-400" />
+            <Bot className="h-5 w-5 text-subtle-foreground" />
             <div>
-              <h1 className="text-2xl font-bold text-foreground">{data.key}</h1>
+              <h1 className="m-0 text-[1.375rem] font-semibold tracking-tight text-foreground">
+                {data.key}
+              </h1>
               <span className="text-xs text-muted-foreground font-mono">
                 {data.definition_path}
               </span>

@@ -65,10 +65,12 @@ export default function SkillsPage() {
   const filtered = filter ? data.skills.filter((s) => s.category === filter) : data.skills
 
   return (
-    <div className="space-y-6 max-w-4xl rz-animate-fade-up">
+    <div className="space-y-6 max-w-4xl">
       <div className="flex items-center gap-2">
-        <BookOpen className="h-6 w-6 text-brand-400" />
-        <h1 className="text-2xl font-bold text-foreground">Skill Library</h1>
+        <BookOpen className="h-5 w-5 text-subtle-foreground" />
+        <h1 className="m-0 text-[1.375rem] font-semibold tracking-tight text-foreground">
+          Skill Library
+        </h1>
       </div>
 
       {/* Controls */}

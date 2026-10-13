@@ -240,12 +240,14 @@ export default function MissionsPage() {
   const totalCost = missions.reduce((sum, m) => sum + m.cost_consumed_eur, 0)
 
   return (
-    <div className="space-y-6 rz-animate-fade-up">
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Target className="h-6 w-6 text-brand-400" />
-          <h1 className="text-2xl font-bold text-foreground">Missions</h1>
+          <Target className="h-5 w-5 text-subtle-foreground" />
+          <h1 className="m-0 text-[1.375rem] font-semibold tracking-tight text-foreground">
+            Missions
+          </h1>
         </div>
         <div className="flex items-center gap-2">
           <button
