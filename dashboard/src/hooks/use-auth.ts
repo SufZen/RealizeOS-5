@@ -25,6 +25,8 @@ export interface AuthUser {
   role: string
   /** Ventures this user is limited to; null/undefined = every venture. */
   ventures?: string[] | null
+  /** The role's RBAC permissions, as the server resolves them (UX hint only). */
+  permissions?: string[] | null
 }
 
 interface SessionResponse {
@@ -32,12 +34,14 @@ interface SessionResponse {
   user_id?: string
   role?: string
   ventures?: string[] | null
+  permissions?: string[] | null
 }
 
 interface LoginResponse {
   user_id: string
   role: string
   ventures?: string[] | null
+  permissions?: string[] | null
 }
 
 interface AuthContextValue {
@@ -70,7 +74,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const res = await api.get<SessionResponse>('/auth/session')
       if (res.authenticated && res.user_id && res.role) {
-        setUser({ user_id: res.user_id, role: res.role, ventures: res.ventures ?? null })
+        setUser({
+          user_id: res.user_id,
+          role: res.role,
+          ventures: res.ventures ?? null,
+          permissions: res.permissions ?? null,
+        })
       } else {
         setUser(null)
       }
@@ -88,7 +97,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         password,
         remember_me: rememberMe,
       })
-      setUser({ user_id: res.user_id, role: res.role, ventures: res.ventures ?? null })
+      setUser({
+        user_id: res.user_id,
+        role: res.role,
+        ventures: res.ventures ?? null,
+        permissions: res.permissions ?? null,
+      })
     },
     [setUser],
   )

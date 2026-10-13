@@ -63,6 +63,38 @@ describe('RTL rendering', () => {
     expect(html).toMatchSnapshot()
   })
 
+  it('chat trail: rule rows with their level mirror, and the pack id stays LTR', () => {
+    const html = render(
+      <ChatMessage
+        msg={{
+          role: 'assistant',
+          id: 8,
+          content: 'חשבון חלקי צמוד למדד תשומות הבנייה [R1].',
+          trail: {
+            sources: [
+              {
+                id: 'R1',
+                title: 'חשבון חלקי צמוד למדד תשומות הבנייה',
+                path: 'https://www.cbs.gov.il/',
+                layer: 'market',
+                pack: 'il@0.1.0',
+                verification: 1,
+                as_of: '2026-10-13',
+              },
+            ],
+            steps: [],
+          },
+        }}
+        anchorPrefix="trail-m-8"
+      />,
+    )
+    expect(html).toContain('aria-label="Rule R1"')
+    expect(html).toContain('Level 1 · draft — not reviewed')
+    expect(html).toContain('<bdi dir="ltr" class="font-mono text-subtle-foreground">il@0.1.0</bdi>')
+    for (const cls of classesOf(html)) expect(cls).not.toMatch(PHYSICAL_CLASS)
+    expect(html).toMatchSnapshot()
+  })
+
   it('approval cards: Hebrew parameters keep their direction', () => {
     const html = render(
       <ApprovalCard

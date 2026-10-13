@@ -1,61 +1,169 @@
-import { FileText } from 'lucide-react'
+import { FileText, Scale } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
+import { Badge } from '@/components/ui/badge'
+import { useLocale } from '@/components/locale-provider'
 import { cn } from '@/lib/utils'
-import { sourceAnchorId, toolRows, type ToolStatus, type Trail } from '@/lib/chat-stream'
+import {
+  isRuleSource,
+  sourceAnchorId,
+  toolRows,
+  type ToolStatus,
+  type Trail,
+  type TrailSource,
+} from '@/lib/chat-stream'
+import { levelLabel, TRAIL_COPY, trailLang, type TrailLang } from '@/lib/trail-copy'
 
-/** Tool status → trail node state (drawn by .rz-trail__step[data-state]) and its words. */
-const STATUS: Record<ToolStatus, { label: string; node: string }> = {
-  running: { label: 'running', node: 'running' },
-  done: { label: 'done', node: 'done' },
-  failed: { label: 'failed', node: 'failed' },
-  held: { label: 'waiting for approval', node: 'held' },
+/** Tool status → trail node state, drawn by .rz-trail__step[data-state]. */
+const NODE: Record<ToolStatus, string> = {
+  running: 'running',
+  done: 'done',
+  failed: 'failed',
+  held: 'held',
+}
+
+/** Only web links open; anything else in a pack's `source` stays text. */
+function webLink(path: string): string | undefined {
+  return /^https?:\/\//i.test(path) ? path : undefined
+}
+
+/** A KB source: number, title and file path on one line. */
+function PlainSourceRow({ source, anchorId }: { source: TrailSource; anchorId: string }) {
+  return (
+    <li
+      id={anchorId}
+      className="flex min-w-0 items-center gap-2 scroll-mt-4 rounded-[5px] target:bg-blue-400/10"
+    >
+      <span className="rz-source m-0" aria-hidden>
+        {source.id}
+      </span>
+      <FileText className="h-3.5 w-3.5 shrink-0" />
+      <bdi className="text-foreground">{source.title}</bdi>
+      <bdi className="min-w-0 truncate text-subtle-foreground" title={source.path}>
+        {source.path}
+      </bdi>
+    </li>
+  )
+}
+
+/**
+ * A rule card: its statement, then its verification level in words, the
+ * layer and pack it came from, its as-of date and its source link.
+ */
+function RuleSourceRow({
+  source,
+  anchorId,
+  lang,
+}: {
+  source: TrailSource
+  anchorId: string
+  lang: TrailLang
+}) {
+  const copy = TRAIL_COPY[lang]
+  const level = levelLabel(source, lang)
+  const href = webLink(source.path)
+  return (
+    <li
+      id={anchorId}
+      className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-start gap-x-2 gap-y-1 scroll-mt-4 rounded-[5px] target:bg-blue-400/10"
+    >
+      <span className="rz-source m-0" aria-hidden>
+        {source.id}
+      </span>
+      <div className="flex min-w-0 items-center gap-2">
+        <Scale className="h-3.5 w-3.5 shrink-0" aria-hidden />
+        <bdi className="min-w-0 text-foreground">{source.title}</bdi>
+      </div>
+      <div className="col-start-2 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+        {level && (
+          <Badge tone={level.tone} data-level={source.verification ?? 'none'}>
+            {level.text}
+          </Badge>
+        )}
+        {source.layer && (
+          <span className="inline-flex items-center gap-1">
+            {copy.layers[source.layer] ?? source.layer}
+            {source.pack && (
+              <bdi dir="ltr" className="font-mono text-subtle-foreground">
+                {source.pack}
+              </bdi>
+            )}
+          </span>
+        )}
+        {source.as_of && (
+          <bdi
+            className="tabular"
+            title={source.review_by ? copy.reviewBy(source.review_by) : undefined}
+          >
+            {copy.asOf(source.as_of)}
+          </bdi>
+        )}
+        {href ? (
+          <a
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="min-w-0 truncate text-subtle-foreground hover:underline"
+            title={source.path}
+          >
+            <bdi>{source.path}</bdi>
+          </a>
+        ) : (
+          source.path && (
+            <bdi className="min-w-0 truncate text-subtle-foreground" title={source.path}>
+              {source.path}
+            </bdi>
+          )
+        )}
+      </div>
+    </li>
+  )
+}
+
+/** Rule cards, and any source that arrives with provenance, show it. */
+function hasProvenance(source: TrailSource): boolean {
+  return isRuleSource(source) || source.verification !== undefined || source.layer !== undefined
 }
 
 /**
  * "What I used": the sources an answer read and the tools it called, in
  * order, drawn as a leader line like the ones that tie a note to a detail
  * on a drawing. Live while the answer is being prepared, then stored with it.
+ * Every rule card shows its verification level, whatever the answer says.
  */
 export function TrailPanel({ trail, anchorPrefix }: { trail: Trail; anchorPrefix: string }) {
   const navigate = useNavigate()
+  const lang = trailLang(useLocale().language)
+  const copy = TRAIL_COPY[lang]
   const rows = toolRows(trail.steps)
   if (!trail.sources.length && !rows.length) return null
 
   return (
     // Follows the page direction; mixed-direction pieces are isolated with <bdi>.
     <div className="mt-3 border-t border-border pt-3 text-xs text-muted-foreground">
-      <div className="mb-1.5 text-xs font-medium text-subtle-foreground">What I used</div>
+      <div className="mb-1.5 text-xs font-medium text-subtle-foreground">{copy.heading}</div>
 
       {trail.sources.length > 0 && (
         <ol className="m-0 grid list-none gap-1 p-0">
-          {trail.sources.map((s) => (
-            <li
-              key={s.id}
-              id={sourceAnchorId(anchorPrefix, s.id)}
-              className="flex min-w-0 items-center gap-2 scroll-mt-4 rounded-[5px] target:bg-blue-400/10"
-            >
-              <span className="rz-source m-0" aria-hidden>
-                {s.id}
-              </span>
-              <FileText className="h-3.5 w-3.5 shrink-0" />
-              <bdi className="text-foreground">{s.title}</bdi>
-              <bdi className="min-w-0 truncate text-subtle-foreground" title={s.path}>
-                {s.path}
-              </bdi>
-            </li>
-          ))}
+          {trail.sources.map((s) => {
+            const anchorId = sourceAnchorId(anchorPrefix, s.id)
+            return hasProvenance(s) ? (
+              <RuleSourceRow key={s.id} source={s} anchorId={anchorId} lang={lang} />
+            ) : (
+              <PlainSourceRow key={s.id} source={s} anchorId={anchorId} />
+            )
+          })}
         </ol>
       )}
 
       {rows.length > 0 && (
         <ol className={cn('rz-trail m-0 list-none p-0', trail.sources.length > 0 && 'mt-2')}>
           {rows.map((row) => {
-            const status = STATUS[row.status]
+            const label = copy.status[row.status]
             return (
               <li
                 key={row.id}
                 className="rz-trail__step py-1"
-                data-state={status.node}
+                data-state={NODE[row.status]}
                 aria-current={row.status === 'running' ? 'step' : undefined}
               >
                 <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
@@ -66,7 +174,7 @@ export function TrailPanel({ trail, anchorPrefix }: { trail: Trail; anchorPrefix
                       onClick={() => navigate('/approvals', { viewTransition: true })}
                       className="font-medium text-brand-400 hover:underline"
                     >
-                      {status.label}
+                      {label}
                     </button>
                   ) : (
                     <span
@@ -75,7 +183,7 @@ export function TrailPanel({ trail, anchorPrefix }: { trail: Trail; anchorPrefix
                         row.status === 'running' && 'text-violet-400',
                       )}
                     >
-                      {status.label}
+                      {label}
                     </span>
                   )}
                   {row.durationMs !== undefined && row.status === 'done' && (

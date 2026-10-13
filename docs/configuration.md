@@ -125,7 +125,8 @@ uploads/downloads are confined to `REALIZE_AGENT_FILES_DIR` (default `<KB_PATH>/
 ### "What I used" trail and citations (`cite_sources`)
 
 Every chat answer carries a trail: the knowledge-base sources its prompt included, numbered
-`[S1]…[Sn]`, and the tools it called, in order. The dashboard shows the trail live under each
+`[S1]…[Sn]`, the pack rule cards numbered `[R1]…[Rn]` with their verification level, layer and
+pack (see [packs](packs.md#rule-cards-in-the-answer-trail)), and the tools it called, in order. The dashboard shows the trail live under each
 answer and again in history; the API returns it as `trail` (see the
 [API reference](api-reference.md#post-apichat)). Trails are stored per message in `memory.db` and
 deleted with the conversation. They are never sent back to a model.
@@ -149,7 +150,10 @@ default stays `false`.
 > **Outcome.** `execution_status` moves `claimed` → `succeeded` or `failed`. A row left at `claimed`
 > means the process stopped while the action was running: the outcome is unknown, it is not retried
 > automatically, and a person should check the external system (for example the sheet) and note the
-> result. Expired approvals can't be approved or run.
+> result. Expired approvals can't be approved or run: lists report them as `expired` (never as
+> pending), and the dashboard shows them under **Expired** with no decision controls. In the
+> dashboard, a decided item shows what really happened (done, failed with the error, or unknown
+> after a restart), right after the decision and later under **Decided**.
 >
 > **Fails closed.** If the governance check itself fails (for example a malformed `trust.level`,
 > which also falls back to level 1) or the approval can't be saved, write actions are blocked; reads

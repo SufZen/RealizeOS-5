@@ -1,9 +1,24 @@
-import type { CSSProperties, ReactNode } from 'react'
-import { Clock, CheckCircle2, XCircle } from 'lucide-react'
+import { useId, type CSSProperties, type ReactNode } from 'react'
+import { Clock, CheckCircle2, XCircle, AlertTriangle, AlertCircle, Info, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
+import { Button, IconButton } from '@/components/ui/button'
 import { Stamp } from '@/components/ui/stamp'
+import { useLocale } from '@/components/locale-provider'
+import {
+  approvalOutcome,
+  isExpired,
+  type ApprovalStatus,
+  type DecisionLogResult,
+  type DecisionProblem,
+  type Outcome,
+} from '@/lib/approval-outcome'
+import {
+  approvalText,
+  outcomeMessage,
+  relativeExpiry,
+  type ApprovalText,
+} from '@/lib/approval-text'
 
 export interface Approval {
   id: string
@@ -11,9 +26,12 @@ export interface Approval {
   agent_key: string
   action_type: string
   payload?: string
-  status: 'pending' | 'approved' | 'rejected' | 'expired'
+  /** Effective status: a pending item whose time ran out is listed as `expired`. */
+  status: ApprovalStatus
   created_at: string
-  expires_at?: string
+  expires_at?: string | null
+  /** Set by the server: true when no one can decide it any more. */
+  expired?: boolean
   decision_note?: string | null
   // v5.7.0 — approvals that execute
   action_name?: string | null
@@ -22,32 +40,28 @@ export interface Approval {
   executed_at?: string | null
   result_json?: string | null
   error?: string | null
-}
-
-const actionTypeLabels: Record<string, string> = {
-  send_email: 'Send email',
-  publish_content: 'Publish content',
-  external_api: 'External API call',
-  create_event: 'Create event',
-  high_cost_llm: 'High-cost model call',
-  skill_input: 'Question from a skill',
-  agent_decision: 'Decision requested by an agent',
-  agent_input: 'Question from an agent',
-  agent_credential: 'Credential requested by an agent',
+  /** `claimed` (started, no result yet) → `succeeded` / `failed`. */
+  execution_status?: string | null
+  decided_by?: string | null
+  decided_at?: string | null
+  decision_channel?: string | null
+  /** Present only when the server reports whether the decision log was written. */
+  decision_log?: DecisionLogResult | null
 }
 
 /** Items whose payload carries a question for the operator. */
 const QUESTION_TYPES = new Set(['skill_input', 'agent_decision', 'agent_input', 'agent_credential'])
 
-const STATUS: Record<
-  Approval['status'],
-  { label: string; tone: 'accent' | 'success' | 'danger' | 'neutral' }
-> = {
-  pending: { label: 'Held', tone: 'accent' },
-  approved: { label: 'Approved', tone: 'success' },
-  rejected: { label: 'Rejected', tone: 'danger' },
-  expired: { label: 'Expired', tone: 'neutral' },
+const BADGE_TONE: Record<ApprovalStatus, 'accent' | 'success' | 'danger' | 'neutral'> = {
+  pending: 'accent',
+  approved: 'success',
+  rejected: 'danger',
+  expired: 'neutral',
+  answered: 'success',
 }
+
+/** Outcomes worth a line on the card: something was (or should have been) run. */
+const EXECUTION_KINDS = new Set<Outcome['kind']>(['succeeded', 'failed', 'unknown', 'not_started'])
 
 function parseJson(text?: string | null): unknown {
   if (!text) return undefined
@@ -58,15 +72,94 @@ function parseJson(text?: string | null): unknown {
   }
 }
 
-/** "in 5 h", "in 2 days" or "now"; the absolute time stays in the tooltip. */
-function relativeExpiry(iso: string): string {
-  const ms = new Date(iso).getTime() - Date.now()
-  if (Number.isNaN(ms)) return ''
-  if (ms <= 0) return 'now'
-  const h = ms / 3_600_000
-  if (h < 1) return `in ${Math.max(1, Math.round(ms / 60_000))} min`
-  if (h < 48) return `in ${Math.round(h)} h`
-  return `in ${Math.round(h / 24)} days`
+function formatTime(iso: string): string {
+  const t = new Date(iso)
+  return Number.isNaN(t.getTime()) ? iso : t.toLocaleString()
+}
+
+/** One line saying what happened after the decision: done, failed, or unknown. */
+export function OutcomeLine({ outcome, text }: { outcome: Outcome; text: ApprovalText }) {
+  const failed = outcome.kind === 'failed'
+  const unsure = outcome.kind === 'unknown' || outcome.kind === 'not_started'
+  const Icon = failed ? XCircle : unsure ? AlertTriangle : CheckCircle2
+  return (
+    <div
+      dir="auto"
+      data-outcome={outcome.kind}
+      className={cn(
+        'flex gap-2 rounded-[7px] px-3 py-2 text-[13px]',
+        failed
+          ? 'bg-red-400/10 text-red-400'
+          : unsure
+            ? 'bg-amber-400/10 text-amber-400'
+            : 'bg-emerald-400/10 text-emerald-400',
+      )}
+    >
+      <Icon className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+      <span className="min-w-0 whitespace-pre-wrap break-words">
+        {outcomeMessage(outcome, text)}
+      </span>
+    </div>
+  )
+}
+
+/** Whether the decision reached the decision log; rendered only when the server says. */
+export function DecisionLogLine({ log, text }: { log: DecisionLogResult; text: ApprovalText }) {
+  return (
+    <p
+      dir="auto"
+      data-decision-log={log.logged ? 'logged' : 'missing'}
+      className={cn(
+        'm-0 flex items-start gap-1.5 text-xs',
+        log.logged ? 'text-muted-foreground' : 'text-amber-400',
+      )}
+    >
+      {log.logged ? (
+        <CheckCircle2 className="mt-0.5 h-3 w-3 shrink-0" aria-hidden />
+      ) : (
+        <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" aria-hidden />
+      )}
+      <span className="min-w-0 break-words">
+        {log.logged ? text.decisionLogged : text.decisionNotLogged(log.error)}
+      </span>
+    </p>
+  )
+}
+
+/** Why the decision didn't apply. Settled items (someone else decided, expired) read as a notice. */
+function ProblemNotice({
+  problem,
+  text,
+  onDismiss,
+}: {
+  problem: DecisionProblem
+  text: ApprovalText
+  onDismiss?: () => void
+}) {
+  const Icon = problem.final ? Info : AlertCircle
+  return (
+    <div
+      role="alert"
+      dir="auto"
+      data-problem={problem.kind}
+      className={cn(
+        'flex items-start gap-2 rounded-[7px] border px-3 py-2 text-[13px]',
+        problem.final
+          ? 'border-amber-400/30 bg-amber-400/10 text-amber-400'
+          : 'border-red-400/30 bg-red-400/10 text-red-400',
+      )}
+    >
+      <Icon className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+      <span className="min-w-0 flex-1 whitespace-pre-wrap break-words">
+        {text.problem(problem)}
+      </span>
+      {onDismiss && (
+        <IconButton label={text.dismiss} size="sm" onClick={onDismiss}>
+          <X />
+        </IconButton>
+      )}
+    </div>
+  )
 }
 
 /** Render parameter values readably; long or nested values as JSON. */
@@ -96,13 +189,25 @@ interface ApprovalCardProps {
   children?: ReactNode
   /** Play the stamp: only for the decision that just landed, never on load. */
   strike?: boolean
+  /** The clock the expiry is judged against (ms); pass a ticking value so a lapse shows. */
+  now?: number
+  /** Why the last decision on this card didn't apply. */
+  problem?: DecisionProblem | null
+  onDismissProblem?: () => void
+  /** Set when the person's role can't decide: shown instead of the decision controls. */
+  blockedReason?: string | null
+  /** Language override ("he", "en"); the locale in effect otherwise. */
+  language?: string
   className?: string
   style?: CSSProperties
 }
 
 /**
  * One held action or question. Held items carry the caution hatch; decided
- * items carry the stamp. Execution results and errors are always shown.
+ * items carry the stamp. What ran after a decision (done, failed, or
+ * unknown) is always shown, from the stored row, so history tells the truth.
+ * An item whose time ran out can't be decided: its controls are disabled and
+ * say why.
  */
 export function ApprovalCard({
   approval,
@@ -111,29 +216,55 @@ export function ApprovalCard({
   busy,
   children,
   strike,
+  now,
+  problem,
+  onDismissProblem,
+  blockedReason,
+  language,
   className,
   style,
 }: ApprovalCardProps) {
+  const locale = useLocale()
+  const text = approvalText(language ?? locale.language)
+  const expiryNoticeId = useId()
+  const at = now ?? clockNow()
+
   const actionName = approval.action_name || approval.action_type
-  const label = actionTypeLabels[actionName] || actionName
+  const label = text.actionTypes[actionName] || actionName
+  const expired = isExpired(approval, at)
+  const statusKey: ApprovalStatus = expired ? 'expired' : approval.status
   const isPending = approval.status === 'pending'
-  const status = STATUS[approval.status] ?? STATUS.expired
-  const decided = approval.status === 'approved' || approval.status === 'rejected'
+  const decided = statusKey === 'approved' || statusKey === 'rejected'
+  const settled = !!problem?.final
+  const outcome = decided ? approvalOutcome(approval, at) : null
+  const showOutcome = !!outcome && EXECUTION_KINDS.has(outcome.kind)
 
   const payload = parseJson(approval.payload) as
     | { question?: string; params?: Record<string, unknown> }
     | undefined
   const params =
     (parseJson(approval.params_json) as Record<string, unknown> | undefined) ?? payload?.params
-  const result = parseJson(approval.result_json) as { output?: string } | undefined
   const question = QUESTION_TYPES.has(approval.action_type) ? payload?.question : undefined
+  const expiredNotice = expired && !settled && (!isPending || !!blockedReason)
   const hasBody =
-    !!question || !!params || !!approval.executed_at || (!!approval.decision_note && !isPending)
+    !!question ||
+    !!params ||
+    showOutcome ||
+    expiredNotice ||
+    !!problem ||
+    !!approval.decision_log ||
+    (!!approval.decision_note && !isPending)
+  const canAct = !!(onApprove || onReject)
+  const showFooter = isPending && !settled && (canAct || !!children || !!blockedReason)
 
   return (
     <article
-      className={cn('rz-panel relative overflow-hidden', isPending && 'rz-held', className)}
-      aria-label={`${label}: ${status.label}`}
+      className={cn(
+        'rz-panel relative overflow-hidden',
+        isPending && !expired && !settled && 'rz-held',
+        className,
+      )}
+      aria-label={`${label}: ${text.status[statusKey]}`}
       style={style}
     >
       <header className="flex items-start gap-3 px-4 pt-3.5 pb-3 ps-5">
@@ -149,30 +280,48 @@ export function ApprovalCard({
               <span className="rz-avatar rz-avatar--agent rz-avatar--sm" aria-hidden>
                 {approval.agent_key.slice(0, 2).toUpperCase()}
               </span>
-              Agent: {approval.agent_key}
+              {text.agent}: {approval.agent_key}
             </span>
-            <span>Venture: {approval.venture_key}</span>
-            {approval.requested_by && <span>For: {approval.requested_by}</span>}
-            {approval.expires_at && isPending && (
+            <span>
+              {text.venture}: {approval.venture_key}
+            </span>
+            {approval.requested_by && (
+              <span>
+                {text.requestedFor}: {approval.requested_by}
+              </span>
+            )}
+            {approval.expires_at && isPending && !expired && (
               <span
                 className="inline-flex items-center gap-1"
-                title={`Expires: ${new Date(approval.expires_at).toLocaleString()}`}
+                title={text.expiresAt(formatTime(approval.expires_at))}
               >
                 <Clock className="h-3 w-3" aria-hidden />
-                Expires {relativeExpiry(approval.expires_at)}
+                {text.expires(relativeExpiry(approval.expires_at, at, text))}
+              </span>
+            )}
+            {approval.expires_at && expired && (
+              <span className="inline-flex items-center gap-1">
+                <Clock className="h-3 w-3" aria-hidden />
+                {text.expiredAt} <bdi>{formatTime(approval.expires_at)}</bdi>
+              </span>
+            )}
+            {approval.decided_by && !isPending && (
+              <span>
+                {text.decidedBy} <bdi>{approval.decided_by}</bdi>
               </span>
             )}
           </div>
         </div>
         {decided ? (
           <Stamp
-            decision={approval.status === 'approved' ? 'approved' : 'rejected'}
+            decision={statusKey === 'approved' ? 'approved' : 'rejected'}
+            label={text.status[statusKey]}
             strike={strike}
             className="me-1 mt-1"
           />
         ) : (
-          <Badge tone={status.tone} dot={isPending}>
-            {status.label}
+          <Badge tone={BADGE_TONE[statusKey]} dot={statusKey === 'pending'}>
+            {text.status[statusKey]}
           </Badge>
         )}
       </header>
@@ -187,25 +336,14 @@ export function ApprovalCard({
 
           {params && <ParamList params={params} />}
 
-          {approval.executed_at && (
-            <div
-              dir="auto"
-              className={cn(
-                'flex gap-2 rounded-[7px] px-3 py-2 text-[13px]',
-                approval.error
-                  ? 'bg-red-400/10 text-red-400'
-                  : 'bg-emerald-400/10 text-emerald-400',
-              )}
-            >
-              {approval.error ? (
-                <XCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-              ) : (
-                <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-              )}
-              <span className="min-w-0 whitespace-pre-wrap break-words">
-                {approval.error ? `Failed: ${approval.error}` : result?.output || 'Done'}
-              </span>
-            </div>
+          {showOutcome && outcome && <OutcomeLine outcome={outcome} text={text} />}
+
+          {approval.decision_log && <DecisionLogLine log={approval.decision_log} text={text} />}
+
+          {expiredNotice && (
+            <p dir="auto" className="m-0 text-[13px] text-muted-foreground">
+              {text.expiredNotice}
+            </p>
           )}
 
           {approval.decision_note && !isPending && (
@@ -216,42 +354,76 @@ export function ApprovalCard({
               “{approval.decision_note}”
             </p>
           )}
+
+          {problem && <ProblemNotice problem={problem} text={text} onDismiss={onDismissProblem} />}
         </div>
       )}
 
-      {isPending && (onApprove || onReject || children) && (
+      {showFooter && (
         <footer className="rz-panel__foot grid gap-2.5 ps-5">
-          {children}
-          {(onApprove || onReject) && (
-            <div className="flex flex-wrap justify-end gap-2">
-              {onReject && (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  disabled={busy}
-                  onClick={() => onReject(approval.id)}
+          {blockedReason ? (
+            <p
+              dir="auto"
+              data-gate="decide"
+              className="m-0 flex items-start gap-2 text-[13px] text-muted-foreground"
+            >
+              <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+              <span>{blockedReason}</span>
+            </p>
+          ) : (
+            <>
+              {expired ? (
+                <p
+                  id={expiryNoticeId}
+                  dir="auto"
+                  className="m-0 flex items-start gap-2 text-[13px] text-muted-foreground"
                 >
-                  {question ? 'No' : 'Reject'}
-                </Button>
+                  <Clock className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+                  <span>{text.expiredNotice}</span>
+                </p>
+              ) : (
+                children
               )}
-              {onApprove && (
-                <Button
-                  size="sm"
-                  variant="approve"
-                  busy={busy}
-                  onClick={() => onApprove(approval.id)}
-                >
-                  {question
-                    ? 'Yes / send note'
-                    : approval.action_name
-                      ? 'Approve & run'
-                      : 'Approve'}
-                </Button>
+              {canAct && (
+                <div className="flex flex-wrap justify-end gap-2">
+                  {onReject && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      disabled={busy || expired}
+                      aria-describedby={expired ? expiryNoticeId : undefined}
+                      onClick={() => onReject(approval.id)}
+                    >
+                      {question ? text.no : text.reject}
+                    </Button>
+                  )}
+                  {onApprove && (
+                    <Button
+                      size="sm"
+                      variant="approve"
+                      busy={busy}
+                      disabled={expired}
+                      aria-describedby={expired ? expiryNoticeId : undefined}
+                      onClick={() => onApprove(approval.id)}
+                    >
+                      {question
+                        ? text.yesSendNote
+                        : approval.action_name
+                          ? text.approveAndRun
+                          : text.approve}
+                    </Button>
+                  )}
+                </div>
               )}
-            </div>
+            </>
           )}
         </footer>
       )}
     </article>
   )
+}
+
+/** The time a card is rendered at, when the page doesn't pass a ticking clock. */
+function clockNow(): number {
+  return Date.now()
 }

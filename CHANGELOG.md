@@ -4,6 +4,21 @@ All notable changes to RealizeOS are documented in this file.
 This changelog is automatically generated from [Conventional Commits](https://conventionalcommits.org).
 
 
+## [5.28.4](https://github.com/SufZen/RealizeOS-5/compare/v5.28.3...v5.28.4) (2026-10-13)
+
+### Bug Fixes
+
+* **api:** expired approvals, refused decisions and the overview agent total ([ca21139](https://github.com/SufZen/RealizeOS-5/commit/ca211399c1de66b6396ae55582078b666e4a7c08))
+* **dashboard:** approvals show expiry, refused decisions and real outcomes ([8edba09](https://github.com/SufZen/RealizeOS-5/commit/8edba0929f2ee28b6831d0caca366939d412ab92))
+* **dashboard:** overview counts configured agents; role-aware venture controls ([0029929](https://github.com/SufZen/RealizeOS-5/commit/002992927a89edcf402c7734be4f13ccd01f32ce))
+
+## [5.28.3](https://github.com/SufZen/RealizeOS-5/compare/v5.28.2...v5.28.3) (2026-10-13)
+
+### Bug Fixes
+
+* **core:** keep rule-card provenance in the answer trail (N03) ([f469dbf](https://github.com/SufZen/RealizeOS-5/commit/f469dbf4ac957ff1d36027a6b11558e5712b2581))
+* **dashboard:** show each rule's verification level in the trail (N03) ([0d489f0](https://github.com/SufZen/RealizeOS-5/commit/0d489f05e15fb702f33dab1e977e6ccad13ce6be))
+
 ## [5.28.2](https://github.com/SufZen/RealizeOS-5/compare/v5.28.1...v5.28.2) (2026-10-13)
 
 ### Bug Fixes

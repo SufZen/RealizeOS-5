@@ -230,7 +230,12 @@ class TestApprovalsAPI:
         assert body["execution"]["success"] is True
         assert tool.calls == [{"row": "Payment #7 — ₪48,000"}]
 
-        assert client.post(f"/api/approvals/{approval_id}/approve", json={}).status_code == 404
+        # Deciding again is refused with the item's real state (N11), and runs nothing.
+        again = client.post(f"/api/approvals/{approval_id}/approve", json={})
+        assert again.status_code == 409
+        assert again.json()["reason"] == "already_decided"
+        assert again.json()["approval"]["status"] == "approved"
+        assert tool.calls == [{"row": "Payment #7 — ₪48,000"}]
 
 
 # ---------------------------------------------------------------------------

@@ -106,7 +106,7 @@ Rules:
 
 ### Chat tool behaviour
 
-* `realize_chat` runs the same pipeline as `POST /api/chat` and returns its response, `message_id` and a **trail summary**: the knowledge-base sources (`id`, `title`, `path`) and which tools ran (`name`, `success`, `held`, and `request_id` for held actions).
+* `realize_chat` runs the same pipeline as `POST /api/chat` and returns its response, `message_id` and a **trail summary**: the knowledge-base sources (`id`, `title`, `path`), the pack rule cards (`[R1]`…) with their `layer`, `pack`, `verification` level (0 unverified to 4 field-proven) and `as_of` / `review_by` dates, and which tools ran (`name`, `success`, `held`, and `request_id` for held actions). Show a rule's level to the person whatever the answer text says; level 1 is a draft that no local professional has reviewed.
 * Tool inputs, outputs and errors are left out of the summary. They can carry third-party text (email bodies, web pages, sheet cells), so, like approval results, they are not echoed to MCP clients. The full trail is in the dashboard and `GET /api/conversations`.
 * Same rule as the REST chat routes: callers act for themselves. Only `owner`/`admin` may pass another `user_id` to `realize_chat`, `get_history`, `clear_history` or `get_session`; anyone else chats as themselves and gets `MCP_FORBIDDEN` for another user's history or session.
 
