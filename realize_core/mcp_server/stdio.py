@@ -334,11 +334,12 @@ def run_stdio(user_id: str | None, ventures: Sequence[str] = ()) -> None:
 
     allowed = caller_ventures(user)
     logger.info(
-        "MCP stdio server ready — user=%s role=%s ventures=%s families=%s allow_admin=%s",
+        "MCP stdio server ready — user=%s role=%s ventures=%s families=%s allow_admin=%s tools=%s",
         user.user_id,
         user.role,
         "all" if allowed is None else ",".join(sorted(allowed)),
         ",".join(mcp_config.families),
         mcp_config.allow_admin,
+        "all" if mcp_config.tools is None else ",".join(mcp_config.tools) or "none",
     )
     anyio.run(functools.partial(serve_stdio, server, user, stdout=transport_out))

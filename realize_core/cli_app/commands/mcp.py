@@ -142,8 +142,7 @@ def mcp_stdio(
     (identity is taken from arguments only, never from the environment).
     MCP must be on (``MCP_ENABLED=true``). See docs/connect-your-agent.md.
     """
-    if directory is not None:
-        _enter_project_directory(directory.resolve())
+    _enter_project_directory((directory or Path.cwd()).resolve())
 
     from realize_core.mcp_server.auth import MCPProductionAuthError
     from realize_core.mcp_server.stdio import StdioStartupError, run_stdio
@@ -161,7 +160,8 @@ def _enter_project_directory(directory: Path) -> None:
     """Work in ``directory`` as if RealizeOS had been started there, in this process.
 
     Desktop agents can't set a working directory, and RealizeOS reads
-    realize-os.yaml, users.yaml, .env and the KB relative to it. Relative
+    realize-os.yaml, users.yaml, .env and the KB relative to it (the
+    ``.env`` lookup at CLI start searches from the code folder instead). Relative
     ``sys.path`` entries are pinned first, so the project folder never
     becomes an import location. Then the folder's ``.env`` is loaded (values
     already in the environment win, as at normal startup) and the settings

@@ -212,6 +212,9 @@ async def test_sdk_client_round_trip(stdio_project, tmp_path):
     from mcp.client.stdio import StdioServerParameters, stdio_client
 
     project, env = stdio_project
+    # Without --directory the working directory is the project: its .env turns MCP on.
+    env.pop("MCP_ENABLED")
+    (project / ".env").write_text("MCP_ENABLED=true\n", encoding="utf-8")
     params = StdioServerParameters(
         command=sys.executable,
         args=[CLI, "mcp", "stdio", "--user", "dana@example.com"],
@@ -268,6 +271,8 @@ def test_directory_runs_in_process_and_stdout_is_json_rpc_only(stdio_project, tm
     # The project's .env turns MCP on, so it must be loaded from --directory.
     env.pop("MCP_ENABLED")
     (project / ".env").write_text("MCP_ENABLED=true\n", encoding="utf-8")
+    # The mcp.tools allowlist applies to stdio as to /mcp.
+    env["MCP_TOOLS"] = "realize_health,list_ventures,kb_search"
     # Planted modules a lazy import would pick up if the project were on sys.path.
     marker = tmp_path / "HIJACKED"
     payload = f"open({str(marker)!r}, 'w').write('imported from the project folder')\n"
@@ -338,6 +343,7 @@ def test_directory_runs_in_process_and_stdout_is_json_rpc_only(stdio_project, tm
     assert [r["id"] for r in replies] == [1, 2, 3, 4]
     assert all(r["jsonrpc"] == "2.0" and "result" in r for r in replies)
     assert "\r" not in stdout
+    assert sorted(t["name"] for t in replies[1]["result"]["tools"]) == ["kb_search", "list_ventures", "realize_health"]
     ventures = json.loads(replies[2]["result"]["content"][0]["text"])["ventures"]
     assert sorted(v["key"] for v in ventures) == ["alpha", "beta"]  # owner, no --venture
     found = json.loads(replies[3]["result"]["content"][0]["text"])["results"]
