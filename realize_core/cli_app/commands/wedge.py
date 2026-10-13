@@ -16,19 +16,13 @@ from typing import Annotated
 
 import typer
 
+from realize_core.utils.text import escape_nonprintable as _safe
+
+# Contacts and markets come from pilot users, who are outsiders: every stored
+# value shown here goes through _safe. The store already strips control
+# characters; this also covers rows written before that.
+
 wedge_app = typer.Typer(no_args_is_help=True)
-
-
-def _safe(value: object) -> str:
-    """Show stored text without letting it drive the terminal: non-printable characters are escaped.
-
-    Contacts and markets come from pilot users, who are outsiders. The store
-    already strips control characters; this also covers rows written before that.
-    """
-    return "".join(
-        ch if ch.isprintable() else (f"\\x{ord(ch):02x}" if ord(ch) < 0x100 else f"\\u{ord(ch):04x}")
-        for ch in str(value)
-    )
 
 
 @wedge_app.command("invite")

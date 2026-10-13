@@ -23,6 +23,7 @@ import csv
 import difflib
 import io
 import logging
+import math
 import re
 import unicodedata
 from collections.abc import Callable
@@ -37,6 +38,8 @@ import yaml
 
 from realize_core.packs import loader as _loader
 from realize_core.packs.models import VERIFICATION_NAMES, Pack
+from realize_core.utils.cells import neutralize_cell
+from realize_core.utils.text import escape_nonprintable as _shown
 
 logger = logging.getLogger(__name__)
 
@@ -292,12 +295,16 @@ def default_delimiter(pack: Pack) -> str:
 
 
 def _cell(value: object) -> str:
-    """Text for one CSV cell: trimmed lines, and no leading character Excel reads as a formula."""
+    """Text for one CSV cell: trimmed lines, and never a formula a spreadsheet would run.
+
+    Text a spreadsheet would read as a formula (``=``, ``+``, ``-``, ``@``,
+    their full-width forms, after any leading spaces) gets the spreadsheet's
+    "this is text" apostrophe (:func:`realize_core.utils.cells.neutralize_cell`).
+    A leading space is not enough: some spreadsheets look through it.
+    """
     text = "" if value is None else str(value)
     text = "\n".join(line.rstrip() for line in text.replace("\r\n", "\n").replace("\r", "\n").split("\n")).strip()
-    if text[:1] in ("=", "+", "-", "@"):
-        text = " " + text
-    return text
+    return neutralize_cell(text)
 
 
 def render_csv(rows: list[SheetRow], delimiter: str = ",") -> str:
@@ -537,7 +544,7 @@ def _parse_count(text: str) -> int | None:
     if not value:
         return None
     number = float(value.replace(",", "."))
-    if number < 0 or number != int(number):
+    if not math.isfinite(number) or number < 0 or number != int(number):  # "inf" would overflow int()
         raise ValueError(value)
     return int(number)
 
@@ -561,7 +568,8 @@ def parse_review(pack: Pack, raw_rows: list[dict[str, str]]) -> Review:
             continue
         sheet_row = expected.get(row_id)
         if sheet_row is None:
-            errors.append(f"row {number}: unknown card id '{row_id}' (not in {pack.ref})")
+            # Values from the sheet are shown escaped: these messages reach a terminal.
+            errors.append(f"row {number}: unknown card id '{_shown(row_id)}' (not in {pack.ref})")
             continue
         if row_id in seen:
             errors.append(f"row {number}: '{row_id}' appears twice (first on row {seen[row_id]})")
@@ -576,18 +584,20 @@ def parse_review(pack: Pack, raw_rows: list[dict[str, str]]) -> Review:
                 errors.append(f"{where}: has facts or notes but no verdict")
             continue
         if verdict not in VERDICTS:
-            errors.append(f"{where}: verdict '{raw.get('verdict')}' must be correct, corrected or removed")
+            errors.append(f"{where}: verdict '{_shown(raw.get('verdict'))}' must be correct, corrected or removed")
             continue
         try:
             checked = _parse_count(raw.get("facts_checked", ""))
         except ValueError:
-            errors.append(f"{where}: facts checked '{raw.get('facts_checked')}' must be a whole number of 1 or more")
+            errors.append(
+                f"{where}: facts checked '{_shown(raw.get('facts_checked'))}' must be a whole number of 1 or more"
+            )
             continue
         try:
             corrected = _parse_count(raw.get("facts_corrected", ""))
         except ValueError:
             errors.append(
-                f"{where}: facts corrected '{raw.get('facts_corrected')}' must be a whole number of 0 or more"
+                f"{where}: facts corrected '{_shown(raw.get('facts_corrected'))}' must be a whole number of 0 or more"
             )
             continue
         checked = sheet_row.facts_checked if checked is None else checked
@@ -616,7 +626,9 @@ def parse_review(pack: Pack, raw_rows: list[dict[str, str]]) -> Review:
         if (
             sheet_row.type == "rule"
             and raw.get("statement")
-            and _norm_text(raw["statement"]) != _norm_text(sheet_row.statement)
+            # As exported (formula guard included), or with the guard a spreadsheet dropped.
+            and _norm_text(raw["statement"])
+            not in {_norm_text(sheet_row.statement), _norm_text(_cell(sheet_row.statement))}
         ):
             warnings.append(f"{where}: the card changed after this sheet was exported; check the review still applies")
         answers[row_id] = ReviewEntry(

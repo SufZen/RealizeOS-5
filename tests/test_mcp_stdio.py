@@ -173,6 +173,14 @@ class TestResolveStdioUser:
         assert user.scopes == ["agent:stdio", "venture:beta"]
         assert caller_ventures(user) == frozenset({"beta"})
 
+    @pytest.mark.parametrize("ventures", [(), ("alpha",)])
+    def test_pilot_account_is_refused(self, users_dir, ventures):
+        """Pilot accounts are hosted-only (docs/mcp-server.md): no local stdio session, with or without --venture."""
+        from realize_core.mcp_server.stdio import StdioStartupError, resolve_stdio_user
+
+        with pytest.raises(StdioStartupError, match="is a pilot account"):
+            resolve_stdio_user("Pilot@Example.com", ventures)
+
 
 # ---------------------------------------------------------------------------
 # Refusals before any state is built
@@ -497,46 +505,21 @@ def test_allow_admin_flag_serves_admin_tools_but_an_agent_session_cant_use_them(
     assert json.loads(refused["result"]["content"][0]["text"])["code"] == "MCP_AGENT_REFUSED"
 
 
-def test_pilot_account_stays_confined_over_stdio(stdio_project):
-    """A pilot: true account gets only the pilot tools, as over HTTP."""
-    from realize_core.wedge.pilot import PILOT_TOOLS
-
+def test_pilot_account_cannot_open_a_stdio_session(stdio_project):
+    """A pilot: true account is hosted-only: the stdio server refuses to start for it (exit 2, stdout empty)."""
     project, env = stdio_project
-    proc = subprocess.Popen(
+    proc = subprocess.run(
         [sys.executable, CLI, "mcp", "stdio", "--directory", str(project), "--user", "pilot@example.com"],
-        stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL,
+        input=b"",
+        capture_output=True,
+        cwd=str(project.parent),
         env=env,
+        timeout=90,
     )
-    watchdog = threading.Timer(90, proc.kill)
-    watchdog.start()
-    try:
-        _exchange(
-            proc,
-            {
-                "jsonrpc": "2.0",
-                "id": 1,
-                "method": "initialize",
-                "params": {
-                    "protocolVersion": "2025-06-18",
-                    "capabilities": {},
-                    "clientInfo": {"name": "t", "version": "0"},
-                },
-            },
-        )
-        _exchange(proc, {"jsonrpc": "2.0", "method": "notifications/initialized"})
-        tools = json.loads(_exchange(proc, {"jsonrpc": "2.0", "id": 2, "method": "tools/list"}))["result"]["tools"]
-        call = {"name": "list_ventures", "arguments": {}}
-        refused = json.loads(_exchange(proc, {"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": call}))
-        proc.stdin.close()
-        assert proc.wait() == 0
-    finally:
-        watchdog.cancel()
-    names = {t["name"] for t in tools}
-    assert names
-    assert names <= PILOT_TOOLS
-    assert json.loads(refused["result"]["content"][0]["text"])["code"] == "MCP_FORBIDDEN"
+    assert proc.returncode == 2
+    assert proc.stdout == b""
+    assert b"MCP stdio server ready" not in proc.stderr
+    assert b"pilot@example.com is a pilot account" in proc.stderr
 
 
 def test_claim_stdout_sends_stray_output_to_stderr(tmp_path):
