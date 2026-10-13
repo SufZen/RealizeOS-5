@@ -419,40 +419,83 @@ def get_all_skills() -> list[dict]:
     return all_skills
 
 
-#: Skill owners that are not ventures: built-ins and skills registered without one.
-GLOBAL_SKILL_OWNERS = frozenset({"", "_default", "_runtime"})
+#: Skill owners that are not ventures: the firm's shared skills (every venture
+#: gets them, as skill detection does), built-ins and skills registered without one.
+GLOBAL_SKILL_OWNERS = frozenset({"", "_default", "_runtime", "shared"})
+
+#: Order in which shared and global owners are searched after a venture's own skills.
+_GLOBAL_LOOKUP_ORDER = ("shared", "", "_runtime", "_default")
 
 
-def find_skill(name: str) -> tuple[str, dict] | None:
+def _named(skills: list[dict], name: str) -> dict | None:
+    return next((skill for skill in skills if skill.get("name") == name), None)
+
+
+def find_shared_skill(name: str) -> tuple[str, dict] | None:
+    """A shared or global skill by name: shared, registered without a venture, built-in."""
+    for owner in _GLOBAL_LOOKUP_ORDER:
+        skill = _named(_loaded_skills.get(owner, []), name)
+        if skill is not None:
+            return owner, skill
+    for owner, skills in _DEFAULT_SKILLS.items():
+        skill = _named(skills, name)
+        if skill is not None:
+            return owner, skill
+    return None
+
+
+def ventures_with_skill(name: str) -> list[str]:
+    """The ventures (not shared or global owners) that have their own skill called ``name``, sorted."""
+    return sorted(
+        owner
+        for owner, skills in _loaded_skills.items()
+        if owner not in GLOBAL_SKILL_OWNERS and _named(skills, name) is not None
+    )
+
+
+def find_skill(name: str, system_key: str | None = None) -> tuple[str, dict] | None:
     """Look up a skill by name with its owner (same skill as :func:`get_skill_by_name`).
 
     The owner is the system key the skill was loaded under. Skills loaded from
     a venture's YAML don't carry it in their dict, so access checks must use
     this owner, never ``skill.get("system_key")``.
+
+    Every venture has its own copy of a pack skill (with its own
+    ``variables``, such as its sheet ids), and two ventures may each have a
+    skill with the same name, so a run must say which venture it is for:
+
+    - with ``system_key``: that venture's own skill, else a shared or global
+      one (:data:`GLOBAL_SKILL_OWNERS`); never another venture's;
+    - without one: the skill only when the name is unambiguous (one venture
+      has it, or no venture has it and a shared or global skill does). None
+      when several ventures have it: see :func:`ventures_with_skill`.
     """
-    for owner, skills in _loaded_skills.items():
-        for skill in skills:
-            if skill.get("name") == name:
-                return owner, skill
-    for owner, skills in _DEFAULT_SKILLS.items():
-        for skill in skills:
-            if skill.get("name") == name:
-                return owner, skill
-    return None
+    if system_key:
+        skill = _named(_loaded_skills.get(system_key, []), name)
+        if skill is not None:
+            return system_key, skill
+        return find_shared_skill(name)
+    owners = ventures_with_skill(name)
+    if len(owners) > 1:
+        return None
+    if owners:
+        return owners[0], _named(_loaded_skills[owners[0]], name)
+    return find_shared_skill(name)
 
 
-def get_skill_by_name(name: str) -> dict | None:
-    """Look up a skill by name across all systems."""
-    for skills in _loaded_skills.values():
-        for skill in skills:
-            if skill.get("name") == name:
-                return skill
-    # Check defaults
-    for skills in _DEFAULT_SKILLS.values():
-        for skill in skills:
-            if skill.get("name") == name:
-                return skill
-    return None
+def get_skill_by_name(name: str, system_key: str | None = None) -> dict | None:
+    """Look up a skill by name for a venture (see :func:`find_skill`)."""
+    found = find_skill(name, system_key)
+    return found[1] if found else None
+
+
+def _owned(name: str, system_key: str | None) -> tuple[str, dict] | None:
+    """The skill ``name`` of exactly ``system_key`` (any loaded owner), or the unambiguous one."""
+    if system_key is not None:
+        skill = _named(_loaded_skills.get(system_key, []), name)
+        return (system_key, skill) if skill is not None else None
+    found = find_skill(name)
+    return found if found is not None and found[0] in _loaded_skills else None
 
 
 def register_skill(skill_data: dict) -> None:
@@ -462,26 +505,35 @@ def register_skill(skill_data: dict) -> None:
     logger.info("Registered runtime skill '%s' in system '%s'", skill_data.get("name"), system_key)
 
 
-def update_skill(name: str, updates: dict) -> bool:
-    """Update an existing skill's fields by name. Returns True if found and updated."""
-    for skills in _loaded_skills.values():
-        for skill in skills:
-            if skill.get("name") == name:
-                skill.update(updates)
-                logger.info("Updated skill '%s': %s", name, list(updates.keys()))
-                return True
-    return False
+def update_skill(name: str, updates: dict, system_key: str | None = None) -> bool:
+    """Update a skill's fields. Returns True if found and updated.
+
+    ``system_key`` is the owner whose skill to change; without it the name
+    must be unambiguous (:func:`find_skill`).
+    """
+    found = _owned(name, system_key)
+    if found is None:
+        return False
+    owner, skill = found
+    skill.update(updates)
+    logger.info("Updated skill '%s' in system '%s': %s", name, owner, list(updates.keys()))
+    return True
 
 
-def unregister_skill(name: str) -> bool:
-    """Remove a skill by name. Returns True if found and removed."""
-    for sys_key, skills in _loaded_skills.items():
-        for i, skill in enumerate(skills):
-            if skill.get("name") == name:
-                skills.pop(i)
-                logger.info("Unregistered skill '%s' from system '%s'", name, sys_key)
-                return True
-    return False
+def unregister_skill(name: str, system_key: str | None = None) -> bool:
+    """Remove a skill. Returns True if found and removed.
+
+    ``system_key`` is the owner whose skill to remove; without it the name
+    must be unambiguous (:func:`find_skill`).
+    """
+    found = _owned(name, system_key)
+    if found is None:
+        return False
+    owner, skill = found
+    skills = _loaded_skills[owner]
+    skills[:] = [s for s in skills if s is not skill]
+    logger.info("Unregistered skill '%s' from system '%s'", name, owner)
+    return True
 
 
 def _score_skill_keywords(skill: dict, msg_lower: str) -> int:

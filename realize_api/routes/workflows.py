@@ -93,12 +93,10 @@ async def list_workflows(
     # system_key is each skill's owner (the venture it was loaded under).
     all_skills = [s for s in all_skills if s["system_key"] in global_owners or visible_to(request, s["system_key"])]
 
-    # Filter by system_key if provided
+    # Filter by system_key if provided (shared and global skills match any venture)
     if system_key:
         all_skills = [
-            s
-            for s in all_skills
-            if s.get("system_key", "") == system_key or not s.get("system_key")  # global skills match any
+            s for s in all_skills if s.get("system_key", "") == system_key or s.get("system_key", "") in global_owners
         ]
 
     return {
@@ -118,21 +116,65 @@ async def list_workflows(
     }
 
 
-@router.get("/workflows/{skill_name}")
-async def get_workflow(skill_name: str, request: Request):
-    """Get detailed info about a specific workflow/skill."""
-    try:
-        from realize_core.skills.detector import GLOBAL_SKILL_OWNERS, find_skill
+def _visible_skill(request: Request, skill_name: str, system_key: str | None) -> tuple[str, dict] | None:
+    """The skill ``skill_name`` the caller may see, looked up for a venture.
 
-        found = find_skill(skill_name)
+    With ``system_key``: that venture's own skill, else a shared or global one
+    (never another venture's), and only when the caller may see that venture.
+    Without one: the first venture the caller may see that has the skill
+    (each venture has its own copy, for example of a pack skill), else a
+    shared or global skill.
+    """
+    from realize_core.skills.detector import GLOBAL_SKILL_OWNERS, find_shared_skill, find_skill, ventures_with_skill
+
+    if system_key:
+        if system_key not in GLOBAL_SKILL_OWNERS and not visible_to(request, system_key):
+            return None
+        return find_skill(skill_name, system_key)
+    visible = [v for v in ventures_with_skill(skill_name) if visible_to(request, v)]
+    return find_skill(skill_name, visible[0]) if visible else find_shared_skill(skill_name)
+
+
+def _skill_to_change(skill_name: str, system_key: str | None) -> tuple[str, dict]:
+    """The skill an edit or delete addresses: ``system_key``'s, or the only one with that name.
+
+    Raises:
+        HTTPException: 404 when there is none; 409 when several ventures have
+            a skill with that name and ``system_key`` doesn't say which.
+    """
+    from realize_core.skills.detector import find_skill, ventures_with_skill
+
+    if not system_key:
+        owners = ventures_with_skill(skill_name)
+        if len(owners) > 1:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Workflow '{skill_name}' exists in several ventures ({', '.join(owners)}); add ?system_key=",
+            )
+    found = find_skill(skill_name, system_key or None)
+    if not found:
+        raise HTTPException(status_code=404, detail=f"Workflow '{skill_name}' not found")
+    return found
+
+
+@router.get("/workflows/{skill_name}")
+async def get_workflow(skill_name: str, request: Request, system_key: str | None = None):
+    """Get detailed info about a specific workflow/skill.
+
+    Query params:
+    - system_key: the venture whose skill to show (two ventures can each have
+      a skill with the same name). Default: the first venture the caller may
+      see that has it, else a shared or global skill.
+    """
+    try:
+        found = _visible_skill(request, skill_name, system_key)
     except ImportError:
         raise HTTPException(status_code=501, detail="Skills module not available")
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
 
-    # Same rule as the list: global skills, or skills owned by a venture the caller may see.
     owner, skill = found if found else ("", None)
-    if not skill or not (owner in GLOBAL_SKILL_OWNERS or visible_to(request, owner)):
+    if not skill:
         raise HTTPException(status_code=404, detail=f"Workflow '{skill_name}' not found")
 
     return {
@@ -154,12 +196,15 @@ async def create_workflow(body: CreateWorkflowBody, request: Request):
     if get_allowed_ventures(request) is not None and not visible_to(request, body.system_key):
         raise HTTPException(status_code=403, detail="Create the workflow in one of your ventures")
     try:
-        from realize_core.skills.detector import get_skill_by_name, register_skill
+        from realize_core.skills.detector import find_shared_skill, find_skill, register_skill, ventures_with_skill
     except ImportError:
         raise HTTPException(status_code=501, detail="Skills module not available")
 
-    # Check for duplicates
-    existing = get_skill_by_name(body.name)
+    # Check for duplicates: in the venture (its own or a shared skill), or anywhere for a global one.
+    if body.system_key:
+        existing = find_skill(body.name, body.system_key)
+    else:
+        existing = ventures_with_skill(body.name) or find_shared_skill(body.name)
     if existing:
         raise HTTPException(
             status_code=409,
@@ -186,38 +231,42 @@ async def create_workflow(body: CreateWorkflowBody, request: Request):
 
 
 @router.put("/workflows/{skill_name}")
-async def update_workflow(skill_name: str, body: UpdateWorkflowBody, request: Request):
-    """Update an existing workflow/skill."""
+async def update_workflow(skill_name: str, body: UpdateWorkflowBody, request: Request, system_key: str | None = None):
+    """Update an existing workflow/skill.
+
+    Query params:
+    - system_key: the venture whose skill to change; needed when several
+      ventures have a skill with this name (409 otherwise).
+    """
     try:
-        from realize_core.skills.detector import get_skill_by_name, update_skill
+        from realize_core.skills.detector import update_skill
     except ImportError:
         raise HTTPException(status_code=501, detail="Skills module not available")
 
-    existing = get_skill_by_name(skill_name)
-    if not existing:
-        raise HTTPException(status_code=404, detail=f"Workflow '{skill_name}' not found")
-
+    owner, _skill = _skill_to_change(skill_name, system_key)
     updates = body.model_dump(exclude_unset=True)
-    update_skill(skill_name, updates)
+    update_skill(skill_name, updates, system_key=owner)
 
-    logger.info("Updated workflow '%s' via API", skill_name)
+    logger.info("Updated workflow '%s' (%s) via API", skill_name, owner)
     return {"name": skill_name, "status": "updated", "changes": list(updates.keys())}
 
 
 @router.delete("/workflows/{skill_name}")
-async def delete_workflow(skill_name: str, request: Request):
-    """Delete a workflow/skill."""
+async def delete_workflow(skill_name: str, request: Request, system_key: str | None = None):
+    """Delete a workflow/skill.
+
+    Query params:
+    - system_key: the venture whose skill to delete; needed when several
+      ventures have a skill with this name (409 otherwise).
+    """
     try:
-        from realize_core.skills.detector import get_skill_by_name, unregister_skill
+        from realize_core.skills.detector import unregister_skill
     except ImportError:
         raise HTTPException(status_code=501, detail="Skills module not available")
 
-    existing = get_skill_by_name(skill_name)
-    if not existing:
-        raise HTTPException(status_code=404, detail=f"Workflow '{skill_name}' not found")
-
-    unregister_skill(skill_name)
-    logger.info("Deleted workflow '%s' via API", skill_name)
+    owner, _skill = _skill_to_change(skill_name, system_key)
+    unregister_skill(skill_name, system_key=owner)
+    logger.info("Deleted workflow '%s' (%s) via API", skill_name, owner)
     return {"name": skill_name, "status": "deleted"}
 
 

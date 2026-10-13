@@ -231,6 +231,9 @@ shows as a `W1` source with its layer and pack).
     triggers: ["bid requirements"]   # optional, added to the skill's own
   ```
 
+- **Each venture runs its own copy.** A run by name (`run_workflow` / `trigger_skill` over MCP,
+  a held write once approved, `GET /api/workflows/{name}?system_key=`) uses the copy of the
+  venture it names, with that venture's variables, never another venture's.
 - **Switch one off** by listing its id in `F-foundations/overrides/disable.yaml`.
 - **Writing one for a pack:** keep it market-neutral (English triggers, no local terms or
   currencies); a market pack adds local-language triggers in its own `skill-settings.yaml`

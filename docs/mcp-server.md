@@ -137,6 +137,7 @@ With `features.wedge` on, `tender_register_method`, `tender_register_submit` and
 ### Ops tool behaviour
 
 * `run_workflow` (alias `trigger_skill`) executes a registered skill against an input message via `realize_core.skills.executor.execute_skill` in-process. Same auth + audit as the REST path. Returns `{ name, system_key, user_id, output }`.
+* The skill is the one of the venture named in `system_key`: that venture's own copy (every venture has its own copy of a pack skill, with its own `variables` such as its sheet ids), else a shared or global skill, never another venture's. Without `system_key` the name must be unambiguous: when several ventures have a skill with that name the call returns `MCP_VALIDATION` naming them. A caller limited to a venture runs that venture's copy; a held write runs the copy of the venture it was held in.
 * `run_evolution` triggers `realize_core.evolution.gap_detector.run_gap_analysis(days=...)`. Default window is 7 days; capped at 90.
 * `approve_suggestion` / `dismiss_suggestion` operate on the in-memory `EvolutionEngine` proposal store (same singleton the dashboard uses).
 * `approve_request` / `reject_request` delegate to `realize_core.governance.gates` for the approval queue — preserves all governance checks. A pack verification (`pack_verify`) changes what every venture sees: only an owner without a venture limit may decide it; anyone else gets `MCP_FORBIDDEN` and the request stays pending.

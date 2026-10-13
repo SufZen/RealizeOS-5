@@ -352,11 +352,15 @@ List all workflows.
 
 ### POST /api/workflows
 
-Create a new workflow.
+Create a new workflow in `system_key`'s venture (or a global one when empty). `409` when that venture already has one with the name, or a shared or global one does; another venture's workflow with the same name doesn't conflict.
 
-### GET /api/workflows/{id}
+### GET /api/workflows/{name}
 
-Get workflow details and execution status.
+Get a workflow's definition. Two ventures can each have a workflow with the same name (every venture has its own copy of a pack skill, with its own sheet ids): `?system_key=<venture>` returns that venture's, else a shared or global one, never another venture's. Without it: the first venture you may see that has it, else a shared or global one.
+
+### PUT /api/workflows/{name} · DELETE /api/workflows/{name}
+
+Change or delete a workflow. `?system_key=<venture>` says whose; when several ventures have one with that name and none is named, `409`. A caller limited to some ventures can't use these (`403`).
 
 ### POST /api/workflows/{id}/execute
 

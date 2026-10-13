@@ -270,6 +270,28 @@ async def test_approved_write_runs_once_as_the_agent(world):
     assert "payload" not in item
 
 
+async def test_approved_write_runs_its_ventures_own_copy_of_a_shared_name(world, monkeypatch):
+    """Two ventures each have 'site-report' with their own sheet: globex's agent gets globex's (G-1)."""
+    from realize_core.governance.gates import decide_approval
+    from realize_core.skills import detector
+
+    monkeypatch.setattr(
+        detector,
+        "_loaded_skills",
+        {
+            "acme": [{"name": "site-report", "variables": {"sheet": "acme-sheet"}}],
+            "globex": [{"name": "site-report", "variables": {"sheet": "globex-sheet"}}],
+        },
+    )
+    agent = _agent(user="owner@realization.co.il", ventures=("globex",))
+    held = await _call(world, agent, "run_workflow", {**RUN, "name": "site-report", "system_key": "globex"})
+    assert held["status"] == "pending_approval"
+    result = await decide_approval(held["approval_id"], approve=True, decided_by="owner@realization.co.il")
+    assert result["execution"]["success"] is True
+    assert world.runs[0]["system_key"] == "globex"
+    assert world.runs[0]["skill"]["variables"]["sheet"] == "globex-sheet"
+
+
 async def test_rejected_write_never_runs(world):
     from realize_core.governance.gates import decide_approval
 
