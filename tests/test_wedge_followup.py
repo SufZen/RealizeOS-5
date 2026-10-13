@@ -174,3 +174,37 @@ def test_cli_funnel_contacts_contacted(db):
     assert "Nobody is waiting" in runner.invoke(_app(), ["wedge", "contacts"]).output
     again = runner.invoke(_app(), ["wedge", "contacted", "u1"])
     assert again.exit_code == 1
+
+
+# ---------------------------------------------------------------- untrusted text never drives the terminal
+
+
+def test_contact_and_market_are_cleaned_when_stored(db):
+    run = wedge_store.record_run("u1", market="PT\x1b[2J", verification=1, items=1, without_locator=0)
+    wedge_store.request_call(run, "u1", "evil\x1b]0;pwned\x07@example.com \u202emoc.live\u202c\n")
+    row = wedge_store.contacts()[0]
+    assert row["contact"] == "evil]0;pwned@example.com moc.live"
+    assert row["markets"] == ["other"]
+    assert wedge_store.market_code("es-ct") == "es-ct"
+    assert wedge_store.market_code(" ") == "any"
+
+
+def test_cli_escapes_legacy_rows(db):
+    from realize_core.db.schema import get_connection
+
+    esc, rlo = chr(0x1B), chr(0x202E)
+    run = _run("u1")
+    conn = get_connection()
+    try:  # a row stored before cleaning existed
+        conn.execute(
+            "UPDATE wedge_runs SET call_requested = 1, contact = ?, market = ? WHERE id = ?",
+            (f"x{esc}[31mred{rlo}", f"p{esc}t", run),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    out = runner.invoke(_app(), ["wedge", "contacts"]).output
+    assert esc not in out
+    assert rlo not in out
+    assert r"x\x1b[31mred\u202e" in out  # shown as visible escapes
+    assert esc not in runner.invoke(_app(), ["wedge", "funnel"]).output
