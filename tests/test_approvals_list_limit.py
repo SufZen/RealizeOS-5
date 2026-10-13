@@ -2,7 +2,7 @@
 
 ``GET /api/approvals`` used to return the whole queue for ``?status=`` (the
 Decided tab), oldest decisions mixed in by creation time. Now every list is
-capped by ``limit`` (default 50, at most 500) and ``?status=decided`` lists
+capped by ``limit`` (at most 500; without one, pending lists everything and other statuses 50) and ``?status=decided`` lists
 approved, rejected and answered items, most recently decided first. The old
 filters answer as before.
 """
@@ -86,10 +86,18 @@ class TestDecided:
 
 
 class TestLimit:
-    def test_default_limit_is_50(self):
+    def test_pending_is_never_capped_by_default(self):
+        """Each pending item waits for a person: a silent cap would let one expire unseen."""
         for _ in range(55):
             _held()
-        assert len(_ids(_client().get("/api/approvals?status=pending"))) == 50
+        assert len(_ids(_client().get("/api/approvals?status=pending"))) == 55
+        assert len(_ids(_client().get("/api/approvals"))) == 55  # pending is the default status
+        assert len(_ids(_client().get("/api/approvals?status=pending&limit=10"))) == 10  # an explicit limit applies
+
+    def test_other_statuses_default_to_50(self):
+        for _ in range(55):
+            _held()
+        assert len(_ids(_client().get("/api/approvals?status="))) == 50
 
     def test_limit_caps_and_keeps_newest_first(self):
         first, second, third = _held(), _held(), _held()
