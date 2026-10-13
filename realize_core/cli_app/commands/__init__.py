@@ -35,6 +35,7 @@ def register_commands(app: typer.Typer) -> None:
     from realize_core.cli_app.commands.setup import setup
     from realize_core.cli_app.commands.skill import skill_app
     from realize_core.cli_app.commands.status import status
+    from realize_core.cli_app.commands.storage import storage_app
     from realize_core.cli_app.commands.venture import venture_app
     from realize_core.cli_app.commands.version import version
     from realize_core.cli_app.commands.wedge import wedge_app
@@ -74,3 +75,5 @@ def register_commands(app: typer.Typer) -> None:
     app.add_typer(
         packs_app, name="packs", help="Market packs: review sheets, review submission, desk checks, inventory."
     )
+    # Production acceptance — restore a storage export on a new server
+    app.add_typer(storage_app, name="storage", help="Storage: restore an export into a new, empty folder.")

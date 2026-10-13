@@ -22,8 +22,11 @@ For the server side (tool families, configuration keys, OAuth internals, error c
 | ChatGPT | Custom MCP server (OAuth) | Not yet verified: needs a public HTTPS host |
 | Cursor and other clients | stdio or HTTP with a header | Not yet verified |
 | MCP Python SDK client | stdio | Verified on 2026-10-13 with `mcp` 1.27.1 (`tests/test_mcp_stdio.py`, run in CI) |
+| MCP Python SDK client | Streamable HTTP with an agent token | Verified on 2026-10-13 with `mcp` 1.27.1 against a real server process (`tests/e2e/test_one_client_agent.py`, run in CI) |
 
 What "verified" covered: the agent connected, listed the tools, and called them as a user limited to one venture. `list_ventures` showed only that venture, `kb_search` found a document in it, and `get_system` for another venture returned `MCP_FORBIDDEN`.
+
+The agent-token run goes further, against `uvicorn` in a subprocess (the model is a local test stand-in, never a real key): `run_workflow` came back `pending_approval` with nothing run; `approve_request` returned `MCP_AGENT_CANNOT_DECIDE` and the REST approve `403`; the owner approved over REST and the workflow ran once; the server was killed while a second approved run was waiting on the model, and after the restart `list_approvals` showed `unknown_outcome`, nothing ran again (a second approval got `409`); the owner's export had both approvals, their decision-log entries and the agent's trail, and only the token's hash.
 
 ## Before you start
 

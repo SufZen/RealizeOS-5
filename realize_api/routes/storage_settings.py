@@ -172,12 +172,47 @@ def _sqlite_snapshot(source: Path, dest: Path) -> None:
         src.close()
 
 
+#: Operational-DB tables holding live credentials in clear: dashboard sign-in
+#: sessions (the session cookie and CSRF values). They are emptied in the
+#: export's snapshot, so the ZIP can't be used to take over a session on the
+#: running server; after a restore people sign in again.
+_SCRUBBED_TABLES = ("user_sessions",)
+_OPS_DB_ARCHIVE = "data/realize_data.db"
+
+
+def _compact_snapshot(path: Path, *, scrub: bool) -> None:
+    """Empty the credential tables (``scrub``) and VACUUM the snapshot.
+
+    VACUUM rewrites the file, so rows deleted earlier (revoked sessions,
+    cleared conversations) leave no bytes behind in free pages.
+
+    Raises:
+        OSError: The snapshot couldn't be cleaned; the export must not go out.
+    """
+    import sqlite3
+
+    conn = sqlite3.connect(path)
+    try:
+        if scrub:
+            tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
+            for table in _SCRUBBED_TABLES:
+                if table in tables:
+                    conn.execute(f"DELETE FROM {table}")  # fixed table names, never input
+            conn.commit()
+        conn.execute("VACUUM")
+    except sqlite3.Error as exc:
+        raise OSError(f"Could not clean the database snapshot {path.name}: {exc}") from exc
+    finally:
+        conn.close()
+
+
 def _build_export(kb_path: Path, zip_path: Path) -> list[str]:
     """Write the export ZIP and return the archive names it contains.
 
     An explicit list, never "the whole working directory" (Codex audit: the
     old export zipped cwd, including earlier exports and itself, and copied
-    live SQLite files). Secrets (.env, .credentials) are not included.
+    live SQLite files). Secrets (.env, .credentials, users.yaml) are not
+    included, and sign-in sessions are removed from the database snapshot.
     """
     import tempfile
     import zipfile
@@ -206,7 +241,7 @@ def _build_export(kb_path: Path, zip_path: Path) -> list[str]:
         synapse = synapse_dir(kb_path)
         databases = {
             "data/memory.db": memory_db_path(),
-            "data/realize_data.db": get_db_path(),
+            _OPS_DB_ARCHIVE: get_db_path(),
             "data/synapse/synapse.db": synapse / "synapse.db",
         }
         with tempfile.TemporaryDirectory() as tmp:
@@ -214,6 +249,7 @@ def _build_export(kb_path: Path, zip_path: Path) -> list[str]:
                 if source and Path(source).is_file():
                     snapshot = Path(tmp) / Path(arcname).name
                     _sqlite_snapshot(Path(source), snapshot)
+                    _compact_snapshot(snapshot, scrub=arcname == _OPS_DB_ARCHIVE)
                     zf.write(snapshot, arcname)
                     names.append(arcname)
         inbox = synapse / "dream-inbox.jsonl"
@@ -289,10 +325,12 @@ async def export_data(request: Request):
 
     Contains realize-os.yaml, systems/ and shared/, consistent snapshots of
     the databases, the pack verification state, the writable pack folder
-    (``REALIZE_PACKS_PATH``) and a resolved-pack inventory. API keys and
-    credentials (.env, .credentials) are not included; copy them yourself when
-    moving servers. The ZIP is built in a temp folder and removed after the
-    download.
+    (``REALIZE_PACKS_PATH``) and a resolved-pack inventory. API keys,
+    credentials and users (.env, .credentials, users.yaml) are not included;
+    copy them yourself when moving servers. Dashboard sign-in sessions are
+    removed from the database snapshot. Restore with
+    ``realize-os storage restore``. The ZIP is built in a temp folder and
+    removed after the download.
     """
     import asyncio
     import tempfile

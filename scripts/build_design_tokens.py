@@ -60,9 +60,7 @@ def build() -> dict:
         "z": pick("z-"),
         "layout": {k: common[k] for k in ("sidebar-w", "content-max", "reading-max")},
         "motion": {
-            "duration": {
-                k[4:]: v for k, v in mo.items() if k.startswith("dur-") and not v.startswith("var")
-            },
+            "duration": {k[4:]: v for k, v in mo.items() if k.startswith("dur-") and not v.startswith("var")},
             "easing": {k[5:]: v for k, v in mo.items() if k.startswith("ease-")},
             "spring": {
                 "settle": {"fallback": mo["spring-settle"], "duration": mo["spring-settle-dur"]},
