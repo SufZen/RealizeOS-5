@@ -12,6 +12,12 @@ transports; ``--venture`` can only narrow the session to some of the user's
 ventures. There is no anonymous or default-owner fallback: without a valid
 identity the server refuses to start, in every environment.
 
+Configuration: the CLI reads ``realize-os.yaml``, ``users.yaml``, ``.env``
+and data from an explicit, absolute ``--directory`` or from the folder
+RealizeOS is installed in, never from the folder the agent starts it in.
+Admin tools are served only with ``--allow-admin`` on the command line;
+``mcp.allow_admin`` doesn't widen a stdio session.
+
 stdout carries only JSON-RPC. Before anything else runs, the real stdout is
 kept for the transport and file descriptor 1 is pointed at stderr, so stray
 ``print()`` calls, C extensions and child processes can't corrupt the
@@ -24,6 +30,7 @@ checks, venture guard and audit logging as ``/mcp`` and ``/mcp/sse``
 
 from __future__ import annotations
 
+import dataclasses
 import functools
 import io
 import logging
@@ -85,7 +92,10 @@ def resolve_stdio_user(user_id: str | None, ventures: Sequence[str] = ()) -> Cur
         raise StdioStartupError(f"--user {name!r} is not a valid user id")
     # users.yaml only: the REALIZE_ADMIN_USER environment fallback doesn't apply here.
     if not Path(USERS_FILE).is_file():
-        raise StdioStartupError(f"No {USERS_FILE} in {Path.cwd()}: the stdio server needs a users.yaml user")
+        raise StdioStartupError(
+            f"No {USERS_FILE} in {Path.cwd()}: the stdio server needs a users.yaml user "
+            "(pass --directory /absolute/path/to/RealizeOS)"
+        )
     user = get_user(name)
     if user is None:
         raise StdioStartupError(
@@ -187,10 +197,28 @@ def _index_kb(kb_path: Path) -> None:
         logger.warning("KB indexing skipped (kb_search may miss recent files): %s", exc)
 
 
+def stdio_mcp_config(config: dict, *, allow_admin: bool = False) -> McpConfig:
+    """The MCP config for a stdio session.
+
+    Same as for HTTP, except admin tools: over stdio they are served only
+    when ``allow_admin`` is passed on the command line. ``mcp.allow_admin`` /
+    ``MCP_ALLOW_ADMIN`` don't widen a stdio session.
+
+    Args:
+        config: The loaded ``realize-os.yaml``.
+        allow_admin: ``--allow-admin`` was given.
+    """
+    mcp_config = mcp_config_from_env(config)
+    if mcp_config.allow_admin and not allow_admin:
+        logger.warning("mcp.allow_admin is ignored over stdio: admin tools stay off unless --allow-admin is given")
+    return dataclasses.replace(mcp_config, allow_admin=allow_admin)
+
+
 def prepare_stdio(
     user_id: str | None,
     ventures: Sequence[str] = (),
     *,
+    allow_admin: bool = False,
     config: dict | None = None,
     kb_path: str | Path | None = None,
 ) -> tuple[Server, CurrentUser, McpConfig]:
@@ -202,6 +230,7 @@ def prepare_stdio(
     Args:
         user_id: ``users.yaml`` email the agent acts as.
         ventures: Optional venture keys that narrow the session.
+        allow_admin: ``--allow-admin`` was given (see :func:`stdio_mcp_config`).
         config: Loaded ``realize-os.yaml``; read from disk when None.
         kb_path: KB root; defaults to ``KB_PATH``.
 
@@ -218,7 +247,7 @@ def prepare_stdio(
 
     if config is None:
         config = load_config()
-    mcp_config = mcp_config_from_env(config)
+    mcp_config = stdio_mcp_config(config, allow_admin=allow_admin)
     if not mcp_config.enabled:
         raise StdioStartupError("MCP is off. Set MCP_ENABLED=true in .env (or mcp.enabled: true in realize-os.yaml).")
     validate_production_auth(allow_admin=mcp_config.allow_admin)
@@ -316,10 +345,17 @@ def _audit_session_start(user: CurrentUser, mcp_config: McpConfig) -> None:
         logger.warning("Audit log for the stdio session failed: %s", exc)
 
 
-def run_stdio(user_id: str | None, ventures: Sequence[str] = ()) -> None:
+def run_stdio(user_id: str | None, ventures: Sequence[str] = (), *, allow_admin: bool = False) -> None:
     """Run the MCP server over stdio in the current working directory.
 
-    Claims stdout first, so nothing printed during startup reaches the client.
+    The CLI makes that directory the RealizeOS folder first (``--directory``
+    or the install folder). Claims stdout first, so nothing printed during
+    startup reaches the client.
+
+    Args:
+        user_id: ``users.yaml`` email the agent acts as.
+        ventures: Optional venture keys that narrow the session.
+        allow_admin: ``--allow-admin`` was given.
 
     Raises:
         StdioStartupError: see :func:`prepare_stdio`.
@@ -327,7 +363,7 @@ def run_stdio(user_id: str | None, ventures: Sequence[str] = ()) -> None:
     """
     transport_out = claim_stdout()
     _logging_to_stderr()
-    server, user, mcp_config = prepare_stdio(user_id, ventures)
+    server, user, mcp_config = prepare_stdio(user_id, ventures, allow_admin=allow_admin)
     _audit_session_start(user, mcp_config)
 
     from realize_core.mcp_server.venture_guard import caller_ventures

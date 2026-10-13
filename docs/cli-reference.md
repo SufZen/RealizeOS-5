@@ -56,7 +56,7 @@ realize-os
 ├── mcp
 │   ├── serve [--port PORT] [--allow-admin]      Start API + MCP server
 │   ├── stdio --user EMAIL [--venture KEY]       Serve MCP over stdin/stdout (local agents)
-│   │         [--directory DIR]
+│   │         [--directory DIR] [--allow-admin]
 │   ├── status                                   Show MCP health
 │   └── token [--user USER] [--role ROLE]        Issue bearer token
 │
@@ -185,7 +185,8 @@ python cli.py mcp stdio --directory /path/to/RealizeOS --user owner@example.com 
 
 - `--user` is required and must be a `users.yaml` entry: its role and ventures apply. There is no default user and it is never read from the environment.
 - `--venture` (repeatable) narrows the session to some of that user's ventures.
-- `--directory` is the RealizeOS folder (`realize-os.yaml`, `users.yaml`, `.env`, KB). Desktop agents can't set a working directory, so pass it.
+- `--directory` (or `--root`) is the absolute path of the RealizeOS folder (`realize-os.yaml`, `users.yaml`, `.env`, data, KB). Without it, the folder RealizeOS is installed in is used, never the working directory.
+- `--allow-admin` serves admin tools (owner only). Over stdio, `mcp.allow_admin` doesn't turn them on.
 - MCP must be on (`MCP_ENABLED=true`). stdout carries only JSON-RPC; logs go to stderr. It exits with code 2 and a reason on stderr when it refuses to start.
 
 ### `realize-os wedge`

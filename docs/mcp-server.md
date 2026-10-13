@@ -172,9 +172,10 @@ An agent on the same computer can start RealizeOS itself and talk over stdin/std
 python cli.py mcp stdio --directory /path/to/RealizeOS --user dana@example.com [--venture tower-b]
 ```
 
-- Same tools, families, `allow_admin`, `mcp.tools`, permission checks, venture scope and audit log as `/mcp`.
-- **Identity:** stdio has no HTTP request, so `--user` names the caller. It must be a `users.yaml` entry, and that user's role and ventures apply. `--venture` (repeatable) can only narrow them. There is no default or anonymous user, identity is never read from environment variables, and the server refuses to start without one, in every environment. The `REALIZE_ADMIN_USER` login is not accepted here. In production, admin tools still need strong JWT settings.
-- `--directory` is the RealizeOS folder (config, `users.yaml`, `.env`, KB): desktop agents can't set a working directory.
+- Same tools, families, `mcp.tools`, permission checks, venture scope and audit log as `/mcp`.
+- **Identity:** stdio has no HTTP request, so `--user` names the caller. It must be a `users.yaml` entry, and that user's role and ventures apply. `--venture` (repeatable) can only narrow them. There is no default or anonymous user, identity is never read from environment variables, and the server refuses to start without one, in every environment. The `REALIZE_ADMIN_USER` login is not accepted here.
+- **Configuration:** `--directory` (or `--root`) is the absolute path of the RealizeOS folder (config, `users.yaml`, `.env`, data, KB). Without it, the folder RealizeOS is installed in is used. The folder the agent starts the command in is never read, so a planted `users.yaml` or config there has no effect.
+- **Admin tools** are served over stdio only with `--allow-admin` on the command line (and only to an owner). `mcp.allow_admin` / `MCP_ALLOW_ADMIN` don't widen a stdio session. In production, `--allow-admin` still needs strong JWT settings.
 - Needs `MCP_ENABLED=true`. stdout carries only JSON-RPC: logs, stray `print()` output and child processes go to stderr. A refused start exits with code 2 and the reason on stderr.
 
 Client configs for Claude Code, Claude Desktop and Cursor are in [connect-your-agent.md](connect-your-agent.md).

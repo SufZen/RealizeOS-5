@@ -75,7 +75,8 @@ claude mcp add realize-os -- python /path/to/RealizeOS/cli.py mcp stdio --direct
 
 - `--user` is required and must be in `users.yaml`. There is no default user, and it is never read from environment variables.
 - `--venture tower-b` narrows the session further (repeatable). It must be one of the user's ventures.
-- `--directory` is the RealizeOS folder, where `realize-os.yaml`, `users.yaml` and `.env` live. Pass it: agents don't start the command in that folder.
+- `--directory` (or `--root`) is the absolute path of the RealizeOS folder, where `realize-os.yaml`, `users.yaml`, `.env` and the data live. Without it, RealizeOS uses the folder it is installed in. It never reads them from the folder the agent happens to start it in, so files left in that folder can't change who the agent is or what it can do.
+- Admin tools stay off over stdio unless you add `--allow-admin` (and the user is an owner). `mcp.allow_admin` doesn't turn them on here.
 - Use the full path of the Python that runs RealizeOS if `python` isn't on the agent's `PATH`. `python -c "import sys; print(sys.executable)"` prints it.
 - `claude mcp add --scope project …` writes `.mcp.json` in the current folder so the team shares it. Without `--scope` it is stored for you only.
 
@@ -218,7 +219,8 @@ Any other MCP client works the same way: either start the stdio command, or poin
 | `MCP_FORBIDDEN`: "… spans every venture" | The tool needs someone without a venture limit | Ask an owner or admin, or use a venture-specific tool (`venture_kb_search`). |
 | `MCP_INSUFFICIENT_SCOPE` | The role lacks the permission (for example a `viewer` running a workflow) | Use a user with the right role. |
 | A tool is missing from the list | Its family is off (`expose_kb`, `expose_ops`, `allow_admin`) or `mcp.tools` doesn't name it | Check the `mcp:` block; the server logs `families=` and `tools=` at startup. |
-| The stdio server disconnects at once | It refused to start: no `--user`, user not in `users.yaml`, MCP off, unknown `--venture` | Read the last line of the server's log (stderr). It exits with code 2. |
+| The stdio server disconnects at once | It refused to start: no `--user`, user not in `users.yaml`, MCP off, unknown `--venture`, a relative `--directory` | Read the last line of the server's log (stderr). It exits with code 2. |
 | The client reports invalid JSON from the stdio server | Something other than RealizeOS wrote to stdout, usually a wrapper (a shell profile that echoes, `conda run`, a batch file) | Start Python directly as the command. RealizeOS itself writes only JSON-RPC to stdout and sends logs, `print()` output and child processes to stderr. |
-| The stdio server can't find the config or users | It started in another folder | Pass `--directory /path/to/RealizeOS`. |
+| The stdio server can't find the config or users ("No users.yaml in …") | Without `--directory` it reads the folder RealizeOS is installed in, which isn't your RealizeOS folder (for example a `pip` install) | Pass `--directory /absolute/path/to/RealizeOS`. |
+| Admin tools are missing over stdio | Over stdio they need `--allow-admin` on the command line | Add `--allow-admin` (owner only). |
 | `404` or a hanging connection | Transport and URL don't match | Streamable HTTP (`type: http`) uses `/mcp`; HTTP+SSE (`type: sse`) uses `/mcp/sse`. `mcp.streamable_http: false` turns `/mcp` off. |

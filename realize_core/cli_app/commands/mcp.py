@@ -126,13 +126,21 @@ def mcp_stdio(
         Path | None,
         typer.Option(
             "--directory",
+            "--root",
             "-d",
-            exists=True,
-            file_okay=False,
-            dir_okay=True,
-            help="RealizeOS project folder (realize-os.yaml, users.yaml, .env). Defaults to the working directory.",
+            help=(
+                "Absolute path of the RealizeOS folder (realize-os.yaml, users.yaml, .env, data). "
+                "Defaults to the folder RealizeOS is installed in, never the working directory."
+            ),
         ),
     ] = None,
+    allow_admin: Annotated[
+        bool,
+        typer.Option(
+            "--allow-admin",
+            help="Serve admin tools (owner only). Over stdio they stay off unless given here, whatever mcp.allow_admin says.",
+        ),
+    ] = False,
 ) -> None:
     """Serve MCP over stdin/stdout for a local agent (Claude Desktop, Claude Code, Cursor).
 
@@ -140,20 +148,38 @@ def mcp_stdio(
     stderr. The server never runs as an anonymous owner: it needs
     ``--user`` naming a ``users.yaml`` user and refuses to start without one
     (identity is taken from arguments only, never from the environment).
-    MCP must be on (``MCP_ENABLED=true``). See docs/connect-your-agent.md.
+    Configuration, ``users.yaml``, ``.env`` and data come from ``--directory``
+    or the install folder, never from the folder the agent happens to start
+    it in. MCP must be on (``MCP_ENABLED=true``). See docs/connect-your-agent.md.
     """
-    _enter_project_directory((directory or Path.cwd()).resolve())
+    root = directory if directory is not None else _install_root()
+    if not root.is_absolute():
+        typer.echo(
+            f"RealizeOS MCP stdio server not started: --directory must be an absolute path, got {str(root)!r}", err=True
+        )
+        raise typer.Exit(code=2)
+    if not root.is_dir():
+        typer.echo(f"RealizeOS MCP stdio server not started: {root} is not a folder", err=True)
+        raise typer.Exit(code=2)
+    _enter_project_directory(root.resolve())
 
     from realize_core.mcp_server.auth import MCPProductionAuthError
     from realize_core.mcp_server.stdio import StdioStartupError, run_stdio
 
     try:
-        run_stdio(user, list(venture or []))
+        run_stdio(user, list(venture or []), allow_admin=allow_admin)
     except (StdioStartupError, MCPProductionAuthError) as exc:
         typer.echo(f"RealizeOS MCP stdio server not started: {exc}", err=True)
         raise typer.Exit(code=2) from exc
     except KeyboardInterrupt:
         logger.info("MCP stdio server stopped")
+
+
+def _install_root() -> Path:
+    """The folder RealizeOS runs from: the repo root for a source install (where ``cli.py`` lives)."""
+    import realize_core
+
+    return Path(realize_core.__file__).resolve().parent.parent
 
 
 def _enter_project_directory(directory: Path) -> None:

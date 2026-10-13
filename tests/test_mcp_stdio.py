@@ -191,10 +191,29 @@ class TestPrepareRefusals:
 
         monkeypatch.setenv("REALIZE_ENV", "production")
         monkeypatch.setenv("MCP_ENABLED", "true")
-        monkeypatch.setenv("MCP_ALLOW_ADMIN", "true")
         monkeypatch.delenv("REALIZE_JWT_ENABLED", raising=False)
         with pytest.raises(MCPProductionAuthError):
-            prepare_stdio("owner@example.com", config={})
+            prepare_stdio("owner@example.com", allow_admin=True, config={})
+
+
+class TestStdioAdminFlag:
+    """Admin tools over stdio come only from --allow-admin, never from config or env."""
+
+    def test_config_and_env_allow_admin_are_ignored(self, monkeypatch):
+        from realize_core.mcp_server.stdio import stdio_mcp_config
+
+        monkeypatch.setenv("MCP_ALLOW_ADMIN", "true")
+        cfg = stdio_mcp_config({"mcp": {"enabled": True, "allow_admin": True}})
+        assert cfg.allow_admin is False
+        assert "admin" not in cfg.families
+
+    def test_flag_enables_admin(self, monkeypatch):
+        from realize_core.mcp_server.stdio import stdio_mcp_config
+
+        monkeypatch.delenv("MCP_ALLOW_ADMIN", raising=False)
+        cfg = stdio_mcp_config({"mcp": {"enabled": True}}, allow_admin=True)
+        assert cfg.allow_admin is True
+        assert "admin" in cfg.families
 
 
 # ---------------------------------------------------------------------------
@@ -212,12 +231,13 @@ async def test_sdk_client_round_trip(stdio_project, tmp_path):
     from mcp.client.stdio import StdioServerParameters, stdio_client
 
     project, env = stdio_project
-    # Without --directory the working directory is the project: its .env turns MCP on.
+    # The project's .env (from --directory) turns MCP on; admin from env/config is ignored.
     env.pop("MCP_ENABLED")
+    env["MCP_ALLOW_ADMIN"] = "true"
     (project / ".env").write_text("MCP_ENABLED=true\n", encoding="utf-8")
     params = StdioServerParameters(
         command=sys.executable,
-        args=[CLI, "mcp", "stdio", "--user", "dana@example.com"],
+        args=[CLI, "mcp", "stdio", "--directory", str(project), "--user", "dana@example.com"],
         env=env,
         cwd=str(project),
     )
@@ -230,7 +250,7 @@ async def test_sdk_client_round_trip(stdio_project, tmp_path):
 
                     names = {t.name for t in (await session.list_tools()).tools}
                     assert {"realize_health", "list_ventures", "kb_search", "get_system"} <= names
-                    assert "delete_venture" not in names  # admin family stays off
+                    assert "delete_venture" not in names  # MCP_ALLOW_ADMIN alone doesn't widen stdio
 
                     ventures = _tool_json(await session.call_tool("list_ventures", {}))
                     assert [v["key"] for v in ventures["ventures"]] == ["alpha"]
@@ -371,6 +391,91 @@ def test_identity_is_never_read_from_the_environment(stdio_project):
     assert proc.returncode == 2
     assert proc.stdout == b""
     assert b"No identity" in proc.stderr
+
+
+def test_config_is_never_read_from_the_working_directory(stdio_project, tmp_path):
+    """Without --directory, files planted in the folder the agent starts it in are ignored."""
+    _, env = stdio_project
+    planted = tmp_path / "downloads"
+    planted.mkdir()
+    (planted / "users.yaml").write_text(
+        'users:\n  - email: attacker@example.com\n    role: owner\n    password_hash: "x"\n', encoding="utf-8"
+    )
+    (planted / "realize-os.yaml").write_text("mcp:\n  enabled: true\n  allow_admin: true\n", encoding="utf-8")
+    (planted / ".env").write_text("MCP_ENABLED=true\nMCP_ALLOW_ADMIN=true\n", encoding="utf-8")
+    proc = subprocess.run(
+        [sys.executable, CLI, "mcp", "stdio", "--user", "attacker@example.com"],
+        input=b"",
+        capture_output=True,
+        cwd=str(planted),
+        env=env,
+        timeout=90,
+    )
+    assert proc.returncode == 2
+    assert proc.stdout == b""
+    assert b"MCP stdio server ready" not in proc.stderr
+    # Refused against the install folder's users.yaml (or its absence), not the planted one.
+    err = proc.stderr.decode("utf-8", errors="replace")
+    assert "'attacker@example.com' is not in users.yaml" in err or f"No users.yaml in {REPO_ROOT}" in err
+
+
+def test_relative_directory_is_refused(stdio_project):
+    project, env = stdio_project
+    proc = subprocess.run(
+        [sys.executable, CLI, "mcp", "stdio", "--directory", project.name, "--user", "owner@example.com"],
+        input=b"",
+        capture_output=True,
+        cwd=str(project.parent),
+        env=env,
+        timeout=90,
+    )
+    assert proc.returncode == 2
+    assert proc.stdout == b""
+    assert b"must be an absolute path" in proc.stderr
+
+
+def test_allow_admin_flag_serves_admin_tools(stdio_project):
+    project, env = stdio_project
+    proc = subprocess.Popen(
+        [
+            sys.executable,
+            CLI,
+            "mcp",
+            "stdio",
+            "--directory",
+            str(project),
+            "--user",
+            "owner@example.com",
+            "--allow-admin",
+        ],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        env=env,
+    )
+    watchdog = threading.Timer(90, proc.kill)
+    watchdog.start()
+    try:
+        _exchange(
+            proc,
+            {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {
+                    "protocolVersion": "2025-06-18",
+                    "capabilities": {},
+                    "clientInfo": {"name": "t", "version": "0"},
+                },
+            },
+        )
+        _exchange(proc, {"jsonrpc": "2.0", "method": "notifications/initialized"})
+        tools = json.loads(_exchange(proc, {"jsonrpc": "2.0", "id": 2, "method": "tools/list"}))["result"]["tools"]
+        proc.stdin.close()
+        assert proc.wait() == 0
+    finally:
+        watchdog.cancel()
+    assert "delete_venture" in {t["name"] for t in tools}
 
 
 def test_claim_stdout_sends_stray_output_to_stderr(tmp_path):
