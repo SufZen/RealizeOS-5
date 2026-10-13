@@ -4,6 +4,16 @@ All notable changes to RealizeOS are documented in this file.
 This changelog is automatically generated from [Conventional Commits](https://conventionalcommits.org).
 
 
+## [5.18.0](https://github.com/SufZen/RealizeOS-5/compare/v5.17.0...v5.18.0) (2026-10-13)
+
+### Features
+
+* **packs:** pack manifest, loader and run-time cascade (STORY-42) ([57f3ecb](https://github.com/SufZen/RealizeOS-5/commit/57f3ecb3549924a28dc3d4031bbbc14c2b4a57e8))
+
+### Bug Fixes
+
+* **packs:** MCP pack tools return file names, never local paths ([8e909ba](https://github.com/SufZen/RealizeOS-5/commit/8e909ba58d3c8cca0c7e4d076852c8c075c9c1de))
+
 ## [5.17.0](https://github.com/SufZen/RealizeOS-5/compare/v5.16.0...v5.17.0) (2026-10-13)
 
 ### Features
