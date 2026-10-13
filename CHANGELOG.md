@@ -4,6 +4,13 @@ All notable changes to RealizeOS are documented in this file.
 This changelog is automatically generated from [Conventional Commits](https://conventionalcommits.org).
 
 
+## [5.27.0](https://github.com/SufZen/RealizeOS-5/compare/v5.26.0...v5.27.0) (2026-10-13)
+
+### Features
+
+* **mcp:** stdio loads the project .env without --directory; log mcp.tools ([db1c6fb](https://github.com/SufZen/RealizeOS-5/commit/db1c6fb123bf754afabb5f90cec0deb03d8690a9))
+* **mcp:** stdio transport for local agents (STORY-37) ([837d958](https://github.com/SufZen/RealizeOS-5/commit/837d958e09c7d3f6c3aaf7773527d14a493a97e3))
+
 ## [5.26.0](https://github.com/SufZen/RealizeOS-5/compare/v5.25.0...v5.26.0) (2026-10-13)
 
 ### Features
