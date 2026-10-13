@@ -4,6 +4,15 @@ All notable changes to RealizeOS are documented in this file.
 This changelog is automatically generated from [Conventional Commits](https://conventionalcommits.org).
 
 
+## [5.28.2](https://github.com/SufZen/RealizeOS-5/compare/v5.28.1...v5.28.2) (2026-10-13)
+
+### Bug Fixes
+
+* **packs:** an unreadable pack file doesn't fail the whole export ([1c57613](https://github.com/SufZen/RealizeOS-5/commit/1c57613aa5b9794d9f1cac8369976326c90d922b))
+* **packs:** export pack state, custom packs and a resolved-pack inventory ([cc4c7a4](https://github.com/SufZen/RealizeOS-5/commit/cc4c7a48e18094897bce5dc0a984e776e2afd618))
+* **packs:** record pack verification under DATA_PATH, never in pack files (N04) ([091846c](https://github.com/SufZen/RealizeOS-5/commit/091846cb27f955931f79bc755780eeadcf6fc47f))
+* **packs:** skip malformed packs per pack; fingerprint every file in the resolver cache (N06, N07) ([9d7f078](https://github.com/SufZen/RealizeOS-5/commit/9d7f078125c5ba1d3815cc01b04436078fc61435))
+
 ## [5.28.1](https://github.com/SufZen/RealizeOS-5/compare/v5.28.0...v5.28.1) (2026-10-13)
 
 ### Bug Fixes
