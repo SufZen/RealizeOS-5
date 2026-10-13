@@ -220,6 +220,66 @@ def _build_export(kb_path: Path, zip_path: Path) -> list[str]:
         if inbox.is_file():
             zf.write(inbox, "data/synapse/dream-inbox.jsonl")
             names.append("data/synapse/dream-inbox.jsonl")
+        names += _export_packs(zf, kb_path)
+    return names
+
+
+#: Where the writable pack folder (``REALIZE_PACKS_PATH``) goes in the export.
+_CUSTOM_PACKS_ARCHIVE = "custom-packs"
+#: The resolved-pack inventory in the export.
+_PACKS_INVENTORY_ARCHIVE = "packs-inventory.json"
+
+
+def _export_packs(zf, kb_path: Path) -> list[str]:
+    """Add what a clean restore needs to resolve the same packs and levels.
+
+    - the verification state approvals recorded (``data/packs/verification.json``);
+    - the writable pack folder, ``REALIZE_PACKS_PATH`` (``custom-packs/``),
+      without hidden files or anything that resolves outside it;
+    - ``packs-inventory.json``: installed packs (versions, origin, content
+      hash, levels) and what each venture resolves, to check the restore with
+      ``python cli.py packs inventory --compare``.
+
+    Shipped packs come with the release and are listed in the inventory only.
+    """
+    from realize_core.config import get_features, load_config
+    from realize_core.packs import state as pack_state
+    from realize_core.packs.inventory import build_inventory
+    from realize_core.packs.loader import custom_packs_root
+
+    names: list[str] = []
+    try:
+        state_file = pack_state.state_path()
+    except pack_state.VerificationStateError as exc:
+        logger.warning("Pack verification state not exported: %s", exc)
+        state_file = None
+    if state_file is not None and state_file.is_file():
+        arcname = f"data/{pack_state.STATE_DIR}/{pack_state.STATE_FILE}"
+        zf.write(state_file, arcname)
+        names.append(arcname)
+
+    custom = custom_packs_root()
+    if custom is not None:
+        for path in sorted(custom.rglob("*")):
+            rel = path.relative_to(custom)
+            if not path.is_file() or any(part.startswith(".") for part in rel.parts):
+                continue
+            if custom not in path.resolve().parents:
+                logger.warning("Not exporting %s: it resolves outside %s", path, custom)
+                continue
+            arcname = f"{_CUSTOM_PACKS_ARCHIVE}/{rel.as_posix()}"
+            zf.write(path, arcname)
+            names.append(arcname)
+
+    config_file = kb_path / "realize-os.yaml"
+    try:
+        enabled = bool(get_features(load_config(config_file)).get("packs")) if config_file.is_file() else None
+    except (OSError, ValueError, TypeError) as exc:
+        logger.warning("Could not read the packs flag for the inventory: %s", exc)
+        enabled = None
+    inventory = build_inventory(kb_path, packs_enabled=enabled)
+    zf.writestr(_PACKS_INVENTORY_ARCHIVE, json.dumps(inventory, indent=2, ensure_ascii=False, default=str))
+    names.append(_PACKS_INVENTORY_ARCHIVE)
     return names
 
 
@@ -227,10 +287,12 @@ def _build_export(kb_path: Path, zip_path: Path) -> list[str]:
 async def export_data(request: Request):
     """Download the ventures' data as a ZIP.
 
-    Contains realize-os.yaml, systems/ and shared/, and consistent snapshots
-    of the databases. API keys and credentials (.env, .credentials) are not
-    included; copy them yourself when moving servers. The ZIP is built in a
-    temp folder and removed after the download.
+    Contains realize-os.yaml, systems/ and shared/, consistent snapshots of
+    the databases, the pack verification state, the writable pack folder
+    (``REALIZE_PACKS_PATH``) and a resolved-pack inventory. API keys and
+    credentials (.env, .credentials) are not included; copy them yourself when
+    moving servers. The ZIP is built in a temp folder and removed after the
+    download.
     """
     import asyncio
     import tempfile

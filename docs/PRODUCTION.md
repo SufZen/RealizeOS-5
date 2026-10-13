@@ -48,7 +48,9 @@ export REALIZE_ADMIN_PASSWORD_HASH="$(python scripts/hash_password.py 'your-pass
 
 Every write is checked against the user's role (see `users.yaml.example`):
 `viewer` is read-only, `user` can chat and edit venture files, `operator` can
-also approve held actions, `admin` and `owner` can change settings.
+also approve held actions, `admin` and `owner` can change settings. A request to
+raise a shared pack's verification (`pack_verify`) changes what every venture
+sees, so only an `owner` without a `ventures` limit can approve or reject it.
 
 Add `ventures: [key, ...]` to a user to limit them to those ventures. They see
 only those ventures in the dashboard (the venture switcher is locked when there
@@ -66,6 +68,22 @@ in `users.yaml`: removing a user ends their sessions, and role changes apply
 immediately. API-key callers and JWTs minted with the API key are service
 identities, unrestricted unless the token carries `venture:<key>` scopes. API-key callers and users without `ventures` see everything. A JWT
 can be narrowed further with `venture:<key>` scopes.
+
+## Writable locations
+
+The production compose file runs the container with a read-only root
+filesystem. RealizeOS writes only to:
+
+| Location | What |
+|---|---|
+| `DATA_PATH` (`/app/data`, named volume) | Databases, Synapse, audit log, `packs/verification.json` (approved pack levels) |
+| `/app/systems`, `/app/shared` | The ventures' knowledge (bind mount and named volume) |
+| `REALIZE_PACKS_PATH` (optional mount) | Your own or modified profession and market packs |
+| `/tmp` (tmpfs) | Temporary files, such as an export being built |
+
+The shipped packs in `/app/packs` stay read-only: a pack verification approval
+is recorded in `DATA_PATH`, never in the pack files. See
+[self-hosting-guide.md](self-hosting-guide.md#volume-mounts).
 
 ## Verifying the deployment
 

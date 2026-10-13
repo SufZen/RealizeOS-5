@@ -167,8 +167,20 @@ Docker Compose configures these volumes:
 | bind | `./realize-os.yaml` | `/app/realize-os.yaml` | System config (read-only) |
 | bind | `./systems` | `/app/systems` | Venture FABRIC directories |
 | bind | `./.credentials` | `/app/.credentials` | Google OAuth (read-only) |
+| bind (optional) | `./packs-custom` | `/app/packs-custom` | Your own or modified packs, with `REALIZE_PACKS_PATH=/app/packs-custom` |
 
-Everything RealizeOS writes lives under `DATA_PATH` (`/app/data`): `memory.db`, the operational database `realize_data.db` (sign-in sessions, approvals, MCP OAuth), `synapse/` (FABRIC index and Dream Inbox) and the audit log. The KB index `kb_index.db` stays next to the knowledge base when that folder is writable and moves to `DATA_PATH` otherwise. Set `REALIZE_DB_PATH` to put the operational database somewhere else.
+Everything RealizeOS writes lives under `DATA_PATH` (`/app/data`): `memory.db`, the operational database `realize_data.db` (sign-in sessions, approvals, MCP OAuth), `synapse/` (FABRIC index and Dream Inbox), `packs/verification.json` (pack verification levels raised by approvals) and the audit log.
+
+The application folder, including the shipped profession and market packs in `/app/packs`, is read-only in the production image; approving a pack's verification never writes there. For your own packs, or a modified copy of a shipped pack, mount a writable folder and point `REALIZE_PACKS_PATH` at it (packs there win over shipped ones with the same id; see [packs.md](packs.md#where-packs-come-from)):
+
+```yaml
+    volumes:
+      - ./packs-custom:/app/packs-custom
+    environment:
+      - REALIZE_PACKS_PATH=/app/packs-custom
+```
+
+The storage export includes `DATA_PATH/packs/verification.json`, the `REALIZE_PACKS_PATH` folder and a `packs-inventory.json` to check a restore with `python cli.py packs inventory --compare packs-inventory.json`. The KB index `kb_index.db` stays next to the knowledge base when that folder is writable and moves to `DATA_PATH` otherwise. Set `REALIZE_DB_PATH` to put the operational database somewhere else.
 
 Upgrading from 5.14 or earlier: an existing `realize_data.db` in the working directory or `.synapse/` in the KB root keeps being used (the log warns if it isn't on `DATA_PATH`). To move it, stop the container, copy it into the data volume, and remove the old copy.
 

@@ -71,4 +71,6 @@ def register_commands(app: typer.Typer) -> None:
     # Codex audit N05 — decision-log writes that failed are retried
     app.add_typer(decisions_app, name="decisions", help="Decision log: retry writes that failed.")
     # STORY-45 — reviewer kit for market packs
-    app.add_typer(packs_app, name="packs", help="Market packs: review sheets, review submission, desk checks.")
+    app.add_typer(
+        packs_app, name="packs", help="Market packs: review sheets, review submission, desk checks, inventory."
+    )

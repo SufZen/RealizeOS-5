@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from realize_core.packs import discover_packs
+from realize_core.packs.loader import find_pack
 from realize_core.packs.models import VERIFICATION_NAMES
 
 #: A register larger than this is outside the free pilot (about a 50-page tender).
@@ -29,9 +29,12 @@ LIMITS = [
 
 
 def _market_context(market: str | None) -> dict[str, Any]:
-    """Glossary, rule cards and verification level for a market, or level 0 when there is no pack."""
-    packs = discover_packs()
-    pack = packs.get(("market", (market or "").lower())) if market else None
+    """Glossary, rule cards and verification level for a market, or level 0 when there is no pack.
+
+    Only that market's pack is loaded, so a broken pack for another market or
+    profession can't stop the lookup (audit N06).
+    """
+    pack = find_pack("market", (market or "").lower()) if market else None
     if pack is None:
         return {
             "market": market or "any",

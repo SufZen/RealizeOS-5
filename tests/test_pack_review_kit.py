@@ -13,6 +13,7 @@ from pathlib import Path
 import pytest
 import yaml
 from realize_core.cli_app import app
+from realize_core.governance.gates import Decider
 from realize_core.packs import load_pack
 from realize_core.packs.review import (
     PASS_THRESHOLD,
@@ -36,6 +37,7 @@ from typer.testing import CliRunner
 
 PACKS = Path(__file__).parent.parent / "packs"
 REVIEWER = "Ana Silva, advogada (OA 12345)"
+OWNER = Decider(user_id="owner", role="owner", allowed_ventures=None)
 runner = CliRunner()
 
 
@@ -345,7 +347,7 @@ def test_submit_records_the_review_and_queues_pack_verify(packs_root, tmp_path):
     # Without --apply-corrections the card text is untouched.
     assert {p.name: p.read_bytes() for p in (packs_root / "market" / "pt" / "rules").glob("*.md")} == before
 
-    asyncio.run(decide_approval(approval_id, True, decided_by="owner"))
+    asyncio.run(decide_approval(approval_id, True, decider=OWNER))
     pack = load_pack(packs_root / "market" / "pt")
     assert pack.verification_level == 1  # card-level request: the pack's own level stays
     assert pack.rules["pt.contractors.alvara"].verification == 2
@@ -411,10 +413,14 @@ def test_whole_pack_needs_every_row_and_the_corrections_applied(packs_root, tmp_
     record = yaml.safe_load(next((packs_root / "market" / "pt" / "reviews").glob("*.yaml")).read_text(encoding="utf-8"))
     params = json.loads(_approval(record["approval"]["id"])["params_json"])
     assert params["cards"] == []  # the whole pack, so pack.yaml is raised too
-    asyncio.run(decide_approval(record["approval"]["id"], True, decided_by="owner"))
+    manifest_before = (packs_root / "market" / "pt" / "pack.yaml").read_bytes()
+    out = asyncio.run(decide_approval(record["approval"]["id"], True, decider=OWNER))
+    assert out["execution"]["success"] is True, out["execution"]
     pack = load_pack(packs_root / "market" / "pt")
     assert pack.verification_level == 2
     assert {c.verification for c in pack.rules.values()} == {2}
+    # The level lives in the verification state; the reviewer kit's own edits are the only pack changes.
+    assert (packs_root / "market" / "pt" / "pack.yaml").read_bytes() == manifest_before
 
 
 def test_hand_edits_block_the_whole_pack_and_reach_the_approval_note(packs_root, tmp_path):

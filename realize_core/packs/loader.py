@@ -1,13 +1,31 @@
 """Load profession, market and firm packs from disk (spec 010 §4).
 
-Packs are content only. Loading is tolerant: problems become warnings on the
-pack, and a broken file never stops the rest of the pack from loading.
+Packs are content only. Loading is tolerant: a problem becomes a warning on
+the pack (logged once, with the file's path), and a broken file never stops
+the rest of the pack from loading. A pack that can't be loaded at all is
+skipped with a warning and never stops another pack from loading (audit N06).
+
+Packs come from up to two folders (:func:`pack_roots`), highest priority
+first:
+
+1. ``REALIZE_PACKS_PATH``, an optional writable folder for the firm's own or
+   modified packs (a mounted volume in Docker). A pack here replaces a shipped
+   pack with the same kind and id.
+2. The packs that ship with RealizeOS (``packs/``). In the production image
+   this folder is read-only.
+
+Every pack loaded here gets the verification state that approvals recorded
+under ``DATA_PATH`` laid over it (:mod:`realize_core.packs.state`), so
+approvals never have to write into pack folders (audit N04).
 """
 
 from __future__ import annotations
 
 import json
 import logging
+import os
+import re
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -19,17 +37,97 @@ logger = logging.getLogger(__name__)
 
 PACK_KINDS = ("profession", "market")
 
+#: Environment variable naming the optional writable pack folder.
+PACKS_PATH_ENV = "REALIZE_PACKS_PATH"
+
+#: Errors a malformed pack file can raise while it is read or indexed. A pack
+#: that raises one of these is skipped with a warning instead of stopping the
+#: other packs (audit N06).
+LOAD_ERRORS: tuple[type[BaseException], ...] = (
+    OSError,
+    ValueError,
+    TypeError,
+    AttributeError,
+    KeyError,
+    yaml.YAMLError,
+)
+
+#: Pack and card ids that may name a folder: no separators, no ``..``.
+_SAFE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]*$")
+
+_warned: set[str] = set()
+_warned_lock = threading.Lock()
+
+
+def warn_once(message: str, *args: Any) -> None:
+    """Log a warning the first time this exact message appears, then only at debug level.
+
+    Packs are loaded again whenever a file changes, so a broken file would
+    otherwise repeat the same warning on every rebuild.
+    """
+    text = message % args if args else message
+    with _warned_lock:
+        first = text not in _warned
+        _warned.add(text)
+    if first:
+        logger.warning("%s", text)
+    else:
+        logger.debug("%s", text)
+
 
 def default_packs_root() -> Path:
-    """The repository's ``packs/`` folder."""
+    """The packs that ship with RealizeOS (the repository's ``packs/`` folder)."""
     return Path(__file__).resolve().parent.parent.parent / "packs"
 
 
-def _read_yaml(path: Path, warnings: list[str]) -> Any:
+def custom_packs_root() -> Path | None:
+    """The writable folder for the firm's own or modified packs (``REALIZE_PACKS_PATH``), or None."""
+    raw = os.getenv(PACKS_PATH_ENV, "").strip()
+    if not raw:
+        return None
+    root = Path(raw).expanduser().resolve()
+    if not root.is_dir():
+        warn_once("%s=%s is not a folder; only the shipped packs are used", PACKS_PATH_ENV, root)
+        return None
+    return root
+
+
+def pack_roots(packs_root: Path | None = None) -> list[Path]:
+    """Folders packs are loaded from, highest priority first.
+
+    An explicit ``packs_root`` is used alone. Otherwise the custom folder
+    (``REALIZE_PACKS_PATH``), when set, comes before the shipped packs.
+    """
+    if packs_root is not None:
+        return [Path(packs_root)]
+    roots: list[Path] = []
+    custom = custom_packs_root()
+    if custom is not None:
+        roots.append(custom)
+    shipped = default_packs_root()
+    if custom is None or Path(shipped).resolve() != custom:
+        roots.append(shipped)
+    return roots
+
+
+def is_safe_id(value: Any) -> bool:
+    """True for a pack or card id that can't step outside a folder."""
+    return isinstance(value, str) and bool(_SAFE_ID.match(value)) and ".." not in value
+
+
+def _rel(path: Path, root: Path) -> str:
+    try:
+        return path.relative_to(root).as_posix()
+    except ValueError:
+        return path.name
+
+
+def _read_yaml(path: Path, warnings: list[str], root: Path | None = None) -> Any:
     try:
         return yaml.safe_load(path.read_text(encoding="utf-8"))
-    except (OSError, yaml.YAMLError) as exc:
-        warnings.append(f"{path.name}: cannot read ({exc})")
+    except (OSError, ValueError, yaml.YAMLError) as exc:  # ValueError covers undecodable bytes
+        name = _rel(path, root) if root else path.name
+        warnings.append(f"{name}: cannot read ({exc})")
         return None
 
 
@@ -43,54 +141,125 @@ def _split_frontmatter(text: str) -> tuple[dict, str]:
     return (meta if isinstance(meta, dict) else {}), text[end + 4 :].lstrip("\n")
 
 
-def load_rule_card(path: Path, warnings: list[str]) -> RuleCard | None:
-    """Parse one rule card. Cards without ``source`` and ``as_of`` are skipped."""
+def _scalar(value: Any) -> bool:
+    """A non-empty text or number (not a list, a mapping or a boolean)."""
+    return isinstance(value, (str, int, float)) and not isinstance(value, bool) and bool(str(value).strip())
+
+
+def _level(value: Any, name: str, warnings: list[str]) -> int | None:
+    """A verification level from 0 to 4, or None when it is missing or unusable."""
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, int):
+        warnings.append(f"{name}: verification level '{value}' is not a whole number; ignored")
+        return None
+    return max(0, min(4, value))
+
+
+def _str_list(value: Any, name: str, warnings: list[str]) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, str):
+        return [value]
+    if not isinstance(value, list):
+        warnings.append(f"pack.yaml: {name} must be a list; ignored")
+        return []
+    return [str(v) for v in value if _scalar(v)]
+
+
+def _mapping(value: Any, name: str, warnings: list[str]) -> dict[str, Any]:
+    if value is None:
+        return {}
+    if not isinstance(value, dict):
+        warnings.append(f"{name} must be a mapping; ignored")
+        return {}
+    return {str(k): v for k, v in value.items()}
+
+
+def _clean_applies_to(value: Any, name: str, warnings: list[str]) -> dict[str, Any]:
+    """``applies_to`` as a mapping whose ``kinds`` is a list of text."""
+    applies_to = _mapping(value, f"{name}: applies_to", warnings)
+    kinds = applies_to.get("kinds")
+    if kinds is None:
+        return applies_to
+    if isinstance(kinds, str):
+        kinds = [kinds]
+    if not isinstance(kinds, list):
+        warnings.append(f"{name}: applies_to.kinds must be a list; ignored")
+        applies_to.pop("kinds")
+        return applies_to
+    applies_to["kinds"] = [str(k) for k in kinds if _scalar(k)]
+    return applies_to
+
+
+def load_rule_card(path: Path, warnings: list[str], root: Path | None = None) -> RuleCard | None:
+    """Parse one rule card. Cards without ``id``, ``statement``, ``source`` and ``as_of`` are skipped."""
+    name = _rel(path, root) if root else path.name
     try:
         meta, body = _split_frontmatter(path.read_text(encoding="utf-8"))
-    except (OSError, yaml.YAMLError) as exc:
-        warnings.append(f"{path.name}: cannot read rule card ({exc})")
+    except (OSError, ValueError, yaml.YAMLError) as exc:
+        warnings.append(f"{name}: cannot read rule card ({exc})")
         return None
-    missing = [k for k in ("id", "statement", "source", "as_of") if not meta.get(k)]
+    missing = [k for k in ("id", "statement", "source", "as_of") if not _scalar(meta.get(k))]
     if missing:
-        warnings.append(f"{path.name}: rule card skipped, missing {', '.join(missing)}")
+        warnings.append(f"{name}: rule card skipped, missing {', '.join(missing)}")
         return None
     try:
         level = int(meta.get("verification", 1))
     except (TypeError, ValueError):
         level = 1
+    verified_by = meta.get("verified_by")
+    reviewed_at = meta.get("reviewed_at")
     return RuleCard(
         id=str(meta["id"]),
         statement=str(meta["statement"]),
         source=str(meta["source"]),
         as_of=str(meta["as_of"]),
         body=body,
-        applies_to=meta.get("applies_to") or {},
-        review_by=str(meta["review_by"]) if meta.get("review_by") else None,
+        applies_to=_clean_applies_to(meta.get("applies_to"), name, warnings),
+        review_by=str(meta["review_by"]) if _scalar(meta.get("review_by")) else None,
         verification=max(0, min(4, level)),
-        verified_by=meta.get("verified_by"),
+        verified_by=str(verified_by) if _scalar(verified_by) else None,
+        reviewed_at=str(reviewed_at) if _scalar(reviewed_at) else None,
         path=path,
     )
 
 
-def _load_content(pack: Pack, root: Path) -> None:
-    """Index the pack folders that share one layout across packs and firm overrides."""
+def _load_glossary(pack: Pack, root: Path) -> None:
     w = pack.warnings
-    glossary_dir = root / "glossary"
-    if glossary_dir.is_dir():
-        for gfile in sorted(glossary_dir.glob("*.yaml")):
-            entries = _read_yaml(gfile, w) or []
-            if not isinstance(entries, list):
-                w.append(f"{gfile.name}: glossary must be a list")
+    for gfile in sorted((root / "glossary").glob("*.yaml")):
+        name = _rel(gfile, root)
+        entries = _read_yaml(gfile, w, root) or []
+        if not isinstance(entries, list):
+            w.append(f"{name}: glossary must be a list")
+            continue
+        for entry in entries:
+            if not (isinstance(entry, dict) and _scalar(entry.get("term")) and _scalar(entry.get("family"))):
+                w.append(f"{name}: glossary entry needs term and family")
                 continue
-            for entry in entries:
-                if isinstance(entry, dict) and entry.get("term") and entry.get("family"):
-                    pack.terms[str(entry["term"]).casefold()] = {**entry, "language": gfile.stem}
-                else:
-                    w.append(f"{gfile.name}: glossary entry needs term and family")
+            clean = {**entry, "term": str(entry["term"]), "family": str(entry["family"]), "language": gfile.stem}
+            kind = entry.get("kind")
+            if kind is not None and not _scalar(kind):
+                w.append(f"{name}: glossary entry '{clean['term']}' has a kind that isn't text; ignored")
+                clean.pop("kind")
+            elif kind is not None:
+                clean["kind"] = str(kind)
+            pack.terms[clean["term"].casefold()] = clean
+
+
+def _load_content(pack: Pack, root: Path) -> None:
+    """Index the pack folders that share one layout across packs and firm overrides.
+
+    Every file is checked for the shape it must have before any field is
+    read: a file with the wrong shape becomes a warning, not an exception.
+    """
+    w = pack.warnings
+    if (root / "glossary").is_dir():
+        _load_glossary(pack, root)
     rules_dir = root / "rules"
     if rules_dir.is_dir():
         for rfile in sorted(rules_dir.glob("*.md")):
-            card = load_rule_card(rfile, w)
+            card = load_rule_card(rfile, w, root)
             if card:
                 pack.rules[card.id] = card
     docs_dir = root / "documents"
@@ -100,111 +269,223 @@ def _load_content(pack: Pack, root: Path) -> None:
     skills_dir = root / "R-routines" / "skills"
     if skills_dir.is_dir():
         for sfile in sorted(skills_dir.glob("*.yaml")):
-            data = _read_yaml(sfile, w)
-            skill_id = (data or {}).get("id") or (data or {}).get("name") or sfile.stem
+            data = _read_yaml(sfile, w, root)
+            if data is not None and not isinstance(data, dict):
+                w.append(f"{_rel(sfile, root)}: a skill must be a mapping; skipped")
+                continue
+            data = data or {}
+            skill_id = data.get("id") if _scalar(data.get("id")) else None
+            skill_id = skill_id or (data.get("name") if _scalar(data.get("name")) else None) or sfile.stem
             pack.skills[str(skill_id)] = sfile
     trust_file = root / "trust.yaml"
     if trust_file.is_file():
-        data = _read_yaml(trust_file, w) or {}
+        data = _read_yaml(trust_file, w, root)
         if isinstance(data, dict):
-            pack.trust.update({str(k): str(v) for k, v in data.items()})
+            pack.trust.update({str(k): str(v) for k, v in data.items() if _scalar(v)})
+        elif data is not None:
+            w.append("trust.yaml: must be a mapping of action to trust level; ignored")
     measures_file = root / "measures.yaml"
     if measures_file.is_file():
-        data = _read_yaml(measures_file, w) or []
+        data = _read_yaml(measures_file, w, root)
+        if data is not None and not isinstance(data, list):
+            w.append("measures.yaml: must be a list; ignored")
         for m in data if isinstance(data, list) else []:
-            if isinstance(m, dict) and m.get("id"):
+            if isinstance(m, dict) and _scalar(m.get("id")):
                 pack.measures[str(m["id"])] = m
+            else:
+                w.append("measures.yaml: a measure needs an id; skipped")
     schemas_dir = root / "schemas"
     if schemas_dir.is_dir():
         for jfile in sorted(schemas_dir.glob("*.json")):
             try:
-                pack.schemas[jfile.stem] = json.loads(jfile.read_text(encoding="utf-8"))
-            except (OSError, json.JSONDecodeError) as exc:
-                w.append(f"{jfile.name}: invalid schema ({exc})")
+                schema = json.loads(jfile.read_text(encoding="utf-8"))
+            except (OSError, ValueError) as exc:  # JSONDecodeError and undecodable bytes are ValueErrors
+                w.append(f"{_rel(jfile, root)}: invalid schema ({exc})")
+                continue
+            if isinstance(schema, dict):
+                pack.schemas[jfile.stem] = schema
+            else:
+                w.append(f"{_rel(jfile, root)}: a schema must be a JSON object; skipped")
 
 
-def load_pack(root: Path) -> Pack | None:
-    """Load a pack folder with a ``pack.yaml`` manifest. Returns None if unusable."""
+def load_pack(root: Path, *, apply_state: bool = True) -> Pack | None:
+    """Load a pack folder with a ``pack.yaml`` manifest. Returns None if unusable.
+
+    Args:
+        root: The pack's folder.
+        apply_state: Lay the approval-recorded verification state over the
+            pack (the default; see :mod:`realize_core.packs.state`). False
+            gives the levels written in the pack's own files.
+    """
+    root = Path(root)
     manifest_path = root / "pack.yaml"
     warnings: list[str] = []
-    manifest = _read_yaml(manifest_path, warnings) if manifest_path.is_file() else None
+    manifest = _read_yaml(manifest_path, warnings, root) if manifest_path.is_file() else None
     if not isinstance(manifest, dict):
-        logger.warning("Pack at %s has no usable pack.yaml", root)
+        reason = f" ({warnings[0]})" if warnings else ""
+        warn_once("Pack at %s has no usable pack.yaml%s", root, reason)
         return None
     kind = manifest.get("kind")
-    if kind not in PACK_KINDS or not manifest.get("id") or not manifest.get("version"):
-        logger.warning("Pack at %s needs id, version and kind in %s", root, PACK_KINDS)
+    if kind not in PACK_KINDS or not _scalar(manifest.get("id")) or not _scalar(manifest.get("version")):
+        warn_once("Pack at %s needs id, version and kind (one of %s) in pack.yaml", root, ", ".join(PACK_KINDS))
         return None
-    verification = manifest.get("verification") or {}
-    level = verification.get("level") if isinstance(verification, dict) else None
+    verification = manifest.get("verification")
+    verification = dict(verification) if isinstance(verification, dict) else {}
     pack = Pack(
         id=str(manifest["id"]),
         kind=kind,
         version=str(manifest["version"]),
         root=root,
-        title=str(manifest.get("title", "")),
-        languages=list(manifest.get("languages") or []),
-        defaults=dict(manifest.get("defaults") or {}),
-        verification_level=int(level) if isinstance(level, int) else None,
-        limits=list(manifest.get("limits") or []),
-        requires=dict(manifest.get("requires") or {}),
+        title=str(manifest["title"]) if _scalar(manifest.get("title")) else "",
+        languages=_str_list(manifest.get("languages"), "languages", warnings),
+        defaults=_mapping(manifest.get("defaults"), "pack.yaml: defaults", warnings),
+        verification_level=_level(verification.get("level"), "pack.yaml", warnings),
+        verification=verification,
+        limits=_str_list(manifest.get("limits"), "limits", warnings),
+        requires=_mapping(manifest.get("requires"), "pack.yaml: requires", warnings),
         warnings=warnings,
     )
     _load_content(pack, root)
+    if apply_state:
+        from realize_core.packs import state
+
+        state.apply_state(pack)
     for msg in pack.warnings:
-        logger.warning("Pack %s: %s", pack.ref, msg)
+        warn_once("Pack %s/%s at %s: %s", pack.kind, pack.ref, root, msg)
     return pack
+
+
+def _load_isolated(pack_dir: Path) -> Pack | None:
+    """:func:`load_pack`, but a pack that can't be loaded is skipped with a warning (audit N06)."""
+    try:
+        return load_pack(pack_dir)
+    except LOAD_ERRORS as exc:
+        warn_once(
+            "Pack at %s skipped: it can't be loaded (%s: %s). Fix or remove that folder.",
+            pack_dir,
+            type(exc).__name__,
+            exc,
+        )
+        return None
 
 
 def load_firm_layer(venture_dir: Path) -> Pack:
-    """Load the firm layer from ``F-foundations/overrides/`` (spec 010 §9.2)."""
-    root = venture_dir / "F-foundations" / "overrides"
+    """Load the firm layer from ``F-foundations/overrides/`` (spec 010 §9.2).
+
+    A broken override folder gives an empty firm layer with a warning; it
+    never stops the venture's other layers.
+    """
+    root = Path(venture_dir) / "F-foundations" / "overrides"
     pack = Pack(id="firm", kind="firm", version="local", root=root)
     if not root.is_dir():
         return pack
-    defaults_file = root / "defaults.yaml"
-    if defaults_file.is_file():
-        data = _read_yaml(defaults_file, pack.warnings) or {}
-        pack.defaults = dict(data) if isinstance(data, dict) else {}
-    disable_file = root / "disable.yaml"
-    if disable_file.is_file():
-        data = _read_yaml(disable_file, pack.warnings) or []
-        pack.disabled = {str(x) for x in data} if isinstance(data, list) else set()
-    _load_content(pack, root)
+    try:
+        defaults_file = root / "defaults.yaml"
+        if defaults_file.is_file():
+            data = _read_yaml(defaults_file, pack.warnings, root)
+            pack.defaults = _mapping(data, "defaults.yaml", pack.warnings)
+        disable_file = root / "disable.yaml"
+        if disable_file.is_file():
+            data = _read_yaml(disable_file, pack.warnings, root) or []
+            if isinstance(data, list):
+                pack.disabled = {str(x) for x in data if _scalar(x)}
+            else:
+                pack.warnings.append("disable.yaml: must be a list of ids; ignored")
+        _load_content(pack, root)
+    except LOAD_ERRORS as exc:
+        warn_once("Firm overrides at %s skipped (%s: %s)", root, type(exc).__name__, exc)
+        return Pack(id="firm", kind="firm", version="local", root=root, warnings=[str(exc)])
+    for msg in pack.warnings:
+        warn_once("Firm overrides at %s: %s", root, msg)
     return pack
 
 
+def _kind_dirs(root: Path, kind: str) -> list[Path]:
+    kind_dir = root / kind
+    try:
+        return sorted(p for p in kind_dir.iterdir() if p.is_dir()) if kind_dir.is_dir() else []
+    except OSError as exc:
+        warn_once("Cannot list packs in %s (%s)", kind_dir, exc)
+        return []
+
+
 def discover_packs(packs_root: Path | None = None) -> dict[tuple[str, str], Pack]:
-    """All packs under ``packs/<kind>/<id>/``, keyed by ``(kind, id)``."""
-    root = packs_root or default_packs_root()
+    """All packs under ``<root>/<kind>/<id>/`` for every pack root, keyed by ``(kind, id)``.
+
+    A pack in a higher-priority root replaces the same kind and id from a
+    lower one. A pack that can't be loaded is skipped; the others still load.
+    """
     found: dict[tuple[str, str], Pack] = {}
-    for kind in PACK_KINDS:
-        kind_dir = root / kind
-        if not kind_dir.is_dir():
-            continue
-        for pack_dir in sorted(p for p in kind_dir.iterdir() if p.is_dir()):
-            pack = load_pack(pack_dir)
-            if pack is not None:
-                found[(pack.kind, pack.id)] = pack
+    for root in reversed(pack_roots(packs_root)):
+        for kind in PACK_KINDS:
+            for pack_dir in _kind_dirs(root, kind):
+                pack = _load_isolated(pack_dir)
+                if pack is None:
+                    continue
+                key = (pack.kind, pack.id)
+                previous = found.get(key)
+                if previous is not None and previous.root.parent.parent != pack.root.parent.parent:
+                    logger.info("Pack %s/%s at %s replaces the one at %s", pack.kind, pack.id, pack.root, previous.root)
+                found[key] = pack
     return found
+
+
+def _manifest_names(pack_dir: Path, kind: str, pack_id: str) -> bool:
+    """True when the folder's ``pack.yaml`` declares this kind and id (reads the manifest only)."""
+    manifest = pack_dir / "pack.yaml"
+    if not manifest.is_file():
+        return False
+    data = _read_yaml(manifest, [], pack_dir)
+    return isinstance(data, dict) and data.get("kind") == kind and str(data.get("id")) == pack_id
+
+
+def find_pack(kind: str, pack_id: str, packs_root: Path | None = None) -> Pack | None:
+    """Load one installed pack by kind and id, or None when it isn't installed.
+
+    Only that pack is loaded, so a broken pack nobody uses can't get in the
+    way (audit N06). The folder named after the id is tried first; any other
+    folder whose manifest declares the id is found too.
+    """
+    if kind not in PACK_KINDS or not isinstance(pack_id, str) or not pack_id:
+        return None
+    for root in pack_roots(packs_root):
+        dirs = _kind_dirs(root, kind)
+        named = [d for d in dirs if is_safe_id(pack_id) and d.name == pack_id]
+        for pack_dir in [*named, *(d for d in dirs if d.name != pack_id)]:
+            if not _manifest_names(pack_dir, kind, pack_id):
+                continue
+            pack = _load_isolated(pack_dir)
+            if pack is not None and pack.kind == kind and pack.id == pack_id:
+                return pack
+    return None
 
 
 def read_venture_packs(venture_dir: Path) -> dict[str, list[dict[str, str]]]:
     """Read ``packs.yaml`` at the venture root: ``{"profession": [...], "market": [...]}``."""
-    path = venture_dir / "packs.yaml"
+    path = Path(venture_dir) / "packs.yaml"
+    out: dict[str, list[dict[str, str]]] = {"profession": [], "market": []}
     if not path.is_file():
-        return {"profession": [], "market": []}
+        return out
     warnings: list[str] = []
     data = _read_yaml(path, warnings) or {}
-    for msg in warnings:
-        logger.warning("packs.yaml: %s", msg)
-    out: dict[str, list[dict[str, str]]] = {"profession": [], "market": []}
     if not isinstance(data, dict):
-        return out
+        warnings.append("must be a mapping with profession and market lists")
+        data = {}
     for kind in PACK_KINDS:
-        for entry in data.get(kind) or []:
-            if isinstance(entry, str):
-                out[kind].append({"id": entry, "version": ""})
-            elif isinstance(entry, dict) and entry.get("id"):
-                out[kind].append({"id": str(entry["id"]), "version": str(entry.get("version", ""))})
+        entries = data.get(kind) or []
+        if isinstance(entries, (str, dict)):
+            entries = [entries]
+        if not isinstance(entries, list):
+            warnings.append(f"{kind} must be a list of pack ids")
+            continue
+        for entry in entries:
+            if _scalar(entry):
+                out[kind].append({"id": str(entry), "version": ""})
+            elif isinstance(entry, dict) and _scalar(entry.get("id")):
+                version = entry.get("version")
+                out[kind].append({"id": str(entry["id"]), "version": str(version) if _scalar(version) else ""})
+            else:
+                warnings.append(f"{kind}: entry {entry!r} needs an id")
+    for msg in warnings:
+        warn_once("%s: %s", path, msg)
     return out

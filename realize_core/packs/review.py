@@ -108,22 +108,28 @@ class ReviewDeclinedError(ReviewError):
 
 
 def load_market_pack(code: str, packs_root: Path | None = None) -> Pack:
-    """Load ``packs/market/<code>/`` or raise :class:`ReviewError`."""
+    """Load the installed market pack ``<code>`` or raise :class:`ReviewError`.
+
+    Looks in the writable pack folder (``REALIZE_PACKS_PATH``) first, then in
+    the shipped packs, like the resolver.
+    """
     if not _MARKET_ID.match(code or ""):
         raise ReviewError(f"'{code}' is not a market pack id (expected something like 'pt')")
-    root = (packs_root or _loader.default_packs_root()) / "market" / code
-    pack = _loader.load_pack(root) if (root / "pack.yaml").is_file() else None
-    if pack is None or pack.kind != "market":
-        raise ReviewError(f"Market pack '{code}' is not installed under {root.parent}")
+    pack = _loader.find_pack("market", code, packs_root)
+    if pack is None:
+        where = ", ".join(str(root / "market") for root in _loader.pack_roots(packs_root))
+        raise ReviewError(f"Market pack '{code}' is not installed under {where}")
     return pack
 
 
 def market_pack_ids(packs_root: Path | None = None) -> list[str]:
-    """Ids of the installed market packs, sorted."""
-    root = (packs_root or _loader.default_packs_root()) / "market"
-    if not root.is_dir():
-        return []
-    return sorted(p.name for p in root.iterdir() if (p / "pack.yaml").is_file())
+    """Ids of the installed market packs (folder names, every pack root), sorted."""
+    ids: set[str] = set()
+    for root in _loader.pack_roots(packs_root):
+        market = root / "market"
+        if market.is_dir():
+            ids.update(p.name for p in market.iterdir() if (p / "pack.yaml").is_file())
+    return sorted(ids)
 
 
 def _read_frontmatter(path: Path) -> tuple[dict[str, Any], str]:
@@ -909,7 +915,7 @@ def submit_review(
             "venture": venture,
             "level": REVIEW_LEVEL,
             "cards": "all (pack level too)" if whole_pack else cards,
-            "status": "pending: a person approves or rejects it in the dashboard",
+            "status": "pending: an owner with access to every venture approves or rejects it in the dashboard",
         }
         write_record(record_path, record)
     logger.info("Review of %s by %s recorded at %s (approval %s)", pack.ref, reviewer, record_path, approval_id)
@@ -971,7 +977,8 @@ def build_record(
         "rows": rows,
         "note": (
             "Recorded from the reviewer's filled sheet by `realize-os packs review-submit`. "
-            "The level change takes effect only when a person approves the pack_verify request."
+            "The level change takes effect only when an owner approves the pack_verify request; it is then "
+            "recorded in the verification state under DATA_PATH, not in the pack files."
         ),
     }
 

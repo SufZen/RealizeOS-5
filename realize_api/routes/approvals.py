@@ -12,7 +12,7 @@ import logging
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
-from realize_api.dependencies import get_allowed_ventures, visible_to
+from realize_api.dependencies import _deny, get_allowed_ventures, visible_to
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -67,11 +67,43 @@ async def list_approvals(
     return {"approvals": approvals}
 
 
-def _decider(request: Request) -> tuple[str | None, str]:
-    """Who is deciding, and through which channel (stored on the approval)."""
+def _decider(request: Request):
+    """Who is deciding, with their role, venture scope and channel (checked and stored on the approval).
+
+    With auth off (local dev mode) there is no principal and the caller is the
+    local owner, as everywhere else in the API (``get_current_user``). An
+    authenticated principal without a role gets none.
+    """
+    from realize_core.governance.gates import Decider
+    from realize_core.security.agent_access import is_agent_subject
+
     state = request.state
-    channel = "dashboard" if getattr(state, "auth_source", None) == "session" else "api"
-    return getattr(state, "user_id", None), channel
+    user_id = getattr(state, "user_id", None)
+    role = getattr(state, "role", None) or (None if user_id else "owner")
+    return Decider(
+        user_id=user_id,
+        role=role,
+        allowed_ventures=get_allowed_ventures(request),
+        is_agent=is_agent_subject(state),
+        channel="dashboard" if getattr(state, "auth_source", None) == "session" else "api",
+    )
+
+
+async def _decide(request: Request, approval_id: str, approve: bool, body: DecisionBody | None) -> dict:
+    """Run a decision for the caller; 403 when they may not decide it (the item stays pending)."""
+    from realize_core.governance.gates import ApprovalForbiddenError, decide_approval
+
+    _require_visible(request, approval_id)
+    decider = _decider(request)
+    try:
+        result = await decide_approval(
+            approval_id, approve=approve, decision_note=body.decision_note if body else None, decider=decider
+        )
+    except ApprovalForbiddenError as exc:
+        raise _deny(request, str(exc), "approvals:global") from exc
+    if result is None:
+        raise HTTPException(status_code=404, detail="Approval not found or not pending")
+    return _flatten(result)
 
 
 def _require_visible(request: Request, approval_id: str) -> None:
@@ -89,40 +121,18 @@ def _require_visible(request: Request, approval_id: str) -> None:
 
 @router.post("/approvals/{approval_id}/approve")
 async def approve(approval_id: str, request: Request, body: DecisionBody = None):
-    """Approve a pending request — a held tool action is dispatched now (once)."""
-    from realize_core.governance.gates import decide_approval
+    """Approve a pending request — a held tool action is dispatched now (once).
 
-    _require_visible(request, approval_id)
-
-    note = body.decision_note if body else None
-    decided_by, channel = _decider(request)
-    result = await decide_approval(
-        approval_id, approve=True, decision_note=note, decided_by=decided_by, channel=channel
-    )
-
-    if result is None:
-        raise HTTPException(status_code=404, detail="Approval not found or not pending")
-
-    return _flatten(result)
+    A pack verification (``pack_verify``) changes what every venture sees, so
+    only an owner with access to every venture may approve it (403 otherwise).
+    """
+    return await _decide(request, approval_id, True, body)
 
 
 @router.post("/approvals/{approval_id}/reject")
 async def reject(approval_id: str, request: Request, body: DecisionBody = None):
-    """Reject a pending request."""
-    from realize_core.governance.gates import decide_approval
-
-    _require_visible(request, approval_id)
-
-    note = body.decision_note if body else None
-    decided_by, channel = _decider(request)
-    result = await decide_approval(
-        approval_id, approve=False, decision_note=note, decided_by=decided_by, channel=channel
-    )
-
-    if result is None:
-        raise HTTPException(status_code=404, detail="Approval not found or not pending")
-
-    return _flatten(result)
+    """Reject a pending request (a pack verification needs an owner with access to every venture)."""
+    return await _decide(request, approval_id, False, body)
 
 
 def _flatten(result: dict) -> dict:
