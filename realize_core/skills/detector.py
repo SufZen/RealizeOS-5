@@ -21,6 +21,25 @@ logger = logging.getLogger(__name__)
 _loaded_skills: dict[str, list[dict]] = {}
 _skills_loaded = False
 
+# Whether load_skills adds each venture's pack skills (features.packs, spec 010).
+# Off by default: skill loading is then exactly what it was before packs.
+_pack_cascade = False
+
+
+def configure_pack_cascade(enabled: bool) -> None:
+    """Turn the pack skill cascade on or off for later :func:`load_skills` calls.
+
+    The app calls this with ``features.packs`` whenever its config is applied
+    (:func:`realize_core.config_runtime.sync_skill_cascade`).
+    """
+    global _pack_cascade
+    _pack_cascade = bool(enabled)
+
+
+def pack_cascade_enabled() -> bool:
+    """True when :func:`load_skills` adds the ventures' pack skills."""
+    return _pack_cascade
+
 
 # Generic fallback skills — ensures basic functionality even without YAML files
 _DEFAULT_SKILLS: dict[str, list[dict]] = {
@@ -156,13 +175,16 @@ def _load_md_skills(skills_dir) -> dict[str, list[dict]]:
     return skills_by_system
 
 
-def load_skills(skills_dir=None, kb_path=None):
+def load_skills(skills_dir=None, kb_path=None, packs: bool | None = None):
     """
     Load all skills from YAML files + defaults.
 
     Args:
         skills_dir: Path to skills directory (str or Path). If None, auto-detect from config.
         kb_path: Knowledge base path (str or Path) for finding system-specific skills in R-routines/.
+        packs: Also add each venture's pack skills (spec 010): a venture's own
+            skill wins over a pack skill with the same id or name. None uses
+            the setting from :func:`configure_pack_cascade` (off by default).
     """
     global _loaded_skills, _skills_loaded
 
@@ -208,17 +230,23 @@ def load_skills(skills_dir=None, kb_path=None):
                 except ImportError:
                     pass
 
+    if kb_path and (_pack_cascade if packs is None else packs):
+        from realize_core.packs.skills import load_venture_pack_skills
+
+        added = load_venture_pack_skills(Path(kb_path), _loaded_skills)
+        logger.info("Loaded %d skill(s) from profession and market packs", added)
+
     _skills_loaded = True
     total = sum(len(v) for v in _loaded_skills.values())
     logger.info(f"Loaded {total} skills across {len(_loaded_skills)} systems")
 
 
-def reload_skills(skills_dir=None, kb_path=None):
-    """Hot-reload skills from YAML files."""
+def reload_skills(skills_dir=None, kb_path=None, packs: bool | None = None):
+    """Hot-reload skills from YAML files (and, with ``packs``, from the ventures' packs)."""
     global _loaded_skills, _skills_loaded
     _loaded_skills = {}
     _skills_loaded = False
-    load_skills(skills_dir=skills_dir, kb_path=kb_path)
+    load_skills(skills_dir=skills_dir, kb_path=kb_path, packs=packs)
 
 
 def detect_skill(message: str, system_key: str = None) -> dict | None:

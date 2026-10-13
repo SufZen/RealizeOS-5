@@ -32,6 +32,7 @@ _ATTR = {
     "rule": "rules",
     "document": "documents",
     "skill": "skills",
+    "agent": "agents",
     "trust": "trust",
     "measure": "measures",
     "default": "defaults",

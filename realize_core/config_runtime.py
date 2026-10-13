@@ -32,7 +32,29 @@ def reload_app_config(app_state: Any, kb_path: str | Path | None = None, config:
     app_state.config = config
     app_state.systems = build_systems_dict(config, Path(kb) if kb is not None else None)
     sync_tool_gate(app_state, config)
+    sync_skill_cascade(app_state, config)
     return config
+
+
+def sync_skill_cascade(app_state: Any, config: dict) -> None:
+    """Load the ventures' skills with their packs' skills when ``features.packs`` is on (spec 010).
+
+    With the flag on, every venture's own skills and the skills its packs add
+    are (re)loaded, so a reload picks up pack changes and a venture's own skill
+    always wins over a pack skill with the same id. With the flag off and never
+    on, nothing is loaded here: skill loading stays as it was before packs.
+    Turning the flag off reloads without the pack skills.
+    """
+    from realize_core.config import get_features
+    from realize_core.skills import detector
+
+    enabled = bool(get_features(config).get("packs"))
+    was_enabled = detector.pack_cascade_enabled()
+    detector.configure_pack_cascade(enabled)
+    kb = getattr(app_state, "kb_path", None)
+    if kb is None or not (enabled or was_enabled):
+        return
+    detector.reload_skills(kb_path=Path(kb))
 
 
 class FailClosedGate:
@@ -91,7 +113,7 @@ def _apply_gate(app_state: Any, config: dict, registry: Any) -> None:
 
             store = getattr(app_state, "approval_store", None) or ApprovalStore()
             app_state.approval_store = store
-            gate = ToolGate(config=config, approval_store=store)
+            gate = ToolGate(config=config, approval_store=store, kb_path=getattr(app_state, "kb_path", None))
             app_state.tool_gate = gate
             logger.warning("Governance ENFORCEMENT ON: tool gate installed (features.enforce_gates=true)")
         else:
