@@ -8,15 +8,18 @@ import {
   Check,
   Eye,
   EyeOff,
+  Info,
   Languages,
   Search,
   Server,
   Shield,
   Sparkles,
+  X,
   Zap,
 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
+import { isUnrestricted, setupGate, type Actor } from '@/lib/permissions'
 import { onboardingText, type OnboardingText, type ProviderId } from '@/lib/onboarding-text'
 import { usePrefersReducedMotion } from '@/hooks/use-motion'
 import { useLocale } from '@/components/locale-provider'
@@ -50,6 +53,81 @@ export function markOnboardingComplete() {
 /** True when the server already has an AI provider configured (onboarding was done). */
 export function serverHasAiProvider(connections: { category: string; configured: boolean }[]) {
   return connections.some((c) => c.category === 'llm' && c.configured)
+}
+
+/**
+ * What the server said about setup: `done` (an AI provider is connected),
+ * `needed`, or `unreachable` (the check failed); `unknown` until it answers.
+ */
+export type ServerSetup = 'unknown' | 'done' | 'needed' | 'unreachable'
+
+/**
+ * What a signed-in person gets on a server without an AI provider. Only
+ * someone who may connect providers (`setupGate`: system:manage and every
+ * venture) gets the wizard, since saving a key needs that; anyone else with
+ * every venture gets a notice that an owner or admin must do it. A person
+ * limited to some ventures gets neither (they can't read the setup state).
+ */
+export function onboardingPrompt(
+  user: Actor | null | undefined,
+  serverSetup: ServerSetup,
+): 'wizard' | 'notice' | null {
+  if (!user || !isUnrestricted(user)) return null
+  if (setupGate(user) === null) {
+    // A failed check still offers the wizard, as before: it re-reads the state itself.
+    return serverSetup === 'needed' || serverSetup === 'unreachable' ? 'wizard' : null
+  }
+  return serverSetup === 'needed' ? 'notice' : null
+}
+
+const NOTICE_DISMISSED_KEY = 'realizeos_provider_notice_dismissed'
+
+/** True when the person closed the "no AI provider yet" notice in this browser. */
+export function isProviderNoticeDismissed(): boolean {
+  try {
+    return localStorage.getItem(NOTICE_DISMISSED_KEY) === 'true'
+  } catch {
+    return false
+  }
+}
+
+/** Remember that the person closed the notice. */
+export function dismissProviderNotice() {
+  try {
+    localStorage.setItem(NOTICE_DISMISSED_KEY, 'true')
+  } catch {
+    // storage unavailable: the notice stays closed for this page only
+  }
+}
+
+/**
+ * For someone who can't connect providers, on a server with none yet: who has
+ * to do it. It can be closed; the dashboard works around it.
+ */
+export function ProviderNeededNotice({
+  onDismiss,
+  text: given,
+}: {
+  onDismiss: () => void
+  text?: OnboardingText
+}) {
+  const text = useWizardText(given)
+  return (
+    <div
+      role="status"
+      data-notice="provider-needed"
+      className="rz-panel mb-6 flex items-start gap-3 p-4 text-sm"
+    >
+      <Info className="mt-0.5 h-4 w-4 shrink-0 text-blue-400" aria-hidden />
+      <div className="min-w-0 flex-1">
+        <p className="m-0 font-medium text-foreground">{text.providerNeededTitle}</p>
+        <p className="m-0 mt-0.5 text-muted-foreground">{text.providerNeeded}</p>
+      </div>
+      <IconButton label={text.dismiss} size="sm" onClick={onDismiss}>
+        <X />
+      </IconButton>
+    </div>
+  )
 }
 
 /** What to tell the person when a provider key or URL could not be saved, in their language. */
@@ -246,7 +324,10 @@ export function ProviderCard({
             {provider.isUrl ? text.serverUrl : text.apiKey}
           </label>
           <div className="flex gap-2">
-            <div className="relative min-w-0 flex-1">
+            {/* Keys and URLs read left to right in every language: the field, its
+                padding and the show/hide button share one direction, so in
+                Hebrew the button never covers the start of the key. */}
+            <div dir="ltr" className="relative min-w-0 flex-1">
               <input
                 id={inputId}
                 type={showValue || provider.isUrl ? 'text' : 'password'}

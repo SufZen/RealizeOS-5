@@ -222,6 +222,8 @@ List all ventures with their configuration and status.
 
 The response also carries `config_writable` (bool). It is `false` when `realize-os.yaml` can't be edited (for example a read-only Docker mount); the dashboard then hides create and delete, because both edit that file.
 
+Each venture has `warnings`, a list of problems an operator should fix (empty when there are none): for example a venture whose agents and skills come from its packs while `features.packs` is off (see [packs.md](packs.md#templates-that-link-packs)). `GET /api/ventures/{key}` and `GET /api/status` (per system) return the same list.
+
 ### POST /api/ventures
 
 Create a new venture. The key must be a lowercase slug (letters, numbers, hyphens). Errors: `400` invalid key, `409` the venture already exists, `503` the config can't be written (nothing is left behind).
@@ -269,6 +271,8 @@ Create a new agent within a venture.
 ### GET /api/ventures/{key}/agents/{agent_key}
 
 Get agent definition and configuration.
+
+`definition_path` (here, in the agent list and in `GET /api/ventures/{key}`) is never a path on the server's disk: a venture's own agent shows its path in the KB (`systems/acme/A-agents/writer.md`), and an agent from a pack shows `<layer>:<pack>@<version>/A-agents/<file>` (`profession:developer@0.1.0/A-agents/procurement.md`).
 
 ### PUT /api/ventures/{key}/agents/{agent_key}
 
@@ -372,7 +376,7 @@ Execute a workflow.
 
 ### GET /api/approvals
 
-List approval requests, newest first, in the caller's ventures. Query: `status` (default `pending`; empty for every status) and `venture_key`.
+List approval requests, newest first, in the caller's ventures. Query: `status` (default `pending`; `decided` for approved, rejected and answered items; empty for every status), `venture_key` and `limit` (default 50, at most 500; outside that range is `422`). Decided items (`decided`, `approved`, `rejected`, `answered`) come most recently decided first (`decided_at`); the rest newest first. The dashboard's Decided tab asks for `?status=decided&limit=50`.
 
 Each row's `status` is its **effective** status, and every row carries `expired` (bool):
 

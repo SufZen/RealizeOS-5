@@ -31,8 +31,11 @@ LIMITS = [
 def _market_context(market: str | None) -> dict[str, Any]:
     """Glossary, rule cards and verification level for a market, or level 0 when there is no pack.
 
-    Only that market's pack is loaded, so a broken pack for another market or
-    profession can't stop the lookup (audit N06).
+    The level is the lowest effective level of the pack's rule cards (the
+    pack's own level when it has none), so the headline never claims more
+    than the weakest rule the register uses. Only that market's pack is
+    loaded, so a broken pack for another market or profession can't stop the
+    lookup (audit N06).
     """
     pack = find_pack("market", (market or "").lower()) if market else None
     if pack is None:
@@ -45,7 +48,21 @@ def _market_context(market: str | None) -> dict[str, Any]:
             "rules": [],
             "limits": [],
         }
-    level = pack.verification_level if pack.verification_level is not None else 1
+    rules = [
+        {
+            "id": c.id,
+            "statement": c.statement,
+            "source": c.source,
+            "as_of": c.as_of,
+            "verification": c.effective_level(pack.verification_level),
+        }
+        for c in pack.rules.values()
+    ]
+    # The headline is the weakest card the register relies on, not the pack's
+    # nominal level: an expired or edited card pulls it down (a pack without
+    # cards shows its own level).
+    nominal = pack.verification_level if pack.verification_level is not None else 1
+    level = min(r["verification"] for r in rules) if rules else nominal
     return {
         "market": pack.id,
         "pack": pack.ref,
@@ -56,16 +73,7 @@ def _market_context(market: str | None) -> dict[str, Any]:
             {"term": e["term"], "family": e["family"], "kind": e.get("kind"), "language": e.get("language")}
             for e in pack.terms.values()
         ],
-        "rules": [
-            {
-                "id": c.id,
-                "statement": c.statement,
-                "source": c.source,
-                "as_of": c.as_of,
-                "verification": c.effective_level(pack.verification_level),
-            }
-            for c in pack.rules.values()
-        ],
+        "rules": rules,
         "limits": pack.limits,
     }
 

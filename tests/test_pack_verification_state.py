@@ -153,14 +153,21 @@ def test_level_three_records_the_agreement(db, shipped):
 
 
 def test_an_expired_review_date_still_drops_a_card_to_level_one(db, shipped):
+    """A card past its file's ``review_by`` that no approval covers stays at level 1."""
     card = shipped / "market" / "pt" / "rules" / "vat-rates.md"
     past = (date.today() - timedelta(days=1)).isoformat()
     text = card.read_text(encoding="utf-8")
     card.write_text(text.replace("review_by: '2027-04-13'", f"review_by: '{past}'"), encoding="utf-8")
     assert f"review_by: '{past}'" in card.read_text(encoding="utf-8")
 
-    approval_id = request_verification("ops", kind="market", pack_id="pt", level=2, reviewer="R")
+    approval_id = request_verification(
+        "ops", kind="market", pack_id="pt", level=2, reviewer="R", cards=["pt.contracts.price-revision"]
+    )
     assert _approve(approval_id)["execution"]["success"] is True
+    manifest = shipped / "market" / "pt" / "pack.yaml"
+    manifest.write_text(
+        manifest.read_text(encoding="utf-8").replace("level: 1", "level: 2", 1), encoding="utf-8"
+    )  # the pack's own level, so the approved card shows 2
 
     venture = shipped.parent / "systems" / "pt-dev"
     venture.mkdir(parents=True)
@@ -168,6 +175,23 @@ def test_an_expired_review_date_still_drops_a_card_to_level_one(db, shipped):
     resolver = PackResolver(venture, enabled=True)
     assert resolver.resolve("rule", "pt.vat.rates").verification == 1
     assert resolver.resolve("rule", "pt.contracts.price-revision").verification == 2
+
+
+def test_a_recorded_review_date_that_passed_drops_a_card_to_level_one(db, shipped):
+    """The next review date an approval recorded expires the card like a file date does."""
+    approval_id = request_verification("ops", kind="market", pack_id="pt", level=2, reviewer="R")
+    assert _approve(approval_id)["execution"]["success"] is True
+    path = state.state_path()
+    data = json.loads(path.read_text(encoding="utf-8"))
+    past = (date.today() - timedelta(days=1)).isoformat()
+    data["packs"]["market/pt"]["cards"]["pt.vat.rates"]["review_by"] = past
+    path.write_text(json.dumps(data), encoding="utf-8")
+    clear_cache()
+
+    pack = load_pack(shipped / "market" / "pt")
+    assert pack.rules["pt.vat.rates"].review_by == past
+    assert pack.rules["pt.vat.rates"].effective_level(pack.verification_level) == 1
+    assert pack.rules["pt.contracts.price-revision"].effective_level(pack.verification_level) == 2
 
 
 # ---------------------------------------------------------------------------

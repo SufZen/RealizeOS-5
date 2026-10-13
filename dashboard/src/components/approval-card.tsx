@@ -16,12 +16,14 @@ import { Stamp } from '@/components/ui/stamp'
 import { useLocale } from '@/components/locale-provider'
 import {
   approvalOutcome,
+  decisionLogState,
   isExpired,
   type ApprovalStatus,
   type DecisionLogResult,
   type DecisionProblem,
   type Outcome,
 } from '@/lib/approval-outcome'
+import { formatDateTime } from '@/lib/locale'
 import {
   approvalText,
   outcomeMessage,
@@ -91,11 +93,6 @@ function parseJson(text?: string | null): unknown {
   }
 }
 
-function formatTime(iso: string): string {
-  const t = new Date(iso)
-  return Number.isNaN(t.getTime()) ? iso : t.toLocaleString()
-}
-
 /** One line saying what happened after the decision: done, failed, or unknown. */
 export function OutcomeLine({ outcome, text }: { outcome: Outcome; text: ApprovalText }) {
   const failed = outcome.kind === 'failed'
@@ -122,24 +119,38 @@ export function OutcomeLine({ outcome, text }: { outcome: Outcome; text: Approva
   )
 }
 
-/** Whether the decision reached the decision log; rendered only when the server says. */
-export function DecisionLogLine({ log, text }: { log: DecisionLogResult; text: ApprovalText }) {
+/**
+ * Whether the decision reached the decision log, when there is something to
+ * say: logged, queued for a retry (it will be added), or failed. Nothing for
+ * inputs and rejected proposals, which aren't decisions.
+ */
+export function DecisionLogLine({
+  log,
+  text,
+}: {
+  log: DecisionLogResult | null | undefined
+  text: ApprovalText
+}) {
+  const state = decisionLogState(log)
+  if (!state) return null
+  const failed = state === 'failed'
+  const Icon = state === 'logged' ? CheckCircle2 : state === 'queued' ? Clock : AlertTriangle
   return (
     <p
       dir="auto"
-      data-decision-log={log.logged ? 'logged' : 'missing'}
+      data-decision-log={failed ? 'missing' : state}
       className={cn(
         'm-0 flex items-start gap-1.5 text-xs',
-        log.logged ? 'text-muted-foreground' : 'text-amber-400',
+        failed ? 'text-amber-400' : 'text-muted-foreground',
       )}
     >
-      {log.logged ? (
-        <CheckCircle2 className="mt-0.5 h-3 w-3 shrink-0" aria-hidden />
-      ) : (
-        <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" aria-hidden />
-      )}
+      <Icon className="mt-0.5 h-3 w-3 shrink-0" aria-hidden />
       <span className="min-w-0 break-words">
-        {log.logged ? text.decisionLogged : text.decisionNotLogged(log.error)}
+        {state === 'logged'
+          ? text.decisionLogged
+          : state === 'queued'
+            ? text.decisionQueued
+            : text.decisionNotLogged(log?.error)}
       </span>
     </p>
   )
@@ -244,7 +255,8 @@ export function ApprovalCard({
   style,
 }: ApprovalCardProps) {
   const locale = useLocale()
-  const text = approvalText(language ?? locale.language)
+  const lang = language ?? locale.language
+  const text = approvalText(lang)
   const expiryNoticeId = useId()
   const at = now ?? clockNow()
 
@@ -275,7 +287,7 @@ export function ApprovalCard({
     showOutcome ||
     expiredNotice ||
     !!problem ||
-    !!approval.decision_log ||
+    decisionLogState(approval.decision_log) !== null ||
     (!!approval.decision_note && !isPending)
   const canAct = !!(onApprove || onReject)
   const showFooter = isPending && !settled && (canAct || !!children || !!blockedReason)
@@ -317,20 +329,20 @@ export function ApprovalCard({
               <span className="rz-avatar rz-avatar--agent rz-avatar--sm" aria-hidden>
                 {approval.agent_key.slice(0, 2).toUpperCase()}
               </span>
-              {text.agent}: {approval.agent_key}
+              {text.agent}: <bdi>{approval.agent_key}</bdi>
             </span>
             <span>
-              {text.venture}: {approval.venture_key}
+              {text.venture}: <bdi>{approval.venture_key}</bdi>
             </span>
             {approval.requested_by && !outsideAgent && (
               <span>
-                {text.requestedFor}: {approval.requested_by}
+                {text.requestedFor}: <bdi>{approval.requested_by}</bdi>
               </span>
             )}
             {approval.expires_at && isPending && !expired && (
               <span
                 className="inline-flex items-center gap-1"
-                title={text.expiresAt(formatTime(approval.expires_at))}
+                title={text.expiresAt(formatDateTime(approval.expires_at, lang))}
               >
                 <Clock className="h-3 w-3" aria-hidden />
                 {text.expires(relativeExpiry(approval.expires_at, at, text))}
@@ -339,7 +351,7 @@ export function ApprovalCard({
             {approval.expires_at && expired && (
               <span className="inline-flex items-center gap-1">
                 <Clock className="h-3 w-3" aria-hidden />
-                {text.expiredAt} <bdi>{formatTime(approval.expires_at)}</bdi>
+                {text.expiredAt} <bdi>{formatDateTime(approval.expires_at, lang)}</bdi>
               </span>
             )}
             {approval.decided_by && !isPending && (
@@ -385,7 +397,7 @@ export function ApprovalCard({
 
           {showOutcome && outcome && <OutcomeLine outcome={outcome} text={text} />}
 
-          {approval.decision_log && <DecisionLogLine log={approval.decision_log} text={text} />}
+          <DecisionLogLine log={approval.decision_log} text={text} />
 
           {expiredNotice && (
             <p dir="auto" className="m-0 text-[13px] text-muted-foreground">

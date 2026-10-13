@@ -22,7 +22,8 @@ export const useLocale = () => useContext(LocaleContext)
 
 const STORAGE_KEY = 'realizeos_locale'
 
-function readOverride(): LocaleOverride {
+/** The language the person chose in this browser ('auto' when they didn't, or storage is off). */
+export function readOverride(): LocaleOverride {
   try {
     const stored = localStorage.getItem(STORAGE_KEY)
     return stored === 'he' || stored === 'en' ? stored : 'auto'

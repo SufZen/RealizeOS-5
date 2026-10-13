@@ -26,6 +26,7 @@ import logging
 import os
 import re
 import threading
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -157,9 +158,29 @@ def _split_frontmatter(text: str) -> tuple[dict, str]:
     return (meta if isinstance(meta, dict) else {}), text[end + 4 :].lstrip("\n")
 
 
-def _scalar(value: Any) -> bool:
-    """A non-empty text or number (not a list, a mapping or a boolean)."""
+def is_scalar(value: Any) -> bool:
+    """A non-empty text, number or date (not a list, a mapping or a boolean).
+
+    YAML reads an unquoted ``2026-10-13`` as a date, not as text, so a date is
+    a scalar too; :func:`scalar_text` turns it back into ISO text.
+    """
+    if isinstance(value, date):  # datetime is a date too
+        return True
     return isinstance(value, (str, int, float)) and not isinstance(value, bool) and bool(str(value).strip())
+
+
+def scalar_text(value: Any) -> str:
+    """A scalar as text: dates and timestamps as ISO text (``2026-10-13``), anything else with ``str``."""
+    if isinstance(value, date):
+        return value.isoformat()
+    return str(value)
+
+
+def _date_text(value: Any) -> str:
+    """A date field as ``YYYY-MM-DD`` text; a timestamp keeps only its date."""
+    if isinstance(value, datetime):
+        return value.date().isoformat()
+    return scalar_text(value)
 
 
 def _level(value: Any, name: str, warnings: list[str]) -> int | None:
@@ -180,7 +201,7 @@ def _str_list(value: Any, name: str, warnings: list[str]) -> list[str]:
     if not isinstance(value, list):
         warnings.append(f"pack.yaml: {name} must be a list; ignored")
         return []
-    return [str(v) for v in value if _scalar(v)]
+    return [scalar_text(v) for v in value if is_scalar(v)]
 
 
 def _mapping(value: Any, name: str, warnings: list[str]) -> dict[str, Any]:
@@ -204,7 +225,7 @@ def _clean_applies_to(value: Any, name: str, warnings: list[str]) -> dict[str, A
         warnings.append(f"{name}: applies_to.kinds must be a list; ignored")
         applies_to.pop("kinds")
         return applies_to
-    applies_to["kinds"] = [str(k) for k in kinds if _scalar(k)]
+    applies_to["kinds"] = [scalar_text(k) for k in kinds if is_scalar(k)]
     return applies_to
 
 
@@ -216,7 +237,7 @@ def load_rule_card(path: Path, warnings: list[str], root: Path | None = None) ->
     except (OSError, ValueError, yaml.YAMLError) as exc:
         warnings.append(f"{name}: cannot read rule card ({exc})")
         return None
-    missing = [k for k in ("id", "statement", "source", "as_of") if not _scalar(meta.get(k))]
+    missing = [k for k in ("id", "statement", "source", "as_of") if not is_scalar(meta.get(k))]
     if missing:
         warnings.append(f"{name}: rule card skipped, missing {', '.join(missing)}")
         return None
@@ -227,16 +248,16 @@ def load_rule_card(path: Path, warnings: list[str], root: Path | None = None) ->
     verified_by = meta.get("verified_by")
     reviewed_at = meta.get("reviewed_at")
     return RuleCard(
-        id=str(meta["id"]),
-        statement=str(meta["statement"]),
-        source=str(meta["source"]),
-        as_of=str(meta["as_of"]),
+        id=scalar_text(meta["id"]),
+        statement=scalar_text(meta["statement"]),
+        source=scalar_text(meta["source"]),
+        as_of=_date_text(meta["as_of"]),
         body=body,
         applies_to=_clean_applies_to(meta.get("applies_to"), name, warnings),
-        review_by=str(meta["review_by"]) if _scalar(meta.get("review_by")) else None,
+        review_by=_date_text(meta["review_by"]) if is_scalar(meta.get("review_by")) else None,
         verification=max(0, min(4, level)),
-        verified_by=str(verified_by) if _scalar(verified_by) else None,
-        reviewed_at=str(reviewed_at) if _scalar(reviewed_at) else None,
+        verified_by=scalar_text(verified_by) if is_scalar(verified_by) else None,
+        reviewed_at=_date_text(reviewed_at) if is_scalar(reviewed_at) else None,
         path=path,
     )
 
@@ -252,16 +273,21 @@ def _load_glossary(pack: Pack, root: Path) -> None:
             w.append(f"{name}: glossary must be a list")
             continue
         for entry in entries:
-            if not (isinstance(entry, dict) and _scalar(entry.get("term")) and _scalar(entry.get("family"))):
+            if not (isinstance(entry, dict) and is_scalar(entry.get("term")) and is_scalar(entry.get("family"))):
                 w.append(f"{name}: glossary entry needs term and family")
                 continue
-            clean = {**entry, "term": str(entry["term"]), "family": str(entry["family"]), "language": gfile.stem}
+            clean = {
+                **entry,
+                "term": scalar_text(entry["term"]),
+                "family": scalar_text(entry["family"]),
+                "language": gfile.stem,
+            }
             kind = entry.get("kind")
-            if kind is not None and not _scalar(kind):
+            if kind is not None and not is_scalar(kind):
                 w.append(f"{name}: glossary entry '{clean['term']}' has a kind that isn't text; ignored")
                 clean.pop("kind")
             elif kind is not None:
-                clean["kind"] = str(kind)
+                clean["kind"] = scalar_text(kind)
             pack.terms[clean["term"].casefold()] = clean
 
 
@@ -297,16 +323,16 @@ def _load_content(pack: Pack, root: Path) -> None:
                 w.append(f"{_rel(sfile, root)}: a skill must be a mapping; skipped")
                 continue
             data = data or {}
-            skill_id = data.get("id") if _scalar(data.get("id")) else None
-            skill_id = skill_id or (data.get("name") if _scalar(data.get("name")) else None) or sfile.stem
-            pack.skills[str(skill_id)] = sfile
+            skill_id = data.get("id") if is_scalar(data.get("id")) else None
+            skill_id = skill_id or (data.get("name") if is_scalar(data.get("name")) else None) or sfile.stem
+            pack.skills[scalar_text(skill_id)] = sfile
     _load_agents(pack, root)
     _load_skill_settings(pack, root)
     trust_file = root / "trust.yaml"
     if trust_file.is_file() and _inside(trust_file, root, w):
         data = _read_yaml(trust_file, w, root)
         if isinstance(data, dict):
-            pack.trust.update({str(k): str(v) for k, v in data.items() if _scalar(v)})
+            pack.trust.update({str(k): scalar_text(v) for k, v in data.items() if is_scalar(v)})
         elif data is not None:
             w.append("trust.yaml: must be a mapping of action to trust level; ignored")
     measures_file = root / "measures.yaml"
@@ -315,8 +341,8 @@ def _load_content(pack: Pack, root: Path) -> None:
         if data is not None and not isinstance(data, list):
             w.append("measures.yaml: must be a list; ignored")
         for m in data if isinstance(data, list) else []:
-            if isinstance(m, dict) and _scalar(m.get("id")):
-                pack.measures[str(m["id"])] = m
+            if isinstance(m, dict) and is_scalar(m.get("id")):
+                pack.measures[scalar_text(m["id"])] = m
             else:
                 w.append("measures.yaml: a measure needs an id; skipped")
     schemas_dir = root / "schemas"
@@ -359,9 +385,9 @@ def _text_list(value: Any) -> list[str] | None:
     """A list of non-empty texts, or None when ``value`` isn't a list of scalars."""
     if isinstance(value, str):
         value = [value]
-    if not isinstance(value, list) or not all(_scalar(v) for v in value):
+    if not isinstance(value, list) or not all(is_scalar(v) for v in value):
         return None
-    return [str(v) for v in value]
+    return [scalar_text(v) for v in value]
 
 
 def _load_skill_settings(pack: Pack, root: Path) -> None:
@@ -393,8 +419,8 @@ def _load_skill_settings(pack: Pack, root: Path) -> None:
                 clean["triggers"] = triggers
         if "variables" in settings:
             variables = settings["variables"]
-            if isinstance(variables, dict) and all(_scalar(v) for v in variables.values()):
-                clean["variables"] = {str(k): str(v) for k, v in variables.items()}
+            if isinstance(variables, dict) and all(is_scalar(v) for v in variables.values()):
+                clean["variables"] = {str(k): scalar_text(v) for k, v in variables.items()}
             else:
                 w.append(f"skill-settings.yaml: variables for '{skill_id}' must map names to text; ignored")
         unknown = sorted(set(settings) - {"triggers", "variables"})
@@ -422,17 +448,17 @@ def load_pack(root: Path, *, apply_state: bool = True) -> Pack | None:
         warn_once("Pack at %s has no usable pack.yaml%s", root, reason)
         return None
     kind = manifest.get("kind")
-    if kind not in PACK_KINDS or not _scalar(manifest.get("id")) or not _scalar(manifest.get("version")):
+    if kind not in PACK_KINDS or not is_scalar(manifest.get("id")) or not is_scalar(manifest.get("version")):
         warn_once("Pack at %s needs id, version and kind (one of %s) in pack.yaml", root, ", ".join(PACK_KINDS))
         return None
     verification = manifest.get("verification")
     verification = dict(verification) if isinstance(verification, dict) else {}
     pack = Pack(
-        id=str(manifest["id"]),
+        id=scalar_text(manifest["id"]),
         kind=kind,
-        version=str(manifest["version"]),
+        version=scalar_text(manifest["version"]),
         root=root,
-        title=str(manifest["title"]) if _scalar(manifest.get("title")) else "",
+        title=scalar_text(manifest["title"]) if is_scalar(manifest.get("title")) else "",
         languages=_str_list(manifest.get("languages"), "languages", warnings),
         defaults=_mapping(manifest.get("defaults"), "pack.yaml: defaults", warnings),
         verification_level=_level(verification.get("level"), "pack.yaml", warnings),
@@ -484,7 +510,7 @@ def load_firm_layer(venture_dir: Path) -> Pack:
         if disable_file.is_file():
             data = _read_yaml(disable_file, pack.warnings, root) or []
             if isinstance(data, list):
-                pack.disabled = {str(x) for x in data if _scalar(x)}
+                pack.disabled = {scalar_text(x) for x in data if is_scalar(x)}
             else:
                 pack.warnings.append("disable.yaml: must be a list of ids; ignored")
         _load_content(pack, root)
@@ -505,18 +531,69 @@ def _kind_dirs(root: Path, kind: str) -> list[Path]:
         return []
 
 
+def _is_custom_root(root: Path, packs_root: Path | None) -> bool:
+    """True for the ``REALIZE_PACKS_PATH`` folder (never when an explicit ``packs_root`` is used)."""
+    if packs_root is not None:
+        return False
+    custom = custom_packs_root()
+    return custom is not None and Path(root) == custom
+
+
+def _read_manifest(pack_dir: Path) -> tuple[dict[str, Any] | None, str]:
+    """A folder's ``pack.yaml`` and, when it can't be used, why (reads the manifest only)."""
+    manifest = pack_dir / "pack.yaml"
+    if not manifest.is_file():
+        return None, "no pack.yaml"
+    problems: list[str] = []
+    data = _read_yaml(manifest, problems, pack_dir)
+    if problems:
+        return None, problems[0]
+    if not isinstance(data, dict):
+        return None, "pack.yaml is not a mapping"
+    if data.get("kind") not in PACK_KINDS or not is_scalar(data.get("id")) or not is_scalar(data.get("version")):
+        return None, f"pack.yaml needs id, version and kind (one of {', '.join(PACK_KINDS)})"
+    return data, ""
+
+
+def _warn_broken_custom(pack_dir: Path, kind: str, pack_id: str, reason: str) -> None:
+    """Say that a broken custom pack switched its id off instead of falling back to the shipped one.
+
+    The id, folder and reason (which can quote the broken file) are shown escaped: this reaches a terminal.
+    """
+    from realize_core.utils.text import escape_nonprintable
+
+    warn_once(
+        "Custom pack %s/%s at %s can't be used (%s). It is switched off, and the shipped pack with the "
+        "same id is NOT used in its place, so its stricter settings (such as trust.yaml) can't silently "
+        "revert to the shipped ones. Fix or remove that folder.",
+        kind,
+        escape_nonprintable(pack_id),
+        escape_nonprintable(pack_dir),
+        escape_nonprintable(reason),
+    )
+
+
 def discover_packs(packs_root: Path | None = None) -> dict[tuple[str, str], Pack]:
     """All packs under ``<root>/<kind>/<id>/`` for every pack root, keyed by ``(kind, id)``.
 
     A pack in a higher-priority root replaces the same kind and id from a
     lower one. A pack that can't be loaded is skipped; the others still load.
+    A pack in ``REALIZE_PACKS_PATH`` that can't be loaded also takes the
+    shipped pack with the same kind and id out (fail closed, with a warning).
     """
     found: dict[tuple[str, str], Pack] = {}
     for root in reversed(pack_roots(packs_root)):
+        custom = _is_custom_root(root, packs_root)
         for kind in PACK_KINDS:
             for pack_dir in _kind_dirs(root, kind):
                 pack = _load_isolated(pack_dir)
                 if pack is None:
+                    if custom:
+                        data, reason = _read_manifest(pack_dir)
+                        pack_id = scalar_text(data["id"]) if data else pack_dir.name
+                        pack_kind = data["kind"] if data else kind
+                        _warn_broken_custom(pack_dir, pack_kind, pack_id, reason or "it can't be loaded")
+                        found.pop((pack_kind, pack_id), None)
                     continue
                 key = (pack.kind, pack.id)
                 previous = found.get(key)
@@ -528,11 +605,8 @@ def discover_packs(packs_root: Path | None = None) -> dict[tuple[str, str], Pack
 
 def _manifest_names(pack_dir: Path, kind: str, pack_id: str) -> bool:
     """True when the folder's ``pack.yaml`` declares this kind and id (reads the manifest only)."""
-    manifest = pack_dir / "pack.yaml"
-    if not manifest.is_file():
-        return False
-    data = _read_yaml(manifest, [], pack_dir)
-    return isinstance(data, dict) and data.get("kind") == kind and str(data.get("id")) == pack_id
+    data, _reason = _read_manifest(pack_dir)
+    return data is not None and data.get("kind") == kind and scalar_text(data.get("id")) == pack_id
 
 
 def find_pack(kind: str, pack_id: str, packs_root: Path | None = None) -> Pack | None:
@@ -541,18 +615,32 @@ def find_pack(kind: str, pack_id: str, packs_root: Path | None = None) -> Pack |
     Only that pack is loaded, so a broken pack nobody uses can't get in the
     way (audit N06). The folder named after the id is tried first; any other
     folder whose manifest declares the id is found too.
+
+    A pack in ``REALIZE_PACKS_PATH`` that exists but is broken (its folder is
+    named after the id and its ``pack.yaml`` can't be used, or it declares the
+    id but can't be loaded) gives None with a warning naming its folder: the
+    shipped pack with the same id is not used in its place (fail closed).
     """
     if kind not in PACK_KINDS or not isinstance(pack_id, str) or not pack_id:
         return None
     for root in pack_roots(packs_root):
+        custom = _is_custom_root(root, packs_root)
         dirs = _kind_dirs(root, kind)
         named = [d for d in dirs if is_safe_id(pack_id) and d.name == pack_id]
         for pack_dir in [*named, *(d for d in dirs if d.name != pack_id)]:
             if not _manifest_names(pack_dir, kind, pack_id):
+                if custom and pack_dir.name == pack_id:
+                    data, reason = _read_manifest(pack_dir)
+                    if data is None:
+                        _warn_broken_custom(pack_dir, kind, pack_id, reason)
+                        return None
                 continue
             pack = _load_isolated(pack_dir)
             if pack is not None and pack.kind == kind and pack.id == pack_id:
                 return pack
+            if custom:
+                _warn_broken_custom(pack_dir, kind, pack_id, "it can't be loaded")
+                return None
     return None
 
 
@@ -575,11 +663,13 @@ def read_venture_packs(venture_dir: Path) -> dict[str, list[dict[str, str]]]:
             warnings.append(f"{kind} must be a list of pack ids")
             continue
         for entry in entries:
-            if _scalar(entry):
-                out[kind].append({"id": str(entry), "version": ""})
-            elif isinstance(entry, dict) and _scalar(entry.get("id")):
+            if is_scalar(entry):
+                out[kind].append({"id": scalar_text(entry), "version": ""})
+            elif isinstance(entry, dict) and is_scalar(entry.get("id")):
                 version = entry.get("version")
-                out[kind].append({"id": str(entry["id"]), "version": str(version) if _scalar(version) else ""})
+                out[kind].append(
+                    {"id": scalar_text(entry["id"]), "version": scalar_text(version) if is_scalar(version) else ""}
+                )
             else:
                 warnings.append(f"{kind}: entry {entry!r} needs an id")
     for msg in warnings:

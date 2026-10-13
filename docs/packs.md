@@ -31,6 +31,8 @@ Packs are loaded from two folders, the first one winning:
 1. **`REALIZE_PACKS_PATH`** (optional): a writable folder for your own packs, or a modified copy of a shipped pack. A pack here replaces the shipped pack with the same kind and id. Use the same layout: `<folder>/market/<id>/`, `<folder>/profession/<id>/`.
 2. **The shipped packs** in `packs/`. They come with each release. In the production image this folder is read-only; change a shipped pack by copying it into `REALIZE_PACKS_PATH`, not by editing it in place.
 
+A pack in `REALIZE_PACKS_PATH` that exists but can't be used (its folder is named after the pack and its `pack.yaml` is missing, doesn't parse or lacks `id`, `version` or `kind`, or the pack fails to load) is switched off, with a warning naming its folder: the shipped pack with the same id is **not** used in its place. A firm's copy is usually stricter (a `trust.yaml` that blocks what the shipped pack only holds for approval), so falling back silently would loosen it. Ventures that link the pack list it as missing until the folder is fixed or removed.
+
 In Docker, mount a folder for `REALIZE_PACKS_PATH` as a volume (see [self-hosting-guide.md](self-hosting-guide.md#volume-mounts)).
 
 A venture loads only the packs its `packs.yaml` names. Loading is tolerant: a file with the wrong shape (a skill that is a list, a glossary that is a mapping, a rule card whose `applies_to` isn't a mapping, an unreadable file) is skipped with a warning that names the file, logged once. A pack that can't be loaded at all is skipped with a warning naming its folder; other packs and ventures keep working. The cascade is cached per venture and rebuilt when any pack file, override, `packs.yaml` or recorded verification changes.
@@ -75,7 +77,7 @@ A firm overrides any pack inside its own venture folder, so the overrides travel
 ```
 systems/<venture>/F-foundations/overrides/
   defaults.yaml        e.g. {currency: USD}
-  disable.yaml         list of rule, term, measure, skill, agent, schema or trust ids to switch off
+  disable.yaml         list of rule, term, measure, skill, agent, schema or trust ids to switch off (case-insensitive)
   skill-settings.yaml  the venture's ids (and extra triggers) for skills that come from packs
   glossary/ rules/ documents/ trust.yaml measures.yaml
 ```
@@ -113,7 +115,7 @@ version: 0.1.0
 title: Israel
 languages: [he, en]
 defaults: {country: IL, currency: ILS, units: metric, locale: he-IL}
-verification: {level: 1, reviewed_by: null, review_by: 2027-04-01}
+verification: {level: 1, reviewed_by: null, review_by: 2027-04-01}   # optional: review_interval_months (default 6)
 limits:
   - Does not replace a lawyer, appraiser or licensed engineer.
 ```
@@ -132,7 +134,7 @@ Each glossary entry maps a local term to a core family and, optionally, a kind:
 
 ### Rule cards
 
-A rule card is a dated fact with its source. A card without `source` and `as_of` is skipped with a warning.
+A rule card is a dated fact with its source. A card without `source` and `as_of` is skipped with a warning. Dates can be written with or without quotes (`as_of: 2026-10-13` or `as_of: '2026-10-13'`); YAML reads the unquoted form as a date, and RealizeOS keeps it as `YYYY-MM-DD` text. The same holds everywhere else a pack or override takes text (skill `variables`, triggers, glossary terms, `disable.yaml`). `python cli.py packs desk-check <id>` reports a card the loader skipped as an error and exits 1, so a card that would never reach an answer can't pass unnoticed.
 
 ```markdown
 ---
@@ -155,6 +157,10 @@ A pack extends a core family with `allOf` (see [`fabric-schemas/README.md`](fabr
 
 A venture template can name packs (`packs:` in `templates/<name>.yaml`). With the flag on, `scaffold_venture(template=...)` (the dashboard, `realize-os venture create --template`) writes the venture's `packs.yaml`, copies only the firm's starter files, and leaves out the agents and skills the linked packs provide, at the same path, in `A-agents/` and `R-routines/skills/`. It writes `F-foundations/overrides/skill-settings.yaml` with the ids to set. With the flag off it copies the whole template, as before. `python cli.py init --template` is unchanged.
 
+The `real-estate-developer` template is the Israeli developer demo, so its `packs.yaml` links `profession: [developer]` and `market: [il]`: the developer pack is market-neutral, and the Hebrew triggers of its three skills come from the Israel pack's `skill-settings.yaml`. For projects elsewhere, change `market` in the venture's `packs.yaml` (for example `[pt]`).
+
+**Turning packs off later.** A venture created with the flag on has no agents or skills of its own: they come from its packs. If `features.packs` is turned off afterwards, that venture has no team and no skills. RealizeOS says so instead of failing quietly: at startup, and on the config reload that turns the flag off, it logs a warning for each such venture (its `packs.yaml` names packs, it has no agents or no skills of its own, and its packs provide them), and lists the message in the venture's `warnings` in `GET /api/ventures`, `GET /api/ventures/{key}` and `GET /api/status`. Turn the flag back on, or copy the agents and skills from the template into the venture's `A-agents/` and `R-routines/skills/`.
+
 ## Verification levels
 
 | Level | Meaning | Label in the answer trail | Hebrew |
@@ -165,19 +171,23 @@ A venture template can name packs (`packs:` in `templates/<name>.yaml`). With th
 | 3 | Maintained by a partner with a signed agreement. | maintained | מתוחזק |
 | 4 | Used in a paid engagement. | field-proven | הוכח בשטח |
 
-A card's level is the lower of its own level and the pack's level. A card whose `review_by` date has passed drops to level 1.
+A card's level is the lower of its own level and the pack's level. A card whose `review_by` date has passed drops to level 1. An approved review sets a new `review_by` (see below), which replaces the date in the card's file.
 
 ### Raising a level: approvals and where they are recorded
 
 Levels 2 and 3 are raised through a `pack_verify` approval (level 3 also needs a partner maintenance agreement; level 4 never comes from an approval). A pack is shared by every venture that uses it, so **only an owner with access to every venture** can approve or reject that request, from the dashboard, the API or MCP. An operator, an admin or an owner limited to some ventures gets 403 (`MCP_FORBIDDEN` over MCP), an outside agent never decides (`MCP_AGENT_CANNOT_DECIDE`), and the request stays pending.
 
-An approved verification doesn't edit the pack. The level, the reviewer, the review date, the approver and the approval id are recorded in one file under `DATA_PATH`:
+An approved verification doesn't edit the pack. The level, the reviewer, the review date, the next review date, the approver and the approval id are recorded in one file under `DATA_PATH`:
 
 ```
 DATA_PATH/packs/verification.json
 ```
 
-Each approval writes it once, atomically, so a failure leaves the previous state, never part of a review. The loader lays it over the pack files, so answers, `list_packs` and the tender register show the approved levels. A whole-pack approval raises the pack's own level and every card; a card approval raises those cards only. The usual rules still apply on top: the lower of card and pack, and a card past its `review_by` date shows level 1. If the pack's version changes after an approval, the pack carries a warning asking for the changed cards to be reviewed again.
+Each approval writes it once, atomically, so a failure leaves the previous state, never part of a review. The loader lays it over the pack files, so answers, `list_packs` and the tender register show the approved levels. A whole-pack approval raises the pack's own level and every card; a card approval raises those cards only. Each approved card gets a new `review_by`: the review date plus the pack's review interval, six months unless `pack.yaml` sets `verification.review_interval_months` (1 to 24). It replaces the date in the card's file, so a new review lifts a card whose old date had passed, and the card drops back to level 1 when the new date passes. The usual rules still apply on top: the lower of card and pack, and a card past its `review_by` date shows level 1. If the pack's version changes after an approval, the pack carries a warning asking for the changed cards to be reviewed again.
+
+An approval binds to what the reviewer saw, not only to the card's id. Each approved card records a fingerprint of its `statement`, `source` and `applies_to` (whitespace and line endings don't count). If the card is edited afterwards, in place or in a `REALIZE_PACKS_PATH` copy with the same version, it no longer matches: the card falls back to the level, reviewer and dates in its own file, and the loader warns once, naming the card, until it is reviewed again. A whole-pack approval fingerprints every card. Approvals recorded before 5.30 have no fingerprint and keep applying until the card is reviewed again.
+
+The tender register (the self-serve wedge) states the lowest effective level of the market pack's rule cards, not the pack's own level, so its headline never claims more than the weakest rule it uses.
 
 The approval shows what happened, like any approved action: `execution_status` is `succeeded` or `failed`, `result_json` holds `{"output": "..."}` (for example "market/pt and its 10 rule cards raised to verification 2 (reviewed); reviewed by ..."), and `error` says why it failed (pack no longer installed, data folder not writable, ...). A failed approval is not retried: fix the cause and submit the request again (`review-submit` or `request_verification`).
 
@@ -187,7 +197,7 @@ The approval shows what happened, like any approved action: `execution_status` i
 
 - `data/packs/verification.json`: the approved levels (restore it into `DATA_PATH/packs/`);
 - `custom-packs/`: everything in `REALIZE_PACKS_PATH` (restore it into the new `REALIZE_PACKS_PATH` folder);
-- `packs-inventory.json`: every installed pack with its version, origin, content hash and levels, and what each venture resolves.
+- `packs-inventory.json`: every installed pack with its version, origin, content hash and levels, and what each venture resolves. The content hash ignores line endings and a UTF-8 byte-order mark in text files, so a Windows checkout (CRLF) and the Linux image (LF) of the same pack compare equal.
 
 `python cli.py storage restore <zip> --directory <new folder>` unpacks it so that `<new folder>/data` is the new `DATA_PATH` and `<new folder>/custom-packs` the new `REALIZE_PACKS_PATH` (see [self-hosting-guide.md](self-hosting-guide.md#move-to-another-server-export-and-restore)). Shipped packs come with the release and are listed in the inventory only. After restoring, check that the new installation resolves the same packs, levels and rules:
 

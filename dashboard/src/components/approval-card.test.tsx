@@ -115,7 +115,9 @@ describe('ApprovalCard', () => {
         }}
       />,
     )
-    expect(html).toContain('Someone else already decided this (approved by dana@acme.io)')
+    expect(html).toContain(
+      'Someone else already decided this (approved by <bdi>dana@acme.io</bdi>)',
+    )
     expect(html).toContain('Decided by <bdi>dana@acme.io</bdi>')
     expect(buttons(html).some((b) => b.includes('Approve'))).toBe(false)
   })
@@ -135,7 +137,7 @@ describe('ApprovalCard', () => {
     )
     expect(html).toContain('data-outcome="failed"')
     expect(html).toContain(
-      'Approved, but it failed: Pack market/audit-missing is not installed. It is not retried',
+      'Approved, but it failed: <bdi>Pack market/audit-missing is not installed</bdi>. It is not retried',
     )
     expect(html).not.toContain('Approved and done')
   })
@@ -170,7 +172,7 @@ describe('ApprovalCard', () => {
       />,
     )
     expect(html).toContain('data-outcome="succeeded"')
-    expect(html).toContain('Approved and done: Email sent to client@acme.io')
+    expect(html).toContain('Approved and done: <bdi>Email sent to client@acme.io</bdi>')
   })
 
   it('history: an approved action that never ran is not shown as done', () => {
@@ -265,7 +267,7 @@ describe('ApprovalCard', () => {
         />,
       )
       expect(html).not.toContain('data-outside-agent')
-      expect(html).toContain('For: dana@acme.io')
+      expect(html).toContain('For: <bdi>dana@acme.io</bdi>')
     })
   })
 
@@ -290,7 +292,7 @@ describe('ApprovalCard', () => {
     )
     expect(html).toContain('aria-label="שליחת מייל: פג תוקף"')
     expect(html).toContain('תוקף הבקשה פג לפני שמישהו החליט עליה')
-    expect(html).toContain('מישהו אחר כבר החליט על הבקשה (נדחה ע״י דנה)')
+    expect(html).toContain('מישהו אחר כבר החליט על הבקשה (נדחה ע״י <bdi>דנה</bdi>)')
     expect(html).toContain('dir="auto"')
     for (const cls of classesOf(html)) expect(cls).not.toMatch(PHYSICAL_CLASS)
   })

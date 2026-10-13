@@ -242,8 +242,24 @@ def build_systems_dict(config: dict, kb_path: Path | None = None) -> dict:
         }
         if packs_on:
             _add_pack_agents(systems[key], kb_path / sys_dir, kb_path)
+        _check_packs_off(systems[key], key, kb_path / sys_dir, packs_on)
 
     return systems
+
+
+def _check_packs_off(system: dict, key: str, venture_dir: Path, packs_on: bool) -> None:
+    """Warn about a venture that gets its agents or skills from packs while ``features.packs`` is off.
+
+    The warning is logged once per change (startup, or the reload that turned
+    the flag off) and listed in the venture's ``warnings``, which the venture
+    list and the status endpoint return.
+    """
+    from realize_core.packs import flag_off
+
+    message = None if packs_on else flag_off.packs_off_warning(key, venture_dir, system["agents"])
+    flag_off.report(venture_dir, message)
+    if message:
+        system["warnings"] = [message]
 
 
 def _add_pack_agents(system: dict, venture_dir: Path, kb_path: Path) -> None:

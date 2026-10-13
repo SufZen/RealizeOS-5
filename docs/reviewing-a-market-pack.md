@@ -64,7 +64,7 @@ About five minutes per card. The printable sheet gives an estimate at the top: a
 1. The person who sent the sheet records it in RealizeOS. Your name, title and registration number, the date, your verdict on each card and the number of facts you corrected are stored in a review record inside the pack.
 2. Your corrected statements are written into the cards, and removed cards are taken out.
 3. The owner approves the change in RealizeOS. Nothing is marked as reviewed before that approval.
-4. The cards you reviewed then show level 2 ("reviewed"), with your name and the date. Each card drops back to level 1 on its review-by date unless someone reviews it again.
+4. The cards you reviewed then show level 2 ("reviewed"), with your name and the date. The approval also sets each card's next review date, six months after your review; the card drops back to level 1 on that date unless someone reviews it again. If a card's statement, source or scope is changed after the approval, it also goes back to level 1 until it is reviewed: your name stays with the wording you checked.
 
 We also count how many drafted facts needed correcting. That number measures how well the agent drafted the pack, not your work.
 

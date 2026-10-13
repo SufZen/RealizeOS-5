@@ -6,6 +6,7 @@ import {
   useEffect,
   useLayoutEffect,
   useCallback,
+  useMemo,
   useRef,
   type ReactNode,
   type Ref,
@@ -14,7 +15,9 @@ import { createPortal } from 'react-dom'
 import { X, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useAuth } from '@/hooks/use-auth'
 import { usePrefersReducedMotion } from '@/hooks/use-motion'
+import { useLocale } from '@/components/locale-provider'
 import { Button, IconButton } from '@/components/ui/button'
+import { tourText, type TourStepId, type TourText } from '@/lib/tour-text'
 
 /* ------------------------------------------------------------------ */
 /* Types                                                               */
@@ -47,123 +50,36 @@ interface TourCtx {
 const STORAGE_KEY = 'realizeos_tour_complete'
 
 /* ------------------------------------------------------------------ */
-/* Default 15-step tour                                                */
+/* Steps                                                               */
 /* ------------------------------------------------------------------ */
 
-export const DEFAULT_TOUR_STEPS: TourStep[] = [
-  {
-    target: '[data-tour="sidebar"]',
-    title: 'Welcome to RealizeOS',
-    description:
-      'This is your navigation sidebar. It’s organized into five groups: Core, Build, Monitor, FABRIC and Configure. Let’s walk through the first steps of using the system.',
-    position: 'right',
-  },
-  {
-    target: '[data-tour="nav-overview"]',
-    title: 'Dashboard overview',
-    description:
-      'Start here. The Overview page gives you a snapshot of all your ventures, agents, and recent activity in one place.',
-    position: 'right',
-  },
-  {
-    target: '[data-tour="nav-chat"]',
-    title: 'Chat with your AI',
-    description:
-      'Talk to your AI agents in natural language. Issue commands, ask questions, or delegate tasks — this is your primary interface.',
-    position: 'right',
-  },
-  {
-    target: '[data-tour="nav-ventures"]',
-    title: 'Manage ventures',
-    description:
-      'Ventures are your business units or projects. Each venture has its own agents, skills, and knowledge base. Create your first venture here.',
-    position: 'right',
-  },
-  {
-    target: '[data-tour="nav-skills"]',
-    title: 'Install skills',
-    description:
-      'Skills are pre-built capabilities for your agents — like email drafting, research, or scheduling. Browse the library and install what you need.',
-    position: 'right',
-  },
-  {
-    target: '[data-tour="nav-pipelines"]',
-    title: 'Build pipelines',
-    description:
-      'Chain multiple agents and tools into automated workflows. Pipelines let you build complex multi-step processes visually.',
-    position: 'right',
-  },
-  {
-    target: '[data-tour="nav-workflows"]',
-    title: 'Create workflows',
-    description:
-      'Define YAML-based workflow templates that your agents can execute. Great for repeatable business processes.',
-    position: 'right',
-  },
-  {
-    target: '[data-tour="nav-activity"]',
-    title: 'Monitor activity',
-    description:
-      'See everything your agents are doing in real-time. Track actions, outputs, and status across all ventures.',
-    position: 'right',
-  },
-  {
-    target: '[data-tour="nav-approvals"]',
-    title: 'Review approvals',
-    description:
-      'When agents need human approval for sensitive actions (sending emails, API calls), requests appear here. You stay in control.',
-    position: 'right',
-  },
-  {
-    target: '[data-tour="nav-evolution"]',
-    title: 'Track evolution',
-    description:
-      'Monitor how your agents improve over time. See performance metrics, learning patterns, and optimization suggestions.',
-    position: 'right',
-  },
-  {
-    target: '[data-tour="nav-routing"]',
-    title: 'Configure routing',
-    description:
-      'Control which AI models handle which tasks. Set up intelligent routing rules based on cost, quality, or speed preferences.',
-    position: 'right',
-  },
-  {
-    target: '[data-tour="nav-tools"]',
-    title: 'Manage tools',
-    description:
-      'Tools are integrations your agents can use — web search, browser, file management, and more. Enable or disable them here.',
-    position: 'right',
-  },
-  {
-    target: '[data-tour="nav-integrations"]',
-    title: 'Connect integrations',
-    description:
-      'Link external services like Google Workspace, Slack, Stripe, and more. These let your agents interact with your business tools.',
-    position: 'right',
-  },
-  {
-    target: '[data-tour="nav-setup"]',
-    title: 'Set up connections',
-    description:
-      'Configure your AI provider API keys (OpenAI, Anthropic, Google) and other connection settings. This is essential to get started.',
-    position: 'right',
-  },
-  {
-    target: '[data-tour="nav-settings"]',
-    title: 'System settings',
-    description:
-      'Fine-tune system features like approval gates, heartbeats, auto-memory, and proactive mode. You can also manage databases and providers.',
-    position: 'right',
-  },
-  {
-    target: '[data-tour="theme-toggle"]',
-    title: 'Language and theme',
-    description:
-      'Switch between Dark, Light, or System theme, and between English and Hebrew. Your preference is saved automatically. Enjoy using RealizeOS!',
-    position: 'right',
-  },
+/** Where each step points and which side it opens on; the words come from `tourText`. */
+const TOUR_LAYOUT: { id: TourStepId; target: string; position: TourStep['position'] }[] = [
+  { id: 'sidebar', target: '[data-tour="sidebar"]', position: 'right' },
+  { id: 'overview', target: '[data-tour="nav-overview"]', position: 'right' },
+  { id: 'chat', target: '[data-tour="nav-chat"]', position: 'right' },
+  { id: 'ventures', target: '[data-tour="nav-ventures"]', position: 'right' },
+  { id: 'skills', target: '[data-tour="nav-skills"]', position: 'right' },
+  { id: 'pipelines', target: '[data-tour="nav-pipelines"]', position: 'right' },
+  { id: 'workflows', target: '[data-tour="nav-workflows"]', position: 'right' },
+  { id: 'activity', target: '[data-tour="nav-activity"]', position: 'right' },
+  { id: 'approvals', target: '[data-tour="nav-approvals"]', position: 'right' },
+  { id: 'evolution', target: '[data-tour="nav-evolution"]', position: 'right' },
+  { id: 'routing', target: '[data-tour="nav-routing"]', position: 'right' },
+  { id: 'tools', target: '[data-tour="nav-tools"]', position: 'right' },
+  { id: 'integrations', target: '[data-tour="nav-integrations"]', position: 'right' },
+  { id: 'setup', target: '[data-tour="nav-setup"]', position: 'right' },
+  { id: 'settings', target: '[data-tour="nav-settings"]', position: 'right' },
+  { id: 'theme', target: '[data-tour="theme-toggle"]', position: 'right' },
 ]
+
+/** The tour in a language: the same steps, places and sides, in that language's words. */
+export function tourSteps(language: string | null | undefined): TourStep[] {
+  const text = tourText(language)
+  return TOUR_LAYOUT.map(({ id, target, position }) => ({ target, position, ...text.steps[id] }))
+}
+
+export const DEFAULT_TOUR_STEPS: TourStep[] = tourSteps('en')
 
 /* ------------------------------------------------------------------ */
 /* Placement                                                           */
@@ -270,13 +186,19 @@ export const useTour = () => useContext(TourContext)
 /* Provider                                                            */
 /* ------------------------------------------------------------------ */
 
+/**
+ * The guided tour. It sits inside the locale provider, so it speaks the
+ * person's language (Hebrew reads right to left) and follows a switch mid-tour.
+ */
 export function TourProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth()
+  const { language } = useLocale()
   const [started, setStarted] = useState(false)
   // Never over the sign-in page: the tour belongs to the signed-in app shell.
   const isRunning = started && !!user
   const [currentStep, setCurrentStep] = useState(0)
-  const steps = DEFAULT_TOUR_STEPS
+  const steps = useMemo(() => tourSteps(language), [language])
+  const text = tourText(language)
 
   const startTour = useCallback(() => {
     setCurrentStep(0)
@@ -335,6 +257,7 @@ export function TourProvider({ children }: { children: ReactNode }) {
           onNext={next}
           onPrev={prev}
           onSkip={endTour}
+          text={text}
         />
       )}
     </TourContext.Provider>
@@ -352,6 +275,8 @@ interface TourOverlayProps {
   onNext: () => void
   onPrev: () => void
   onSkip: () => void
+  /** The tour's words (English when not given). */
+  text?: TourText
 }
 
 /** The tour's sheet: what this part of the screen is, and how far through the tour you are. */
@@ -363,6 +288,7 @@ export function TourPopover({
   onPrev,
   onSkip,
   nextRef,
+  text = tourText('en'),
 }: TourOverlayProps & { nextRef?: Ref<HTMLButtonElement> }) {
   const isLast = stepIndex === totalSteps - 1
   const pct = `${Math.round(((stepIndex + 1) / totalSteps) * 100)}%`
@@ -370,16 +296,16 @@ export function TourPopover({
     <>
       <div className="flex items-center gap-2">
         <span className="text-xs text-subtle-foreground tabular">
-          Step {stepIndex + 1} of {totalSteps}
+          {text.stepOf(stepIndex + 1, totalSteps)}
         </span>
-        <IconButton label="Close tour" size="sm" className="-me-1.5 ms-auto" onClick={onSkip}>
+        <IconButton label={text.close} size="sm" className="-me-1.5 ms-auto" onClick={onSkip}>
           <X />
         </IconButton>
       </div>
       <div
         className="rz-progress"
         role="progressbar"
-        aria-label="Tour progress"
+        aria-label={text.progress}
         aria-valuemin={1}
         aria-valuemax={totalSteps}
         aria-valuenow={stepIndex + 1}
@@ -399,17 +325,17 @@ export function TourPopover({
       </div>
       <div className="flex items-center gap-2 pt-1">
         <Button variant="ghost" size="sm" className="-ms-2" onClick={onSkip}>
-          Skip tour
+          {text.skip}
         </Button>
         <div className="ms-auto flex items-center gap-2">
           {stepIndex > 0 && (
             <Button size="sm" onClick={onPrev}>
               <ChevronLeft className="rtl:rotate-180" aria-hidden />
-              Back
+              {text.back}
             </Button>
           )}
           <Button ref={nextRef} variant="primary" size="sm" onClick={onNext}>
-            {isLast ? 'Finish' : 'Next'}
+            {isLast ? text.finish : text.next}
             {!isLast && <ChevronRight className="rtl:rotate-180" aria-hidden />}
           </Button>
         </div>
@@ -418,7 +344,15 @@ export function TourPopover({
   )
 }
 
-function TourOverlay({ step, stepIndex, totalSteps, onNext, onPrev, onSkip }: TourOverlayProps) {
+function TourOverlay({
+  step,
+  stepIndex,
+  totalSteps,
+  onNext,
+  onPrev,
+  onSkip,
+  text = tourText('en'),
+}: TourOverlayProps) {
   const reduced = usePrefersReducedMotion()
   const [rect, setRect] = useState<Box | null>(() => measure(step.target))
   const [size, setSize] = useState({ width: 320, height: 200 })
@@ -515,6 +449,8 @@ function TourOverlay({ step, stepIndex, totalSteps, onNext, onPrev, onSkip }: To
         key={stepIndex}
         ref={popRef}
         role="dialog"
+        lang={text.lang}
+        dir={text.dir}
         aria-labelledby="rz-tour-title"
         aria-describedby="rz-tour-desc"
         className="rz-popover fixed z-[10000] grid w-[min(320px,calc(100vw-24px))] gap-3 p-4"
@@ -529,6 +465,7 @@ function TourOverlay({ step, stepIndex, totalSteps, onNext, onPrev, onSkip }: To
           onPrev={onPrev}
           onSkip={onSkip}
           nextRef={nextRef}
+          text={text}
         />
       </div>
     </>,

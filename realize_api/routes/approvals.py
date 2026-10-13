@@ -2,7 +2,7 @@
 Approval Queue API routes — list, approve, reject pending approvals.
 
 Endpoints:
-- GET /api/approvals — list pending approvals (filterable by venture, status)
+- GET /api/approvals — list pending approvals (filterable by venture, status; ``limit``)
 - POST /api/approvals/{id}/approve — approve with optional decision note
 - POST /api/approvals/{id}/reject — reject with optional decision note
 
@@ -12,11 +12,14 @@ returns only items that can still be decided. A decision on an item that exists
 but can't be decided any more (expired, or someone else decided first) gets
 ``409`` with ``reason`` and the item's current state; a missing or invisible
 item stays ``404``.
+
+``?status=decided`` lists approved, rejected and answered items, most recently
+decided first; ``limit`` (default 50, at most 500) caps every list.
 """
 
 import logging
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
@@ -30,32 +33,56 @@ class DecisionBody(BaseModel):
     decision_note: str | None = None
 
 
+#: ``?status=decided``: every status a person settled (the Decided tab).
+DECIDED = "decided"
+#: Rows a list returns unless ``limit`` says otherwise, and the most it may ask for.
+DEFAULT_LIST_LIMIT = 50
+MAX_LIST_LIMIT = 500
+
+
+def _list_query(status: str, now: str) -> tuple[list[str], list[str], str]:
+    """WHERE clauses, their parameters and the ORDER BY for a status filter.
+
+    Decided items (``decided``, or one decided status) come most recently
+    decided first; everything else newest first, as before.
+    """
+    from realize_core.governance.approval_status import DECIDED_STATUSES, status_clause
+
+    if status == DECIDED:
+        decided = sorted(DECIDED_STATUSES)
+        clause = f"status IN ({','.join('?' for _ in decided)})"
+        return [clause], decided, "decided_at DESC, created_at DESC"
+    if not status:
+        return [], [], "created_at DESC"
+    clause, clause_params = status_clause(status, now)
+    order = "decided_at DESC, created_at DESC" if status in DECIDED_STATUSES else "created_at DESC"
+    return [clause], list(clause_params), order
+
+
 @router.get("/approvals")
 async def list_approvals(
     request: Request,
     venture_key: str = None,
     status: str = "pending",
+    limit: int = Query(DEFAULT_LIST_LIMIT, ge=1, le=MAX_LIST_LIMIT),
 ):
     """List approvals, defaulting to pending (only the caller's ventures).
 
     ``pending`` means still decidable; ``expired`` includes pending items whose
-    time ran out. Every row reports its effective ``status`` and ``expired``.
-    For people, every row also carries ``requested_by_agent``:
-    ``{"token_id", "name"}`` when an outside agent asked for it, else None.
+    time ran out; ``decided`` means approved, rejected or answered, most
+    recently decided first; an empty status lists everything. ``limit``
+    (default 50, at most 500) caps the list. Every row reports its effective
+    ``status`` and ``expired``. For people, every row also carries
+    ``requested_by_agent``: ``{"token_id", "name"}`` when an outside agent
+    asked for it, else None.
     """
     from realize_core.db.schema import get_connection
-    from realize_core.governance.approval_status import now_stamp, status_clause, with_effective_status
+    from realize_core.governance.approval_status import now_stamp, with_effective_status
 
     now = now_stamp()
     conn = get_connection()
     try:
-        clauses: list[str] = []
-        params: list[str] = []
-
-        if status:
-            clause, clause_params = status_clause(status, now)
-            clauses.append(clause)
-            params.extend(clause_params)
+        clauses, params, order = _list_query(status, now)
         if venture_key:
             clauses.append("venture_key = ?")
             params.append(venture_key)
@@ -67,8 +94,8 @@ async def list_approvals(
 
         where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
         rows = conn.execute(
-            f"SELECT * FROM approval_queue {where} ORDER BY created_at DESC",
-            params,
+            f"SELECT * FROM approval_queue {where} ORDER BY {order} LIMIT ?",
+            [*params, limit],
         ).fetchall()
     finally:
         conn.close()

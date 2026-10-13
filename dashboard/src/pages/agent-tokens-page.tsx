@@ -32,7 +32,7 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { EmptyState } from '@/components/ui/empty-state'
 import { SkeletonCard } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
-import { canManageAgentTokens } from '@/lib/permissions'
+import { canManageAgentTokens, canOpenPage } from '@/lib/permissions'
 import {
   EMPTY_FORM,
   INITIAL_TOKENS_STATE,
@@ -88,16 +88,33 @@ export default function AgentTokensPage() {
   const { user } = useAuth()
   const { language } = useLocale()
   const text = agentTokensText(language)
-  if (!canManageAgentTokens(user)) return <NotAllowed text={text} />
+  if (!canManageAgentTokens(user)) {
+    return <NotAllowed text={text} settingsLink={canOpenPage(user, '/settings')} />
+  }
   return <AgentTokensManager defaultUser={user?.user_id ?? ''} />
 }
 
-function NotAllowed({ text }: { text: AgentTokensText }) {
+/**
+ * Why this person can't manage agent tokens. The Settings crumb links back
+ * only for someone who may open Settings; a person limited to some ventures
+ * can't, so they get no crumbs rather than a link to a page that refuses them.
+ */
+export function NotAllowed({
+  text,
+  settingsLink,
+}: {
+  text: AgentTokensText
+  settingsLink: boolean
+}) {
   return (
     <div className="mx-auto max-w-[960px]">
       <TitleBlock
         title={text.title}
-        crumbs={[{ label: text.settings, to: '/settings' }, { label: text.title }]}
+        crumbs={
+          settingsLink
+            ? [{ label: text.settings, to: '/settings' }, { label: text.title }]
+            : undefined
+        }
       />
       <p
         data-gate="agent-tokens"

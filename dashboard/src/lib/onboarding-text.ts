@@ -57,6 +57,10 @@ export interface OnboardingText {
   continue: string
   needProvider: string
   finish: string
+  /** For someone who can't connect providers, on a server that has none yet. */
+  providerNeededTitle: string
+  providerNeeded: string
+  dismiss: string
 }
 
 const EN: OnboardingText = {
@@ -138,6 +142,10 @@ const EN: OnboardingText = {
   continue: 'Continue',
   needProvider: 'Connect at least one provider to continue',
   finish: 'Go to dashboard',
+  providerNeededTitle: 'No AI provider is connected yet',
+  providerNeeded:
+    'An owner or admin needs to connect an AI provider before your agents can answer. You can look around in the meantime.',
+  dismiss: 'Dismiss',
 }
 
 const HE: OnboardingText = {
@@ -209,6 +217,10 @@ const HE: OnboardingText = {
   continue: 'המשך',
   needProvider: 'יש לחבר לפחות ספק אחד כדי להמשיך',
   finish: 'ללוח הבקרה',
+  providerNeededTitle: 'עדיין לא חובר ספק AI',
+  providerNeeded:
+    'בעלים או מנהל צריכים לחבר ספק AI לפני שהסוכנים יוכלו לענות. בינתיים אפשר להסתכל מסביב.',
+  dismiss: 'סגירה',
 }
 
 /** The onboarding words for a language ("he", "he-IL", ...); English otherwise. */
