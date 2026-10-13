@@ -1,0 +1,128 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://realizeos.ai/schemas/v0.1/money-event.json",
+  "title": "Money event",
+  "description": "A budget line, quote, payment claim, invoice or capital call. Amounts always carry their currency. Core language family (spec 010).",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^mon-\\d{4}-\\d{2}-[a-z0-9-]+(-\\d+)?$"
+    },
+    "type": {
+      "type": "string",
+      "const": "money-event"
+    },
+    "kind": {
+      "type": "string",
+      "description": "Specialisation within the family. Open string; packs may add kinds.",
+      "examples": [
+        "budget_line",
+        "quote",
+        "payment_claim",
+        "invoice",
+        "capital_call"
+      ]
+    },
+    "project": {
+      "type": "string",
+      "description": "Project id this object belongs to."
+    },
+    "venture": {
+      "type": "string"
+    },
+    "amount": {
+      "type": "number"
+    },
+    "currency": {
+      "type": "string",
+      "description": "ISO 4217. Required whenever amount is set."
+    },
+    "direction": {
+      "type": "string",
+      "enum": [
+        "in",
+        "out"
+      ]
+    },
+    "counterparty": {
+      "type": "string"
+    },
+    "milestone": {
+      "type": "string"
+    },
+    "lines": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "number"
+          },
+          "unit": {
+            "type": "string"
+          },
+          "unit_price": {
+            "type": "number"
+          },
+          "amount": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "draft",
+        "submitted",
+        "checked",
+        "approved",
+        "rejected",
+        "paid"
+      ]
+    },
+    "sources": {
+      "type": "array",
+      "description": "Where the facts came from: source ids with a locator (page, cell, timestamp, message id).",
+      "items": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "type": "string"
+          },
+          "locator": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "required": [
+    "type",
+    "amount",
+    "currency"
+  ],
+  "additionalProperties": true,
+  "x-core-family": true,
+  "x-indexing": {
+    "l1": [
+      "id",
+      "kind",
+      "amount",
+      "currency",
+      "status",
+      "counterparty"
+    ],
+    "l2": "Lines as text",
+    "graph_relations": [
+      "counterparty (-> contact)",
+      "milestone (-> milestone)",
+      "sources (-> source)"
+    ],
+    "dreaming_relevance": "None in v0.1"
+  }
+}

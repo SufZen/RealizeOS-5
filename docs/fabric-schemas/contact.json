@@ -5,27 +5,123 @@
   "description": "A person reference. The most-linked-to entity type in FABRIC.",
   "type": "object",
   "properties": {
-    "id": { "type": "string", "pattern": "^contact-[a-z0-9-]+$" },
-    "type": { "const": "contact" },
-    "name": { "type": "string", "minLength": 1 },
-    "preferred_name": { "type": "string" },
-    "email": { "type": "array", "items": { "type": "string" } },
-    "phone": { "type": "array", "items": { "type": "string" } },
-    "social": { "type": "object", "additionalProperties": { "type": "string" } },
-    "roles": { "type": "object" },
-    "languages": { "type": "array", "items": { "type": "string" } },
-    "timezone": { "type": "string" },
-    "notes": { "type": "string" },
-    "tags": { "type": "array", "items": { "type": "string" } },
-    "relationship": { "type": "string" },
-    "last_interaction_at": { "type": "string" },
-    "trust_score": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
-    "avoid_topics": { "type": "array", "items": { "type": "string" } }
+    "id": {
+      "type": "string",
+      "pattern": "^contact-[a-z0-9-]+$"
+    },
+    "type": {
+      "const": "contact"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "preferred_name": {
+      "type": "string"
+    },
+    "email": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "phone": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "social": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "roles": {
+      "type": "object"
+    },
+    "languages": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "timezone": {
+      "type": "string"
+    },
+    "notes": {
+      "type": "string"
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "relationship": {
+      "type": "string"
+    },
+    "last_interaction_at": {
+      "type": "string"
+    },
+    "trust_score": {
+      "type": "number",
+      "minimum": 0.0,
+      "maximum": 1.0
+    },
+    "avoid_topics": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "project_roles": {
+      "type": "array",
+      "description": "Role per project (spec 010 Party·Role).",
+      "items": {
+        "type": "object",
+        "properties": {
+          "project": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "examples": [
+              "client",
+              "contractor",
+              "supplier",
+              "lender",
+              "tenant",
+              "authority",
+              "investor"
+            ]
+          },
+          "from": {
+            "type": "string",
+            "format": "date"
+          },
+          "to": {
+            "type": "string",
+            "format": "date"
+          }
+        }
+      }
+    }
   },
-  "required": ["type", "name"],
+  "required": [
+    "type",
+    "name"
+  ],
   "additionalProperties": true,
   "x-indexing": {
-    "l1": ["id", "name", "preferred_name", "roles", "languages", "last_interaction_at"],
+    "l1": [
+      "id",
+      "name",
+      "preferred_name",
+      "roles",
+      "languages",
+      "last_interaction_at"
+    ],
     "l2": "Name + notes + roles as searchable text",
     "dreaming_relevance": "Curator updates last_interaction_at; tracks commitment kept/broken into trust_score"
   }
