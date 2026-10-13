@@ -271,16 +271,34 @@ def principal_id_for(user_id: str | None, scopes: Iterable[str] | None) -> str |
     return None
 
 
+def tokens_enabled(config: dict | None = None) -> bool:
+    """Whether agent tokens work now (``features.agent_tokens``, on by default).
+
+    ``config`` defaults to the running app's config (else ``realize-os.yaml``),
+    so turning the flag off in Settings stops every token at once, also for
+    approved writes still waiting to run.
+    """
+    from realize_core.config import get_features
+
+    if config is None:
+        from realize_core.mcp_server.held_writes import live_config
+
+        config = live_config()
+    return bool(get_features(config if isinstance(config, dict) else {}).get("agent_tokens"))
+
+
 def live_agent(principal_id: str | None, known_ventures: Iterable[str] | None = None) -> AgentPrincipal | None:
     """The live agent behind a ``requested_by`` id, checked again now, or None.
 
-    An agent token must still be active (not revoked or expired, user still
-    configured, a venture left). A stdio session's user must still be in
-    ``users.yaml``; its ventures are the user's, or ``known_ventures`` for a
-    user limited to none. Pilot accounts are never agents.
+    An agent token must still be active (agent tokens turned on, not revoked
+    or expired, user still configured, a venture left). A stdio session's user
+    must still be in ``users.yaml``; its ventures are the user's, or
+    ``known_ventures`` for a user limited to none. Pilot accounts are never agents.
     """
     token_id = token_id_of(principal_id)
     if token_id:
+        if not tokens_enabled():
+            return None
         return principal_for(token_id)
     if not isinstance(principal_id, str) or not principal_id.startswith(STDIO_PRINCIPAL_PREFIX):
         return None

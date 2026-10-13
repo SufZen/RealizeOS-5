@@ -199,7 +199,7 @@ What a token is:
 
 In the dashboard, an owner or admin with every venture manages tokens under **Configure → Agent tokens** (`/settings/agent-tokens`, or Ctrl/⌘ K): the list (no secrets), a form to create one (the token is shown once, with a copy button), and Revoke. Other people don't see the page.
 
-Agent tokens are on by default (`features.agent_tokens: true`). Nothing changes until you create one; turning the flag off makes every agent token stop working at once. They need auth to be on (`REALIZE_API_KEY` or JWT): with auth off the API is open and a token limits nothing.
+Agent tokens are on by default (`features.agent_tokens: true`). Nothing changes until you create one; turning the flag off makes every agent token stop working at once, including the writes its agents have waiting: approving one afterwards records it as failed, and nothing runs. They need auth to be on (`REALIZE_API_KEY` or JWT): with auth off the API is open and a token limits nothing.
 
 Over REST an agent reads within its ventures and may chat (`/api/chat`, its own conversation). Every other REST write is refused with `403`: an outside agent changes things through MCP, where a person approves first. Approve, reject and dismiss return `403` with the same "People decide" rule as MCP. Chat over REST (`/api/chat`, `/api/chat/stream`) follows the same chat rules as `realize_chat` below. Rules match the endpoint the router picked, never the URL, and any method other than GET, HEAD and OPTIONS counts as a write. REST and MCP use one predicate and one rule set (`realize_core/security/agent_access.py`), so the two surfaces can't drift.
 

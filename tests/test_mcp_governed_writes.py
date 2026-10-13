@@ -416,6 +416,24 @@ async def test_runs_with_the_agents_narrowed_scope_not_the_approvers(world):
     assert world.runs == []
 
 
+async def test_turning_agent_tokens_off_stops_approved_writes(world):
+    """features.agent_tokens off stops every token at once, also a write approved later (S4)."""
+    from realize_core.governance.gates import decide_approval
+    from realize_core.security.agent_tokens import live_agent
+
+    agent = _agent()
+    held = await _call(world, agent, "run_workflow", RUN)
+    world.state.config = {"features": {"agent_tokens": False}}  # Settings: agent tokens off
+    assert live_agent(agent.user_id) is None
+    result = await decide_approval(held["approval_id"], approve=True, decided_by="owner@realization.co.il")
+    assert result["execution"]["success"] is False
+    assert "turned off" in result["execution"]["error"]
+    assert world.runs == []
+
+    world.state.config = {"features": {"agent_tokens": True}}
+    assert live_agent(agent.user_id) is not None
+
+
 async def test_list_approvals_never_leaks_other_ventures(world):
     """Even naming the venture through another argument (bypassing the input schema) shows only allowed items."""
     from realize_core.governance.gates import create_approval_request

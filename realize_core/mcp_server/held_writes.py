@@ -180,6 +180,16 @@ def _log_activity(venture: str, actor: str, action: str, approval_id: str, detai
     )
 
 
+def live_config() -> dict:
+    """The running app's config (the state the MCP server runs against), else ``realize-os.yaml``."""
+    config = getattr(_app_state, "config", None) if _app_state is not None else None
+    if isinstance(config, dict):
+        return config
+    from realize_core.config import load_config
+
+    return load_config()
+
+
 def _runtime_state() -> Any:
     """The app state approved writes run against: the live one, else loaded from config."""
     if _app_state is not None and getattr(_app_state, "systems", None) is not None:
@@ -240,7 +250,8 @@ async def run_approved_write(row: dict, params: dict[str, Any]) -> tuple[bool, s
         return (
             False,
             "",
-            "The agent's token was revoked or expired, or its user removed, before this ran; nothing was done",
+            "The agent's token was revoked or expired, agent tokens were turned off, or its user was removed "
+            "before this ran; nothing was done",
         )
     venture = row.get("venture_key") or ""
     if venture not in principal.ventures:
