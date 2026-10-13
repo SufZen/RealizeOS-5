@@ -10,6 +10,8 @@ import { CreateVentureModal } from '@/components/create-venture-modal'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { Skeleton, SkeletonCard } from '@/components/ui/skeleton'
 import { api, ApiError } from '@/lib/api'
+import { useAuth } from '@/hooks/use-auth'
+import { ventureGates } from '@/lib/permissions'
 
 interface VenturesResponse {
   ventures: Array<{
@@ -33,7 +35,10 @@ export default function VenturesListPage() {
   // Custom dialog state
   const [confirmDeleteKey, setConfirmDeleteKey] = useState<string | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const { user } = useAuth()
   const canEdit = data?.config_writable !== false
+  // The role and venture scope decide too (the server checks again on every change).
+  const gates = ventureGates(user, canEdit)
 
   function handleDeleteClick(key: string, e: React.MouseEvent) {
     e.stopPropagation()
@@ -97,7 +102,7 @@ export default function VenturesListPage() {
         title="Ventures"
         description="Each venture is one business or project with its own agents, skills and company brain."
         actions={
-          canEdit && (
+          gates.canCreate && (
             <Button variant="primary" onClick={() => setShowCreate(true)}>
               <Plus aria-hidden />
               Create venture
@@ -126,6 +131,16 @@ export default function VenturesListPage() {
         </p>
       )}
 
+      {gates.notice && (
+        <p
+          data-gate="ventures"
+          className="m-0 flex items-start gap-2 rounded-[7px] border border-border bg-card px-3 py-2.5 text-[13px] text-muted-foreground"
+        >
+          <Info className="mt-0.5 h-4 w-4 shrink-0 text-blue-400" aria-hidden />
+          <span>{gates.notice}</span>
+        </p>
+      )}
+
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {data?.ventures.map((v) => (
           <div key={v.key} className="relative group">
@@ -146,7 +161,7 @@ export default function VenturesListPage() {
               >
                 <Download className="h-3.5 w-3.5" />
               </button>
-              {canEdit && (
+              {gates.canDelete && (
                 <button
                   onClick={(e) => handleDeleteClick(v.key, e)}
                   disabled={deleting === v.key}
@@ -168,7 +183,7 @@ export default function VenturesListPage() {
           title="No ventures yet"
           body="Create a venture for each business or project. Its agents, skills and documents stay separate from the others."
           action={
-            canEdit && (
+            gates.canCreate && (
               <Button variant="primary" onClick={() => setShowCreate(true)}>
                 <Plus aria-hidden />
                 Create your first venture

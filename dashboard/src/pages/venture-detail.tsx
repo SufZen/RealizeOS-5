@@ -10,6 +10,8 @@ import { Panel } from '@/components/ui/panel'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { SkeletonCard } from '@/components/ui/skeleton'
+import { useAuth } from '@/hooks/use-auth'
+import { editKnowledgeGate } from '@/lib/permissions'
 
 interface FabricDir {
   exists: boolean
@@ -143,6 +145,7 @@ export default function VentureDetailPage() {
   const { key } = useParams<{ key: string }>()
   const navigate = useNavigate()
   const { data, loading, error } = useApi<VentureData>(`/ventures/${key}`)
+  const { user } = useAuth()
 
   if (loading) {
     return (
@@ -262,7 +265,7 @@ export default function VentureDetailPage() {
           <h2 id="vd-kb" className="mb-3 text-[15px] font-semibold text-foreground">
             Knowledge base
           </h2>
-          <KBBrowser ventureKey={data.key} />
+          <KBBrowser ventureKey={data.key} readOnlyReason={editKnowledgeGate(user)} />
         </section>
       </div>
     </div>
