@@ -14,7 +14,11 @@ from types import SimpleNamespace
 
 import pytest
 from fastapi.testclient import TestClient
+from realize_core.skills import executor as _executor
 from realize_core.tools.base_tool import BaseTool, ToolCategory, ToolResult, ToolSchema
+
+#: The real skill runner (the ``world`` fixture replaces it with a recorder).
+_REAL_EXECUTE_SKILL = _executor.execute_skill
 
 API_KEY = "test-api-key-1234567890abcdef"
 MCP_HEADERS = {"Accept": "application/json, text/event-stream", "Content-Type": "application/json"}
@@ -575,6 +579,65 @@ async def test_agent_chat_holds_writes_the_trust_ladder_would_run(world, ledger,
     await _call(world, _person(), "realize_chat", {"message": "Add the row", "system_key": "acme"})
     assert chat_calls_a_write[-1]["agent"] is False
     assert tool.calls == [{"action": "ledger_append", "row": "x"}]
+
+
+LEDGER_SKILL = {
+    "name": "ledger-run",
+    "_version": 2,
+    "steps": [
+        {"id": "record", "type": "tool", "tool": "ledger_append", "params": {"row": "{user_message}"}},
+        {"id": "check", "type": "tool", "tool": "ledger_read", "params": {}},
+        {"id": "total", "type": "tool", "tool": "ledger_append", "params": {"row": "total"}},
+    ],
+}
+
+
+def _pending_ledger_writes() -> list[dict]:
+    from realize_core.db.schema import get_connection
+
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            "SELECT * FROM approval_queue WHERE action_name = 'ledger_append' AND status = 'pending' "
+            "ORDER BY created_at"
+        ).fetchall()
+    finally:
+        conn.close()
+    return [dict(r) for r in rows]
+
+
+async def test_an_approved_agent_run_still_holds_each_write(world, ledger, monkeypatch):
+    """Approving an agent's held run starts it; the write it makes waits for a person again (G-3)."""
+    from realize_core.governance.gates import decide_approval
+    from realize_core.skills import detector
+
+    registry, tool = ledger  # trust level 5: a person's run would write at once
+    monkeypatch.setattr(_executor, "execute_skill", _REAL_EXECUTE_SKILL)
+    monkeypatch.setattr(detector, "_loaded_skills", {"acme": [dict(LEDGER_SKILL)]})
+    agent = _agent()
+    held = await _call(world, agent, "trigger_skill", {**RUN, "name": "ledger-run", "input_text": "row 7"})
+
+    started = await decide_approval(held["approval_id"], approve=True, decided_by="owner@realization.co.il")
+    assert started["execution"]["success"] is True
+    assert tool.calls == []  # the write was held, not run
+    [write] = _pending_ledger_writes()
+    assert write["requested_by"] == agent.user_id
+    assert write["venture_key"] == "acme"
+
+    # Approving the write runs it and the skill continues, still as the agent's run:
+    # the read runs, the next write is held again.
+    resumed = await decide_approval(write["id"], approve=True, decided_by="owner@realization.co.il")
+    assert resumed["execution"]["success"] is True
+    assert tool.calls == [{"action": "ledger_append", "row": "row 7"}, {"action": "ledger_read"}]
+    [total] = _pending_ledger_writes()
+    assert json.loads(total["params_json"]) == {"row": "total"}
+    assert total["requested_by"] == agent.user_id
+
+    done = await decide_approval(total["id"], approve=True, decided_by="owner@realization.co.il")
+    assert done["execution"]["success"] is True
+    assert tool.calls[-1] == {"action": "ledger_append", "row": "total"}
+    assert done["skill_output"] is not None  # the skill ran to its end
+    assert _pending_ledger_writes() == []
 
 
 async def test_without_a_gate_an_agents_write_never_runs(world, monkeypatch):

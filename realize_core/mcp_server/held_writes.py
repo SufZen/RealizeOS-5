@@ -25,7 +25,10 @@ step before anything runs, so the write runs at most once, and a row left
 Just before running, the agent's token is checked again: a token revoked or
 expired in the meantime, a removed user or a lost venture means nothing runs.
 It runs as the agent, with the agent's narrowed scope, never as the person
-who approved it.
+who approved it. It also stays the agent's run: approving it starts it, and
+each write it makes (a skill's tool step) still waits for a person, the same
+rule as an agent's chat. Such a step pauses the skill, which continues once
+that write is approved.
 """
 
 from __future__ import annotations
@@ -257,8 +260,14 @@ async def run_approved_write(row: dict, params: dict[str, Any]) -> tuple[bool, s
 
     user = CurrentUser(user_id=principal.user_id, role=principal.role, scopes=principal.scopes)
     arguments["user_id"] = principal.user_id
+    from realize_core.security.agent_access import acting_for_outside_agent
+
     try:
-        result = await tool.handler(arguments, _runtime_state(), user)
+        # A person approved starting the run, not what it writes: its inputs came from
+        # the agent, so it stays the agent's run, and each write it makes is held for a
+        # person again (the same rule as an agent's chat; review G-3).
+        with acting_for_outside_agent(requested_by):
+            result = await tool.handler(arguments, _runtime_state(), user)
     except Exception as exc:  # any tool failure is recorded on the item, never re-run
         logger.exception("Held MCP write %s (%s) failed", row.get("id"), name)
         _audit_execution(principal.user_id, name, row, ok=False)

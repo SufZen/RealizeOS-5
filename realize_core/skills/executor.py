@@ -15,6 +15,7 @@ Each step's result feeds into the next step's context.
 
 import json
 import logging
+from contextlib import AbstractContextManager, nullcontext
 from datetime import date
 
 logger = logging.getLogger(__name__)
@@ -121,15 +122,25 @@ async def resume_pending_skill(
     step_id = pending.get("step_id") or "human"
     ctx.step_results[step_id] = answer
     logger.info("Resuming skill %s for %s after step %s", pending.get("skill_name"), user_id, step_id)
-    return await _run_v2_steps(
-        pending.get("remaining_steps", []),
-        ctx,
-        pending.get("skill_name", ""),
-        kb_path,
-        system_config,
-        shared_config,
-        channel,
-    )
+    with _as_run_for(ctx):
+        return await _run_v2_steps(
+            pending.get("remaining_steps", []),
+            ctx,
+            pending.get("skill_name", ""),
+            kb_path,
+            system_config,
+            shared_config,
+            channel,
+        )
+
+
+def _as_run_for(ctx: "SkillContext") -> AbstractContextManager:
+    """Resume a paused run as what it was: an outside agent's run stays governed as the agent's."""
+    if not ctx.outside_agent:
+        return nullcontext()
+    from realize_core.security.agent_access import acting_for_outside_agent
+
+    return acting_for_outside_agent(ctx.outside_agent)
 
 
 async def resume_after_held_tool(
@@ -158,15 +169,16 @@ async def resume_after_held_tool(
     ctx = pending["context"]
     ctx.step_results[step_id] = _bounded_tool_output(execution.get("output", ""))
     logger.info("Resuming skill %s after approved step %s", pending.get("skill_name"), step_id)
-    return await _run_v2_steps(
-        pending.get("remaining_steps", []),
-        ctx,
-        pending.get("skill_name", ""),
-        kb_path,
-        system_config,
-        shared_config,
-        channel,
-    )
+    with _as_run_for(ctx):
+        return await _run_v2_steps(
+            pending.get("remaining_steps", []),
+            ctx,
+            pending.get("skill_name", ""),
+            kb_path,
+            system_config,
+            shared_config,
+            channel,
+        )
 
 
 class SkillContext:
@@ -180,6 +192,9 @@ class SkillContext:
         self.variables: dict[str, str] = {"doc_title": user_message}
         self.progress_messages: list[str] = []
         self.annotations: dict[str, dict] = {}
+        #: The outside agent (``agent:...``) the run is for, kept when it pauses so
+        #: the rest of the run is still governed as the agent's (review G-3).
+        self.outside_agent: str | None = None
 
     def to_dict(self) -> dict:
         """Plain data for a durable resume point."""
@@ -191,6 +206,7 @@ class SkillContext:
             "variables": self.variables,
             "progress_messages": self.progress_messages,
             "annotations": self.annotations,
+            "outside_agent": self.outside_agent,
         }
 
     @classmethod
@@ -201,6 +217,8 @@ class SkillContext:
         ctx.variables = dict(data.get("variables") or ctx.variables)
         ctx.progress_messages = list(data.get("progress_messages") or [])
         ctx.annotations = dict(data.get("annotations") or {})
+        outside_agent = data.get("outside_agent")
+        ctx.outside_agent = outside_agent if isinstance(outside_agent, str) and outside_agent else None
         return ctx
 
     def inject(self, template: str) -> str:
@@ -363,7 +381,10 @@ async def _execute_v2_steps(
     if not steps:
         return "Skill has no steps defined."
 
+    from realize_core.security.agent_access import current_outside_agent
+
     ctx = SkillContext(user_message, system_key, user_id)
+    ctx.outside_agent = current_outside_agent()
     # Skill-level variables (e.g. a venture's spreadsheet ids) for {placeholders}.
     ctx.variables.update({str(k): str(v) for k, v in (skill.get("variables") or {}).items()})
     return await _run_v2_steps(

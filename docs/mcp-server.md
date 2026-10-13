@@ -232,7 +232,7 @@ It shows up in the dashboard's approval queue as `mcp:run_workflow`, from the ag
 
 - it runs **once**, as the agent with its own narrowed scope, never as the person who approved it: the row is claimed before anything runs, so a double click or a retry does nothing;
 - the token is checked again first: if it was revoked or expired, its user removed, or the venture taken away, nothing runs and the item records why. The stored call must still name the item's venture alone;
-- tool steps inside the workflow go through the `ToolGate` like any other run, recorded with the agent as the actor;
+- approving the run starts it; each write it makes still waits for a person. Its inputs came from the agent, so it stays the agent's run, under the same rule as an agent's chat: a tool step that writes is held as a new approval from the agent, even where the trust ladder would run it automatically (without `features.enforce_gates` it can't run at all). The workflow pauses there and continues once a person approves that write; the rest of it is still the agent's run;
 - the outcome is posted into the agent's own conversation in that venture.
 
 Held writes expire after 24 hours, and at most 25 per agent wait at once (`MCP_TOO_MANY_PENDING`).
