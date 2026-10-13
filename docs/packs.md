@@ -193,7 +193,7 @@ The approval shows what happened, like any approved action: `execution_status` i
 
 - `data/packs/verification.json`: the approved levels (restore it into `DATA_PATH/packs/`);
 - `custom-packs/`: everything in `REALIZE_PACKS_PATH` (restore it into the new `REALIZE_PACKS_PATH` folder);
-- `packs-inventory.json`: every installed pack with its version, origin, content hash and levels, and what each venture resolves.
+- `packs-inventory.json`: every installed pack with its version, origin, content hash and levels, and what each venture resolves. The content hash ignores line endings and a UTF-8 byte-order mark in text files, so a Windows checkout (CRLF) and the Linux image (LF) of the same pack compare equal.
 
 `python cli.py storage restore <zip> --directory <new folder>` unpacks it so that `<new folder>/data` is the new `DATA_PATH` and `<new folder>/custom-packs` the new `REALIZE_PACKS_PATH` (see [self-hosting-guide.md](self-hosting-guide.md#move-to-another-server-export-and-restore)). Shipped packs come with the release and are listed in the inventory only. After restoring, check that the new installation resolves the same packs, levels and rules:
 

@@ -22,6 +22,7 @@ from pathlib import Path
 import pytest
 from realize_core.governance.gates import Decider, decide_approval
 from realize_core.packs import PackResolver, clear_cache, load_pack, loader, state
+from realize_core.packs.inventory import content_hash
 from realize_core.packs.loader import load_firm_layer
 from realize_core.packs.verify import request_verification
 
@@ -407,3 +408,22 @@ def test_a_custom_pack_that_loads_still_replaces_the_shipped_one(shipped, tmp_pa
 
     assert pack is not None
     assert pack.root.resolve() == (custom / "market" / "pt").resolve()
+
+
+def test_inventory_hash_ignores_line_endings_and_bom(tmp_path):
+    lf, crlf = tmp_path / "lf" / "pt", tmp_path / "crlf" / "pt"
+    shutil.copytree(PACKS / "market" / "pt", lf, ignore=shutil.ignore_patterns("reviews"))
+    shutil.copytree(PACKS / "market" / "pt", crlf, ignore=shutil.ignore_patterns("reviews"))
+    for path in lf.rglob("*"):
+        if path.is_file():
+            path.write_bytes(path.read_bytes().replace(b"\r\n", b"\n"))
+    for path in crlf.rglob("*"):
+        if path.is_file():
+            data = path.read_bytes().replace(b"\r\n", b"\n").replace(b"\n", b"\r\n")
+            path.write_bytes((b"\xef\xbb\xbf" if path.suffix == ".md" else b"") + data)
+    (lf / "logo.bin").write_bytes(b"\x89PNG\r\n\x1a\n\xff")
+    (crlf / "logo.bin").write_bytes(b"\x89PNG\r\n\x1a\n\xff")
+
+    assert content_hash(lf) == content_hash(crlf)
+    (crlf / "logo.bin").write_bytes(b"\x89PNG\n\x1a\n\xff")  # binary files are hashed as they are
+    assert content_hash(lf) != content_hash(crlf)
