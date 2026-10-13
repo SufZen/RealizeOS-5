@@ -1,6 +1,6 @@
 # Decision log
 
-Every approval a person decides is written to the venture's decision log in `systems/<venture>/B-brain/decisions/`, as a `decision` entity (spec 002 and 010). Each entry records:
+Every approval a person decides is written to the venture's decision log in `<venture folder>/B-brain/decisions/`, as a `decision` entity (spec 002 and 010). Each entry records:
 
 - the approval it came from
 - who decided, and through which channel
@@ -8,7 +8,37 @@ Every approval a person decides is written to the venture's decision log in `sys
 - the sources it relied on
 - the objects it affects
 
-Writes are idempotent on the approval id, so retries never add a second entry.
+Writes are idempotent on the approval id, so retries never add a second entry. An entry is dated when the decision was made, even when it is written later.
+
+## Which folder
+
+The venture folder is the `directory` of the venture's entry in `realize-os.yaml`, the same one the rest of RealizeOS reads. It can differ from the key:
+
+```yaml
+systems:
+  - key: acme
+    directory: systems/acme-office   # decisions go to systems/acme-office/B-brain/decisions/
+```
+
+Without a `directory`, the folder is `systems/<key>` (or the older `ventures/<key>`). A `directory` that isn't a folder directly inside `systems/` or `ventures/` is refused: nothing is written, and the approval result says why.
+
+## When a write fails
+
+The decision is logged as soon as it is made, before the approved action runs. If the file can't be written (disk full, a read-only mount, the venture folder isn't there yet), the decision still stands and the write is kept in a queue (`decision_writes` in the operational database) instead of being lost. Queued writes are retried:
+
+- when the server starts;
+- after the next decision that is logged;
+- when the owner runs `realize-os decisions retry` (or `python cli.py decisions retry`) on the server.
+
+The server's own retries stop after 5 failed attempts for one decision, so a venture whose folder is gone doesn't slow every approval; `realize-os decisions retry` still tries every queued write and lists the ones still waiting, with the reason. A retry rebuilds the entry from the approval, so it is the same entry the first attempt would have written, and a decision already on disk is never written twice.
+
+The approval result says what happened. `POST /api/approvals/{id}/approve` and `/reject` return `decision_log`:
+
+```json
+{"logged": false, "pending": true, "error": "No space left on device", "decision_id": null}
+```
+
+`logged` is true once the entry is on disk (`decision_id` names it); `pending` means it is queued for a retry. For inputs and credentials (below) both are false and `error` is null. The MCP tools `approve_request` and `reject_request` report `decision_logged` and `decision_log_pending`.
 
 ## Decisions made elsewhere
 

@@ -58,6 +58,7 @@ class RuleCard:
     review_by: str | None = None
     verification: int = 1
     verified_by: str | None = None
+    reviewed_at: str | None = None
     path: Path | None = None
 
     def effective_level(self, pack_level: int | None, today: date | None = None) -> int:
@@ -84,6 +85,10 @@ class Pack:
     languages: list[str] = field(default_factory=list)
     defaults: dict[str, Any] = field(default_factory=dict)
     verification_level: int | None = None
+    #: The manifest's ``verification`` block, with the recorded approval state on top.
+    verification: dict[str, Any] = field(default_factory=dict)
+    #: The approval-recorded verification state applied to this pack, if any (audit N04).
+    verification_state: dict[str, Any] | None = None
     limits: list[str] = field(default_factory=list)
     requires: dict[str, Any] = field(default_factory=dict)
     terms: dict[str, dict[str, Any]] = field(default_factory=dict)  # casefolded term -> entry

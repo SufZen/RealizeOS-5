@@ -125,7 +125,8 @@ uploads/downloads are confined to `REALIZE_AGENT_FILES_DIR` (default `<KB_PATH>/
 ### "What I used" trail and citations (`cite_sources`)
 
 Every chat answer carries a trail: the knowledge-base sources its prompt included, numbered
-`[S1]…[Sn]`, and the tools it called, in order. The dashboard shows the trail live under each
+`[S1]…[Sn]`, the pack rule cards numbered `[R1]…[Rn]` with their verification level, layer and
+pack (see [packs](packs.md#rule-cards-in-the-answer-trail)), and the tools it called, in order. The dashboard shows the trail live under each
 answer and again in history; the API returns it as `trail` (see the
 [API reference](api-reference.md#post-apichat)). Trails are stored per message in `memory.db` and
 deleted with the conversation. They are never sent back to a model.
@@ -143,7 +144,8 @@ default stays `false`.
 > or the MCP `approve_request` tool) dispatches it **at most once** through the tool registry, stores
 > the result or error on the approval, and posts a status line back into that conversation. Rejecting
 > never runs it. Only one decision can win (the item must still be pending and unexpired), and the
-> approval records who decided (`decided_by`) and from where (`decision_channel`).
+> approval records who decided (`decided_by`) and from where (`decision_channel`). An approved pack
+> verification (`pack_verify`, owner only) stores its outcome in the same fields; see [packs.md](packs.md).
 >
 > **Outcome.** `execution_status` moves `claimed` → `succeeded` or `failed`. A row left at `claimed`
 > means the process stopped while the action was running: the outcome is unknown, it is not retried

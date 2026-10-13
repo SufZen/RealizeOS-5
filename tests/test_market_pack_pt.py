@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 import yaml
+from realize_core.governance.gates import Decider
 from realize_core.packs import PackResolver, clear_cache, discover_packs, load_pack
 from realize_core.packs.verify import PackVerificationError, request_verification, validate_request
 
@@ -78,20 +79,29 @@ def pack_copy(tmp_path, monkeypatch) -> Path:
     return root
 
 
+OWNER = Decider(user_id="asaf", role="owner", allowed_ventures=None)
+
+
 def test_approved_verification_raises_the_pack_level(db, pack_copy):
     from realize_core.governance.gates import decide_approval
 
+    manifest_before = (pack_copy / "market" / "pt" / "pack.yaml").read_bytes()
     approval_id = request_verification(
         "ops", kind="market", pack_id="pt", level=2, reviewer="Ana Silva, advogada", corrections={"pt.vat.rates": 1}
     )
-    out = asyncio.run(decide_approval(approval_id, True, decided_by="asaf"))
-    assert out["execution"]["pack_level_changed"] is True
+    out = asyncio.run(decide_approval(approval_id, True, decider=OWNER))
+    assert out["execution"]["executed"] is True
+    assert out["execution"]["success"] is True
+    assert "market/pt and its" in out["execution"]["output"]
     pack = load_pack(pack_copy / "market" / "pt")
     assert pack.verification_level == 2
     assert all(c.verification == 2 and c.verified_by == "Ana Silva, advogada" for c in pack.rules.values())
-    manifest = yaml.safe_load((pack_copy / "market" / "pt" / "pack.yaml").read_text(encoding="utf-8"))
-    assert manifest["verification"]["approved_by"] == "asaf"
-    assert manifest["verification"]["corrections"] == {"pt.vat.rates": 1}
+    assert pack.verification["approved_by"] == "asaf"
+    assert pack.verification["corrections"] == {"pt.vat.rates": 1}
+    assert pack.verification["approval_id"] == approval_id
+    # Recorded as operational data; the shipped manifest is untouched (audit N04).
+    assert (pack_copy / "market" / "pt" / "pack.yaml").read_bytes() == manifest_before
+    assert yaml.safe_load(manifest_before)["verification"]["level"] == 1
 
 
 def test_card_level_verification_keeps_pack_level(db, pack_copy):
@@ -100,7 +110,7 @@ def test_card_level_verification_keeps_pack_level(db, pack_copy):
     approval_id = request_verification(
         "ops", kind="market", pack_id="pt", level=2, reviewer="R", cards=["pt.vat.rates"]
     )
-    asyncio.run(decide_approval(approval_id, True, decided_by="asaf"))
+    asyncio.run(decide_approval(approval_id, True, decider=OWNER))
     pack = load_pack(pack_copy / "market" / "pt")
     assert pack.verification_level == 1
     assert pack.rules["pt.vat.rates"].verification == 2
@@ -109,11 +119,15 @@ def test_card_level_verification_keeps_pack_level(db, pack_copy):
 
 def test_rejected_verification_changes_nothing(db, pack_copy):
     from realize_core.governance.gates import decide_approval
+    from realize_core.packs import state
 
     before = (pack_copy / "market" / "pt" / "pack.yaml").read_text(encoding="utf-8")
     approval_id = request_verification("ops", kind="market", pack_id="pt", level=2, reviewer="R")
-    asyncio.run(decide_approval(approval_id, False, decided_by="asaf"))
+    out = asyncio.run(decide_approval(approval_id, False, decider=OWNER))
+    assert out["approval"]["status"] == "rejected"
     assert (pack_copy / "market" / "pt" / "pack.yaml").read_text(encoding="utf-8") == before
+    assert not state.state_path().exists()
+    assert load_pack(pack_copy / "market" / "pt").verification_level == 1
 
 
 def test_unknown_pack_cannot_be_requested(db, pack_copy):

@@ -106,7 +106,7 @@ Rules:
 
 ### Chat tool behaviour
 
-* `realize_chat` runs the same pipeline as `POST /api/chat` and returns its response, `message_id` and a **trail summary**: the knowledge-base sources (`id`, `title`, `path`) and which tools ran (`name`, `success`, `held`, and `request_id` for held actions).
+* `realize_chat` runs the same pipeline as `POST /api/chat` and returns its response, `message_id` and a **trail summary**: the knowledge-base sources (`id`, `title`, `path`), the pack rule cards (`[R1]`…) with their `layer`, `pack`, `verification` level (0 unverified to 4 field-proven) and `as_of` / `review_by` dates, and which tools ran (`name`, `success`, `held`, and `request_id` for held actions). Show a rule's level to the person whatever the answer text says; level 1 is a draft that no local professional has reviewed.
 * Tool inputs, outputs and errors are left out of the summary. They can carry third-party text (email bodies, web pages, sheet cells), so, like approval results, they are not echoed to MCP clients. The full trail is in the dashboard and `GET /api/conversations`.
 * Same rule as the REST chat routes: callers act for themselves. Only `owner`/`admin` may pass another `user_id` to `realize_chat`, `get_history`, `clear_history` or `get_session`; anyone else chats as themselves and gets `MCP_FORBIDDEN` for another user's history or session.
 
@@ -137,7 +137,7 @@ With `features.wedge` on, `tender_register_method`, `tender_register_submit` and
 * `run_workflow` (alias `trigger_skill`) executes a registered skill against an input message via `realize_core.skills.executor.execute_skill` in-process. Same auth + audit as the REST path. Returns `{ name, system_key, user_id, output }`.
 * `run_evolution` triggers `realize_core.evolution.gap_detector.run_gap_analysis(days=...)`. Default window is 7 days; capped at 90.
 * `approve_suggestion` / `dismiss_suggestion` operate on the in-memory `EvolutionEngine` proposal store (same singleton the dashboard uses).
-* `approve_request` / `reject_request` delegate to `realize_core.governance.gates` for the approval queue — preserves all governance checks.
+* `approve_request` / `reject_request` delegate to `realize_core.governance.gates` for the approval queue — preserves all governance checks. A pack verification (`pack_verify`) changes what every venture sees: only an owner without a venture limit may decide it; anyone else gets `MCP_FORBIDDEN` and the request stays pending.
 * Scope: every `list_*` is `read`; everything that changes state (`run_*`, `trigger_*`, `approve_*`, `dismiss_*`, `reject_*`) requires `role >= editor`.
 
 ### KB tool behaviour

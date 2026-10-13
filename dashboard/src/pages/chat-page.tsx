@@ -4,7 +4,7 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { useAuth } from '@/hooks/use-auth'
 import { useVenture } from '@/hooks/use-venture'
 import { api } from '@/lib/api'
-import { emptyTrail, streamChat, withEvent, type Trail } from '@/lib/chat-stream'
+import { emptyTrail, normalizeTrail, streamChat, withEvent } from '@/lib/chat-stream'
 import { ChatMessage, type ChatMsg } from '@/components/chat-message'
 import { cn } from '@/lib/utils'
 import { safeRandomUUID } from '@/lib/uuid'
@@ -19,7 +19,8 @@ interface ConversationResponse {
     role: string
     content: string
     created_at?: string
-    trail?: Trail
+    /** Stored trail; rows saved before provenance have id/title/path only. */
+    trail?: unknown
   }>
 }
 
@@ -94,7 +95,7 @@ export default function ChatPage() {
           content: m.content,
           timestamp: toIso(m.created_at),
           id: m.id,
-          trail: m.trail,
+          trail: normalizeTrail(m.trail),
         }))
         setMessages(msgs)
       })
@@ -154,7 +155,7 @@ export default function ChatPage() {
               content: event.response,
               agent_key: event.agent_key,
               id: event.message_id,
-              trail: event.trail,
+              trail: normalizeTrail(event.trail) ?? emptyTrail(),
               pending: false,
               timestamp: new Date().toISOString(),
             }))

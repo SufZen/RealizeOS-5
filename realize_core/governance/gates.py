@@ -17,9 +17,11 @@ governance:
 ```
 """
 
+import asyncio
 import json
 import logging
 import uuid
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
 logger = logging.getLogger(__name__)
@@ -28,6 +30,72 @@ logger = logging.getLogger(__name__)
 #: row's ``action_name`` is ``mcp:<tool>`` and ``params_json`` holds the call's
 #: arguments; approving it runs that MCP tool once, as the agent.
 MCP_WRITE_ACTION_TYPE = "mcp_write"
+
+#: ``action_type`` of a request to raise a shared pack's verification (spec 010 §5).
+PACK_VERIFY_ACTION_TYPE = "pack_verify"
+
+#: Requests whose outcome changes something every venture shares. Only a
+#: global maintainer may approve or reject them, whatever the row's venture
+#: (audit N01): a pack's verification level shows on every venture's answers.
+GLOBAL_ACTION_TYPES = frozenset({PACK_VERIFY_ACTION_TYPE})
+
+#: Roles that may decide a global request. Owner only: the docs and spec 010
+#: §9.4 make raising a shared pack's verification the owner's decision, and
+#: ``admin`` is the role without the security and user-management rights; a
+#: trust claim shown on every venture's answers is closer to those than to
+#: settings.
+GLOBAL_MAINTAINER_ROLES = frozenset({"owner"})
+
+
+class ApprovalForbiddenError(PermissionError):
+    """The decider may not decide this approval; nothing was changed."""
+
+
+@dataclass(frozen=True)
+class Decider:
+    """Who is deciding an approval, with the authority the decision is checked against.
+
+    Attributes:
+        user_id: The authenticated principal, or None with auth off (dev mode).
+        role: The principal's role (``owner``, ``admin``, ``operator`` ...).
+        allowed_ventures: Ventures the principal is limited to; None means
+            every venture.
+        is_agent: An outside agent (agent token or stdio session, STORY-37).
+        channel: Where the decision came from (dashboard, api, mcp ...).
+    """
+
+    user_id: str | None
+    role: str | None
+    allowed_ventures: frozenset[str] | None
+    is_agent: bool = False
+    channel: str | None = None
+
+    @property
+    def is_global_maintainer(self) -> bool:
+        """A person with the owner role and access to every venture."""
+        return (
+            not self.is_agent and (self.role or "").lower() in GLOBAL_MAINTAINER_ROLES and self.allowed_ventures is None
+        )
+
+
+def authorize_decision(action_type: str | None, decider: Decider | None) -> None:
+    """Refuse a decision the decider may not make. Called before the item changes.
+
+    - An outside agent never decides (people decide, STORY-37).
+    - A global request (:data:`GLOBAL_ACTION_TYPES`) needs a global
+      maintainer; without a decider it is refused (fail closed).
+
+    Raises:
+        ApprovalForbiddenError: With a message that can be shown to the caller.
+    """
+    if decider is not None and decider.is_agent:
+        raise ApprovalForbiddenError("People decide: an outside agent can't approve or reject")
+    if action_type in GLOBAL_ACTION_TYPES and not (decider is not None and decider.is_global_maintainer):
+        raise ApprovalForbiddenError(
+            "A pack's verification is shared by every venture: only an owner with access to every "
+            "venture can approve or reject it"
+        )
+
 
 # Default gate types and whether they're enabled
 DEFAULT_GATES = {
@@ -183,24 +251,32 @@ def _decide(
     decided_by: str | None,
     channel: str | None,
     db_path=None,
+    *,
+    global_authorized: bool = False,
 ) -> dict | None:
     """Move a pending, unexpired item to ``status`` in one compare-and-set step.
 
     The UPDATE itself requires ``status = 'pending'`` and an unexpired
     ``expires_at``, so of two concurrent decisions exactly one wins; the other
-    gets None. Expired items can't be decided.
+    gets None. Expired items can't be decided. A global request
+    (:data:`GLOBAL_ACTION_TYPES`) only moves when ``global_authorized`` says
+    the caller checked the decider (:func:`decide_approval` does), so a direct
+    call can't decide one by mistake.
     """
     from realize_core.db.schema import get_connection
 
     now = _now()
+    global_types = sorted(GLOBAL_ACTION_TYPES)
+    placeholders = ",".join("?" for _ in global_types)
     conn = get_connection(db_path)
     try:
         cur = conn.execute(
-            """UPDATE approval_queue
+            f"""UPDATE approval_queue
                SET status = ?, decision_note = ?, decided_at = ?, updated_at = ?,
                    decided_by = ?, decision_channel = ?
-               WHERE id = ? AND status = 'pending' AND (expires_at IS NULL OR expires_at > ?)""",
-            (status, decision_note, now, now, decided_by, channel, approval_id, now),
+               WHERE id = ? AND status = 'pending' AND (expires_at IS NULL OR expires_at > ?)
+                 AND (? OR COALESCE(action_type, '') NOT IN ({placeholders}))""",
+            (status, decision_note, now, now, decided_by, channel, approval_id, now, global_authorized, *global_types),
         )
         conn.commit()
         if cur.rowcount != 1:
@@ -235,9 +311,16 @@ def approve_request(
     *,
     decided_by: str | None = None,
     channel: str | None = None,
+    global_authorized: bool = False,
 ) -> dict | None:
-    """Approve a pending, unexpired request. Returns the row, or None if it isn't pending or has expired."""
-    return _decide(approval_id, "approved", decision_note, decided_by, channel, db_path)
+    """Approve a pending, unexpired request. Returns the row, or None if it isn't pending or has expired.
+
+    A global request (``pack_verify``) is approved only through
+    :func:`decide_approval`, which checks the decider first.
+    """
+    return _decide(
+        approval_id, "approved", decision_note, decided_by, channel, db_path, global_authorized=global_authorized
+    )
 
 
 def reject_request(
@@ -247,9 +330,16 @@ def reject_request(
     *,
     decided_by: str | None = None,
     channel: str | None = None,
+    global_authorized: bool = False,
 ) -> dict | None:
-    """Reject a pending, unexpired request. Returns the row, or None if it isn't pending or has expired."""
-    return _decide(approval_id, "rejected", decision_note, decided_by, channel, db_path)
+    """Reject a pending, unexpired request. Returns the row, or None if it isn't pending or has expired.
+
+    A global request (``pack_verify``) is rejected only through
+    :func:`decide_approval`, which checks the decider first.
+    """
+    return _decide(
+        approval_id, "rejected", decision_note, decided_by, channel, db_path, global_authorized=global_authorized
+    )
 
 
 def answer_request(
@@ -272,24 +362,34 @@ def answer_request(
 # ---------------------------------------------------------------------------
 
 
-def _claim_for_execution(approval_id: str, db_path=None) -> dict | None:
-    """Atomically claim an approved, unexpired, not-yet-dispatched tool action.
+def _claim_for_execution(approval_id: str, db_path=None, *, action_type: str | None = None) -> dict | None:
+    """Atomically claim an approved, unexpired, not-yet-dispatched action.
 
     Returns the row when this caller won the claim, else None, so a double
     click or a retry never dispatches the same action twice. The claim is
-    committed before the tool runs: if the process dies mid-call the row stays
-    ``execution_status = 'claimed'`` (unknown outcome) and is not retried.
+    committed before the action runs: if the process dies mid-call the row
+    stays ``execution_status = 'claimed'`` (unknown outcome) and is not retried.
+
+    Args:
+        approval_id: The approval.
+        db_path: Operational DB override.
+        action_type: Claim an item of this type that has no tool to run (a
+            pack verification). By default only tool actions are claimed.
     """
     from realize_core.db.schema import get_connection
 
     now = _now()
+    if action_type is None:
+        which, params = "action_name IS NOT NULL", (now, now, approval_id, now)
+    else:
+        which, params = "action_type = ?", (now, now, approval_id, now, action_type)
     conn = get_connection(db_path)
     try:
         cur = conn.execute(
-            """UPDATE approval_queue SET executed_at = ?, updated_at = ?, execution_status = 'claimed'
-               WHERE id = ? AND status = 'approved' AND executed_at IS NULL AND action_name IS NOT NULL
-                 AND (expires_at IS NULL OR expires_at > ?)""",
-            (now, now, approval_id, now),
+            f"""UPDATE approval_queue SET executed_at = ?, updated_at = ?, execution_status = 'claimed'
+               WHERE id = ? AND status = 'approved' AND executed_at IS NULL
+                 AND (expires_at IS NULL OR expires_at > ?) AND {which}""",
+            params,
         )
         conn.commit()
         if cur.rowcount != 1:
@@ -478,6 +578,7 @@ async def decide_approval(
     *,
     decided_by: str | None = None,
     channel: str | None = None,
+    decider: Decider | None = None,
 ) -> dict | None:
     """Decide an approval item and carry out what the decision implies.
 
@@ -487,14 +588,36 @@ async def decide_approval(
     - Skill question (``skill_input``): approving with an answer records it as
       ``answered`` (input, not an approval) and resumes the skill; rejecting
       stops the skill.
+    - Pack verification (``pack_verify``), approved: recorded once
+      (:func:`_apply_pack_verification`), with the same outcome fields as a
+      tool action.
+
+    Authority is checked here, before the item changes, for every caller
+    (REST, MCP and anything else): an outside agent never decides, and a
+    global request (``pack_verify``) needs ``decider`` to be a global
+    maintainer (:func:`authorize_decision`, audit N01). A refused attempt
+    leaves the item pending.
 
     Only one decision can win: the transition requires the item to be pending
-    and unexpired. ``decided_by`` / ``channel`` are stored on the row.
+    and unexpired. ``decided_by`` / ``channel`` are stored on the row; they
+    default to the decider's.
 
-    Returns ``{"approval": row, "execution": ..., "skill_output": ...}`` or
-    None when the item doesn't exist, isn't pending or has expired.
+    Returns ``{"approval": row, "execution": ..., "skill_output": ...,
+    "decision_log": {"logged", "pending", "error", "decision_id"}}`` or None
+    when the item doesn't exist, isn't pending or has expired. After an
+    execution, ``approval`` is the row as stored, outcome fields included.
+
+    Raises:
+        ApprovalForbiddenError: The decider may not decide this item.
     """
+    if decider is not None:
+        decided_by = decided_by if decided_by is not None else decider.user_id
+        channel = channel if channel is not None else decider.channel
     action_type = _action_type(approval_id, db_path)
+    if action_type is None:
+        return None
+    authorize_decision(action_type, decider)
+    global_authorized = action_type in GLOBAL_ACTION_TYPES  # checked just above
     is_question = action_type == "skill_input"
     if action_type == "agent_credential":
         # Never store or relay what was typed: a secret pasted here would land
@@ -503,13 +626,33 @@ async def decide_approval(
     if is_question and approve:
         record = answer_request(approval_id, decision_note or "yes", db_path, answered_by=decided_by, channel=channel)
     elif approve:
-        record = approve_request(approval_id, decision_note, db_path, decided_by=decided_by, channel=channel)
+        record = approve_request(
+            approval_id,
+            decision_note,
+            db_path,
+            decided_by=decided_by,
+            channel=channel,
+            global_authorized=global_authorized,
+        )
     else:
-        record = reject_request(approval_id, decision_note, db_path, decided_by=decided_by, channel=channel)
+        record = reject_request(
+            approval_id,
+            decision_note,
+            db_path,
+            decided_by=decided_by,
+            channel=channel,
+            global_authorized=global_authorized,
+        )
     if record is None:
         return None
 
-    out: dict = {"approval": record, "execution": None, "skill_output": None}
+    out: dict = {
+        "approval": record,
+        "execution": None,
+        "skill_output": None,
+        # Logged first, so a failure or crash below can't lose it; a failed write is retried (N05).
+        "decision_log": _record_decision(record, approve, action_type, db_path),
+    }
     if is_question:
         if approve:
             out["skill_output"] = await _resume_skill_from_approval(record, decision_note or "yes")
@@ -527,32 +670,83 @@ async def decide_approval(
         await _notify_missions(approval_id, False, None)
     elif action_type in _AGENT_REQUEST_OUTCOMES:
         report_to_conversation(record.get("session_ref"), _agent_request_outcome(action_type, approve, decision_note))
-    if approve and action_type == "pack_verify":
-        out["execution"] = _apply_pack_verification(record)
-    _record_decision(record, approve, action_type)
+    elif approve and action_type == PACK_VERIFY_ACTION_TYPE:
+        out["execution"] = await _apply_pack_verification(approval_id, db_path)
+    if out["execution"] and out["execution"].get("executed"):
+        out["approval"] = _get_row(approval_id, db_path) or record
     return out
 
 
-def _apply_pack_verification(record: dict) -> dict:
-    """Write an approved pack verification (spec 010 §5). Errors are returned, not raised."""
+def _get_row(approval_id: str, db_path=None) -> dict | None:
+    from realize_core.db.schema import get_connection
+
+    conn = get_connection(db_path)
+    try:
+        row = conn.execute("SELECT * FROM approval_queue WHERE id = ?", (approval_id,)).fetchone()
+        return dict(row) if row else None
+    finally:
+        conn.close()
+
+
+async def _apply_pack_verification(approval_id: str, db_path=None) -> dict:
+    """Record an approved pack verification once, and store the outcome on the approval (audit N04).
+
+    Same claim, outcome fields and activity events as a tool action
+    (:func:`execute_approved_action`): the row is claimed first, then
+    ``result_json`` (``{"output": ...}``), ``error`` and ``execution_status``
+    (``succeeded`` / ``failed``) are stored. The verification itself is one
+    atomic write to the verification state under ``DATA_PATH``; pack files are
+    never touched, so a read-only application folder is fine.
+
+    Returns:
+        ``{"executed": bool, "success": bool, "output": str, "error": str | None}``.
+        ``executed`` is False when the item was already applied or claimed.
+    """
     from realize_core.governance.decision_log import _params
-    from realize_core.packs.verify import PackVerificationError, apply_verification
+    from realize_core.packs.verify import PackVerificationError, apply_verification, describe_result
 
+    row = _claim_for_execution(approval_id, db_path, action_type=PACK_VERIFY_ACTION_TYPE)
+    if row is None:
+        return {"executed": False, "success": False, "output": "", "error": None}
     try:
-        return apply_verification(_params(record), record.get("decided_by") or "unknown")
-    except (PackVerificationError, OSError) as exc:
-        logger.warning("Pack verification %s not applied: %s", record.get("id"), exc)
-        return {"error": str(exc)}
-
-
-def _record_decision(record: dict, approve: bool, action_type: str | None) -> None:
-    """Add the decision to the venture's decision log (STORY-44). Never raises."""
+        changed = await asyncio.to_thread(
+            apply_verification, _params(row), row.get("decided_by") or "unknown", approval_id=approval_id
+        )
+        ok, output, error = True, describe_result(changed), None
+    except (PackVerificationError, OSError) as exc:  # VerificationStateError is an OSError
+        logger.warning("Pack verification %s not applied: %s", approval_id, exc)
+        ok, output, error = False, "", f"Verification not applied: {exc}"
+    _store_execution_result(approval_id, output, error, db_path)
     try:
-        from realize_core.governance.decision_log import record_approval_decision
+        from realize_core.activity.logger import log_event
 
-        record_approval_decision(record, approve, action_type=action_type)
+        log_event(
+            venture_key=row["venture_key"],
+            actor_type="system",
+            actor_id="gate",
+            action="approval_executed" if ok else "approval_execution_failed",
+            entity_type="approval",
+            entity_id=approval_id,
+            details=json.dumps({"action": PACK_VERIFY_ACTION_TYPE, "error": error}),
+        )
     except Exception:
+        logger.debug("activity log failed for pack verification", exc_info=True)
+    return {"executed": True, "success": ok, "output": output, "error": error}
+
+
+def _record_decision(record: dict, approve: bool, action_type: str | None, db_path=None) -> dict:
+    """Add the decision to the venture's decision log (STORY-44). Never raises.
+
+    The write is durable (N05): a failure stays queued and is retried. Returns
+    ``{"logged", "pending", "error", "decision_id"}`` for the decision result.
+    """
+    try:
+        from realize_core.governance.decision_log import log_decision
+
+        return log_decision(record, approve, action_type=action_type, db_path=db_path)
+    except Exception as exc:
         logger.warning("Decision log write failed for approval %s", record.get("id"), exc_info=True)
+        return {"logged": False, "pending": False, "error": str(exc) or type(exc).__name__, "decision_id": None}
 
 
 async def _notify_missions(approval_id: str, approved: bool, execution: dict | None) -> None:

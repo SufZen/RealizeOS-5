@@ -57,13 +57,15 @@ This:
 - validates the sheet and lists every problem at once (a missing verdict, a card left out, an unknown id, a facts count that is not a whole number, `correct` with facts corrected), and records nothing if there is one;
 - with `--apply-corrections`, shows a diff and asks before writing (`--yes` skips the question): corrected statements go into the cards; removed cards move to `reviews/removed/`, which the loader ignores; both are logged in the pack's `CHANGELOG.md`. Glossary and defaults corrections are listed for you to edit by hand. Without the flag no card changes;
 - writes the review record to `reviews/<date>-<reviewer>.yaml`: reviewer, date, every row's verdict, facts checked and corrected, notes, totals, the correction ratio and pass or fail;
-- queues a `pack_verify` approval through `request_verification(...)` for the reviewed, non-removed cards, with `corrections={card_id: n}`. Nothing is raised until a person approves it in the dashboard (Approvals).
+- queues a `pack_verify` approval through `request_verification(...)` for the reviewed, non-removed cards, with `corrections={card_id: n}`. Nothing is raised until an owner approves it in the dashboard (Approvals).
+
+`review-submit` writes the record (and, with `--apply-corrections`, the corrected cards) into the pack folder. Shipped packs are read-only in the production image, so run it in a checkout of the repository and release the result, or on a pack you keep in `REALIZE_PACKS_PATH` (see [packs.md](packs.md#where-packs-come-from)).
 
 The pass signal is computed over the rule cards: facts corrected ÷ facts checked must be below 1 in 5. A removed card counts all its facts as corrected unless the reviewer says otherwise. Glossary and defaults rows are reported separately.
 
-**4. Approve.** When the owner approves the request, the reviewer and date are written to each reviewed card (`verification: 2`, `verified_by`, `reviewed_at`). Rejecting it changes nothing. If you submit the same review again on the same day, the command names the earlier approval so you can reject it.
+**4. Approve.** The pack is shared by every venture that uses it, so only an owner with access to every venture can approve or reject the request (an operator, an admin or an owner limited to some ventures gets 403, and the request stays pending). When the owner approves it, the level (2), the reviewer, the review date, the approver and the approval id of each reviewed card are recorded in the installation's verification state, `DATA_PATH/packs/verification.json`, in one atomic write. The card files are not edited, so this works with read-only shipped packs; answers show the new level straight away. The approval shows the outcome (`execution_status` `succeeded` or `failed`, with the reason in `error`). Rejecting it changes nothing. If you submit the same review again on the same day, the command names the earlier approval so you can reject it.
 
-**5. Raise the pack's own level.** A card's effective level is the lower of its own and the pack's, so the cards only show level 2 once `pack.yaml` is raised too. Once every row, including the defaults and glossary rows, has a verdict and the corrections are in the cards, submit with `--whole-pack`: the approval then covers `pack.yaml` and every card, and records the corrections in the manifest.
+**5. Raise the pack's own level.** A card's effective level is the lower of its own and the pack's, so the cards only show level 2 once the pack's own level is raised too. Once every row, including the defaults and glossary rows, has a verdict and the corrections are in the cards, submit with `--whole-pack`: the approval then covers the pack's own level and every card, and records the corrections with it. To ship the reviewed level with the pack itself (for every installation), the maintainer also sets `verification` in `pack.yaml` and the cards and releases a new version.
 
 **6. Record the result.** Write pass or fail, with the numbers from the review record, into ADR 0005's validation note. Spec 010 §9.3 also asks for a version bump when you release the corrected pack: patch for wording, major if cards were removed.
 
@@ -82,11 +84,11 @@ request_verification(
 )
 ```
 
-With no `cards`, the whole pack is raised: the reviewer and date go to `pack.yaml` and every card. Pass `cards=[...]` to verify only some cards; the pack's own level then stays as it was. `realize_core.packs.review.submit_review(...)` runs the full sheet flow above.
+With no `cards`, the whole pack is raised once approved: the reviewer and date are recorded for the pack's own level and every card. Pass `cards=[...]` to verify only some cards; the pack's own level then stays as it was. `realize_core.packs.review.submit_review(...)` runs the full sheet flow above. Approving goes through `realize_core.governance.gates.decide_approval(..., decider=Decider(...))`, which refuses anyone but an owner with access to every venture before anything changes.
 
 ## 3. Maintain (level 3)
 
-Level 3 needs a partner with a signed maintenance agreement (`partner_agreement="..."`). The partner owns updates and every card's `review_by` date. A card whose review date passes drops back to level 1 automatically.
+Level 3 needs a partner with a signed maintenance agreement (`partner_agreement="..."`). It is checked again when the approval is applied and recorded with the level. The partner owns updates and every card's `review_by` date. A card whose review date passes drops back to level 1 automatically, whatever level was approved.
 
 ## 4. Field-proven (level 4)
 

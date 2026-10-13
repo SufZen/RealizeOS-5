@@ -96,6 +96,19 @@ prompt included, numbered `[S1]…[Sn]`, and the tool steps it took, in order. S
 `request_id`). `message_id` is the stored assistant message. With `features.cite_sources` on,
 answers on the `api`, `dashboard` and `mcp` channels cite sources inline as `[S1]`.
 
+With packs on, the rule cards the prompt included are sources too, numbered `[R1]…[Rn]`. A rule
+source also carries its provenance; fields a source doesn't have are left out:
+
+```json
+{"id": "R1", "title": "Public works contracts include price revision.",
+ "path": "https://diariodarepublica.pt/", "layer": "market", "pack": "pt@0.1.0",
+ "verification": 1, "as_of": "2026-10-13", "review_by": "2027-04-13"}
+```
+
+`layer` is `firm`, `market` or `profession`; `pack` is `id@version` (absent for the firm's own
+rules); `verification` is the level from 0 (unverified) to 4 (field-proven), see
+[packs](packs.md#verification-levels). Older stored trails have no provenance.
+
 ### POST /api/chat/stream
 
 Same request as `POST /api/chat`; the answer arrives as Server-Sent Events. Each event is a
@@ -103,7 +116,7 @@ Same request as `POST /api/chat`; the answer arrives as Server-Sent Events. Each
 
 | `type` | When |
 |--------|------|
-| `source` | A numbered KB source the prompt includes (`id`, `title`, `path`) |
+| `source` | A numbered source the prompt includes (`id`, `title`, `path`; rule cards add `layer`, `pack`, `verification`, `as_of`, `review_by`) |
 | `tool_call` | The agent calls a tool (`id`, `name`, `input`) |
 | `tool_result` | The tool finished (`success`, `held`, `output` preview, `error`, `duration_ms`) |
 | `approval_requested` | The action is held for approval (`request_id`) |
@@ -329,6 +342,10 @@ Approve an approval request. The response is the decided row plus `execution` (`
 Reject an approval request.
 
 People decide: a caller with an agent token gets `403` on approve and reject.
+
+Both return the approval row with the outcomes added: `execution` (a held action that ran), `skill_output` (a skill that resumed) and `decision_log`, whether the decision reached the venture's [decision log](decision-log.md#when-a-write-fails): `{"logged", "pending", "error", "decision_id"}`. `pending: true` means the write failed and is queued for a retry; the decision itself stands.
+
+A mission step whose action was held waits as `awaiting-approval`, and the steps that depend on it wait too. Approving the action completes the step and the mission continues; rejecting it (or an approved action that fails) fails the step, and the steps that depend on it never run.
 
 When the item exists but can't be decided any more, approve and reject return `409` and change nothing:
 

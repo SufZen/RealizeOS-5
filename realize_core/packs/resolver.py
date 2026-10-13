@@ -4,17 +4,22 @@ Higher layers win: firm > market > profession > core. Every resolved value
 carries its layer, pack reference and, for rule cards, its verification level.
 With the ``packs`` feature off, only the firm and core layers are consulted,
 which is the behaviour before packs existed.
+
+Only the packs a venture names in ``packs.yaml`` are loaded, so a broken pack
+the venture doesn't use can't stop its context (audit N06).
 """
 
 from __future__ import annotations
 
 import logging
+import stat
 import threading
 from pathlib import Path
 from typing import Any
 
 from realize_core.packs import loader as _loader
-from realize_core.packs.loader import discover_packs, load_firm_layer, read_venture_packs
+from realize_core.packs import state as _state
+from realize_core.packs.loader import load_firm_layer, read_venture_packs
 from realize_core.packs.models import ITEM_TYPES, Pack, Resolved
 
 logger = logging.getLogger(__name__)
@@ -54,13 +59,13 @@ class PackResolver:
         self.layers: list[tuple[str, Pack]] = [("firm", self.firm)]
         self.missing: list[str] = []
         if enabled:
-            available = (
-                available if available is not None else discover_packs(packs_root or _loader.default_packs_root())
-            )
             wanted = read_venture_packs(self.venture_dir)
             for kind in ("market", "profession"):
                 for entry in wanted[kind]:
-                    pack = available.get((kind, entry["id"]))
+                    if available is not None:
+                        pack = available.get((kind, entry["id"]))
+                    else:
+                        pack = _loader.find_pack(kind, entry["id"], packs_root)
                     if pack is None or not _version_ok(pack, entry["version"]):
                         ref = f"{kind}/{entry['id']}@{entry['version'] or '*'}"
                         self.missing.append(ref)
@@ -129,6 +134,7 @@ class PackResolver:
                     "version": p.version,
                     "title": p.title,
                     "verification": p.verification_level,
+                    "verification_recorded": p.verification_state is not None,
                     "limits": p.limits,
                     "warnings": p.warnings,
                 }
@@ -159,46 +165,74 @@ class PackResolver:
 # Cached access per venture
 # ---------------------------------------------------------------------------
 
-_cache: dict[tuple[str, bool, str], tuple[float, PackResolver]] = {}
+_cache: dict[tuple, tuple[tuple, PackResolver]] = {}
 _lock = threading.Lock()
 
 
-def _stamp(venture_dir: Path, packs_root: Path) -> float:
-    """Latest modification time of anything the resolver reads."""
-    newest = 0.0
-    candidates = [venture_dir / "packs.yaml", venture_dir / "F-foundations" / "overrides", packs_root]
-    for base in candidates:
-        if not base.exists():
+def _tree_fingerprint(base: Path) -> list[tuple]:
+    """Path, size, modification time and file id of every file under ``base`` (or of ``base`` itself)."""
+    try:
+        if base.is_file():
+            paths = [base]
+        elif base.is_dir():
+            paths = sorted(base.rglob("*"))
+        else:
+            return [(str(base), "absent")]
+    except OSError as exc:
+        return [(str(base), "unreadable", str(exc))]
+    out: list[tuple] = []
+    for path in paths:
+        try:
+            st = path.stat()
+        except OSError:
+            out.append((str(path), "gone"))
             continue
-        paths = [base] if base.is_file() else [base, *base.rglob("*")]
-        for path in paths:
-            try:
-                newest = max(newest, path.stat().st_mtime)
-            except OSError:
-                continue
-    return newest
+        if not stat.S_ISDIR(st.st_mode):
+            out.append((str(path), st.st_size, st.st_mtime_ns, st.st_ino))
+    return out
+
+
+def fingerprint(venture_dir: Path, roots: list[Path], *, enabled: bool) -> tuple:
+    """Everything a resolver for this venture reads, file by file (audit N07).
+
+    The venture's ``packs.yaml`` and firm overrides, every file in every pack
+    root (when packs are on) and the recorded verification state. Any edit,
+    addition or deletion changes it, whatever the other files' timestamps,
+    unlike the newest-modification-time stamp it replaces.
+    """
+    venture_dir = Path(venture_dir)
+    entries: list[tuple] = []
+    bases = [venture_dir / "packs.yaml", venture_dir / "F-foundations" / "overrides"]
+    if enabled:
+        bases += roots
+    for base in bases:
+        entries.extend(_tree_fingerprint(base))
+    if enabled:
+        entries.append(("verification-state", _state.fingerprint()))
+    return tuple(entries)
 
 
 def get_resolver(venture_dir: Path, *, enabled: bool, packs_root: Path | None = None) -> PackResolver:
-    """A cached resolver for a venture, rebuilt when any pack or override file changes."""
+    """A cached resolver for a venture, rebuilt when any file it reads changes."""
     venture_dir = Path(venture_dir)
-    root = packs_root or _loader.default_packs_root()
-    key = (str(venture_dir.resolve()), enabled, str(root))
-    stamp = _stamp(venture_dir, root)
+    roots = _loader.pack_roots(packs_root)
+    key = (str(venture_dir.resolve()), enabled, tuple(str(r) for r in roots))
+    stamp = fingerprint(venture_dir, roots, enabled=enabled)
     with _lock:
         cached = _cache.get(key)
         if cached and cached[0] == stamp:
             return cached[1]
-    resolver = PackResolver(venture_dir, enabled=enabled, packs_root=root)
+    resolver = PackResolver(venture_dir, enabled=enabled, packs_root=packs_root)
     with _lock:
         _cache[key] = (stamp, resolver)
     return resolver
 
 
 def clear_cache() -> None:
-    """Drop cached resolvers (tests and config reloads)."""
+    """Drop cached resolvers and the cached verification state (tests and config reloads)."""
     with _lock:
         _cache.clear()
+    _state.clear_cache()
 
 
 def venture_dir_for(kb_path: Path, system_config: dict) -> Path:
@@ -217,7 +251,8 @@ def build_pack_context(resolver: PackResolver, user_message: str, sources_out: l
     """Prompt layer with local terms, defaults and the most relevant rule cards.
 
     Rule cards are numbered ``[R1]…`` and reported to ``sources_out`` with their
-    layer and verification level, so the trail can show where a rule came from.
+    layer, pack, verification level and dates, so the trail can show where a
+    rule came from and how far it has been checked.
     """
     if not resolver.packs and not resolver.firm.terms and not resolver.firm.rules:
         return ""
@@ -259,6 +294,8 @@ def build_pack_context(resolver: PackResolver, user_message: str, sources_out: l
                         "layer": r.layer,
                         "pack": r.pack_id,
                         "verification": r.verification,
+                        "as_of": card.as_of,
+                        "review_by": card.review_by,
                     }
                 )
     if not resolver.packs:

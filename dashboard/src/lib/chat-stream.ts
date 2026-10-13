@@ -9,10 +9,26 @@
 
 import { ApiError, csrfHeader, notifySessionExpired, toApiError } from './api'
 
+/**
+ * A numbered source an answer's prompt included. KB hits ([S1]…) have id,
+ * title and path. Pack rule cards ([R1]…) add where they came from and how
+ * far they have been checked (ADR 0005), so the trail can show the level
+ * whatever the model wrote. Answers stored before that have none of it.
+ */
 export interface TrailSource {
   id: string
   title: string
   path: string
+  /** Layer that supplied the rule: firm, market, profession or core. */
+  layer?: string
+  /** Pack reference, `id@version` (absent for the firm's own rules). */
+  pack?: string
+  /** Verification level, 0 (unverified) to 4 (field-proven). */
+  verification?: number
+  /** Date the rule's source was read. */
+  as_of?: string
+  /** Date by which the rule must be reviewed again. */
+  review_by?: string
 }
 
 export interface TrailStep {
@@ -62,6 +78,49 @@ const STEP_TYPES = new Set(['tool_call', 'tool_result', 'approval_requested'])
 
 export function emptyTrail(): Trail {
   return { sources: [], steps: [] }
+}
+
+const PROVENANCE_TEXT = ['layer', 'pack', 'as_of', 'review_by'] as const
+
+/**
+ * A trail source from a live event or a stored row: the three plain fields,
+ * plus whichever provenance it carries. Unknown fields are dropped.
+ */
+export function toTrailSource(raw: Record<string, unknown>): TrailSource {
+  const source: TrailSource = {
+    id: String(raw.id ?? ''),
+    title: String(raw.title ?? ''),
+    path: String(raw.path ?? ''),
+  }
+  for (const key of PROVENANCE_TEXT) {
+    const value = raw[key]
+    if (typeof value === 'string' && value) source[key] = value
+  }
+  const level = raw.verification
+  if (typeof level === 'number' && Number.isInteger(level)) source.verification = level
+  return source
+}
+
+/** True for a pack rule card ([R1]…), which always shows its verification level. */
+export function isRuleSource(source: TrailSource): boolean {
+  return /^R\d+$/.test(source.id)
+}
+
+/**
+ * A trail as stored with a conversation (`GET /api/conversations`), or
+ * undefined when there is none. Rows stored before provenance still load.
+ */
+export function normalizeTrail(raw: unknown): Trail | undefined {
+  if (!raw || typeof raw !== 'object') return undefined
+  const { sources, steps } = raw as { sources?: unknown; steps?: unknown }
+  return {
+    sources: Array.isArray(sources)
+      ? sources
+          .filter((s): s is Record<string, unknown> => !!s && typeof s === 'object')
+          .map(toTrailSource)
+      : [],
+    steps: Array.isArray(steps) ? (steps as TrailStep[]) : [],
+  }
 }
 
 /** Split an SSE buffer into complete `data:` events and the unfinished rest. */
@@ -125,8 +184,7 @@ export async function streamChat(
 /** Add one live event to a trail (non-trail events leave it unchanged). */
 export function withEvent(trail: Trail, event: ChatStreamEvent): Trail {
   if (event.type === 'source') {
-    const { id, title, path } = event
-    return { ...trail, sources: [...trail.sources, { id, title, path }] }
+    return { ...trail, sources: [...trail.sources, toTrailSource({ ...event })] }
   }
   if (STEP_TYPES.has(event.type)) {
     return { ...trail, steps: [...trail.steps, event as TrailStep] }
@@ -167,18 +225,18 @@ export function toolRows(steps: TrailStep[]): ToolRow[] {
   return [...rows.values()]
 }
 
-/** DOM id of a source line, so [Sn] footnotes in the answer can jump to it. */
+/** DOM id of a source line, so [Sn] and [Rn] footnotes in the answer can jump to it. */
 export function sourceAnchorId(anchorPrefix: string, marker: string): string {
   return `${anchorPrefix}-${marker}`
 }
 
 export type CitationPart = string | { marker: string }
 
-/** Split text around `[S1]`-style source markers. */
+/** Split text around `[S1]` source and `[R1]` rule-card markers. */
 export function splitCitations(text: string): CitationPart[] {
   const parts: CitationPart[] = []
   let last = 0
-  for (const match of text.matchAll(/\[(S\d+)\]/g)) {
+  for (const match of text.matchAll(/\[([SR]\d+)\]/g)) {
     const index = match.index ?? 0
     if (index > last) parts.push(text.slice(last, index))
     parts.push({ marker: match[1]! })

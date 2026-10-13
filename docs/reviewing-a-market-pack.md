@@ -70,4 +70,4 @@ We also count how many drafted facts needed correcting. That number measures how
 
 ## Your name on the cards
 
-Your name, title and registration number are recorded on every card you review and in the pack's review record. These are plain files that ship with RealizeOS, so anyone who has the pack can read them. If you'd rather not be named, say so before you start: a card can only be raised to "reviewed" with a named reviewer.
+Your name, title and registration number are recorded in the pack's review record, a plain file that ships with the pack, so anyone who has the pack can read it. When the owner approves the review, your name is also recorded with each card you reviewed in that RealizeOS installation, and is shown with the card's level. If you'd rather not be named, say so before you start: a card can only be raised to "reviewed" with a named reviewer.

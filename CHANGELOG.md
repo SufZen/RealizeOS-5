@@ -4,6 +4,29 @@ All notable changes to RealizeOS are documented in this file.
 This changelog is automatically generated from [Conventional Commits](https://conventionalcommits.org).
 
 
+## [5.28.3](https://github.com/SufZen/RealizeOS-5/compare/v5.28.2...v5.28.3) (2026-10-13)
+
+### Bug Fixes
+
+* **core:** keep rule-card provenance in the answer trail (N03) ([f469dbf](https://github.com/SufZen/RealizeOS-5/commit/f469dbf4ac957ff1d36027a6b11558e5712b2581))
+* **dashboard:** show each rule's verification level in the trail (N03) ([0d489f0](https://github.com/SufZen/RealizeOS-5/commit/0d489f05e15fb702f33dab1e977e6ccad13ce6be))
+
+## [5.28.2](https://github.com/SufZen/RealizeOS-5/compare/v5.28.1...v5.28.2) (2026-10-13)
+
+### Bug Fixes
+
+* **packs:** an unreadable pack file doesn't fail the whole export ([1c57613](https://github.com/SufZen/RealizeOS-5/commit/1c57613aa5b9794d9f1cac8369976326c90d922b))
+* **packs:** export pack state, custom packs and a resolved-pack inventory ([cc4c7a4](https://github.com/SufZen/RealizeOS-5/commit/cc4c7a48e18094897bce5dc0a984e776e2afd618))
+* **packs:** record pack verification under DATA_PATH, never in pack files (N04) ([091846c](https://github.com/SufZen/RealizeOS-5/commit/091846cb27f955931f79bc755780eeadcf6fc47f))
+* **packs:** skip malformed packs per pack; fingerprint every file in the resolver cache (N06, N07) ([9d7f078](https://github.com/SufZen/RealizeOS-5/commit/9d7f078125c5ba1d3815cc01b04436078fc61435))
+
+## [5.28.1](https://github.com/SufZen/RealizeOS-5/compare/v5.28.0...v5.28.1) (2026-10-13)
+
+### Bug Fixes
+
+* **governance:** decision log follows configured folders and survives write failures (audit N05) ([0da5122](https://github.com/SufZen/RealizeOS-5/commit/0da5122b2a62b7ba1821484b40be9bfe96414ca6))
+* **missions:** a held step waits for approval instead of failing (audit N02) ([79dc962](https://github.com/SufZen/RealizeOS-5/commit/79dc9620b1274fca715b209e04bc9d2b36d7f3c6))
+
 ## [5.28.0](https://github.com/SufZen/RealizeOS-5/compare/v5.27.0...v5.28.0) (2026-10-13)
 
 ### Features
