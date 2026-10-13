@@ -1,4 +1,4 @@
-import { Briefcase, Users, Zap, Clock } from 'lucide-react'
+import { Building2, Users, Zap, Clock, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface VentureHealthCardProps {
@@ -11,6 +11,7 @@ interface VentureHealthCardProps {
   onClick?: () => void
 }
 
+/** A venture at a glance. A real button when it navigates, so it works from the keyboard. */
 export function VentureHealthCard({
   name,
   ventureKey,
@@ -20,38 +21,49 @@ export function VentureHealthCard({
   className,
   onClick,
 }: VentureHealthCardProps) {
-  return (
-    <div
-      className={cn(
-        'rounded-xl border border-border bg-card p-4 transition-colors',
-        onClick && 'cursor-pointer hover:border-brand-400/50',
-        className,
-      )}
-      onClick={onClick}
-    >
-      <div className="flex items-start justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <Briefcase className="h-4 w-4 text-brand-400" />
-          <h3 className="text-sm font-semibold text-foreground">{name}</h3>
+  const body = (
+    <>
+      <div className="flex items-start gap-2.5">
+        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[7px] bg-surface-700 text-subtle-foreground">
+          <Building2 className="h-4 w-4" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <h3 dir="auto" className="m-0 truncate text-sm font-semibold text-foreground">
+            {name}
+          </h3>
+          <span className="text-xs text-subtle-foreground">{ventureKey}</span>
         </div>
-        <span className="text-xs text-muted-foreground font-mono">{ventureKey}</span>
-      </div>
-      <div className="grid grid-cols-3 gap-2 text-xs">
-        <div className="flex items-center gap-1 text-muted-foreground">
-          <Users className="h-3 w-3" />
-          <span>{agentCount} agents</span>
-        </div>
-        <div className="flex items-center gap-1 text-muted-foreground">
-          <Zap className="h-3 w-3" />
-          <span>{skillCount} skills</span>
-        </div>
-        {lastActivity && (
-          <div className="flex items-center gap-1 text-muted-foreground">
-            <Clock className="h-3 w-3" />
-            <span>{lastActivity}</span>
-          </div>
+        {onClick && (
+          <ChevronRight className="h-4 w-4 shrink-0 text-subtle-foreground opacity-0 transition-opacity group-hover:opacity-100 rtl:rotate-180" />
         )}
       </div>
-    </div>
+      <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+        <span className="inline-flex items-center gap-1.5">
+          <Users className="h-3.5 w-3.5" />
+          {agentCount} agents
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <Zap className="h-3.5 w-3.5" />
+          {skillCount} skills
+        </span>
+        {lastActivity && (
+          <span className="inline-flex items-center gap-1.5">
+            <Clock className="h-3.5 w-3.5" />
+            {lastActivity}
+          </span>
+        )}
+      </div>
+    </>
+  )
+
+  if (!onClick) return <div className={cn('rz-card', className)}>{body}</div>
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn('rz-card rz-pressable group w-full cursor-pointer text-start', className)}
+    >
+      {body}
+    </button>
   )
 }

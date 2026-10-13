@@ -1,5 +1,5 @@
-import { Activity, Bot, Zap, Wrench, User } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { EmptyState } from '@/components/ui/empty-state'
 
 export interface ActivityEvent {
   id: string
@@ -13,18 +13,18 @@ export interface ActivityEvent {
   created_at: string
 }
 
-const actorIcons: Record<string, typeof Bot> = {
-  agent: Bot,
-  system: Zap,
-  user: User,
-}
-
 const actionLabels: Record<string, string> = {
   message_received: 'Message received',
   agent_routed: 'Routed to agent',
-  llm_called: 'LLM invoked',
-  skill_executed: 'Skill executed',
+  llm_called: 'Model called',
+  skill_executed: 'Skill run',
   tool_used: 'Tool used',
+}
+
+/** "venture_created" → "Venture created" for actions without a hand-written label. */
+function humanize(action: string): string {
+  const text = action.replace(/[_.-]+/g, ' ').trim()
+  return text.charAt(0).toUpperCase() + text.slice(1)
 }
 
 function formatTime(iso: string): string {
@@ -34,6 +34,35 @@ function formatTime(iso: string): string {
   } catch {
     return iso
   }
+}
+
+/** People are round, agents are sheet tabs, the system is a small square. */
+function ActorMark({ type, id }: { type: ActivityEvent['actor_type']; id: string }) {
+  const initials =
+    id
+      .replace(/[^\p{L}\p{N}]/gu, '')
+      .slice(0, 2)
+      .toUpperCase() || '?'
+  if (type === 'agent')
+    return (
+      <span className="rz-avatar rz-avatar--agent rz-avatar--sm" aria-hidden>
+        {initials}
+      </span>
+    )
+  if (type === 'user')
+    return (
+      <span className="rz-avatar rz-avatar--sm" aria-hidden>
+        {initials}
+      </span>
+    )
+  return (
+    <span
+      className="grid h-[22px] w-[22px] shrink-0 place-items-center rounded-[4px] bg-surface-700 text-[9px] font-semibold text-subtle-foreground"
+      aria-hidden
+    >
+      OS
+    </span>
+  )
 }
 
 interface ActivityFeedProps {
@@ -47,37 +76,44 @@ export function ActivityFeed({ events, maxItems = 20, className }: ActivityFeedP
 
   if (visible.length === 0) {
     return (
-      <div className={cn('text-center py-8 text-muted-foreground text-sm', className)}>
-        <Activity className="h-8 w-8 mx-auto mb-2 opacity-50 rz-animate-float" />
-        No activity yet
+      <div className={cn('p-4', className)}>
+        <EmptyState
+          art="activity"
+          title="No activity yet"
+          body="When agents read documents, run skills or ask for approval, each step shows up here."
+        />
       </div>
     )
   }
 
   return (
-    <div className={cn('space-y-1', className)}>
+    <ol className={cn('m-0 list-none p-1.5', className)}>
       {visible.map((event) => {
-        const Icon = actorIcons[event.actor_type] || Wrench
-        const label = actionLabels[event.action] || event.action
+        const label = actionLabels[event.action] || humanize(event.action)
         return (
-          <div
+          <li
             key={event.id}
-            className="flex items-start gap-3 rounded-lg px-3 py-2 text-sm hover:bg-surface-700/50 transition-colors"
+            className="flex items-center gap-3 rounded-[7px] px-2.5 py-2 text-[13px] transition-colors hover:bg-surface-700/50"
           >
-            <Icon className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" />
-            <div className="flex-1 min-w-0">
+            <ActorMark type={event.actor_type} id={event.actor_id} />
+            <div className="min-w-0 flex-1 truncate">
               <span className="text-foreground">{label}</span>
               {event.entity_id && (
-                <span className="text-muted-foreground ms-1">&middot; {event.entity_id}</span>
+                <span dir="auto" className="ms-1.5 text-muted-foreground">
+                  {event.entity_id}
+                </span>
               )}
-              <span className="text-muted-foreground ms-1 text-xs">by {event.actor_id}</span>
+              <span className="ms-1.5 text-xs text-subtle-foreground">by {event.actor_id}</span>
             </div>
-            <time className="text-xs text-muted-foreground shrink-0">
+            <time
+              dateTime={event.created_at}
+              className="shrink-0 text-xs tabular text-subtle-foreground"
+            >
               {formatTime(event.created_at)}
             </time>
-          </div>
+          </li>
         )
       })}
-    </div>
+    </ol>
   )
 }
