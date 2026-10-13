@@ -4,9 +4,17 @@
 - Level 3 (maintained): only with a partner maintenance agreement named in the request.
 - Level 4 (field-proven): never through this path; it comes from a paid engagement.
 
-The approval is a normal queue item (``action_type: pack_verify``). When a
-person approves it, :func:`apply_verification` writes the reviewer and date to
-the pack manifest and to the reviewed rule cards. Nothing changes on rejection.
+The approval is a normal queue item (``action_type: pack_verify``). A pack is
+shared by every venture that uses it, so only a global pack maintainer (the
+owner, not limited to some ventures, never an outside agent) may approve or
+reject it (audit N01; enforced in
+:func:`realize_core.governance.gates.decide_approval`).
+
+When it is approved, :func:`apply_verification` records the reviewer, the
+date and the new level, for the reviewed cards or for the whole pack, in the
+verification state under ``DATA_PATH`` (:mod:`realize_core.packs.state`), in
+one atomic write. Pack files are never edited by an approval, so shipped packs
+can stay read-only (audit N04). Nothing changes on rejection.
 """
 
 from __future__ import annotations
@@ -14,10 +22,11 @@ from __future__ import annotations
 import logging
 from datetime import UTC, datetime
 from pathlib import Path
-
-import yaml
+from typing import Any
 
 from realize_core.packs import loader as _loader
+from realize_core.packs import state
+from realize_core.packs.models import VERIFICATION_NAMES, Pack
 
 logger = logging.getLogger(__name__)
 
@@ -29,12 +38,11 @@ class PackVerificationError(ValueError):
     """A verification request that the rules don't allow."""
 
 
-def _pack_dir(kind: str, pack_id: str, packs_root: Path | None) -> Path:
-    root = packs_root or _loader.default_packs_root()
-    for child in (root / kind).iterdir() if (root / kind).is_dir() else []:
-        if child.is_dir() and child.name == pack_id:
-            return child
-    raise PackVerificationError(f"Pack {kind}/{pack_id} is not installed")
+def _installed(kind: str, pack_id: str, packs_root: Path | None) -> Pack:
+    pack = _loader.find_pack(kind, pack_id, packs_root) if kind in _loader.PACK_KINDS else None
+    if pack is None:
+        raise PackVerificationError(f"Pack {kind}/{pack_id} is not installed")
+    return pack
 
 
 def validate_request(level: int, reviewer: str, partner_agreement: str | None) -> None:
@@ -66,7 +74,7 @@ def request_verification(
     from realize_core.governance.gates import create_approval_request
 
     validate_request(level, reviewer, partner_agreement)
-    _pack_dir(kind, pack_id, packs_root)
+    _installed(kind, pack_id, packs_root)
     params = {
         "kind": kind,
         "pack_id": pack_id,
@@ -94,50 +102,90 @@ def request_verification(
     )
 
 
-def _rewrite_card(path: Path, level: int, reviewer: str, today: str) -> bool:
-    text = path.read_text(encoding="utf-8")
-    if not text.startswith("---"):
-        return False
-    end = text.find("\n---", 3)
-    meta = yaml.safe_load(text[3:end]) or {}
-    meta["verification"] = level
-    meta["verified_by"] = reviewer
-    meta["reviewed_at"] = today
-    path.write_text(
-        "---\n" + yaml.safe_dump(meta, allow_unicode=True, sort_keys=False, width=100) + text[end:], encoding="utf-8"
+def _as_level(value: Any) -> int:
+    if isinstance(value, bool):
+        raise PackVerificationError(f"Verification level '{value}' is not a whole number")
+    try:
+        return int(value)
+    except (TypeError, ValueError) as exc:
+        raise PackVerificationError(f"Verification level '{value}' is not a whole number") from exc
+
+
+def apply_verification(
+    params: dict, approved_by: str, *, approval_id: str | None = None, packs_root: Path | None = None
+) -> dict[str, Any]:
+    """Record an approved verification. Returns what changed.
+
+    The reviewer, the date and the level go to the verification state under
+    ``DATA_PATH`` in one atomic write: for the listed ``cards`` only (the
+    pack's own level stays as it was), or with no ``cards`` for the whole pack
+    and every card in it. The pack's files are not touched.
+
+    Returns:
+        ``{"pack", "level", "reviewer", "cards", "skipped", "pack_level_changed"}``.
+        ``skipped`` lists requested cards the pack no longer has.
+
+    Raises:
+        PackVerificationError: The request breaks the rules, or the pack or
+            every requested card is gone.
+        realize_core.packs.state.VerificationStateError: The state can't be
+            written (nothing was recorded then).
+    """
+    level = _as_level(params.get("level", 0))
+    reviewer = str(params.get("reviewer") or "").strip()
+    partner_agreement = params.get("partner_agreement")
+    validate_request(level, reviewer, partner_agreement)
+    kind, pack_id = str(params.get("kind") or ""), str(params.get("pack_id") or "")
+    pack = _installed(kind, pack_id, packs_root)
+
+    requested = params.get("cards") or []
+    if not isinstance(requested, list):
+        raise PackVerificationError("cards must be a list of rule card ids")
+    wanted = {str(c) for c in requested}
+    if wanted:
+        cards = sorted(wanted & set(pack.rules))
+        skipped = sorted(wanted - set(pack.rules))
+        if not cards:
+            raise PackVerificationError(f"None of the requested cards are in {kind}/{pack_id}: {', '.join(skipped)}")
+    else:
+        cards, skipped = sorted(pack.rules), []
+    corrections = params.get("corrections")
+    state.record_verification(
+        kind,
+        pack.id,
+        version=pack.version,
+        level=level,
+        reviewer=reviewer,
+        approved_by=approved_by,
+        approval_id=approval_id,
+        cards=cards,
+        whole_pack=not wanted,
+        partner_agreement=str(partner_agreement) if level == 3 else None,
+        corrections=corrections if isinstance(corrections, dict) else None,
+        today=datetime.now(UTC).date().isoformat(),
     )
-    return True
+    logger.info("Pack %s/%s verification %s applied to %d cards", kind, pack_id, level, len(cards))
+    return {
+        "pack": f"{kind}/{pack.id}",
+        "level": level,
+        "reviewer": reviewer,
+        "cards": cards,
+        "skipped": skipped,
+        "pack_level_changed": not wanted,
+    }
 
 
-def apply_verification(params: dict, approved_by: str, *, packs_root: Path | None = None) -> dict:
-    """Write an approved verification to the pack. Returns what changed."""
-    level = int(params.get("level", 0))
-    reviewer = str(params.get("reviewer") or "")
-    validate_request(level, reviewer, params.get("partner_agreement"))
-    pack_dir = _pack_dir(str(params.get("kind")), str(params.get("pack_id")), packs_root)
-    today = datetime.now(UTC).date().isoformat()
-    wanted = set(params.get("cards") or [])
-
-    updated: list[str] = []
-    for card_path in sorted((pack_dir / "rules").glob("*.md")):
-        card = _loader.load_rule_card(card_path, [])
-        if card and (not wanted or card.id in wanted) and _rewrite_card(card_path, level, reviewer, today):
-            updated.append(card.id)
-
-    manifest_path = pack_dir / "pack.yaml"
-    manifest = yaml.safe_load(manifest_path.read_text(encoding="utf-8")) or {}
-    if not wanted:  # the whole pack was reviewed
-        verification = dict(manifest.get("verification") or {})
-        verification.update({"level": level, "reviewed_by": reviewer, "reviewed_at": today, "approved_by": approved_by})
-        if level == 3:
-            verification["partner_agreement"] = params.get("partner_agreement")
-        if params.get("corrections"):
-            verification["corrections"] = params["corrections"]
-        manifest["verification"] = verification
-        manifest_path.write_text(
-            yaml.safe_dump(manifest, allow_unicode=True, sort_keys=False, width=100), encoding="utf-8"
-        )
-    logger.info(
-        "Pack %s/%s verification %s applied to %d cards", params.get("kind"), params.get("pack_id"), level, len(updated)
-    )
-    return {"cards": updated, "pack_level_changed": not wanted, "level": level}
+def describe_result(result: dict[str, Any]) -> str:
+    """One line for the approval: what an applied verification changed."""
+    level = result.get("level")
+    name = VERIFICATION_NAMES.get(level, "?") if isinstance(level, int) else "?"
+    cards = result.get("cards") or []
+    if result.get("pack_level_changed"):
+        text = f"{result.get('pack')} and its {len(cards)} rule cards raised to verification {level} ({name})"
+    else:
+        text = f"{len(cards)} rule card(s) of {result.get('pack')} raised to verification {level} ({name}): "
+        text += ", ".join(cards)
+    text += f"; reviewed by {result.get('reviewer')}."
+    if result.get("skipped"):
+        text += f" Not in the pack any more, so skipped: {', '.join(result['skipped'])}."
+    return text
