@@ -68,7 +68,10 @@ def build_mcp_server(
     @server.list_tools()
     async def _list_tools() -> list[mcp_types.Tool]:
         out: list[mcp_types.Tool] = []
+        pilot = _is_pilot(current_mcp_user())
         for tool in registry.visible_tools(mcp_config):
+            if pilot and not _pilot_may_call(tool.name):
+                continue
             out.append(
                 mcp_types.Tool(
                     name=tool.name,
@@ -83,6 +86,20 @@ def build_mcp_server(
         return await _dispatch(registry, mcp_config, app_state, name, arguments or {})
 
     return server
+
+
+def _is_pilot(user: Any) -> bool:
+    """True for a self-serve pilot account (STORY-46)."""
+    from realize_core.security.users import is_pilot_user
+
+    return is_pilot_user(getattr(user, "user_id", None))
+
+
+def _pilot_may_call(name: str) -> bool:
+    """Pilot accounts may only call the pilot tools, whatever the host's ``mcp.tools``."""
+    from realize_core.wedge.pilot import PILOT_TOOLS
+
+    return name in PILOT_TOOLS
 
 
 async def _dispatch(
@@ -104,11 +121,15 @@ async def _dispatch(
         code = MCPErrorCode.ADMIN_DISABLED if tool.family == "admin" else MCPErrorCode.DISABLED
         return _error(code, f"Tool '{name}' is not enabled on this RealizeOS instance.")
 
+    if _is_pilot(user) and not _pilot_may_call(name):
+        _audit_call(tool, user, status="forbidden", duration_ms=0, mcp_config=mcp_config)
+        return _error(MCPErrorCode.FORBIDDEN, "Pilot accounts can only use the tender register tools.")
+
     from realize_core.security import agent_access
 
-    # Outside agents (agent tokens, STORY-37): the same rules as the REST guard.
-    # People decide, and a tool without a rule is refused. Checked before any
-    # lookup by id.
+    # Outside agents (agent tokens and stdio sessions, STORY-37): the same rules
+    # as the REST guard. People decide, and a tool without a rule is refused.
+    # Checked before any lookup by id.
     agent = agent_access.is_agent_subject(user)
     if agent:
         refused = agent_access.tool_refusal(name)

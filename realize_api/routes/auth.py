@@ -113,6 +113,9 @@ async def login(body: LoginRequest, request: Request, response: Response):
             logger.debug("Audit log for failed login skipped: %s", exc)
 
         raise HTTPException(status_code=401, detail="invalid_credentials")
+    if user.pilot:
+        # Pilot accounts (STORY-46) connect an agent; they get no dashboard session.
+        raise HTTPException(status_code=403, detail="pilot_account")
 
     record = session_store.create_session(
         user_id=user.email,

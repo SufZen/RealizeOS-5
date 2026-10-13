@@ -55,6 +55,8 @@ realize-os
 │
 ├── mcp
 │   ├── serve [--port PORT] [--allow-admin]      Start API + MCP server
+│   ├── stdio --user EMAIL [--venture KEY]       Serve MCP over stdin/stdout (local agents)
+│   │         [--directory DIR] [--allow-admin]
 │   ├── status                                   Show MCP health
 │   └── token [--user USER] [--role ROLE]        Issue bearer token
 │
@@ -208,6 +210,22 @@ realize-os agent-token revoke 3f9a0c1d2e4b   # stops now; withdraws its writes w
 
 `create` prints the token (`rzag_...`) once; it is stored only as a hash. The agent sends it as `Authorization: Bearer <token>` to `/mcp` (or the REST API). It warns when auth is off, since an open API makes the token meaningless. See [mcp-server.md](mcp-server.md#agent-tokens-one-agent-one-clients-brain) for what an agent may do and which writes wait for a person.
 
+### `realize-os mcp stdio`
+
+Serve the MCP server over stdin/stdout for an agent on the same computer (Claude Code, Claude Desktop, Cursor). No port is opened. The agent starts this command itself; see [connect-your-agent.md](connect-your-agent.md).
+
+```bash
+python cli.py mcp stdio --directory /path/to/RealizeOS --user dana@example.com
+python cli.py mcp stdio --directory /path/to/RealizeOS --user owner@example.com --venture tower-b
+```
+
+- `--user` is required and must be a `users.yaml` entry: its role and ventures apply. There is no default user and it is never read from the environment.
+- `--venture` (repeatable) narrows the session to some of that user's ventures.
+- `--directory` (or `--root`) is the absolute path of the RealizeOS folder (`realize-os.yaml`, `users.yaml`, `.env`, data, KB). Without it, the folder RealizeOS is installed in is used, never the working directory.
+- `--allow-admin` serves admin tools (owner only). Over stdio, `mcp.allow_admin` doesn't turn them on.
+- MCP must be on (`MCP_ENABLED=true`). stdout carries only JSON-RPC; logs go to stderr. It exits with code 2 and a reason on stderr when it refuses to start.
+- The session is an outside agent (`agent:stdio:<email>`): its writes are held for a person's approval and it can't approve or reject. See [mcp-server.md](mcp-server.md#governed-writes-from-outside-agents).
+
 ### `realize-os packs`
 
 Reviewer kit for market packs (STORY-45). A named local professional fills in a sheet; the CLI records it and queues the level change for approval. See [drafting-a-market-pack.md](drafting-a-market-pack.md#2-review-level-2).
@@ -238,7 +256,7 @@ realize-os packs review-submit pt --sheet filled.csv --reviewer "Ana Silva, advo
 Host the [self-serve tender register](self-serve-wedge.md) pilot. Run these on the server, in the directory that holds `users.yaml` and the database.
 
 ```bash
-realize-os wedge invite dana@example.com   # viewer limited to an empty sandbox venture; prints the password once
+realize-os wedge invite dana@example.com   # pilot-only viewer in an empty sandbox venture; prints the password once
 realize-os wedge funnel --days 30          # runs, users and call requests per market, from recorded runs
 realize-os wedge purge                     # delete runs older than 30 days unless the user opted in
 ```

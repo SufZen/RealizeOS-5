@@ -2,6 +2,7 @@
 
 Commands:
   serve   — start the RealizeOS API + MCP server together
+  stdio   — serve MCP over stdin/stdout for a desktop agent (no port)
   status  — show enabled MCP tools and recent call stats
   token   — issue a bearer token for an MCP client
 """
@@ -9,6 +10,8 @@ Commands:
 from __future__ import annotations
 
 import logging
+import os
+from pathlib import Path
 from typing import Annotated
 
 import typer
@@ -100,3 +103,110 @@ def mcp_token(
         typer.echo(token)
     else:
         emit(result, output_format=state.output_format)
+
+
+@mcp_app.command("stdio")
+def mcp_stdio(
+    user: Annotated[
+        str | None,
+        typer.Option(
+            "--user",
+            "-u",
+            help="Email of the users.yaml user the agent acts as (required; their role and ventures apply).",
+        ),
+    ] = None,
+    venture: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--venture",
+            help="Limit the session to this venture (repeatable). Must be one of the user's ventures.",
+        ),
+    ] = None,
+    directory: Annotated[
+        Path | None,
+        typer.Option(
+            "--directory",
+            "--root",
+            "-d",
+            help=(
+                "Absolute path of the RealizeOS folder (realize-os.yaml, users.yaml, .env, data). "
+                "Defaults to the folder RealizeOS is installed in, never the working directory."
+            ),
+        ),
+    ] = None,
+    allow_admin: Annotated[
+        bool,
+        typer.Option(
+            "--allow-admin",
+            help="Serve admin tools (owner only). Over stdio they stay off unless given here, whatever mcp.allow_admin says.",
+        ),
+    ] = False,
+) -> None:
+    """Serve MCP over stdin/stdout for a local agent (Claude Desktop, Claude Code, Cursor).
+
+    No network port is opened. stdout carries only JSON-RPC; logs go to
+    stderr. The server never runs as an anonymous owner: it needs
+    ``--user`` naming a ``users.yaml`` user and refuses to start without one
+    (identity is taken from arguments only, never from the environment).
+    Configuration, ``users.yaml``, ``.env`` and data come from ``--directory``
+    or the install folder, never from the folder the agent happens to start
+    it in. MCP must be on (``MCP_ENABLED=true``). See docs/connect-your-agent.md.
+    """
+    root = directory if directory is not None else _install_root()
+    if not root.is_absolute():
+        typer.echo(
+            f"RealizeOS MCP stdio server not started: --directory must be an absolute path, got {str(root)!r}", err=True
+        )
+        raise typer.Exit(code=2)
+    if not root.is_dir():
+        typer.echo(f"RealizeOS MCP stdio server not started: {root} is not a folder", err=True)
+        raise typer.Exit(code=2)
+    _enter_project_directory(root.resolve())
+
+    from realize_core.mcp_server.auth import MCPProductionAuthError
+    from realize_core.mcp_server.stdio import StdioStartupError, run_stdio
+
+    try:
+        run_stdio(user, list(venture or []), allow_admin=allow_admin)
+    except (StdioStartupError, MCPProductionAuthError) as exc:
+        typer.echo(f"RealizeOS MCP stdio server not started: {exc}", err=True)
+        raise typer.Exit(code=2) from exc
+    except KeyboardInterrupt:
+        logger.info("MCP stdio server stopped")
+
+
+def _install_root() -> Path:
+    """The folder RealizeOS runs from: the repo root for a source install (where ``cli.py`` lives)."""
+    import realize_core
+
+    return Path(realize_core.__file__).resolve().parent.parent
+
+
+def _enter_project_directory(directory: Path) -> None:
+    """Work in ``directory`` as if RealizeOS had been started there, in this process.
+
+    Desktop agents can't set a working directory, and RealizeOS reads
+    realize-os.yaml, users.yaml, .env and the KB relative to it (the
+    ``.env`` lookup at CLI start searches from the code folder instead). Relative
+    ``sys.path`` entries are pinned first, so the project folder never
+    becomes an import location. Then the folder's ``.env`` is loaded (values
+    already in the environment win, as at normal startup) and the settings
+    :mod:`realize_core.config` computes at import time (``KB_PATH``,
+    ``DATA_PATH``, model names) are recomputed: the CLI imports that module
+    before any command runs.
+    """
+    import importlib
+    import sys
+
+    sys.path[:] = [p if os.path.isabs(p) else os.path.abspath(p) for p in sys.path]
+    os.chdir(directory)
+    try:
+        from dotenv import load_dotenv
+    except ImportError:
+        pass
+    else:
+        load_dotenv(directory / ".env")
+
+    import realize_core.config
+
+    importlib.reload(realize_core.config)

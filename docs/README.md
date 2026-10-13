@@ -25,6 +25,7 @@ Welcome to the RealizeOS documentation. Choose a guide based on where you are in
 |-------|-------------|
 | [💻 CLI Reference](cli-reference.md) | Full operator CLI command tree |
 | [🔌 MCP Server](mcp-server.md) | Built-in MCP server: tools, security, integration |
+| [🔗 Connect Your Agent](connect-your-agent.md) | One guide per agent: Claude Code, Claude Desktop, Claude.ai and Cowork, ChatGPT, Cursor |
 | [✍️ Skill Authoring](skill-authoring.md) | Create custom skills |
 
 ## Extending RealizeOS

@@ -55,7 +55,7 @@ mcp:
   tools: [tender_register_method, tender_register_submit, request_audit_call, realize_health]
   oauth:
     enabled: true
-    redirect_hosts: [claude.ai, claude.com]   # add the hosts of the other agents you support
+    redirect_hosts: [claude.ai, claude.com, chatgpt.com]   # chatgpt.com for ChatGPT; see connect-your-agent.md
 wedge:
   booking_url: https://example.com/audit-sprint
   partners:
@@ -83,7 +83,7 @@ Sign-in is by invitation for now; there is no public sign-up. `invite` refuses t
 realize-os wedge invite dana@example.com
 ```
 
-This adds a `viewer` limited to an empty sandbox venture of their own (`pilot-<hash>`) and prints a password once. Send them the password privately, with the connector URL (`https://pilot.example.com/mcp`) and the guide for their agent ([connect-your-agent.md](connect-your-agent.md)). Their agent signs in with OAuth and sees only the pilot tools. Inside Docker, run it with `docker compose -p realizeos-pilot exec api python cli.py wedge invite …`.
+This adds a `viewer` marked `pilot: true` and limited to an empty sandbox venture of their own (`pilot-<hash>`), and prints a password once. The marker confines the account on the server, whatever the host's config: over MCP it can only call the four pilot tools, and the REST API and dashboard sign-in refuse it. Send them the password privately, with the connector URL (`https://pilot.example.com/mcp`) and the guide for their agent ([connect-your-agent.md](connect-your-agent.md)). Their agent signs in with OAuth and sees only the pilot tools. Inside Docker, run it with `docker compose -p realizeos-pilot exec api python cli.py wedge invite …`.
 
 ### Retention
 
@@ -99,4 +99,4 @@ While `features.wedge` is on, the server deletes runs older than 30 days (unless
 
 `realize-os wedge funnel` (or `realize_core.wedge.funnel(days=30)`) returns runs, users and call requests per market, from recorded runs only. The pilot passes if 30% of users who run it request a call, and at least one comes from outside Israel.
 
-Connection guides for each agent are part of STORY-37 (`docs/connect-your-agent.md`).
+Connection guides for each agent: [connect-your-agent.md](connect-your-agent.md).
