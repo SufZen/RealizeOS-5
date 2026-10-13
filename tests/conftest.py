@@ -33,6 +33,30 @@ def _isolated_ops_db(_session_ops_db):
     schema.set_db_path(None)
 
 
+@pytest.fixture(scope="session")
+def _pack_state_root(tmp_path_factory):
+    return tmp_path_factory.mktemp("pack-state")
+
+
+@pytest.fixture(autouse=True)
+def _isolated_pack_state(_pack_state_root, monkeypatch):
+    """Give every test its own pack verification state file.
+
+    The state normally lives in ``DATA_PATH/packs/verification.json``; without
+    this, a developer's local approvals would change the levels tests see.
+    The folder is only created if the test records a verification.
+    """
+    import uuid
+
+    from realize_core.packs import state
+
+    path = _pack_state_root / uuid.uuid4().hex / state.STATE_FILE
+    monkeypatch.setattr(state, "state_path", lambda: path)
+    state.clear_cache()
+    yield
+    state.clear_cache()
+
+
 @pytest.fixture
 def kb_root(tmp_path):
     """Create a minimal KB directory structure for testing.

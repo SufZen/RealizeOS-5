@@ -441,6 +441,282 @@ class TestMissionApprovalHold:
         assert runtime.invocations == ["s1"]
 
 
+# ─── Codex audit N02: how a runtime run ends decides the step's status ──────
+
+
+class _ScriptedRuntime:
+    """Ends s1 with a scripted final status, optionally after requesting an approval."""
+
+    runtime_id = "scripted"
+
+    def __init__(self, final_status, *, held=False, error=False, decide_mid_run=False):
+        self.final_status = final_status
+        self.held = held
+        self.error = error
+        self.decide_mid_run = decide_mid_run
+        self.invocations: list[str] = []
+
+    async def invoke(self, step, context):
+        from realize_core.missions import engine as engine_mod
+        from realize_core.runtimes.events import ApprovalRequestEvent, ErrorEvent, FinalResultEvent
+
+        self.invocations.append(step.step_id)
+        if step.step_id == "s1":
+            if self.held:
+                yield ApprovalRequestEvent(run_id="r", category="tool", proposed_action={"request_id": "apv-n02"})
+            if self.decide_mid_run:
+                # The operator decides before the runtime has finished the step.
+                await engine_mod.on_approval_decided("apv-n02", True, {"success": True, "output": "paid"})
+            if self.error:
+                yield ErrorEvent(run_id="r", message="model unavailable")
+            if self.final_status is not None:
+                yield FinalResultEvent(run_id="r", output={"text": "s1 done"}, status=self.final_status)
+            return
+        yield FinalResultEvent(run_id="r", output={"text": f"{step.step_id} done"}, status="success")
+
+
+def _scripted_engine(tmp_path, runtime):
+    from types import SimpleNamespace
+
+    registry = RuntimeRegistry()
+    registry._runtimes[runtime.runtime_id] = SimpleNamespace(
+        runtime=runtime, status="ready", invocation_count=0, last_used=None, total_cost_eur=0.0
+    )
+    engine = MissionEngine(registry=registry, event_log=EventLog(tmp_path / "events.jsonl"))
+    mission = engine.create_mission(title="Pay and report", goal="g", venture="acme")
+    engine.plan_mission(
+        mission.mission_id,
+        steps=[
+            {"description": "Pay the contractor", "runtime": runtime.runtime_id},
+            {"description": "Report the payment", "runtime": runtime.runtime_id, "inputs_from": ["s1"]},
+        ],
+    )
+    return engine, mission.mission_id
+
+
+class TestStepOutcome:
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("final_status", "held", "error", "expected"),
+        [
+            ("success", False, False, StepStatus.SUCCEEDED),
+            ("success", True, False, StepStatus.AWAITING_APPROVAL),
+            ("partial", True, False, StepStatus.AWAITING_APPROVAL),
+            # A partial result with nothing waiting is a failure, never a wait.
+            ("partial", False, False, StepStatus.FAILED),
+            ("failed", False, False, StepStatus.FAILED),
+            ("failed", True, False, StepStatus.FAILED),
+            ("partial", True, True, StepStatus.FAILED),
+            (None, False, False, StepStatus.FAILED),
+            ("bogus", False, False, StepStatus.FAILED),
+        ],
+    )
+    async def test_final_status_maps_to_step_status(self, tmp_path, final_status, held, error, expected):
+        runtime = _ScriptedRuntime(final_status, held=held, error=error)
+        engine, mission_id = _scripted_engine(tmp_path, runtime)
+
+        mission = await engine.execute_mission(mission_id)
+
+        assert mission.plan[0].status == expected
+        if expected == StepStatus.SUCCEEDED:
+            assert mission.state == MissionState.COMPLETED
+            assert runtime.invocations == ["s1", "s2"]
+            return
+        assert mission.plan[1].status == StepStatus.PENDING  # the dependant never runs before s1 succeeds
+        assert runtime.invocations == ["s1"]
+        if expected == StepStatus.AWAITING_APPROVAL:
+            assert mission.state == MissionState.AWAITING_APPROVAL
+        else:
+            assert mission.state == MissionState.FAILED
+            assert mission.plan[0].error
+
+    @pytest.mark.asyncio
+    async def test_approval_decided_while_the_step_runs(self, tmp_path):
+        runtime = _ScriptedRuntime("partial", held=True, decide_mid_run=True)
+        engine, mission_id = _scripted_engine(tmp_path, runtime)
+
+        mission = await engine.execute_mission(mission_id)
+
+        assert mission.state == MissionState.COMPLETED
+        assert mission.plan[0].status == StepStatus.SUCCEEDED
+        assert mission.plan[0].output["approved_output"] == "paid"
+        assert mission.plan[0].output["text"] == "s1 done"
+        assert runtime.invocations == ["s1", "s2"]
+
+
+# ─── Codex audit N02: the real internal runtime's held step waits, then resumes ─
+
+
+@pytest.fixture
+def real_held_mission(tmp_path, monkeypatch):
+    """The real InternalAdapter in a RuntimeRegistry, a real MissionEngine, the real gate and decision path.
+
+    Only ``process_message`` is replaced (as the audit's probe did). For the
+    payment step it calls a gated tool through the real tool registry, which
+    holds it and queues an approval, and emits the tool loop's
+    ``approval_requested`` event, like the agent pipeline does.
+    """
+    from types import SimpleNamespace
+
+    import realize_core.tools.tool_registry as tr
+    from realize_core import base_handler, config
+    from realize_core.db.schema import init_schema, set_db_path
+    from realize_core.governance.context import tool_call_context
+    from realize_core.governance.tool_gate import ToolGate
+    from realize_core.memory import conversation
+    from realize_core.tools.base_tool import BaseTool, ToolCategory, ToolResult, ToolSchema
+
+    class LedgerTool(BaseTool):
+        name = "ledger"
+        description = "test ledger"
+        category = ToolCategory.DATA
+
+        def __init__(self):
+            self.calls: list[dict] = []
+
+        def get_schemas(self):
+            obj = {"type": "object", "properties": {}}
+            return [ToolSchema("ledger_append", "append a row", obj, is_destructive=True)]
+
+        def is_available(self):
+            return True
+
+        async def execute(self, action, params):
+            self.calls.append(params)
+            return ToolResult.ok(output=f"appended {params['row']}")
+
+    db = tmp_path / "ops.db"
+    init_schema(db)
+    set_db_path(db)
+    kb = tmp_path / "kb"
+    (kb / "systems" / "acme-office").mkdir(parents=True)
+    (tmp_path / "realize-os.yaml").write_text(
+        "systems:\n  - key: acme\n    name: Acme\n    directory: systems/acme-office\n", encoding="utf-8"
+    )
+    monkeypatch.setenv("REALIZE_CONFIG", str(tmp_path / "realize-os.yaml"))
+    monkeypatch.setattr(config, "KB_PATH", kb)
+    monkeypatch.setattr(conversation, "add_message", lambda *a, **k: None)
+    monkeypatch.setattr(tr, "_registry", None)
+    tools = tr.get_tool_registry()
+    ledger = LedgerTool()
+    tools.register(ledger)
+    tools.set_gate(ToolGate(config={}))
+
+    state = SimpleNamespace(calls=[], ledger=ledger, queue_approval=True, request_ids=[])
+
+    async def fake_process_message(*, system_key, user_id, message, emit=None, **_):
+        state.calls.append(message)
+        if not message.startswith("Pay"):
+            return f"Done: {message}"
+        request_id = None
+        if state.queue_approval:
+            with tool_call_context(system_key=system_key, agent_key="finance", user_id=user_id, channel="mission"):
+                result = await tools.execute("ledger_append", {"row": "Payment #7"})
+            assert result.metadata.get("requires_human")
+            request_id = result.metadata["request_id"]
+            state.request_ids.append(request_id)
+        emit({"type": "tool_call", "id": "t1", "name": "ledger_append", "input": {"row": "Payment #7"}})
+        emit({"type": "approval_requested", "id": "t1", "name": "ledger_append", "request_id": request_id})
+        emit({"type": "tool_result", "id": "t1", "name": "ledger_append", "success": False, "held": True})
+        return "Payment #7 is waiting for approval."
+
+    monkeypatch.setattr(base_handler, "process_message", fake_process_message)
+    yield state
+    set_db_path(None)
+
+
+async def _real_engine(tmp_path):
+    from realize_core.runtimes.internal import InternalAdapter
+
+    registry = RuntimeRegistry()
+    assert await registry.register(InternalAdapter())
+    engine = MissionEngine(registry=registry, event_log=EventLog(tmp_path / "events.jsonl"))
+    mission = engine.create_mission(title="Pay and report", goal="g", venture="acme")
+    engine.plan_mission(
+        mission.mission_id,
+        steps=[
+            {"description": "Pay the contractor", "runtime": "internal"},
+            {"description": "Report the payment", "runtime": "internal", "inputs_from": ["s1"]},
+        ],
+    )
+    return engine, mission.mission_id
+
+
+async def _continuations_done():
+    import asyncio
+
+    from realize_core.missions import engine as engine_mod
+
+    while engine_mod._continuations:
+        await asyncio.gather(*list(engine_mod._continuations))
+
+
+class TestRealInternalAdapterHold:
+    @pytest.mark.asyncio
+    async def test_held_step_waits_then_approval_completes_the_mission(self, tmp_path, real_held_mission):
+        from realize_core.governance.gates import decide_approval
+
+        engine, mission_id = await _real_engine(tmp_path)
+
+        mission = await engine.execute_mission(mission_id)
+
+        [request_id] = real_held_mission.request_ids
+        assert mission.state == MissionState.AWAITING_APPROVAL
+        assert mission.plan[0].status == StepStatus.AWAITING_APPROVAL
+        assert mission.plan[0].pending_approvals == [request_id]
+        assert mission.plan[1].status == StepStatus.PENDING
+        assert real_held_mission.calls == ["Pay the contractor"]
+        assert real_held_mission.ledger.calls == []  # held, not done
+
+        out = await decide_approval(request_id, True, decided_by="owner", channel="dashboard")
+        await _continuations_done()
+
+        assert out["execution"]["success"] is True
+        assert out["decision_log"]["logged"] is True  # and into the configured folder (N05)
+        assert mission.state == MissionState.COMPLETED
+        assert mission.plan[0].status == StepStatus.SUCCEEDED
+        assert mission.plan[0].output["approved_output"] == "appended Payment #7"
+        assert mission.plan[1].status == StepStatus.SUCCEEDED
+        assert real_held_mission.calls == ["Pay the contractor", "Report the payment"]
+        assert real_held_mission.ledger.calls == [{"row": "Payment #7"}]
+
+    @pytest.mark.asyncio
+    async def test_rejection_fails_the_step_and_the_dependant_never_runs(self, tmp_path, real_held_mission):
+        from realize_core.governance.gates import decide_approval
+
+        engine, mission_id = await _real_engine(tmp_path)
+        mission = await engine.execute_mission(mission_id)
+        [request_id] = real_held_mission.request_ids
+
+        await decide_approval(request_id, False, "not this week", decided_by="owner", channel="dashboard")
+        await _continuations_done()
+
+        assert mission.state == MissionState.FAILED
+        assert "blocked" in mission.outcome_summary
+        assert mission.plan[0].status == StepStatus.FAILED
+        assert mission.plan[1].status == StepStatus.PENDING
+        assert real_held_mission.calls == ["Pay the contractor"]
+        assert real_held_mission.ledger.calls == []
+
+    @pytest.mark.asyncio
+    async def test_partial_without_a_queued_approval_is_a_failure(self, tmp_path, real_held_mission):
+        from realize_core.missions import engine as engine_mod
+
+        real_held_mission.queue_approval = False  # the runtime reports 'partial', but nothing waits
+        engine, mission_id = await _real_engine(tmp_path)
+        held_before = dict(engine_mod._held_steps)
+
+        mission = await engine.execute_mission(mission_id)
+
+        assert mission.state == MissionState.FAILED
+        assert mission.plan[0].status == StepStatus.FAILED
+        assert "partial" in mission.plan[0].error
+        assert mission.plan[0].pending_approvals == []
+        assert mission.plan[1].status == StepStatus.PENDING
+        assert real_held_mission.calls == ["Pay the contractor"]
+        assert engine_mod._held_steps == held_before
+
+
 # ─── Codex audit F16: plans are validated before anything is stored ─────────
 
 

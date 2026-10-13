@@ -8,12 +8,21 @@ person approves it in the queue.
 
 Writes are idempotent on the approval id, so retries never duplicate entries.
 Counts come from the files that exist, never from estimates.
+
+Writes are durable (Codex audit N05): :func:`log_decision` first stores the
+intent in ``decision_writes`` (migration 013), then writes the file and marks
+the intent done. A write that fails (disk full, read-only mount, venture folder
+missing) stays pending and is retried at startup, after the next decision that
+is logged, and by ``realize-os decisions retry``.
 """
 
 from __future__ import annotations
 
 import logging
+import os
 import re
+import sqlite3
+import uuid
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -33,6 +42,35 @@ NOT_DECISIONS = frozenset({"skill_input", "agent_input", "agent_credential"})
 MAX_TITLE_CHARS = 200
 MAX_STATEMENT_CHARS = 5000
 
+#: Pending decision writes retried in one pass, so a retry stays cheap.
+RETRY_BATCH = 50
+
+#: Automatic retries (startup, after a decision) stop after this many failed
+#: attempts, so a venture whose folder is gone doesn't slow every approval.
+#: ``realize-os decisions retry`` still tries every pending write.
+MAX_AUTO_ATTEMPTS = 5
+
+#: Durable decision-write intents (migration 013). One row per approval.
+DDL = """
+CREATE TABLE IF NOT EXISTS decision_writes (
+    approval_id  TEXT PRIMARY KEY,
+    venture_key  TEXT NOT NULL DEFAULT '',
+    approve      INTEGER NOT NULL,
+    action_type  TEXT,
+    status       TEXT NOT NULL DEFAULT 'pending',
+    attempts     INTEGER NOT NULL DEFAULT 0,
+    last_error   TEXT,
+    decision_id  TEXT,
+    created_at   TEXT NOT NULL,
+    updated_at   TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_decision_writes_status ON decision_writes(status, created_at);
+"""
+
+
+class DecisionLogError(Exception):
+    """The decision can't be written yet (for example its venture folder isn't there)."""
+
 
 def _kb_path(kb_path: Path | str | None) -> Path:
     if kb_path is not None:
@@ -40,6 +78,54 @@ def _kb_path(kb_path: Path | str | None) -> Path:
     from realize_core.config import KB_PATH
 
     return KB_PATH
+
+
+def is_decision(action_type: str | None, approve: bool) -> bool:
+    """Whether a decided approval belongs in the decision log.
+
+    Inputs (answers, credentials) are not decisions, and a rejected decision
+    proposal never happened.
+    """
+    if (action_type or "") in NOT_DECISIONS:
+        return False
+    return not (action_type == DECISION_LOG_ACTION and not approve)
+
+
+def decision_venture_dir(
+    venture_key: str, *, kb_path: Path | str | None = None, config: dict | None = None
+) -> Path | None:
+    """The venture folder decisions go to, from the configured key → directory mapping.
+
+    Reads the venture's ``systems:`` entry in realize-os.yaml (``config``, or
+    the loaded config), so a ``directory`` that differs from the key is
+    honoured. Without an entry the folder is matched by name. Never returns a
+    folder outside ``systems/`` or ``ventures/``.
+
+    Returns:
+        The folder, or None when the venture has none on disk.
+
+    Raises:
+        DecisionLogError: the configured directory is outside ``systems/`` or ``ventures/``.
+    """
+    from realize_core.scaffold import UnsafeVentureDirError, resolve_venture_dir
+
+    if not venture_key:
+        return None
+    if config is None:
+        from realize_core.config import load_config
+
+        config = load_config()
+    systems = config.get("systems") if isinstance(config, dict) else None
+    entry = next(
+        (s for s in systems or [] if isinstance(s, dict) and s.get("key") == venture_key),
+        None,
+    )
+    try:
+        return resolve_venture_dir(_kb_path(kb_path), venture_key, entry)
+    except UnsafeVentureDirError as exc:
+        raise DecisionLogError(
+            f"Venture '{venture_key}' is configured with a directory outside systems/ or ventures/"
+        ) from exc
 
 
 def decision_id(approval_id: str, when: datetime) -> str:
@@ -83,30 +169,88 @@ def _params(record: dict) -> dict:
         return {}
 
 
+def _decided_at(record: dict) -> datetime:
+    """When the decision was made (the approval's ``decided_at``), so a retried write keeps its date."""
+    raw = record.get("decided_at")
+    if isinstance(raw, str) and raw:
+        try:
+            when = datetime.fromisoformat(raw)
+        except ValueError:
+            when = None
+        if when is not None:
+            return when if when.tzinfo else when.replace(tzinfo=UTC)
+    return datetime.now(UTC)
+
+
+def _write_atomically(path: Path, text: str) -> None:
+    """Write ``text`` to ``path`` via a temporary file, so a failed write never leaves a partial entry."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.parent / f".{path.name}.{uuid.uuid4().hex[:8]}.tmp"
+    try:
+        tmp.write_text(text, encoding="utf-8")
+        os.replace(tmp, path)
+    except OSError:
+        try:
+            tmp.unlink(missing_ok=True)
+        except OSError:
+            logger.debug("Could not remove temporary decision file %s", tmp, exc_info=True)
+        raise
+
+
 def record_approval_decision(
-    record: dict, approve: bool, *, action_type: str | None = None, kb_path: Path | str | None = None
+    record: dict,
+    approve: bool,
+    *,
+    action_type: str | None = None,
+    kb_path: Path | str | None = None,
+    config: dict | None = None,
 ) -> Path | None:
     """Write the decision entity for a decided approval. Returns its path, or None.
 
     Skipped for inputs (answers, credentials) and for rejected decision
-    proposals, which never happened. Idempotent on the approval id.
-    """
-    from realize_core.scaffold import find_venture_dir
+    proposals, which never happened, and when the venture has no folder.
+    Idempotent on the approval id. Use :func:`log_decision` for a write that
+    is retried after a failure.
 
+    Raises:
+        OSError: the file could not be written.
+    """
     action_type = action_type or record.get("action_type") or ""
-    if action_type in NOT_DECISIONS:
+    if not is_decision(action_type, approve):
         return None
-    if action_type == DECISION_LOG_ACTION and not approve:
+    try:
+        return _write_decision(record, approve, action_type, kb_path=kb_path, config=config)
+    except DecisionLogError as exc:
+        logger.warning("Decision for approval %s not recorded: %s", record.get("id"), exc)
         return None
+
+
+def _write_decision(
+    record: dict,
+    approve: bool,
+    action_type: str,
+    *,
+    kb_path: Path | str | None = None,
+    config: dict | None = None,
+) -> Path:
+    """Write (or find) the decision file for a decided approval.
+
+    Raises:
+        DecisionLogError: no approval id, or no usable venture folder.
+        OSError: the file could not be written.
+    """
     approval_id = str(record.get("id") or "")
-    venture_dir = find_venture_dir(_kb_path(kb_path), record.get("venture_key") or "")
-    if not approval_id or venture_dir is None:
-        return None
+    if not approval_id:
+        raise DecisionLogError("The approval has no id")
+    venture_key = record.get("venture_key") or ""
+    venture_dir = decision_venture_dir(venture_key, kb_path=kb_path, config=config)
+    if venture_dir is None:
+        raise DecisionLogError(f"Venture '{venture_key}' has no folder for its decision log")
     existing = _existing(venture_dir, approval_id)
     if existing is not None:
         return existing
 
-    now = datetime.now(UTC)
+    now = _decided_at(record)
     params = _params(record)
     decided_by = record.get("decided_by") or "unknown"
     if action_type == DECISION_LOG_ACTION:
@@ -157,13 +301,241 @@ def record_approval_decision(
     else:
         lines.append("\n_No source recorded for this decision._")
     path = venture_dir / DECISIONS_DIR / f"{entity_id}.md"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
+    _write_atomically(
+        path,
         "---\n" + yaml.safe_dump(frontmatter, allow_unicode=True, sort_keys=False) + "---\n" + "\n".join(lines) + "\n",
-        encoding="utf-8",
     )
     logger.info("Decision %s recorded for approval %s", entity_id, approval_id)
     return path
+
+
+# ---------------------------------------------------------------------------
+# Durable writes (Codex audit N05)
+# ---------------------------------------------------------------------------
+
+
+def _now() -> str:
+    return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+
+
+def _connect(db_path=None) -> sqlite3.Connection:
+    from realize_core.db.schema import get_connection
+
+    conn = get_connection(db_path)
+    conn.executescript(DDL)
+    return conn
+
+
+#: What can go wrong writing one decision file (anything else is a bug and is raised).
+_WRITE_ERRORS = (DecisionLogError, OSError, ValueError, yaml.YAMLError)
+
+
+def _outcome(logged: bool, error: str | None = None, *, pending: bool = False, decision: str | None = None) -> dict:
+    """What a caller (and the approval API) learns about a decision-log write."""
+    return {"logged": logged, "pending": pending, "error": error, "decision_id": decision}
+
+
+def _public_error(exc: Exception) -> str:
+    """A short reason for the API, without server paths (the full error is logged and stored)."""
+    if isinstance(exc, OSError):
+        return exc.strerror or type(exc).__name__
+    return str(exc) or type(exc).__name__
+
+
+def log_decision(
+    record: dict,
+    approve: bool,
+    *,
+    action_type: str | None = None,
+    kb_path: Path | str | None = None,
+    db_path=None,
+    retry_others: bool = True,
+) -> dict:
+    """Record a decided approval in the decision log, durably. Never raises.
+
+    The intent is stored first; the file is written; the intent is marked
+    done. A failed write stays pending and is retried later
+    (:func:`retry_pending_decisions`), and never produces a second entry.
+    After a successful write, other pending writes are retried.
+
+    Returns:
+        ``{"logged": bool, "pending": bool, "error": str | None, "decision_id": str | None}``.
+        ``pending`` means a retry is queued. Inputs and rejected proposals
+        are not decisions: ``logged`` and ``pending`` are both False and
+        ``error`` is None.
+    """
+    action_type = action_type or record.get("action_type") or ""
+    approval_id = str(record.get("id") or "")
+    if not is_decision(action_type, approve) or not approval_id:
+        return _outcome(False)
+
+    queued = _queue(record, approve, action_type, db_path)
+    try:
+        path = _write_decision(record, approve, action_type, kb_path=kb_path)
+    except _WRITE_ERRORS as exc:
+        logger.warning("Decision log write failed for approval %s: %s", approval_id, exc)
+        error = _public_error(exc)
+        if queued:
+            _mark(approval_id, db_path, error=str(exc) or error)
+            return _outcome(False, error, pending=True)
+        return _outcome(False, f"{error} (and it could not be queued for a retry)")
+    decision = path.stem
+    if queued:
+        _mark(approval_id, db_path, decision=decision)
+    if retry_others:
+        try:
+            retry_pending_decisions(kb_path=kb_path, db_path=db_path, exclude=(approval_id,))
+        except Exception:
+            # This decision is logged; a broken retry of others must not report otherwise.
+            logger.warning("Retrying pending decision-log writes failed", exc_info=True)
+    return _outcome(True, decision=decision)
+
+
+def _queue(record: dict, approve: bool, action_type: str, db_path) -> bool:
+    """Store the intent to log this decision. Returns False when the database can't be written."""
+    now = _now()
+    try:
+        conn = _connect(db_path)
+        try:
+            conn.execute(
+                """INSERT OR IGNORE INTO decision_writes
+                   (approval_id, venture_key, approve, action_type, status, attempts, created_at, updated_at)
+                   VALUES (?, ?, ?, ?, 'pending', 0, ?, ?)""",
+                (str(record.get("id")), record.get("venture_key") or "", int(bool(approve)), action_type, now, now),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+    except (sqlite3.Error, OSError):
+        logger.warning("Could not queue the decision-log write for approval %s", record.get("id"), exc_info=True)
+        return False
+    return True
+
+
+def _mark(approval_id: str, db_path, *, decision: str | None = None, error: str | None = None) -> None:
+    """Record one attempt: done (with its decision id) or still pending (with the error)."""
+    try:
+        conn = _connect(db_path)
+        try:
+            if decision is not None:
+                conn.execute(
+                    """UPDATE decision_writes SET status = 'done', attempts = attempts + 1, last_error = NULL,
+                       decision_id = ?, updated_at = ? WHERE approval_id = ?""",
+                    (decision, _now(), approval_id),
+                )
+            else:
+                conn.execute(
+                    """UPDATE decision_writes SET attempts = attempts + 1, last_error = ?, updated_at = ?
+                       WHERE approval_id = ? AND status = 'pending'""",
+                    ((error or "")[:500], _now(), approval_id),
+                )
+            conn.commit()
+        finally:
+            conn.close()
+    except (sqlite3.Error, OSError):
+        logger.warning("Could not update the decision-log write for approval %s", approval_id, exc_info=True)
+
+
+def pending_decisions(db_path=None, *, limit: int = RETRY_BATCH, max_attempts: int | None = None) -> list[dict]:
+    """Decision writes still waiting to be written, oldest first.
+
+    ``max_attempts`` leaves out writes that already failed that many times.
+    """
+    conn = _connect(db_path)
+    try:
+        rows = conn.execute(
+            """SELECT * FROM decision_writes WHERE status = 'pending' AND (? IS NULL OR attempts < ?)
+               ORDER BY created_at LIMIT ?""",
+            (max_attempts, max_attempts, limit),
+        ).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def _approval_row(approval_id: str, db_path) -> dict | None:
+    from realize_core.db.schema import get_connection
+
+    conn = get_connection(db_path)
+    try:
+        row = conn.execute("SELECT * FROM approval_queue WHERE id = ?", (approval_id,)).fetchone()
+        return dict(row) if row else None
+    finally:
+        conn.close()
+
+
+def retry_pending_decisions(
+    *,
+    kb_path: Path | str | None = None,
+    db_path=None,
+    limit: int = RETRY_BATCH,
+    exclude: tuple[str, ...] = (),
+    max_attempts: int | None = MAX_AUTO_ATTEMPTS,
+) -> dict[str, int]:
+    """Write decisions whose earlier write failed. Never raises.
+
+    Each one is rebuilt from its approval row, so the entry is the same as the
+    first attempt would have written; an entry that already exists is reused,
+    never duplicated. Runs at startup and after each decision that is logged
+    (writes that failed ``max_attempts`` times are skipped), and from
+    ``realize-os decisions retry`` (``max_attempts=None``: every pending write).
+
+    Returns:
+        ``{"logged": n, "pending": n}``: written now, and still waiting
+        (including any beyond this pass's ``limit``).
+    """
+    from realize_core.config import load_config
+
+    try:
+        intents = [
+            i
+            for i in pending_decisions(db_path, limit=limit, max_attempts=max_attempts)
+            if i["approval_id"] not in exclude
+        ]
+    except (sqlite3.Error, OSError):
+        logger.warning("Could not read pending decision-log writes", exc_info=True)
+        return {"logged": 0, "pending": 0}
+    if not intents:
+        return {"logged": 0, "pending": _pending_count(db_path)}
+
+    config = load_config()
+    logged = 0
+    for intent in intents:
+        approval_id = intent["approval_id"]
+        try:
+            record = _approval_row(approval_id, db_path)
+        except (sqlite3.Error, OSError) as exc:
+            _mark(approval_id, db_path, error=f"Could not read the approval: {exc}")
+            continue
+        if record is None:
+            _mark(approval_id, db_path, error="The approval no longer exists")
+            continue
+        try:
+            path = _write_decision(
+                record, bool(intent["approve"]), intent["action_type"] or "", kb_path=kb_path, config=config
+            )
+        except _WRITE_ERRORS as exc:
+            logger.warning("Decision log retry failed for approval %s: %s", approval_id, exc)
+            _mark(approval_id, db_path, error=str(exc) or type(exc).__name__)
+            continue
+        _mark(approval_id, db_path, decision=path.stem)
+        logged += 1
+    if logged:
+        logger.info("Decision log: %d pending write(s) recorded on retry", logged)
+    return {"logged": logged, "pending": _pending_count(db_path)}
+
+
+def _pending_count(db_path) -> int:
+    """How many decision writes are still waiting (0 if the database can't be read)."""
+    try:
+        conn = _connect(db_path)
+        try:
+            return conn.execute("SELECT COUNT(*) FROM decision_writes WHERE status = 'pending'").fetchone()[0]
+        finally:
+            conn.close()
+    except (sqlite3.Error, OSError):
+        logger.warning("Could not count pending decision-log writes", exc_info=True)
+        return 0
 
 
 def propose_decision(

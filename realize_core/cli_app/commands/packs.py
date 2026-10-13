@@ -5,10 +5,11 @@ Commands:
     realize-os packs review-submit MARKET --sheet PATH --reviewer "Name, title (registration)"
                                    [--venture KEY] [--apply-corrections [--yes]] [--whole-pack]
     realize-os packs desk-check MARKET
+    realize-os packs inventory [--kb PATH] [--compare packs-inventory.json]
 
 The sheet goes to a named local professional; their filled sheet comes back
 through ``review-submit``, which records the review in the pack and queues a
-``pack_verify`` approval. A person approves the level change in the dashboard.
+``pack_verify`` approval. An owner with access to every venture approves the level change in the dashboard.
 """
 
 from __future__ import annotations
@@ -119,9 +120,9 @@ def _print_outcome(outcome: SubmitOutcome, market: str, reviewer: str) -> None:
             "reject it in the dashboard so only this one stands."
         )
     if outcome.approval_id:
-        scope = "the whole pack (pack.yaml and every card)" if outcome.whole_pack else f"{len(outcome.cards)} cards"
+        scope = "the whole pack (its own level and every card)" if outcome.whole_pack else f"{len(outcome.cards)} cards"
         _echo(f"Approval queued: {outcome.approval_id} (pack_verify, {scope} to level 2).")
-        _echo("Nothing changes until a person approves it in the dashboard (Approvals).")
+        _echo("Nothing changes until an owner with access to every venture approves it in the dashboard (Approvals).")
         if not outcome.whole_pack:
             _echo(
                 "Note: a card's level is the lower of its own and the pack's, so answers show level 2 only "
@@ -192,6 +193,14 @@ def review_submit(
     except (ReviewError, PackVerificationError) as exc:
         _echo(f"Error: {exc}", err=True)
         raise typer.Exit(1) from exc
+    except PermissionError as exc:
+        _echo(
+            f"Error: {exc}. The review record and corrections are written into the pack, and this pack's "
+            "folder is read-only (shipped packs are, in the production image). Run review-submit in a "
+            "checkout of the repository, or copy the pack into REALIZE_PACKS_PATH first.",
+            err=True,
+        )
+        raise typer.Exit(1) from exc
     _print_outcome(outcome, market, reviewer.strip())
 
 
@@ -217,3 +226,43 @@ def desk_check(
     _echo(f"{errors} error(s), {warnings} warning(s), {len(findings) - errors - warnings} note(s)")
     if errors:
         raise typer.Exit(1)
+
+
+@packs_app.command("inventory")
+def inventory(
+    kb: Annotated[Path | None, typer.Option("--kb", help="KB root (default: KB_PATH or the current folder).")] = None,
+    compare: Annotated[
+        Path | None,
+        typer.Option("--compare", help="An exported packs-inventory.json to check this installation against."),
+    ] = None,
+) -> None:
+    """Installed packs, their verification levels and what each venture resolves (JSON).
+
+    With --compare, checks a restore: lists every difference from the
+    exported inventory and exits 1 if there is one.
+    """
+    import json
+    import os
+
+    from realize_core.packs.inventory import build_inventory, compare_inventories
+
+    current = build_inventory(kb or Path(os.getenv("KB_PATH", ".")))
+    if compare is None:
+        _echo(json.dumps(current, indent=2, ensure_ascii=False, default=str))
+        return
+    try:
+        expected = json.loads(compare.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        _echo(f"Error: cannot read {compare} ({exc})", err=True)
+        raise typer.Exit(1) from exc
+    if not isinstance(expected, dict):
+        _echo(f"Error: {compare} is not a packs inventory", err=True)
+        raise typer.Exit(1)
+    problems = compare_inventories(expected, current)
+    if not problems:
+        _echo(f"Same packs, levels and resolved rules as {compare.name}.")
+        return
+    _echo(f"{len(problems)} difference(s) from {compare.name}:")
+    for problem in problems:
+        _echo(f"  - {problem}")
+    raise typer.Exit(1)

@@ -668,13 +668,16 @@ def _build_pack_layer(
     if not system_config.get("system_dir"):
         return ""
     from realize_core.packs import build_pack_context, get_resolver, venture_dir_for
+    from realize_core.packs.loader import LOAD_ERRORS
 
+    # The loader already skips a malformed file or pack with a warning (audit
+    # N06); this keeps an unexpected content error from failing the whole chat.
     try:
         resolver = get_resolver(venture_dir_for(kb_path, system_config), enabled=bool(features.get("packs")))
-    except (OSError, ValueError) as exc:
-        logger.warning("Pack context unavailable: %s", exc)
+        return build_pack_context(resolver, user_message, sources_out)
+    except LOAD_ERRORS as exc:
+        logger.warning("Pack context unavailable for %s: %s", system_config.get("system_dir"), exc, exc_info=True)
         return ""
-    return build_pack_context(resolver, user_message, sources_out)
 
 
 def build_system_prompt(

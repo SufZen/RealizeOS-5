@@ -30,6 +30,10 @@ services:
       - ./realize-os.yaml:/app/realize-os.yaml:ro
       - ./systems:/app/systems
       - ./.credentials:/app/.credentials:ro
+      # Optional: your own or modified profession/market packs (writable).
+      # Uncomment together with REALIZE_PACKS_PATH below. Shipped packs in
+      # /app/packs stay read-only; approved pack levels live in /app/data.
+      # - ./packs-custom:/app/packs-custom
     env_file:
       - .env
     environment:
@@ -37,6 +41,7 @@ services:
       - KB_PATH=/app
       - REALIZE_HOST=0.0.0.0
       - REALIZE_PORT=8080
+      # - REALIZE_PACKS_PATH=/app/packs-custom
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/api/health"]

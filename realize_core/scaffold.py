@@ -346,13 +346,28 @@ def _require_writable_config(root: Path) -> None:
         )
 
 
-def _resolve_venture_dir(root: Path, key: str, sys_conf: dict | None) -> Path | None:
-    """Return the venture's directory, read from its config entry, or None if it has none on disk.
+class UnsafeVentureDirError(ValueError):
+    """A configured venture directory is not a folder directly inside ``systems/`` or ``ventures/``."""
 
-    Uses the configured ``directory`` (which can differ from the key, e.g.
-    ``systems/realization.co.il``) and refuses anything that isn't directly
-    inside ``systems/`` or ``ventures/``, so a bad entry can never delete the project.
+    def __init__(self, path: Path):
+        self.path = path
+        super().__init__(f"'{path}' is not a folder directly under systems/ or ventures/.")
+
+
+def resolve_venture_dir(root: Path | str, key: str, sys_conf: dict | None = None) -> Path | None:
+    """Return the venture's directory from its config entry, or None if it has none on disk.
+
+    The one trusted key → directory mapping: ``sys_conf`` is the venture's
+    entry in realize-os.yaml ``systems:``, whose ``directory`` can differ from
+    the key (``systems/acme-office`` for ``acme``). Without a configured
+    directory the folder is matched by name (:func:`find_venture_dir`); the key
+    is never joined into a path.
+
+    Raises:
+        UnsafeVentureDirError: the directory is not directly inside ``systems/``
+            or ``ventures/``, so a bad entry can never point outside them.
     """
+    root = Path(root)
     if sys_conf and sys_conf.get("directory"):
         candidate = (root / str(sys_conf["directory"])).resolve()
     else:
@@ -363,10 +378,24 @@ def _resolve_venture_dir(root: Path, key: str, sys_conf: dict | None) -> Path | 
 
     allowed_roots = [(root / name).resolve() for name in ("systems", "ventures")]
     if not any(candidate.parent == allowed for allowed in allowed_roots):
-        raise ValueError(f"Refusing to delete '{candidate}': it is not a folder directly under systems/ or ventures/.")
+        raise UnsafeVentureDirError(candidate)
     if not candidate.is_dir():
         return None
     return candidate
+
+
+def _resolve_venture_dir(root: Path, key: str, sys_conf: dict | None) -> Path | None:
+    """Return the venture's directory for deletion (see :func:`resolve_venture_dir`).
+
+    Refuses anything that isn't directly inside ``systems/`` or ``ventures/``,
+    so a bad entry can never delete the project.
+    """
+    try:
+        return resolve_venture_dir(root, key, sys_conf)
+    except UnsafeVentureDirError as exc:
+        raise ValueError(
+            f"Refusing to delete '{exc.path}': it is not a folder directly under systems/ or ventures/."
+        ) from exc
 
 
 def delete_venture(project_root: str | Path, key: str, confirm_name: str = "") -> dict:

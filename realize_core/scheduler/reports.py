@@ -179,12 +179,18 @@ async def generate_weekly_review(
 
 def _decision_lines(systems: dict, kb_path: Path) -> list[str]:
     """One line per venture: decisions recorded this week, and how many lack a source."""
-    from realize_core.governance.decision_log import weekly_counts
-    from realize_core.scaffold import find_venture_dir
+    from realize_core.config import load_config
+    from realize_core.governance.decision_log import DecisionLogError, decision_venture_dir, weekly_counts
 
+    config = load_config()
     lines = []
     for sys_key in systems:
-        venture_dir = find_venture_dir(kb_path, sys_key)
+        try:
+            # The configured folder (key → directory), the same one decisions are written to.
+            venture_dir = decision_venture_dir(sys_key, kb_path=kb_path, config=config)
+        except DecisionLogError as exc:
+            logger.warning("Weekly review: %s", exc)
+            continue
         if venture_dir is None:
             continue
         counts = weekly_counts(venture_dir)
