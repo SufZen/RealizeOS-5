@@ -12,7 +12,7 @@
  *                     .rz-card  .rz-panel  .rz-stat  .rz-code  .rz-table
  *                     .rz-progress  .rz-skeleton  .rz-empty  .rz-divider
  *   Overlays ........ .rz-popover  .rz-menu  .rz-tooltip  .rz-dialog  .rz-toast
- *                     .rz-palette
+ *                     .rz-palette  .rz-spotlight
  *   Field language .. .rz-title-block  .rz-drafting-grid  .rz-held  .rz-stamp
  *                     .rz-trail  .rz-source  .rz-redline
  * ========================================================================= */
@@ -1176,6 +1176,31 @@ button.rz-card:hover,
   display: inline-flex;
   align-items: center;
   gap: 5px;
+}
+
+/* Spotlight — the guided tour's ring around the thing it explains. Its outer
+   shadow dims the rest of the page, so the cut-out and the ring move as one
+   when the tour steps from item to item. */
+.rz-spotlight {
+  position: fixed;
+  pointer-events: none;
+  border-radius: var(--rz-radius-md);
+  box-shadow:
+    0 0 0 2px var(--rz-accent),
+    0 0 0 6px var(--rz-accent-soft),
+    0 0 0 9999px var(--rz-overlay);
+  transition:
+    left var(--rz-spring-settle-dur) var(--rz-spring-settle),
+    top var(--rz-spring-settle-dur) var(--rz-spring-settle),
+    width var(--rz-spring-settle-dur) var(--rz-spring-settle),
+    height var(--rz-spring-settle-dur) var(--rz-spring-settle);
+}
+/* On paper the yellow is a fill, not a line: the ring is ink with a yellow halo */
+[data-mode='light'] .rz-spotlight {
+  box-shadow:
+    0 0 0 2px var(--rz-fg),
+    0 0 0 6px var(--rz-accent-soft),
+    0 0 0 9999px var(--rz-overlay);
 }
 
 /* ═══ Field language — the parts only RealizeOS has ══════════════════════ */
