@@ -251,7 +251,8 @@ def build_pack_context(resolver: PackResolver, user_message: str, sources_out: l
     """Prompt layer with local terms, defaults and the most relevant rule cards.
 
     Rule cards are numbered ``[R1]…`` and reported to ``sources_out`` with their
-    layer and verification level, so the trail can show where a rule came from.
+    layer, pack, verification level and dates, so the trail can show where a
+    rule came from and how far it has been checked.
     """
     if not resolver.packs and not resolver.firm.terms and not resolver.firm.rules:
         return ""
@@ -293,6 +294,8 @@ def build_pack_context(resolver: PackResolver, user_message: str, sources_out: l
                         "layer": r.layer,
                         "pack": r.pack_id,
                         "verification": r.verification,
+                        "as_of": card.as_of,
+                        "review_by": card.review_by,
                     }
                 )
     if not resolver.packs:

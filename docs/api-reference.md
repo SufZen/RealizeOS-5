@@ -96,6 +96,19 @@ prompt included, numbered `[S1]…[Sn]`, and the tool steps it took, in order. S
 `request_id`). `message_id` is the stored assistant message. With `features.cite_sources` on,
 answers on the `api`, `dashboard` and `mcp` channels cite sources inline as `[S1]`.
 
+With packs on, the rule cards the prompt included are sources too, numbered `[R1]…[Rn]`. A rule
+source also carries its provenance; fields a source doesn't have are left out:
+
+```json
+{"id": "R1", "title": "Public works contracts include price revision.",
+ "path": "https://diariodarepublica.pt/", "layer": "market", "pack": "pt@0.1.0",
+ "verification": 1, "as_of": "2026-10-13", "review_by": "2027-04-13"}
+```
+
+`layer` is `firm`, `market` or `profession`; `pack` is `id@version` (absent for the firm's own
+rules); `verification` is the level from 0 (unverified) to 4 (field-proven), see
+[packs](packs.md#verification-levels). Older stored trails have no provenance.
+
 ### POST /api/chat/stream
 
 Same request as `POST /api/chat`; the answer arrives as Server-Sent Events. Each event is a
@@ -103,7 +116,7 @@ Same request as `POST /api/chat`; the answer arrives as Server-Sent Events. Each
 
 | `type` | When |
 |--------|------|
-| `source` | A numbered KB source the prompt includes (`id`, `title`, `path`) |
+| `source` | A numbered source the prompt includes (`id`, `title`, `path`; rule cards add `layer`, `pack`, `verification`, `as_of`, `review_by`) |
 | `tool_call` | The agent calls a tool (`id`, `name`, `input`) |
 | `tool_result` | The tool finished (`success`, `held`, `output` preview, `error`, `duration_ms`) |
 | `approval_requested` | The action is held for approval (`request_id`) |

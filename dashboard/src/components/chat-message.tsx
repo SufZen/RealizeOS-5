@@ -1,7 +1,9 @@
 import { Bot } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { sourceAnchorId, splitCitations, type Trail } from '@/lib/chat-stream'
+import { TRAIL_COPY, trailLang } from '@/lib/trail-copy'
 import { TrailPanel } from '@/components/trail-panel'
+import { useLocale } from '@/components/locale-provider'
 
 export interface ChatMsg {
   role: 'user' | 'assistant'
@@ -22,9 +24,11 @@ export interface ChatMsg {
 interface CiteContext {
   known: Set<string>
   anchorPrefix: string
+  /** Accessible name of a footnote: "Source S1", "Rule R1". */
+  label: (marker: string) => string
 }
 
-/* ---- [Sn] footnotes ---- */
+/* ---- [Sn] source and [Rn] rule-card footnotes ---- */
 
 function renderCitations(text: string, key: number, cite: CiteContext | null): React.ReactNode {
   if (!cite || cite.known.size === 0) return <span key={key}>{text}</span>
@@ -44,7 +48,7 @@ function renderCitations(text: string, key: number, cite: CiteContext | null): R
                 ?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
             }
             className="rz-source"
-            aria-label={`Source ${part.marker}`}
+            aria-label={cite.label(part.marker)}
           >
             {part.marker}
           </button>
@@ -120,11 +124,16 @@ function renderInline(text: string, startKey: number, cite: CiteContext | null):
 /* ---- Components ---- */
 
 export function ChatMessage({ msg, anchorPrefix }: { msg: ChatMsg; anchorPrefix: string }) {
+  const lang = trailLang(useLocale().language)
   const isUser = msg.role === 'user'
   const hasMarkdown = !isUser && /[`*]/.test(msg.content)
   const cite: CiteContext | null =
     !isUser && msg.trail?.sources.length
-      ? { known: new Set(msg.trail.sources.map((s) => s.id)), anchorPrefix }
+      ? {
+          known: new Set(msg.trail.sources.map((s) => s.id)),
+          anchorPrefix,
+          label: TRAIL_COPY[lang].cite,
+        }
       : null
 
   return (
