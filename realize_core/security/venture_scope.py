@@ -140,6 +140,8 @@ def required_permission(method: str, path: str) -> str | None:
         return None
     if path in _CHAT_PATHS or path.startswith(_CONVERSATIONS_PREFIX):
         return "agents:execute"
+    if method == "POST" and path.startswith("/api/workflows/") and path.endswith("/run"):
+        return "agents:execute"  # running a workflow, as chat and the MCP run_workflow tool
     if path.startswith(_DECISION_PREFIXES) and path.endswith(_DECISION_SUFFIXES):
         return "pipeline:approve"
     if method == "DELETE" and path.startswith(_VENTURES_PATH + "/") and path.count("/") == 3:

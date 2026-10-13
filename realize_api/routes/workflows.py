@@ -270,6 +270,42 @@ async def delete_workflow(skill_name: str, request: Request, system_key: str | N
     return {"name": skill_name, "status": "deleted"}
 
 
+class RunWorkflowBody(BaseModel):
+    """Run a venture's workflow (skill) with an input message."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    system_key: str = Field(min_length=1, description="The venture whose copy of the workflow runs.")
+    input_text: str = Field(min_length=1)
+
+
+_RUN_ERROR_STATUS = {"MCP_VALIDATION": 422, "MCP_FORBIDDEN": 403, "MCP_NOT_FOUND": 404, "MCP_INTERNAL": 500}
+
+
+@router.post("/workflows/{skill_name}/run")
+async def run_workflow(skill_name: str, body: RunWorkflowBody, request: Request):
+    """Run a workflow for one venture, the REST twin of the MCP ``run_workflow`` tool.
+
+    The venture's own copy runs (else a shared or global one, never another
+    venture's). Its tool steps go through the governance gate like any run.
+    Outside agents can't call this over REST; they run workflows over MCP,
+    where a person approves first.
+    """
+    from realize_core.mcp_server.tools.ops_tools import _run_skill
+
+    from realize_api.dependencies import get_current_user
+
+    user = await get_current_user(request)
+    args = {"name": skill_name, "input_text": body.input_text, "system_key": body.system_key}
+    result = await _run_skill(args, request.app.state, user, channel="api")
+    if isinstance(result, dict) and result.get("code"):
+        status = _RUN_ERROR_STATUS.get(result["code"], 400)
+        if "not found" in str(result.get("error", "")).lower():
+            status = 404
+        raise HTTPException(status_code=status, detail=result.get("error") or "Workflow run failed")
+    return result
+
+
 @router.post("/workflows/{skill_name}/test")
 async def test_workflow(skill_name: str, body: TestWorkflowBody, request: Request):
     """

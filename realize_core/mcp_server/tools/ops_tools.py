@@ -173,7 +173,7 @@ def _venture_refusal(args: dict[str, Any], user: CurrentUser) -> dict[str, Any] 
     return None
 
 
-async def _run_skill(args: dict[str, Any], app_state: Any, user: CurrentUser) -> Any:
+async def _run_skill(args: dict[str, Any], app_state: Any, user: CurrentUser, *, channel: str = "mcp") -> Any:
     refused = _venture_refusal(args, user)
     if refused:
         return refused
@@ -219,7 +219,7 @@ async def _run_skill(args: dict[str, Any], app_state: Any, user: CurrentUser) ->
             kb_path=kb_path,
             system_config=system_config,
             shared_config=shared_config,
-            channel="mcp",
+            channel=channel,
         )
     except Exception as exc:
         logger.exception("run_workflow %r failed", name)

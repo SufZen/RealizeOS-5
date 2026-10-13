@@ -366,9 +366,9 @@ Get a workflow's definition. Two ventures can each have a workflow with the same
 
 Change or delete a workflow. `?system_key=<venture>` says whose; without it only a shared or global workflow is changed, and a venture's workflow returns `409`. A caller limited to some ventures can't use these (`403`).
 
-### POST /api/workflows/{id}/execute
+### POST /api/workflows/{name}/run
 
-Execute a workflow.
+Run a venture's workflow with an input message, as the MCP `run_workflow` tool does. Body: `{"system_key": "<venture>", "input_text": "..."}` (both required; unknown fields are refused). The venture's own copy runs, else a shared or global one, never another venture's. Needs `agents:execute`; a caller limited to some ventures must name one of them. Tool steps go through the governance gate like any run, so writes may wait for an approval. Outside agents can't use this over REST: they run workflows over MCP, where a person approves first. Returns `{"name", "system_key", "user_id", "output"}`; `404` for an unknown workflow, `403` for a venture you can't use, `422` for a missing field.
 
 ---
 
