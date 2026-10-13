@@ -4,6 +4,12 @@ All notable changes to RealizeOS are documented in this file.
 This changelog is automatically generated from [Conventional Commits](https://conventionalcommits.org).
 
 
+## [5.20.0](https://github.com/SufZen/RealizeOS-5/compare/v5.19.0...v5.20.0) (2026-10-13)
+
+### Features
+
+* **governance:** decision log v0 (STORY-44) ([66da97f](https://github.com/SufZen/RealizeOS-5/commit/66da97f35e3d91fcd7e4ff68388da6aeba421a14))
+
 ## [5.19.0](https://github.com/SufZen/RealizeOS-5/compare/v5.18.0...v5.19.0) (2026-10-13)
 
 ### Features
