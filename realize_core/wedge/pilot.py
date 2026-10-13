@@ -40,8 +40,34 @@ PURGE_INTERVAL_SECONDS = 24 * 60 * 60
 _EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
+#: The tools a pilot user's agent may be offered (``mcp.tools`` on the pilot host).
+PILOT_TOOLS = frozenset({"tender_register_method", "tender_register_submit", "request_audit_call", "realize_health"})
+
+
 class PilotInviteError(ValueError):
-    """An invite that can't be created (bad email, existing user, no users.yaml)."""
+    """An invite that can't be created (bad email, existing user, no users.yaml, not a pilot host)."""
+
+
+def pilot_profile_problems(config: dict) -> list[str]:
+    """Why this instance isn't a pilot host, or [] when it is.
+
+    Invites give outsiders a login, so they're only allowed where the pilot is
+    on and the MCP server offers nothing but the pilot tools. That keeps an
+    invite from opening the practice's own server, which holds client brains.
+    """
+    from realize_core.config import get_features
+    from realize_core.mcp_server.config import mcp_config_from_env
+
+    problems = []
+    if not get_features(config).get("wedge"):
+        problems.append("features.wedge is off")
+    tools = mcp_config_from_env(config).tools
+    if tools is None:
+        problems.append("mcp.tools is not set, so every tool would be offered")
+    elif not set(tools) <= PILOT_TOOLS:
+        extra = ", ".join(sorted(set(tools) - PILOT_TOOLS))
+        problems.append(f"mcp.tools offers more than the pilot tools: {extra}")
+    return problems
 
 
 @dataclass(frozen=True)
@@ -63,21 +89,30 @@ def sandbox_venture(email: str) -> str:
 
 
 def _write_text(path: Path, text: str) -> None:
-    """Write ``text`` atomically, or in place when the file is a bind mount that can't be replaced."""
+    """Write ``text`` atomically, or in place when the file is a bind mount that can't be replaced.
+
+    The temporary file is created owner-only and then given the original file's
+    mode, so a ``0600`` users file never becomes readable by others on replace.
+    """
     tmp = path.with_name(f".{path.name}.tmp")
     try:
-        tmp.write_text(text, encoding="utf-8")
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(text)
+        shutil.copymode(path, tmp)
         os.replace(tmp, path)
     except OSError:
         tmp.unlink(missing_ok=True)
         path.write_text(text, encoding="utf-8")
 
 
-def invite(email: str, *, users_file: Path | None = None) -> PilotInvite:
+def invite(email: str, *, config: dict, users_file: Path | None = None) -> PilotInvite:
     """Add a pilot user to ``users.yaml`` with a fresh password.
 
     Args:
         email: The pilot user's sign-in email.
+        config: This instance's loaded ``realize-os.yaml``; it must be a pilot host
+            (see :func:`pilot_profile_problems`).
         users_file: The users file; defaults to ``users.yaml`` in the working directory.
 
     Returns:
@@ -85,10 +120,13 @@ def invite(email: str, *, users_file: Path | None = None) -> PilotInvite:
         mount), ``written`` is False and ``entry_yaml`` holds the entry to add by hand.
 
     Raises:
-        PilotInviteError: The email is invalid or already a user, or there is no
-            usable ``users.yaml``. Creating one would replace a single-owner
+        PilotInviteError: This isn't a pilot host, the email is invalid or already
+            a user, or there is no usable ``users.yaml``. Creating one would replace a single-owner
             ``REALIZE_ADMIN_USER`` login, so the owner must create it first.
     """
+    problems = pilot_profile_problems(config)
+    if problems:
+        raise PilotInviteError("Invites only work on a pilot host: " + "; ".join(problems) + ".")
     address = (email or "").strip().lower()
     if not _EMAIL.match(address):
         raise PilotInviteError(f"Not an email address: {email!r}")
@@ -110,6 +148,8 @@ def invite(email: str, *, users_file: Path | None = None) -> PilotInvite:
 
     password = secrets.token_urlsafe(18)
     venture = sandbox_venture(address)
+    if venture in {s.get("key") for s in config.get("systems") or [] if isinstance(s, dict)}:
+        raise PilotInviteError(f"A venture named {venture} exists; a pilot sandbox must be empty")
     entry = {"email": address, "role": PILOT_ROLE, "ventures": [venture], "password_hash": hash_password(password)}
     entry_yaml = yaml.safe_dump({"users": [entry]}, sort_keys=False, allow_unicode=True)
 

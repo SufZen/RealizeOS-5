@@ -21,11 +21,15 @@ wedge_app = typer.Typer(no_args_is_help=True)
 def wedge_invite(
     email: Annotated[str, typer.Argument(help="The pilot user's sign-in email.")],
 ) -> None:
-    """Add a pilot user to users.yaml: a viewer limited to an empty sandbox venture of their own."""
+    """Add a pilot user to users.yaml: a viewer limited to an empty sandbox venture of their own.
+
+    Only works on a pilot host: features.wedge on and mcp.tools limited to the pilot tools.
+    """
+    from realize_core.config import load_config
     from realize_core.wedge.pilot import PilotInviteError, invite
 
     try:
-        result = invite(email)
+        result = invite(email, config=load_config())
     except PilotInviteError as exc:
         typer.echo(f"Error: {exc}", err=True)
         raise typer.Exit(code=1) from exc

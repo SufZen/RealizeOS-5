@@ -31,7 +31,7 @@ mcp:
   tools: []                    # only serve these tools; empty = every tool of the exposed families
 ```
 
-`tools` (env `MCP_TOOLS`, comma-separated) narrows what a server offers. It can't widen it: a tool is served only when its family is exposed and the list names it. A hosted profile uses it to serve one workflow, for example the [self-serve tender register](self-serve-wedge.md#host-the-pilot). Names that match no tool are logged as a warning at startup.
+`tools` (env `MCP_TOOLS`, comma-separated) narrows what a server offers. It can't widen it: a tool is served only when its family is exposed and the list names it. A hosted profile uses it to serve one workflow, for example the [self-serve tender register](self-serve-wedge.md#host-the-pilot). Names that match no tool are logged as a warning at startup. A value that is neither a list of names nor a comma-separated string (a mapping, a number) serves no tools at all, rather than every tool.
 
 Start RealizeOS as usual. The server logs:
 

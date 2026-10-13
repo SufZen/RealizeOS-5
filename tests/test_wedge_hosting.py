@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import os
+import stat
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -14,6 +16,7 @@ from realize_core.wedge import store as wedge_store
 from typer.testing import CliRunner
 
 PILOT_TOOLS = ("tender_register_method", "tender_register_submit", "request_audit_call")
+PILOT_CONFIG = {"features": {"wedge": True}, "mcp": {"tools": list(PILOT_TOOLS) + ["realize_health"]}}
 
 
 def _cfg(**overrides) -> McpConfig:
@@ -34,10 +37,22 @@ def _cfg(**overrides) -> McpConfig:
 
 def test_tools_allowlist_from_yaml_and_env(monkeypatch):
     monkeypatch.delenv("MCP_TOOLS", raising=False)
-    assert mcp_config_from_env({}).tools == ()
+    assert mcp_config_from_env({}).tools is None
+    assert mcp_config_from_env({"mcp": {"tools": []}}).tools is None
     assert mcp_config_from_env({"mcp": {"tools": ["a", " b ", "a", ""]}}).tools == ("a", "b")
+    assert mcp_config_from_env({"mcp": {"tools": "a,b"}}).tools == ("a", "b")
     monkeypatch.setenv("MCP_TOOLS", "x, y")
     assert mcp_config_from_env({"mcp": {"tools": ["a"]}}).tools == ("x", "y")
+    monkeypatch.setenv("MCP_TOOLS", "")  # an empty env var (as in .env.example) means unset
+    assert mcp_config_from_env({"mcp": {"tools": ["a"]}}).tools == ("a",)
+
+
+@pytest.mark.parametrize("bad", [{"tender_register_submit": True}, 42, ["tender_register_submit", 7], True])
+def test_malformed_allowlist_serves_nothing(monkeypatch, bad):
+    monkeypatch.delenv("MCP_TOOLS", raising=False)
+    cfg = mcp_config_from_env({"mcp": {"enabled": True, "tools": bad}})
+    assert cfg.tools == ()
+    assert get_registry().visible_tools(cfg) == []
 
 
 def test_allowlist_limits_listing_and_calls():
@@ -89,7 +104,7 @@ def users_file(tmp_path):
 
 def test_invite_adds_a_sandboxed_viewer(users_file, monkeypatch):
     monkeypatch.setattr(pilot, "hash_password", lambda pw: f"hashed:{len(pw)}")
-    result = pilot.invite(" Pilot@Example.com ", users_file=users_file)
+    result = pilot.invite(" Pilot@Example.com ", config=PILOT_CONFIG, users_file=users_file)
 
     assert result.written
     assert result.email == "pilot@example.com"
@@ -114,7 +129,7 @@ def test_invited_user_loads_and_sees_only_the_sandbox(users_file, monkeypatch):
     from realize_core.security import users as users_mod
 
     monkeypatch.setattr(pilot, "hash_password", lambda pw: "$2b$12$" + "x" * 53)
-    result = pilot.invite("pilot@example.com", users_file=users_file)
+    result = pilot.invite("pilot@example.com", config=PILOT_CONFIG, users_file=users_file)
     loaded = users_mod._load_yaml_users(users_file)
     user = next(u for u in loaded if u.email == "pilot@example.com")
     assert user.role == "viewer"
@@ -124,24 +139,60 @@ def test_invited_user_loads_and_sees_only_the_sandbox(users_file, monkeypatch):
 @pytest.mark.parametrize("email", ["", "not-an-email", "a@b", "with space@x.io"])
 def test_invite_rejects_bad_emails(users_file, email):
     with pytest.raises(pilot.PilotInviteError):
-        pilot.invite(email, users_file=users_file)
+        pilot.invite(email, config=PILOT_CONFIG, users_file=users_file)
+
+
+@pytest.mark.parametrize(
+    ("config", "reason"),
+    [
+        ({"mcp": {"tools": ["tender_register_submit"]}}, "features.wedge is off"),
+        ({"features": {"wedge": True}}, "mcp.tools is not set"),
+        ({"features": {"wedge": True}, "mcp": {"tools": ["tender_register_submit", "kb_search"]}}, "kb_search"),
+        ({"features": {"wedge": True}, "mcp": {"tools": {"bad": 1}}}, None),
+    ],
+)
+def test_invite_only_on_a_pilot_host(users_file, monkeypatch, config, reason):
+    monkeypatch.delenv("MCP_TOOLS", raising=False)
+    before = users_file.read_text(encoding="utf-8")
+    problems = pilot.pilot_profile_problems(config)
+    if reason:
+        assert any(reason in p for p in problems)
+        with pytest.raises(pilot.PilotInviteError, match="pilot host"):
+            pilot.invite("pilot@example.com", config=config, users_file=users_file)
+    else:  # a malformed allowlist serves nothing, which is still a pilot-safe host
+        assert problems == []
+    assert users_file.read_text(encoding="utf-8") == before
+
+
+def test_invite_refuses_when_sandbox_venture_exists(users_file):
+    config = dict(PILOT_CONFIG, systems=[{"key": pilot.sandbox_venture("pilot@example.com")}])
+    with pytest.raises(pilot.PilotInviteError, match="must be empty"):
+        pilot.invite("pilot@example.com", config=config, users_file=users_file)
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX file modes")
+def test_invite_keeps_users_file_mode(users_file, monkeypatch):
+    monkeypatch.setattr(pilot, "hash_password", lambda pw: "hashed")
+    users_file.chmod(0o600)
+    pilot.invite("pilot@example.com", config=PILOT_CONFIG, users_file=users_file)
+    assert stat.S_IMODE(users_file.stat().st_mode) == 0o600
 
 
 def test_invite_rejects_existing_user(users_file):
     with pytest.raises(pilot.PilotInviteError, match="already a user"):
-        pilot.invite("OWNER@example.com", users_file=users_file)
+        pilot.invite("OWNER@example.com", config=PILOT_CONFIG, users_file=users_file)
 
 
 def test_invite_refuses_without_users_file(tmp_path):
     with pytest.raises(pilot.PilotInviteError, match="REALIZE_ADMIN_USER"):
-        pilot.invite("pilot@example.com", users_file=tmp_path / "users.yaml")
+        pilot.invite("pilot@example.com", config=PILOT_CONFIG, users_file=tmp_path / "users.yaml")
 
 
 def test_invite_refuses_malformed_file(tmp_path):
     path = tmp_path / "users.yaml"
     path.write_text("users: {not: a list}\n", encoding="utf-8")
     with pytest.raises(pilot.PilotInviteError, match="not a list"):
-        pilot.invite("pilot@example.com", users_file=path)
+        pilot.invite("pilot@example.com", config=PILOT_CONFIG, users_file=path)
 
 
 def test_invite_writes_without_backup_on_read_only_directory(users_file, monkeypatch):
@@ -151,7 +202,7 @@ def test_invite_writes_without_backup_on_read_only_directory(users_file, monkeyp
         raise PermissionError("read-only file system")
 
     monkeypatch.setattr(pilot.shutil, "copy2", no_backup)
-    result = pilot.invite("pilot@example.com", users_file=users_file)
+    result = pilot.invite("pilot@example.com", config=PILOT_CONFIG, users_file=users_file)
     assert result.written
     assert result.backup is None
     assert "pilot@example.com" in users_file.read_text(encoding="utf-8")
@@ -165,7 +216,7 @@ def test_invite_returns_entry_when_file_is_read_only(users_file, monkeypatch):
 
     monkeypatch.setattr(pilot, "_write_text", fail)
     before = users_file.read_text(encoding="utf-8")
-    result = pilot.invite("pilot@example.com", users_file=users_file)
+    result = pilot.invite("pilot@example.com", config=PILOT_CONFIG, users_file=users_file)
     assert not result.written
     assert "pilot@example.com" in result.entry_yaml
     assert "hashed" in result.entry_yaml
@@ -244,7 +295,11 @@ def _app():
 
 
 def test_cli_invite_prints_password_once(users_file, monkeypatch):
+    import realize_core.config as config_mod
+
     monkeypatch.chdir(users_file.parent)
+    monkeypatch.delenv("MCP_TOOLS", raising=False)
+    monkeypatch.setattr(config_mod, "load_config", lambda *a, **k: PILOT_CONFIG)
     monkeypatch.setattr(pilot, "hash_password", lambda pw: "hashed")
     monkeypatch.setenv("MCP_PUBLIC_URL", "https://pilot.example.com/")
     result = runner.invoke(_app(), ["wedge", "invite", "pilot@example.com"])
@@ -254,9 +309,22 @@ def test_cli_invite_prints_password_once(users_file, monkeypatch):
 
 
 def test_cli_invite_error_exits_nonzero(tmp_path, monkeypatch):
+    import realize_core.config as config_mod
+
     monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(config_mod, "load_config", lambda *a, **k: PILOT_CONFIG)
     result = runner.invoke(_app(), ["wedge", "invite", "pilot@example.com"])
     assert result.exit_code == 1
+
+
+def test_cli_invite_refused_off_a_pilot_host(users_file, monkeypatch):
+    import realize_core.config as config_mod
+
+    monkeypatch.chdir(users_file.parent)
+    monkeypatch.setattr(config_mod, "load_config", lambda *a, **k: {"features": {"wedge": False}})
+    result = runner.invoke(_app(), ["wedge", "invite", "pilot@example.com"])
+    assert result.exit_code == 1
+    assert "pilot@example.com" not in users_file.read_text(encoding="utf-8")
 
 
 def test_cli_funnel_and_purge(db):

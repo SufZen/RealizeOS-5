@@ -77,7 +77,7 @@ docker compose -p realizeos-pilot -f docker-compose.prod.yml up -d
 
 ### Invite users
 
-Sign-in is by invitation for now; there is no public sign-up.
+Sign-in is by invitation for now; there is no public sign-up. `invite` refuses to run unless this instance is a pilot host (`features.wedge` on and `mcp.tools` limited to the four tools above).
 
 ```bash
 realize-os wedge invite dana@example.com

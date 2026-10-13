@@ -76,7 +76,7 @@ def mount_mcp(app: Any, *, config: dict | None = None) -> McpConfig:
         ",".join(mcp_config.families),
         mcp_config.allow_admin,
         app.state.mcp_oauth is not None,
-        ",".join(mcp_config.tools) or "all",
+        "all" if mcp_config.tools is None else ",".join(mcp_config.tools) or "none",
     )
     if mcp_config.tools:
         from realize_core.mcp_server.registry import get_registry

@@ -75,11 +75,11 @@ class ToolRegistry:
         """True when ``tool`` is served: its family is exposed and the allowlist (if any) names it."""
         if tool.family not in mcp_cfg.families:
             return False
-        return not mcp_cfg.tools or tool.name in mcp_cfg.tools
+        return mcp_cfg.tools is None or tool.name in mcp_cfg.tools
 
     def unknown_names(self, mcp_cfg: McpConfig) -> list[str]:
         """Allowlist entries that match no registered tool (likely typos)."""
-        return [name for name in mcp_cfg.tools if name not in self._tools]
+        return [name for name in mcp_cfg.tools or () if name not in self._tools]
 
     def all(self) -> list[MCPTool]:
         return list(self._tools.values())

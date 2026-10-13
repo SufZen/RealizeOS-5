@@ -182,7 +182,7 @@ realize-os wedge funnel --days 30          # runs, users and call requests per m
 realize-os wedge purge                     # delete runs older than 30 days unless the user opted in
 ```
 
-`invite` rewrites `users.yaml` (comments are not kept; the previous file is saved as `users.yaml.bak`). If the file is read-only, it prints the entry to add by hand. It refuses to create `users.yaml`: once that file exists it replaces a single-owner `REALIZE_ADMIN_USER` login, so create it with your own owner account first.
+`invite` only works on a pilot host: `features.wedge` on and `mcp.tools` limited to the pilot tools, so it can't open the practice's own server to outsiders. It rewrites `users.yaml` (comments are not kept; the previous file is saved as `users.yaml.bak`). If the file is read-only, it prints the entry to add by hand. It refuses to create `users.yaml`: once that file exists it replaces a single-owner `REALIZE_ADMIN_USER` login, so create it with your own owner account first.
 
 ## Multi-Instance Profiles
 
