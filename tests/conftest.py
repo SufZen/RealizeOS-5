@@ -67,6 +67,7 @@ def _isolated_skill_cascade(monkeypatch):
     from realize_core.skills import detector
 
     monkeypatch.setattr(detector, "_pack_cascade", False)
+    monkeypatch.setattr(detector, "_venture_dirs", None)
 
 
 @pytest.fixture
