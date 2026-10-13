@@ -95,7 +95,7 @@ def _pilot_may_call(name: str) -> bool:
     return name in PILOT_TOOLS
 
 
-def caller_refusal(tool: MCPTool, user: Any) -> tuple[str, str] | None:
+def caller_refusal(tool: MCPTool, user: Any, *, pilot: bool | None = None) -> tuple[str, str] | None:
     """``(code, message)`` when ``user`` may never call ``tool``, whatever the arguments; else None.
 
     One rule set for ``tools/list`` and ``tools/call``, so the list never
@@ -103,9 +103,17 @@ def caller_refusal(tool: MCPTool, user: Any) -> tuple[str, str] | None:
     tools (STORY-46), outside agents only tools with an allow or hold rule
     (STORY-37), RBAC roles only tools their permissions cover, and the
     MCP-only roles only tools within their scope.
+
+    Args:
+        tool: The tool asked for.
+        user: The MCP caller.
+        pilot: Whether the caller is a pilot account, when already known
+            (``users.yaml`` is read otherwise).
     """
     name = tool.name
-    if _is_pilot(user) and not _pilot_may_call(name):
+    if pilot is None:
+        pilot = _is_pilot(user)
+    if pilot and not _pilot_may_call(name):
         return MCPErrorCode.FORBIDDEN, "Pilot accounts can only use the tender register tools."
 
     from realize_core.security import agent_access
@@ -143,10 +151,11 @@ def callable_tools(registry: ToolRegistry, mcp_config: McpConfig, user: Any) -> 
     from realize_core.mcp_server import venture_guard
 
     allowed = venture_guard.caller_ventures(user)
+    pilot = _is_pilot(user)
     return [
         tool
         for tool in registry.visible_tools(mcp_config)
-        if caller_refusal(tool, user) is None and not venture_guard.spans_every_venture(tool.name, allowed)
+        if caller_refusal(tool, user, pilot=pilot) is None and not venture_guard.spans_every_venture(tool.name, allowed)
     ]
 
 
