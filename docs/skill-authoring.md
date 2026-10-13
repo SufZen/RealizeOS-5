@@ -25,6 +25,10 @@ pipeline:
 4. Reviewer agent reviews for quality
 5. Final output returned to user
 
+## When skills load
+
+The API loads every venture's skills (`systems/<venture>/R-routines/skills/`, found through the venture's configured `directory`) at startup and on every config reload (`POST /api/systems/reload`). After adding or editing a skill file, reload or restart. Before 5.30 venture skills loaded only after a skill was installed from the library, so chat matched only the built-in default skills after a restart.
+
 ## v2 Skills — Multi-Step Workflows
 
 v2 skills support multiple step types with context injection.

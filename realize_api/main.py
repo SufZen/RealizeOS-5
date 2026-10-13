@@ -281,14 +281,15 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error("Tool gate wiring skipped: %s", e, exc_info=True)
 
-    # Profession and market packs: with features.packs on, load every venture's
-    # skills together with the skills its packs add (spec 010). Off: no change.
+    # Load every venture's skills (by configured key), plus the skills its packs
+    # add when features.packs is on (spec 010). Before 5.30 venture skills only
+    # loaded after a skill install, so chat matched built-in defaults instead.
     try:
         from realize_core.config_runtime import sync_skill_cascade
 
         sync_skill_cascade(app.state, config)
     except Exception as e:
-        logger.error("Pack skill loading skipped: %s", e, exc_info=True)
+        logger.error("Skill loading skipped: %s", e, exc_info=True)
 
     # Initialize audit logger with persistent log directory
     try:
