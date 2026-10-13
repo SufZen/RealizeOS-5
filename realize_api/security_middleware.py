@@ -106,8 +106,12 @@ def _rate_limit_key(request: Request) -> str:
 
     Keyed on identity, a user's dashboard traffic is one bucket wherever it
     comes from, and host-local callers sharing the proxy's address (Hermes,
-    cron, Kuma) no longer share one bucket once they authenticate.
+    cron, Kuma) no longer share one bucket once they authenticate. Each agent
+    token (STORY-37) has its own bucket, apart from the person it acts for.
     """
+    agent_token_id = getattr(request.state, "agent_token_id", None)
+    if agent_token_id:
+        return f"agent:{agent_token_id}"
     user_id = getattr(request.state, "user_id", None)
     if user_id and user_id != "anonymous":
         return f"user:{user_id}"

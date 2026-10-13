@@ -20,6 +20,7 @@ from realize_api.error_handlers import register_error_handlers
 from realize_api.middleware import AuthMiddleware
 from realize_api.routes import (
     activity,
+    agent_tokens,
     agents_v2,
     approvals,
     auth,
@@ -566,6 +567,8 @@ def create_app() -> FastAPI:
     app.include_router(storage_settings.router, prefix="/api", tags=["Storage"])
     app.include_router(devmode.router, prefix="/api", tags=["Developer Mode"])
     app.include_router(security.router, prefix="/api", tags=["Security"])
+    # STORY-37 — venture-scoped tokens for outside agents
+    app.include_router(agent_tokens.router, prefix="/api", tags=["Agent Tokens"])
     # v5.5.0 — FABRIC Knowledge System
     app.include_router(fabric.router, prefix="/api", tags=["FABRIC"])
 

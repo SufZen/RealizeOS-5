@@ -313,7 +313,9 @@ async def enforce_access(request: Request) -> None:
     # Only the REST API; MCP checks scope per tool in its dispatcher.
     if not getattr(request.state, "user_id", None) or not request.url.path.startswith("/api/"):
         return
+    from realize_core.security.agent_tokens import is_agent_principal
     from realize_core.security.venture_scope import (
+        agent_write_refusal,
         has_permission,
         is_global_write,
         is_id_only_write,
@@ -324,6 +326,10 @@ async def enforce_access(request: Request) -> None:
 
     allowed = get_allowed_ventures(request)
     method, path = request.method.upper(), request.url.path
+    if is_agent_principal(getattr(request.state, "user_id", None)):
+        refusal = agent_write_refusal(method, path)
+        if refusal:
+            raise _deny(request, refusal, "agent_write")
     if allowed is not None:
         named = [request.path_params.get(n) for n in VENTURE_PARAMS]
         named += [v for n in VENTURE_PARAMS for v in request.query_params.getlist(n)]
