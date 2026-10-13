@@ -52,8 +52,39 @@ GLOBAL_ACTION_TYPES = frozenset({PACK_VERIFY_ACTION_TYPE})
 GLOBAL_MAINTAINER_ROLES = frozenset({"owner"})
 
 
+#: An outside agent can't flood the approval queue: past this many items waiting for
+#: a person (held writes, writes held from its chat, decision proposals, questions)
+#: it must wait for decisions (S6).
+MAX_PENDING_PER_AGENT = 25
+
+
 class ApprovalForbiddenError(PermissionError):
     """The decider may not decide this approval; nothing was changed."""
+
+
+class TooManyPendingError(RuntimeError):
+    """An outside agent already has :data:`MAX_PENDING_PER_AGENT` items waiting; nothing was queued."""
+
+
+def too_many_pending_message(limit: int) -> str:
+    """What an agent is told when it has ``limit`` items waiting for a person."""
+    return f"{limit} of your requests are already waiting for approval; wait for a decision"
+
+
+def pending_count_for(requested_by: str, db_path=None) -> int:
+    """How many items ``requested_by`` has waiting for a person (pending and not expired), of every kind."""
+    from realize_core.db.schema import get_connection
+
+    conn = get_connection(db_path)
+    try:
+        row = conn.execute(
+            """SELECT COUNT(*) FROM approval_queue
+               WHERE requested_by = ? AND status = 'pending' AND (expires_at IS NULL OR expires_at > ?)""",
+            (requested_by, _now()),
+        ).fetchone()
+    finally:
+        conn.close()
+    return int(row[0]) if row else 0
 
 
 @dataclass(frozen=True)
@@ -174,8 +205,12 @@ def create_approval_request(
     is requested by the agent: ``requested_by`` becomes its principal
     (``agent:<id>``, or ``agent:stdio:<email>`` for a stdio session) unless
     it already names one, so the queue shows the request came from outside.
+    An outside agent has at most :data:`MAX_PENDING_PER_AGENT` items waiting.
 
     Returns the approval ID.
+
+    Raises:
+        TooManyPendingError: the agent already has that many items waiting.
     """
     from realize_core.db.schema import get_connection
     from realize_core.security.agent_access import current_outside_agent
@@ -184,6 +219,11 @@ def create_approval_request(
     outside_agent = current_outside_agent()
     if outside_agent and not is_agent_principal(requested_by):
         requested_by = outside_agent
+    if is_agent_principal(requested_by) and pending_count_for(requested_by, db_path) >= MAX_PENDING_PER_AGENT:
+        logger.warning(
+            "Approval request from %s refused: %d items already waiting", requested_by, MAX_PENDING_PER_AGENT
+        )
+        raise TooManyPendingError(too_many_pending_message(MAX_PENDING_PER_AGENT))
 
     approval_id = str(uuid.uuid4())
     now = datetime.now(UTC)

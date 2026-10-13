@@ -344,6 +344,37 @@ async def test_an_agent_cannot_flood_the_queue(world, monkeypatch):
     assert (await _call(world, _agent(), "run_workflow", RUN))["status"] == "pending_approval"
 
 
+async def test_every_kind_of_agent_request_counts_toward_one_cap(world, ledger, monkeypatch):
+    """Decision proposals and writes held from chat are capped too, not only held MCP writes (S6)."""
+    from realize_core.governance import gates
+    from realize_core.governance.context import tool_call_context
+    from realize_core.security.agent_access import acting_for_outside_agent
+
+    monkeypatch.setattr(gates, "MAX_PENDING_PER_AGENT", 2)
+    registry, tool = ledger
+    agent = _agent()
+    await _proposal(world, agent)
+    await _chat_held_write(registry, agent)
+
+    refused = await _call(world, agent, "log_decision", {"venture_key": "acme", "title": "t", "statement": "s"})
+    assert refused["code"] == "MCP_TOO_MANY_PENDING"
+    assert "2 of your requests are already waiting" in refused["error"]
+    with (
+        acting_for_outside_agent(agent.user_id),
+        tool_call_context(system_key="acme", user_id=agent.user_id, channel="mcp"),
+    ):
+        blocked = await registry.execute("ledger_append", {"row": "one more"})
+    assert blocked.success is False
+    assert "waiting for approval" in blocked.error
+    assert (await _call(world, agent, "run_workflow", RUN))["code"] == "MCP_TOO_MANY_PENDING"
+    assert tool.calls == []
+    assert gates.pending_count_for(agent.user_id) == 2
+    # Another agent has its own allowance; people are not capped.
+    assert (await _proposal(world, _agent())) is not None
+    for _ in range(3):
+        gates.create_approval_request("acme", "writer", "sheets_append", {"row": "x"}, requested_by="dana@acme.io")
+
+
 async def test_deny_by_default_for_new_or_misspelt_tools(world):
     from realize_core.mcp_server.registry import MCPTool, get_registry
     from realize_core.security.agent_access import tool_rule

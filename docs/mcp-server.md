@@ -235,7 +235,7 @@ It shows up in the dashboard's approval queue as `mcp:run_workflow`, from the ag
 - approving the run starts it; each write it makes still waits for a person. Its inputs came from the agent, so it stays the agent's run, under the same rule as an agent's chat: a tool step that writes is held as a new approval from the agent, even where the trust ladder would run it automatically (without `features.enforce_gates` it can't run at all). The workflow pauses there and continues once a person approves that write; the rest of it is still the agent's run, whoever resumes it. If the agent's token stops working (revoked, expired, agent tokens turned off, user removed) while the run is paused or between two steps, the run stops there and nothing after it runs;
 - the outcome is posted into the agent's own conversation in that venture.
 
-Held writes expire after 24 hours, and at most 25 per agent wait at once (`MCP_TOO_MANY_PENDING`).
+Held writes expire after 24 hours. At most 25 items per agent wait for a person at once, counting everything it asked for: its held writes, the writes held from its chat or its runs, its `log_decision` proposals and its questions. Past that, a new held write or proposal returns `MCP_TOO_MANY_PENDING`, and a write from its chat is blocked with the same reason ("25 of your requests are already waiting for approval; wait for a decision"). People are not capped.
 
 Follow an item with `list_approvals` (`venture_key` and `approval_id`). An agent sees status, not other people's parameters or results, plus the result of its own writes:
 
@@ -315,7 +315,7 @@ Stable `code` values:
 | `MCP_INTERNAL` | Tool raised an exception. |
 | `MCP_AGENT_CANNOT_DECIDE` | An outside agent tried to approve, reject or dismiss. People decide. |
 | `MCP_AGENT_REFUSED` | The tool isn't available to an outside agent. |
-| `MCP_TOO_MANY_PENDING` | The agent already has 25 writes waiting for approval. |
+| `MCP_TOO_MANY_PENDING` | The agent already has 25 items (held writes, writes held from its chat, decision proposals) waiting for approval. |
 | `MCP_RATE_LIMITED` | The caller made too many tool calls this minute; `retry_after_seconds` says when to try again. See [Rate limits](#rate-limits). |
 
 ## Roadmap

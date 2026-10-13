@@ -50,7 +50,8 @@ ACTION_PREFIX = "mcp:"
 HELD_WRITE_TTL_MINUTES = 24 * 60
 #: Arguments that name the venture a held write belongs to.
 _VENTURE_ARGS = ("system_key", "venture_key", "venture")
-#: An agent can't flood the approval queue: past this many waiting writes it must wait.
+#: An agent can't flood the approval queue: past this many waiting items (of every
+#: kind, see :data:`realize_core.governance.gates.MAX_PENDING_PER_AGENT`) it must wait.
 MAX_PENDING_PER_AGENT = 25
 
 #: The live ``app.state`` (systems, kb_path, shared_config) of the server that
@@ -93,7 +94,7 @@ def hold_write(tool: Any, arguments: dict[str, Any], user: Any) -> dict[str, Any
     tool's declared arguments are kept. Invalid calls are refused here, so a
     person never approves a run that can't start.
     """
-    from realize_core.governance.gates import create_approval_request
+    from realize_core.governance.gates import TooManyPendingError, create_approval_request, too_many_pending_message
     from realize_core.mcp_server.venture_guard import caller_ventures
     from realize_core.security.agent_access import CODE_REFUSED
     from realize_core.security.agent_tokens import live_agent, principal_id_for
@@ -117,23 +118,23 @@ def hold_write(tool: Any, arguments: dict[str, Any], user: Any) -> dict[str, Any
         return invalid
 
     if _pending_count(principal) >= MAX_PENDING_PER_AGENT:
-        return {
-            "error": f"{MAX_PENDING_PER_AGENT} of your writes are already waiting for approval; wait for a decision",
-            "code": "MCP_TOO_MANY_PENDING",
-        }
+        return {"error": too_many_pending_message(MAX_PENDING_PER_AGENT), "code": "MCP_TOO_MANY_PENDING"}
     stored = {**arguments, "user_id": agent.user_id}
     agent_name = agent.name
-    approval_id = create_approval_request(
-        venture_key=venture,
-        agent_key=agent_name,
-        action_type=MCP_WRITE_ACTION_TYPE,
-        payload={"tool": name, "agent": principal, "agent_name": agent_name},
-        expires_minutes=HELD_WRITE_TTL_MINUTES,
-        action_name=f"{ACTION_PREFIX}{name}",
-        params=stored,
-        requested_by=principal,
-        session_ref=f"{venture}|{agent.user_id}",
-    )
+    try:
+        approval_id = create_approval_request(
+            venture_key=venture,
+            agent_key=agent_name,
+            action_type=MCP_WRITE_ACTION_TYPE,
+            payload={"tool": name, "agent": principal, "agent_name": agent_name},
+            expires_minutes=HELD_WRITE_TTL_MINUTES,
+            action_name=f"{ACTION_PREFIX}{name}",
+            params=stored,
+            requested_by=principal,
+            session_ref=f"{venture}|{agent.user_id}",
+        )
+    except TooManyPendingError as exc:
+        return {"error": str(exc), "code": "MCP_TOO_MANY_PENDING"}
     _log_activity(venture, principal, "mcp_write_held", approval_id, {"tool": name})
     logger.info("Held MCP write %s from %s in %s (approval %s)", name, principal, venture, approval_id)
     return {
@@ -149,21 +150,10 @@ def hold_write(tool: Any, arguments: dict[str, Any], user: Any) -> dict[str, Any
 
 
 def _pending_count(principal: str) -> int:
-    """How many of this agent's held writes are waiting for a person."""
-    from realize_core.db.schema import get_connection
+    """How many items this agent has waiting for a person (held writes, writes held from its chat, proposals)."""
+    from realize_core.governance.gates import pending_count_for
 
-    now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
-    conn = get_connection()
-    try:
-        row = conn.execute(
-            """SELECT COUNT(*) FROM approval_queue
-               WHERE requested_by = ? AND action_type = ? AND status = 'pending'
-                 AND (expires_at IS NULL OR expires_at > ?)""",
-            (principal, MCP_WRITE_ACTION_TYPE, now),
-        ).fetchone()
-    finally:
-        conn.close()
-    return int(row[0]) if row else 0
+    return pending_count_for(principal)
 
 
 def _log_activity(venture: str, actor: str, action: str, approval_id: str, details: dict[str, Any]) -> None:
