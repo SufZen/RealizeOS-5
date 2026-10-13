@@ -177,7 +177,7 @@ Use the output token in Claude Desktop's `mcpServers` config or any MCP client.
 Host the [self-serve tender register](self-serve-wedge.md) pilot. Run these on the server, in the directory that holds `users.yaml` and the database.
 
 ```bash
-realize-os wedge invite dana@example.com   # viewer limited to an empty sandbox venture; prints the password once
+realize-os wedge invite dana@example.com   # pilot-only viewer in an empty sandbox venture; prints the password once
 realize-os wedge funnel --days 30          # runs, users and call requests per market, from recorded runs
 realize-os wedge purge                     # delete runs older than 30 days unless the user opted in
 ```

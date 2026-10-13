@@ -313,6 +313,7 @@ async def enforce_access(request: Request) -> None:
     # Only the REST API; MCP checks scope per tool in its dispatcher.
     if not getattr(request.state, "user_id", None) or not request.url.path.startswith("/api/"):
         return
+    from realize_core.security.users import is_pilot_user
     from realize_core.security.venture_scope import (
         has_permission,
         is_global_write,
@@ -321,6 +322,10 @@ async def enforce_access(request: Request) -> None:
         needs_named_venture,
         required_permission,
     )
+
+    if is_pilot_user(request.state.user_id):
+        # Pilot accounts (STORY-46) only use the pilot tools from their own agent.
+        raise _deny(request, "Pilot accounts can only use the tender register from their own agent")
 
     allowed = get_allowed_ventures(request)
     method, path = request.method.upper(), request.url.path

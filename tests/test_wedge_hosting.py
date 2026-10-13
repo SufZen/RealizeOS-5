@@ -117,6 +117,7 @@ def test_invite_adds_a_sandboxed_viewer(users_file, monkeypatch):
         "email": "pilot@example.com",
         "role": "viewer",
         "ventures": [result.venture],
+        "pilot": True,
         "password_hash": f"hashed:{len(result.password)}",
     }
     assert result.password not in users_file.read_text(encoding="utf-8")
