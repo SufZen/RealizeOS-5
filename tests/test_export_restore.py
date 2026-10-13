@@ -321,7 +321,8 @@ def test_restore_refuses_a_folder_that_is_not_empty(install):
 # ---------------------------------------------------------------------------
 
 
-def _zip(path: Path, entries: dict[str, bytes], *, link: str | None = None) -> Path:
+def _zip(path: Path, entries: dict[str, bytes], *, link: str | None = None, raw: str | None = None) -> Path:
+    """An archive with ``entries``, optionally a symlink member and a member with a raw, unconverted name."""
     with zipfile.ZipFile(path, "w") as zf:
         for name, content in entries.items():
             zf.writestr(name, content)
@@ -329,6 +330,10 @@ def _zip(path: Path, entries: dict[str, bytes], *, link: str | None = None) -> P
             info = zipfile.ZipInfo(link)
             info.external_attr = (0o120777 << 16) | 0
             zf.writestr(info, "/etc/passwd")
+        if raw:
+            info = zipfile.ZipInfo("placeholder")
+            info.filename = raw  # as a hostile archive stores it (ZipInfo would turn os.sep into /)
+            zf.writestr(info, b"x")
     return path
 
 
@@ -363,9 +368,16 @@ def test_restore_uses_an_empty_existing_folder(tmp_path):
     "bad",
     [
         {"../outside.md": b"x"},
+        {"../../evil": b"x"},
         {"systems/../../outside.md": b"x"},
+        {"systems/./acme/x.md": b"x"},
+        {"systems//acme/x.md": b"x"},
+        {"/abs": b"x"},
         {"/etc/cron.d/x": b"x"},
+        {"//server/share/x": b"x"},
         {"C:/Windows/x": b"x"},
+        {"systems/acme/notes.md:stream": b"x"},
+        {"systems/acme/x\x01.md": b"x"},  # control character (zipfile itself cuts names at NUL)
         {"systems\\..\\x": b"x"},
         {".env": b"REALIZE_API_KEY=x"},
         {"users.yaml": b"users: []"},
@@ -379,6 +391,63 @@ def test_restore_refuses_entries_outside_an_exports_layout(tmp_path, bad):
         restore_export(_zip(tmp_path / "x.zip", {**GOOD, **bad}), tmp_path / "new")
     assert not (tmp_path / "new").exists()
     assert not (tmp_path / "outside.md").exists()
+    assert not (tmp_path / "evil").exists()
+
+
+@pytest.mark.parametrize("raw", ["C:\\x", "..\\x", "systems\\..\\..\\evil", "\\\\server\\share\\x"])
+def test_restore_refuses_backslash_and_drive_names(tmp_path, raw):
+    """Names as a hostile archive stores them, backslashes and all."""
+    from realize_core.storage.restore import RestoreError, restore_export
+
+    with pytest.raises(RestoreError):
+        restore_export(_zip(tmp_path / "x.zip", GOOD, raw=raw), tmp_path / "new")
+    assert not (tmp_path / "new").exists()
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["x.zip"]
+
+
+def test_restore_refuses_device_files(tmp_path):
+    from realize_core.storage.restore import RestoreError, restore_export
+
+    path = tmp_path / "dev.zip"
+    with zipfile.ZipFile(path, "w") as zf:
+        for name, content in GOOD.items():
+            zf.writestr(name, content)
+        info = zipfile.ZipInfo("systems/acme/console")
+        info.external_attr = (0o020644 << 16) | 0  # a character device
+        zf.writestr(info, b"")
+    with pytest.raises(RestoreError, match="device or special file"):
+        restore_export(path, tmp_path / "new")
+    assert not (tmp_path / "new").exists()
+
+
+def test_restore_caps_size_and_entries(tmp_path):
+    from realize_core.storage.restore import RestoreError, restore_export
+
+    big = _zip(tmp_path / "big.zip", {**GOOD, "systems/acme/big.md": b"0" * 50_000})
+    with pytest.raises(RestoreError, match="at most 10000 bytes"):
+        restore_export(big, tmp_path / "new", max_total_bytes=10_000)
+    with pytest.raises(RestoreError, match="at most 2"):
+        restore_export(big, tmp_path / "new", max_members=2)
+    assert not (tmp_path / "new").exists()
+    # Within the limits the same archive restores.
+    restore_export(big, tmp_path / "new", max_total_bytes=100_000, max_members=10)
+    assert (tmp_path / "new" / "systems" / "acme" / "big.md").stat().st_size == 50_000
+
+
+def test_a_destination_resolving_outside_the_folder_is_refused(tmp_path):
+    """The check is on resolved paths: a link inside the target can't redirect a member."""
+    from realize_core.storage.restore import RestoreError, check_member
+
+    target, outside = tmp_path / "target", tmp_path / "outside"
+    target.mkdir()
+    outside.mkdir()
+    try:
+        (target / "systems").symlink_to(outside, target_is_directory=True)
+    except OSError as exc:
+        pytest.skip(f"symlinks can't be created here: {exc}")
+    with pytest.raises(RestoreError, match="resolves outside"):
+        check_member(zipfile.ZipInfo("systems/acme/a.md"), target)
+    assert check_member(zipfile.ZipInfo("realize-os.yaml"), target) is not None
 
 
 def test_restore_refuses_links_and_non_exports(tmp_path):

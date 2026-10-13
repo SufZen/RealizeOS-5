@@ -25,6 +25,9 @@ def storage_restore(
         Path,
         typer.Option("--directory", "-d", help="New or empty folder to restore into. Nothing is overwritten."),
     ],
+    max_size_gb: Annotated[
+        float, typer.Option("--max-size-gb", min=0.001, help="Refuse an export that unpacks to more than this.")
+    ] = 20.0,
 ) -> None:
     """Restore a storage export into a new, empty folder.
 
@@ -35,7 +38,7 @@ def storage_restore(
     from realize_core.storage.restore import RestoreError, restore_export
 
     try:
-        result = restore_export(archive, directory)
+        result = restore_export(archive, directory, max_total_bytes=int(max_size_gb * 1024**3))
     except RestoreError as exc:
         typer.echo(f"Error: {exc}. Nothing was written.", err=True)
         raise typer.Exit(1) from exc
