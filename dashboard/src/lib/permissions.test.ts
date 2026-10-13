@@ -4,8 +4,11 @@
  */
 import { describe, expect, it } from 'vitest'
 import {
+  agentControlsGate,
   can,
   canDecide,
+  canManageAgentTokens,
+  canOpenPage,
   editKnowledgeGate,
   isUnrestricted,
   setupGate,
@@ -82,5 +85,48 @@ describe('gates', () => {
     expect(setupGate(OWNER)).toBeNull()
     expect(setupGate(LIMITED_ADMIN)).not.toBeNull()
     expect(setupGate(VIEWER)).not.toBeNull()
+  })
+})
+
+/** Mirrors realize_api/routes/agent_tokens.py: owner or admin by name, every venture. */
+describe('agent tokens (STORY-37)', () => {
+  it('only an unrestricted owner or admin manages them', () => {
+    expect(canManageAgentTokens(OWNER)).toBe(true)
+    expect(canManageAgentTokens({ role: 'admin', ventures: null })).toBe(true)
+    expect(canManageAgentTokens(LIMITED_ADMIN)).toBe(false)
+    expect(canManageAgentTokens(OPERATOR)).toBe(false)
+    expect(canManageAgentTokens(VIEWER)).toBe(false)
+    expect(canManageAgentTokens(null)).toBe(false)
+  })
+
+  it('a custom role never does, whatever permissions it has (the server checks the name)', () => {
+    const custom = { role: 'superadmin', ventures: null, permissions: ['system:manage'] }
+    expect(canManageAgentTokens(custom)).toBe(false)
+  })
+
+  it('the nav and the command palette offer the page only to them', () => {
+    expect(canOpenPage(OWNER, '/settings/agent-tokens')).toBe(true)
+    expect(canOpenPage(OPERATOR, '/settings/agent-tokens')).toBe(false)
+    expect(canOpenPage(LIMITED_ADMIN, '/settings/agent-tokens')).toBe(false)
+  })
+})
+
+describe('canOpenPage', () => {
+  it('venture-limited people lose the system-wide pages', () => {
+    expect(canOpenPage(VIEWER, '/settings')).toBe(false)
+    expect(canOpenPage(VIEWER, '/tools')).toBe(false)
+    expect(canOpenPage(VIEWER, '/approvals')).toBe(true)
+    expect(canOpenPage(OPERATOR, '/settings')).toBe(true)
+  })
+})
+
+describe('agentControlsGate', () => {
+  it('pause, resume and schedule need system:write', () => {
+    expect(agentControlsGate(OPERATOR)).toBeNull()
+    expect(agentControlsGate({ role: 'user' })).toBeNull()
+    expect(agentControlsGate(VIEWER)).toContain('View only: your role (viewer)')
+    expect(agentControlsGate(VIEWER)).toContain('pause, resume or reschedule')
+    expect(agentControlsGate({ role: 'reader', permissions: ['system:read'] })).toContain('reader')
+    expect(agentControlsGate(null)).toContain('unknown')
   })
 })

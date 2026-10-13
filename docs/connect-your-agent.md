@@ -60,6 +60,8 @@ It prints the token (`rzag_<id>_<secret>`) once; RealizeOS keeps only a hash. Th
 
 `python cli.py agent-token list` shows every token without secrets, and `python cli.py agent-token revoke <id>` stops one at once. Revoking also withdraws that agent's writes still waiting for approval. Removing the user from `users.yaml`, or taking away all of the token's ventures, also stops it.
 
+**In the dashboard.** An owner or admin with every venture can do all of this under **Configure → Agent tokens** (or Ctrl/⌘ K, "Agent tokens"): pick the user, the ventures and an optional expiry, and the token is shown once with a copy button. The list shows each token's user, ventures, expiry and last use (never the secret), with a Revoke button. People who can't manage tokens don't see the page.
+
 Never give an agent the shared `REALIZE_API_KEY`. The API key is an owner with access to every venture, it can't be limited, and revoking it breaks every other integration that uses it.
 
 Agent tokens need auth on (`REALIZE_API_KEY` or JWT): with auth off the API is open and a token limits nothing. Pilot accounts (`pilot: true`) can't have one.

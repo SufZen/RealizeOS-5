@@ -40,6 +40,8 @@ async def list_approvals(
 
     ``pending`` means still decidable; ``expired`` includes pending items whose
     time ran out. Every row reports its effective ``status`` and ``expired``.
+    For people, every row also carries ``requested_by_agent``:
+    ``{"token_id", "name"}`` when an outside agent asked for it, else None.
     """
     from realize_core.db.schema import get_connection
     from realize_core.governance.approval_status import now_stamp, status_clause, with_effective_status
@@ -79,6 +81,13 @@ async def list_approvals(
         from realize_core.mcp_server.held_writes import agent_view
 
         approvals = [agent_view(row, viewer) for row in approvals]
+    else:
+        # The person deciding sees when an outside agent asked (its token's name), not just an id.
+        from realize_core.security.agent_tokens import describe_requesters
+
+        agents = describe_requesters(row.get("requested_by") for row in approvals)
+        for row in approvals:
+            row["requested_by_agent"] = agents.get(row.get("requested_by"))
     return {"approvals": approvals}
 
 

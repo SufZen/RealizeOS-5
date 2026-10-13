@@ -769,11 +769,16 @@ def test_one_agent_end_to_end_over_mcp(world, monkeypatch):
     monkeypatch.setenv("REALIZE_API_KEY", API_KEY)
     monkeypatch.setenv("MCP_ENABLED", "true")
     monkeypatch.delenv("REALIZE_JWT_ENABLED", raising=False)
+    from realize_core.skills import detector
+
     _token, secret = create_token(name="claude-acme", user_email="dana@acme.io", ventures=["acme"])
+    world_skills = detector._loaded_skills
 
     with TestClient(create_app()) as client:
         client.app.state.systems = dict(SYSTEMS)
         client.app.state.config = {"features": {}}
+        # Startup loads the ventures' skills from disk (5.30); this test's world defines its own.
+        monkeypatch.setattr(detector, "_loaded_skills", world_skills)
 
         # Scoped reads.
         assert _rpc(client, secret, "get_system", {"system_key": "globex"})["code"] == "MCP_FORBIDDEN"

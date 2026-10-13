@@ -6,9 +6,21 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { MemoryRouter } from 'react-router-dom'
 import { describe, expect, it } from 'vitest'
 import DocsPage from '@/pages/docs-page'
+import { AgentDetailView } from '@/pages/agent-detail'
+import { AgentTokensView } from '@/pages/agent-tokens-page'
+import { EMPTY_FORM, INITIAL_TOKENS_STATE } from '@/lib/agent-tokens'
+import { agentTokensText } from '@/lib/agent-tokens-text'
+import { onboardingText } from '@/lib/onboarding-text'
+import { agentControlsGate } from '@/lib/permissions'
 import { ApprovalCard } from './approval-card'
 import { ChatMessage, type ChatMsg } from './chat-message'
-import { ConnectStep, DoneStep, WelcomeStep, WizardSheet } from './onboarding-wizard'
+import {
+  ConnectStep,
+  DoneStep,
+  WelcomeStep,
+  WizardLanguageButton,
+  WizardSheet,
+} from './onboarding-wizard'
 import { DEFAULT_TOUR_STEPS, TourPopover } from './tour-provider'
 
 /** Tailwind classes tied to a physical side, which would not flip in RTL. */
@@ -137,6 +149,206 @@ describe('RTL rendering', () => {
     expect(html).toContain('aria-valuenow="2"') // the sheet's progress line
     expect(html).toContain('dir="ltr"') // keys and URLs stay left-to-right inside RTL
     expect(html).toContain('end-[3px]') // show/hide sits at the inline end of the key field
+    for (const cls of classesOf(html)) expect(cls).not.toMatch(PHYSICAL_CLASS)
+  })
+
+  it('onboarding wizard in Hebrew: every string translated, the sheet right-to-left', () => {
+    const noop = async () => {}
+    const he = onboardingText('he')
+    const html = render(
+      <>
+        <WizardSheet step={0} footer={null} text={he}>
+          <WelcomeStep text={he} />
+        </WizardSheet>
+        <WizardSheet step={1} footer={null} text={he}>
+          <ConnectStep connected={new Set(['ollama'])} onSave={noop} text={he} />
+        </WizardSheet>
+        <WizardSheet
+          step={2}
+          footer={null}
+          text={he}
+          headerEnd={<WizardLanguageButton text={he} onSwitch={() => {}} />}
+        >
+          <DoneStep providers={['Ollama (Local)']} animate={false} text={he} />
+        </WizardSheet>
+      </>,
+    )
+    // The sheet carries its language and direction itself.
+    expect(html.match(/lang="he" dir="rtl"/g)?.length).toBe(3)
+    expect(html).toContain('ברוכים הבאים ל-RealizeOS')
+    expect(html).toContain('סולם אמון')
+    expect(html).toContain('חיבור ספק AI')
+    expect(html).toContain('מפתח API')
+    expect(html).toContain('aria-label="הצגת המפתח"')
+    expect(html).toContain('>מומלץ<')
+    expect(html).toContain('>מחובר<')
+    expect(html).toContain('הכול מוכן')
+    expect(html).toContain('<span class="font-medium text-foreground">ספק אחד</span>')
+    expect(html).toContain('Ollama (Local) חובר')
+    expect(html).toContain('aria-valuetext="שלב 2 מתוך 3"')
+    expect(html).toContain('<span>הגדרה</span><span>3 מתוך 3</span>')
+    // The language button offers English, named in Hebrew.
+    expect(html).toContain('aria-label="מעבר לאנגלית (English)"')
+    expect(html).toContain('<span lang="en">English</span>')
+    // Product names, keys and URLs stay as they are, left to right.
+    expect(html).toContain('<bdi>Claude (Anthropic)</bdi>')
+    expect(html).toContain('dir="ltr"')
+    // No English left behind.
+    for (const english of [
+      'Welcome to RealizeOS',
+      'Connect an AI provider',
+      'You’re all set',
+      'Recommended',
+      'API key',
+      'What to do next',
+      'Setup progress',
+    ]) {
+      expect(html).not.toContain(english)
+    }
+    for (const cls of classesOf(html)) expect(cls).not.toMatch(PHYSICAL_CLASS)
+  })
+
+  it('onboarding wizard in English stays left-to-right and offers Hebrew', () => {
+    const en = onboardingText('en')
+    const html = render(
+      <WizardSheet
+        step={0}
+        footer={null}
+        text={en}
+        headerEnd={<WizardLanguageButton text={en} onSwitch={() => {}} />}
+      >
+        <WelcomeStep text={en} />
+      </WizardSheet>,
+    )
+    expect(html).toContain('lang="en" dir="ltr"')
+    expect(html).toContain('aria-label="Switch to Hebrew (עברית)"')
+    expect(html).toContain('<span lang="he">עברית</span>')
+    expect(html).toContain('ms-auto') // the language button sits at the inline end
+  })
+
+  it('agent tokens page: Hebrew, logical sides, and the token stays left-to-right', () => {
+    const html = render(
+      <AgentTokensView
+        text={agentTokensText('he')}
+        language="he"
+        tokens={[
+          {
+            id: '3f9a0c1d2e4b',
+            name: 'claude-acme',
+            principal: 'agent:3f9a0c1d2e4b',
+            user: 'dana@acme.io',
+            ventures: ['tower-b'],
+            status: 'active',
+            created_by: 'owner@realization.co.il',
+            created_at: '2026-10-13T09:00:00+00:00',
+            expires_at: null,
+            last_used_at: null,
+            revoked_at: null,
+            revoked_by: null,
+          },
+        ]}
+        enabled={false}
+        loading={false}
+        error={null}
+        ventures={[{ key: 'tower-b', name: 'מגדל B' }]}
+        form={{ ...EMPTY_FORM, ventures: ['tower-b'] }}
+        onFormChange={() => {}}
+        problems={['name']}
+        createError={null}
+        creating={false}
+        onCreate={() => {}}
+        state={{
+          ...INITIAL_TOKENS_STATE,
+          created: {
+            token: 'rzag_3f9a0c1d2e4b_Zx9-secret-part-that-is-long-enough-123456',
+            agent_token: {
+              id: '3f9a0c1d2e4b',
+              name: 'claude-acme',
+              principal: 'agent:3f9a0c1d2e4b',
+              user: 'dana@acme.io',
+              ventures: ['tower-b'],
+              status: 'active',
+              created_by: 'owner@realization.co.il',
+              created_at: '2026-10-13T09:00:00+00:00',
+              expires_at: null,
+              last_used_at: null,
+              revoked_at: null,
+              revoked_by: null,
+            },
+          },
+        }}
+        onCopy={() => {}}
+        onDismissCreated={() => {}}
+        onAskRevoke={() => {}}
+        onCancelRevoke={() => {}}
+        onConfirmRevoke={() => {}}
+        revokeBusy={false}
+        onRefresh={() => {}}
+      />,
+    )
+    expect(html).toContain('טוקנים לסוכנים')
+    expect(html).toContain('הטוקנים לסוכנים כבויים')
+    expect(html).toContain('<bdi>מגדל B</bdi>')
+    expect(html).toContain('בלי תפוגה')
+    expect(html).toContain('עד 64 אותיות באנגלית')
+    expect(html).toMatch(/<input[^>]*dir="ltr"[^>]*value="rzag_/)
+    expect(html).toContain('<code dir="ltr" class="font-mono">')
+    expect(html).toContain('rtl:rotate-180') // the breadcrumb chevron turns
+    for (const cls of classesOf(html)) expect(cls).not.toMatch(PHYSICAL_CLASS)
+  })
+
+  it('approval card from an outside agent: the badge mirrors, the name stays isolated', () => {
+    const html = render(
+      <ApprovalCard
+        language="he"
+        approval={{
+          id: 'apv-9',
+          venture_key: 'tower-b',
+          agent_key: 'claude-acme',
+          action_type: 'mcp_write',
+          action_name: 'mcp:run_workflow',
+          status: 'pending',
+          created_at: '2026-10-13T09:00:00Z',
+          params_json: JSON.stringify({ system_key: 'tower-b', workflow: 'דוח שבועי' }),
+          requested_by: 'agent:3f9a0c1d2e4b',
+          requested_by_agent: { token_id: '3f9a0c1d2e4b', name: 'claude-acme' },
+        }}
+      />,
+    )
+    expect(html).toContain('סוכן חיצוני: <bdi>claude-acme</bdi>')
+    expect(html).toContain('aria-label="הרצת תהליך עבודה: ממתין"')
+    expect(html).toContain('סוכן חיצוני ביקש את זה דרך MCP')
+    expect(html).toContain('דוח שבועי')
+    for (const cls of classesOf(html)) expect(cls).not.toMatch(PHYSICAL_CLASS)
+  })
+
+  it('agent detail: the view-only line and the back arrow mirror', () => {
+    const html = render(
+      <AgentDetailView
+        data={{
+          key: 'site-payments',
+          venture_key: 'tower-b',
+          definition_path: 'systems/tower-b/A-agents/site-payments.md',
+          definition: '# תשלומים באתר',
+          status: 'idle',
+          last_run_at: null,
+          last_error: null,
+          schedule_cron: null,
+          schedule_interval_sec: null,
+          next_run_at: null,
+          recent_activity: [],
+        }}
+        ventureKey="tower-b"
+        gate={agentControlsGate({ role: 'viewer' })}
+        onPause={() => {}}
+        onResume={() => {}}
+        onScheduleSaved={() => {}}
+      />,
+    )
+    expect(html).toContain('data-gate="agent"')
+    expect(html).toContain('rtl:rotate-180')
+    expect(html).toContain('<pre dir="auto"')
+    expect(html).toContain('<bdi>tower-b</bdi>')
     for (const cls of classesOf(html)) expect(cls).not.toMatch(PHYSICAL_CLASS)
   })
 

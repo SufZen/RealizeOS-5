@@ -1,5 +1,14 @@
 import { useId, type CSSProperties, type ReactNode } from 'react'
-import { Clock, CheckCircle2, XCircle, AlertTriangle, AlertCircle, Info, X } from 'lucide-react'
+import {
+  Bot,
+  Clock,
+  CheckCircle2,
+  XCircle,
+  AlertTriangle,
+  AlertCircle,
+  Info,
+  X,
+} from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Button, IconButton } from '@/components/ui/button'
@@ -37,6 +46,8 @@ export interface Approval {
   action_name?: string | null
   params_json?: string | null
   requested_by?: string | null
+  /** Set by the server when an outside agent asked (agent token, or `stdio` for a local session). */
+  requested_by_agent?: RequestingAgent | null
   executed_at?: string | null
   result_json?: string | null
   error?: string | null
@@ -47,6 +58,14 @@ export interface Approval {
   decision_channel?: string | null
   /** Present only when the server reports whether the decision log was written. */
   decision_log?: DecisionLogResult | null
+}
+
+/** The outside agent behind an approval, as `GET /api/approvals` names it. */
+export interface RequestingAgent {
+  /** The agent token's id; null for a local stdio session. */
+  token_id: string | null
+  /** The token's name (`stdio` for a local session). */
+  name: string
 }
 
 /** Items whose payload carries a question for the operator. */
@@ -246,7 +265,11 @@ export function ApprovalCard({
     (parseJson(approval.params_json) as Record<string, unknown> | undefined) ?? payload?.params
   const question = QUESTION_TYPES.has(approval.action_type) ? payload?.question : undefined
   const expiredNotice = expired && !settled && (!isPending || !!blockedReason)
+  const outsideAgent = approval.requested_by_agent ?? null
+  // While it can still be decided, say where the approval boundary is.
+  const agentNote = !!outsideAgent && isPending && !expired && !settled
   const hasBody =
+    agentNote ||
     !!question ||
     !!params ||
     showOutcome ||
@@ -274,6 +297,20 @@ export function ApprovalCard({
             {approval.action_name && approval.action_name !== label && (
               <code className="text-[11px] text-subtle-foreground">{approval.action_name}</code>
             )}
+            {outsideAgent && (
+              <Badge
+                tone="agent"
+                data-outside-agent={outsideAgent.token_id ?? 'stdio'}
+                title={
+                  approval.requested_by ? text.outsideAgentTitle(approval.requested_by) : undefined
+                }
+              >
+                <Bot aria-hidden />
+                <span>
+                  {text.outsideAgent} <bdi>{outsideAgent.name}</bdi>
+                </span>
+              </Badge>
+            )}
           </div>
           <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-subtle-foreground">
             <span className="inline-flex items-center gap-1.5">
@@ -285,7 +322,7 @@ export function ApprovalCard({
             <span>
               {text.venture}: {approval.venture_key}
             </span>
-            {approval.requested_by && (
+            {approval.requested_by && !outsideAgent && (
               <span>
                 {text.requestedFor}: {approval.requested_by}
               </span>
@@ -328,6 +365,16 @@ export function ApprovalCard({
 
       {hasBody && (
         <div className="grid gap-3 px-4 pb-4 ps-5">
+          {agentNote && (
+            <p
+              data-outside-agent-note
+              className="m-0 flex items-start gap-2 text-[13px] text-muted-foreground"
+            >
+              <Bot className="mt-0.5 h-3.5 w-3.5 shrink-0 text-agent" aria-hidden />
+              <span>{text.outsideAgentNote}</span>
+            </p>
+          )}
+
           {question && (
             <p dir="auto" className="m-0 text-[15px] leading-relaxed text-foreground">
               {question}
