@@ -19,6 +19,18 @@ import typer
 wedge_app = typer.Typer(no_args_is_help=True)
 
 
+def _safe(value: object) -> str:
+    """Show stored text without letting it drive the terminal: non-printable characters are escaped.
+
+    Contacts and markets come from pilot users, who are outsiders. The store
+    already strips control characters; this also covers rows written before that.
+    """
+    return "".join(
+        ch if ch.isprintable() else (f"\\x{ord(ch):02x}" if ord(ch) < 0x100 else f"\\u{ord(ch):04x}")
+        for ch in str(value)
+    )
+
+
 @wedge_app.command("invite")
 def wedge_invite(
     email: Annotated[str, typer.Argument(help="The pilot user's sign-in email.")],
@@ -72,7 +84,7 @@ def wedge_funnel(
     typer.echo(f"{'market':<8}{'runs':>6}{'users':>7}{'converted':>11}{'requests':>10}{'rate':>7}{'avg lvl':>9}")
     for r in rows:
         typer.echo(
-            f"{r['market'] or '-':<8}{r['runs']:>6}{r['users']:>7}{r['converted_users']:>11}"
+            f"{_safe(r['market'] or '-'):<8}{r['runs']:>6}{r['users']:>7}{r['converted_users']:>11}"
             f"{r['calls_requested']:>10}{r['call_rate']:>7.0%}{r['avg_verification']:>9}"
         )
     verdict = "PASS" if summary["passed"] else "not yet"
@@ -99,10 +111,10 @@ def wedge_contacts(
         typer.echo("Nobody is waiting for a call." if not include_handled else "No call requests yet.")
         return
     for r in rows:
-        state = f"contacted {r['handled_at'][:10]} by {r['handled_by']}" if r["handled_at"] else "waiting"
+        state = f"contacted {r['handled_at'][:10]} by {_safe(r['handled_by'])}" if r["handled_at"] else "waiting"
         typer.echo(
-            f"{r['user_id']}  contact: {r['contact']}  markets: {', '.join(r['markets'])}  "
-            f"asked {r['requests']}x since {r['first_requested_at'][:10]}  [{state}]"
+            f"{_safe(r['user_id'])}  contact: {_safe(r['contact'])}  markets: {_safe(', '.join(r['markets']))}  "
+            f"asked {r['requests']}x since {_safe(r['first_requested_at'][:10])}  [{state}]"
         )
     typer.echo("After calling someone: realize-os wedge contacted <their email>")
 

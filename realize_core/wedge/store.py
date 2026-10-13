@@ -12,7 +12,9 @@ requests, so one person asking twice can't inflate the pass signal (audit N09).
 from __future__ import annotations
 
 import logging
+import re
 import sqlite3
+import unicodedata
 import uuid
 from datetime import UTC, datetime, timedelta
 
@@ -49,8 +51,30 @@ PASS_RATE = 0.30
 HOME_MARKET = "il"
 
 
+_MARKET = re.compile(r"[a-z]{2}(?:[-_][a-z0-9]{1,10})?")
+
+
 class WedgeLimitError(RuntimeError):
     """The user has reached the pilot's daily limit."""
+
+
+def clean_text(value: str, limit: int = 200) -> str:
+    """User-supplied text safe to store and show: no control or bidi-override characters.
+
+    Pilot users are outsiders; what they type ends up in an owner's terminal
+    (``wedge contacts``) and in reports, where an escape sequence could rewrite
+    the screen or a bidi override could disguise the text.
+    """
+    kept = "".join(ch for ch in value if unicodedata.category(ch) not in {"Cc", "Cf"} or ch == " ")
+    return " ".join(kept.split())[:limit]
+
+
+def market_code(value: str | None) -> str:
+    """A market as a short code (``pt``, ``es-ct``), ``any`` when unknown, ``other`` when it isn't a code."""
+    code = (value or "").strip().lower()
+    if not code or code == "any":
+        return "any"
+    return code if _MARKET.fullmatch(code) else "other"
 
 
 def ensure_schema(conn: sqlite3.Connection) -> None:
@@ -89,7 +113,7 @@ def record_run(user_id: str, *, market: str, verification: int, items: int, with
         conn.execute(
             """INSERT INTO wedge_runs (id, user_id, market, verification, items, without_locator, created_at)
                VALUES (?, ?, ?, ?, ?, ?, ?)""",
-            (run_id, user_id, market, verification, items, without_locator, _now().isoformat()),
+            (run_id, user_id, market_code(market), verification, items, without_locator, _now().isoformat()),
         )
         conn.commit()
     finally:
@@ -110,7 +134,7 @@ def request_call(run_id: str, user_id: str, contact: str, *, opt_in: bool = True
                SET call_requested = 1, contact = ?, opt_in = ?,
                    call_requested_at = ?, call_handled_at = NULL, call_handled_by = NULL
                WHERE id = ? AND user_id = ?""",
-            (contact[:200], 1 if opt_in else 0, _now().isoformat(), run_id, user_id),
+            (clean_text(contact), 1 if opt_in else 0, _now().isoformat(), run_id, user_id),
         )
         conn.commit()
         return cur.rowcount == 1
