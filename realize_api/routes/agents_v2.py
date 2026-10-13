@@ -2,7 +2,7 @@
 Agents V2 API routes — CRUD for V2 composable agents + pipeline management.
 
 Endpoints:
-- GET    /api/agents                      — list all agents across systems
+- GET    /api/agents                      — list all agents across systems (``?venture=`` for one venture's team)
 - GET    /api/agents/{agent_key}          — get agent details (V1 or V2)
 - POST   /api/agents                      — create/register a V2 agent
 - PUT    /api/agents/{agent_key}          — update a V2 agent definition
@@ -11,6 +11,12 @@ Endpoints:
 - GET    /api/agents/personas             — list available persona bundles
 - POST   /api/pipelines/execute           — execute a pipeline
 - GET    /api/pipelines/{pipeline_id}     — get pipeline execution state
+
+With ``features.packs`` on, a venture's effective team includes the agents of
+its profession and market packs (and the firm's overrides). They are listed
+with where they came from (``layer``, ``pack``, ``verification``) and are
+read-only here: a pack is shared by every venture that links it, so changing
+one means overriding it in the venture (its own ``A-agents/`` file wins).
 """
 
 import logging
@@ -27,6 +33,11 @@ from realize_core.agents.registry import AgentRegistry
 from realize_core.agents.schema import V1AgentDef, V2AgentDef
 
 from realize_api.dependencies import get_allowed_ventures, visible_systems
+
+#: Layer of an agent defined in a venture's own ``A-agents/`` folder.
+VENTURE_LAYER = "venture"
+#: Layer of an agent registered through the API, with no file behind it.
+API_LAYER = "api"
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -145,6 +156,120 @@ def _visible_agents(request: Request, agents: list) -> list:
     return [a for a in agents if inside(a)]
 
 
+def _packs_on(request: Request) -> bool:
+    """``features.packs`` in the running config."""
+    from realize_core.config import get_features
+
+    return bool(get_features(getattr(request.app.state, "config", None) or {}).get("packs"))
+
+
+def _venture_dirs(request: Request) -> dict[str, Path]:
+    """Each visible venture's ``A-agents/`` folder, resolved."""
+    kb_path = getattr(request.app.state, "kb_path", None)
+    if kb_path is None:
+        return {}
+    return {
+        key: (Path(kb_path) / conf.get("agents_dir", f"systems/{key}/A-agents")).resolve()
+        for key, conf in visible_systems(request).items()
+    }
+
+
+def _venture_of(agent: V1AgentDef | V2AgentDef, dirs: dict[str, Path]) -> str | None:
+    """The venture whose ``A-agents/`` folder holds the agent's file, or None."""
+    if not agent.file_path:
+        return None
+    path = Path(agent.file_path).resolve()
+    for key, directory in dirs.items():
+        if path.is_relative_to(directory):
+            return key
+    return None
+
+
+def _local_dict(agent: V1AgentDef | V2AgentDef, dirs: dict[str, Path]) -> dict:
+    """A venture's own (or API-registered) agent, with its layer (``features.packs`` on)."""
+    venture = _venture_of(agent, dirs)
+    return {
+        **_agent_to_dict(agent),
+        "venture_key": venture,
+        "layer": VENTURE_LAYER if venture else API_LAYER,
+        "read_only": False,
+    }
+
+
+def _pack_dict(entry) -> dict:
+    """A pack agent of a venture: its definition, provenance and how to override it."""
+    return {
+        **_agent_to_dict(entry.definition),
+        "venture_key": entry.venture_key,
+        **entry.provenance,
+        "read_only": True,
+        "override_path": entry.override_path,
+    }
+
+
+def _pack_agents(request: Request, venture: str | None = None) -> list:
+    """The pack agents of the visible ventures (or of ``venture``), with ``features.packs`` on."""
+    if not _packs_on(request):
+        return []
+    from realize_core.packs.agents import venture_pack_agents
+
+    kb_path = getattr(request.app.state, "kb_path", None)
+    if kb_path is None:
+        return []
+    systems = visible_systems(request)
+    keys = [venture] if venture else sorted(systems)
+    return [entry for key in keys if key in systems for entry in venture_pack_agents(key, systems[key], kb_path)]
+
+
+def _visible_venture(request: Request, venture: str | None) -> str | None:
+    """``venture`` when the caller may see it; 404 otherwise. None stays None."""
+    if venture is None:
+        return None
+    if venture not in visible_systems(request):
+        raise HTTPException(status_code=404, detail=f"Venture '{venture}' not found")
+    return venture
+
+
+def _pack_agent(request: Request, agent_key: str, venture: str | None):
+    """The pack agent ``agent_key`` the caller is addressing, or None.
+
+    With ``venture``: that venture's pack agent of that key. Without: a pack
+    agent of that key in a visible venture, unless one of the caller's
+    ventures has its own agent with that key (the registry's entry is meant).
+    """
+    entries = [e for e in _pack_agents(request, venture) if e.key == agent_key]
+    if not entries:
+        return None
+    if venture is None:
+        registry = _get_registry(request)
+        local = registry.get(agent_key)
+        if local is not None and _visible_agents(request, [local]):
+            return None
+    return entries[0]
+
+
+def _read_only_error(entry) -> HTTPException:
+    """409 for a change to a pack agent: say where the venture's own copy goes."""
+    origin = entry.provenance.get("layer", "pack")
+    pack = entry.provenance.get("pack")
+    source = "the firm's overrides" if origin == "firm" else f"the {origin} pack {pack}"
+    return HTTPException(
+        status_code=409,
+        detail={
+            "error": "pack_agent_read_only",
+            "message": (
+                f"Agent '{entry.key}' comes from {source} and is read-only here; packs are shared by every "
+                f"venture that links them. To change it for '{entry.venture_key}', override it in your venture: "
+                f"add {entry.override_path}. The venture's own file wins over the pack's."
+            ),
+            "agent_key": entry.key,
+            "venture_key": entry.venture_key,
+            **entry.provenance,
+            "override_path": entry.override_path,
+        },
+    )
+
+
 def _agent_to_dict(agent: V1AgentDef | V2AgentDef) -> dict:
     """Serialize an agent definition to a JSON-safe dict."""
     if isinstance(agent, V1AgentDef):
@@ -193,11 +318,21 @@ def _agent_to_dict(agent: V1AgentDef | V2AgentDef) -> dict:
 # ---------------------------------------------------------------------------
 
 
+def _keep(agent: V1AgentDef | V2AgentDef, version: str | None, persona: str | None) -> bool:
+    """The ``version`` and ``persona`` filters of the agent list."""
+    if version == "1" and not isinstance(agent, V1AgentDef):
+        return False
+    if version == "2" and not isinstance(agent, V2AgentDef):
+        return False
+    return not persona or (isinstance(agent, V2AgentDef) and agent.persona == persona)
+
+
 @router.get("/agents")
 async def list_agents(
     request: Request,
     version: str | None = None,
     persona: str | None = None,
+    venture: str | None = None,
 ):
     """
     List all loaded agents.
@@ -205,7 +340,16 @@ async def list_agents(
     Query params:
     - version: filter by "1" or "2"
     - persona: filter by persona key (V2 only)
+    - venture: only that venture's agents (its effective team with ``features.packs`` on)
+
+    With ``features.packs`` on, each agent also says where it came from:
+    ``venture_key``, ``layer`` (``venture`` for the venture's own file,
+    ``firm``, ``market`` or ``profession`` for a pack's, ``api`` for one
+    registered through this API), ``pack`` and ``verification`` for pack
+    agents, and ``read_only`` (true for pack agents, with the
+    ``override_path`` where the venture's own copy would go).
     """
+    venture = _visible_venture(request, venture)
     registry = _get_registry(request)
 
     if version == "1":
@@ -218,11 +362,20 @@ async def list_agents(
     if persona:
         agents = [a for a in agents if isinstance(a, V2AgentDef) and a.persona == persona]
     agents = _visible_agents(request, agents)
+    if venture is not None:
+        dirs = _venture_dirs(request)
+        agents = [a for a in agents if _venture_of(a, {venture: dirs[venture]}) == venture] if venture in dirs else []
 
-    return {
-        "agents": [_agent_to_dict(a) for a in agents],
-        "total": len(agents),
-    }
+    if not _packs_on(request):
+        return {
+            "agents": [_agent_to_dict(a) for a in agents],
+            "total": len(agents),
+        }
+
+    dirs = _venture_dirs(request)
+    out = [_local_dict(a, dirs) for a in agents]
+    out += [_pack_dict(e) for e in _pack_agents(request, venture) if _keep(e.definition, version, persona)]
+    return {"agents": out, "total": len(out)}
 
 
 @router.get("/agents/personas")
@@ -244,13 +397,24 @@ async def get_personas():
 
 
 @router.get("/agents/{agent_key}")
-async def get_agent(agent_key: str, request: Request):
-    """Get detailed info for a specific agent."""
+async def get_agent(agent_key: str, request: Request, venture: str | None = None):
+    """Get detailed info for a specific agent.
+
+    ``venture`` names the venture whose agent is meant. With
+    ``features.packs`` on, a pack agent is found too, with its provenance.
+    """
+    venture = _visible_venture(request, venture)
+    entry = _pack_agent(request, agent_key, venture)
+    if entry is not None:
+        return _pack_dict(entry)
     registry = _get_registry(request)
     agent = registry.get(agent_key)
     if not agent or not _visible_agents(request, [agent]):
         raise HTTPException(status_code=404, detail=f"Agent '{agent_key}' not found")
-    return _agent_to_dict(agent)
+    dirs = _venture_dirs(request)
+    if venture is not None and _venture_of(agent, dirs) != venture:
+        raise HTTPException(status_code=404, detail=f"Agent '{agent_key}' not found")
+    return _local_dict(agent, dirs) if _packs_on(request) else _agent_to_dict(agent)
 
 
 @router.post("/agents", status_code=201)
@@ -289,8 +453,16 @@ async def create_agent(body: CreateAgentBody, request: Request):
 
 
 @router.put("/agents/{agent_key}")
-async def update_agent(agent_key: str, body: UpdateAgentBody, request: Request):
-    """Update an existing V2 agent definition."""
+async def update_agent(agent_key: str, body: UpdateAgentBody, request: Request, venture: str | None = None):
+    """Update an existing V2 agent definition.
+
+    A pack agent (``features.packs``) is read-only: 409 with the path where
+    the venture's own copy would go. Nothing is written into the pack.
+    """
+    venture = _visible_venture(request, venture)
+    entry = _pack_agent(request, agent_key, venture)
+    if entry is not None:
+        raise _read_only_error(entry)
     registry = _get_registry(request)
     existing = registry.get(agent_key)
 
@@ -316,8 +488,12 @@ async def update_agent(agent_key: str, body: UpdateAgentBody, request: Request):
 
 
 @router.delete("/agents/{agent_key}")
-async def delete_agent(agent_key: str, request: Request):
-    """Unregister an agent from the registry."""
+async def delete_agent(agent_key: str, request: Request, venture: str | None = None):
+    """Unregister an agent from the registry. A pack agent is read-only (409)."""
+    venture = _visible_venture(request, venture)
+    entry = _pack_agent(request, agent_key, venture)
+    if entry is not None:
+        raise _read_only_error(entry)
     registry = _get_registry(request)
 
     if not registry.unregister(agent_key):

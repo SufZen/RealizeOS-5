@@ -280,6 +280,50 @@ Delete an agent from a venture.
 
 ---
 
+## Agent registry
+
+The registry of loaded agent definitions (V1 markdown and V2 YAML), across the ventures the caller may see.
+
+### GET /api/agents
+
+Query: `version` (`1` or `2`), `persona` (V2 persona key), `venture` (one venture's agents; `404` for a venture you can't see).
+
+With `features.packs` on, each venture's **effective team** is listed: its own agents plus the agents of its profession and market packs and its firm overrides ([packs.md](packs.md#what-packs-change-at-run-time)). Each entry then also says where it came from:
+
+| Field | Meaning |
+|---|---|
+| `venture_key` | The venture the agent belongs to (`null` for one registered through this API) |
+| `layer` | `venture` (the venture's own `A-agents/` file), `firm`, `market` or `profession` (from a pack), or `api` |
+| `pack` | `id@version` of the pack (pack agents only) |
+| `verification` | The market pack's verification level, 0–4 (market pack agents only) |
+| `read_only` | `true` for pack and firm-override agents |
+| `override_path` | For a read-only agent: where the venture's own copy goes (relative to the KB root) |
+
+The venture's own file wins: a pack agent with the same key as one of the venture's agents isn't listed for that venture. A pack shared by several ventures is listed once per venture. With the flag off, the response is the same as before packs (no provenance fields).
+
+```json
+{ "key": "estimator", "name": "Estimator", "venture_key": "acme", "layer": "profession",
+  "pack": "developer@0.1.0", "read_only": true, "override_path": "systems/acme/A-agents/estimator.md", "...": "..." }
+```
+
+### GET /api/agents/{agent_key}
+
+One agent. Query `venture` names the venture whose agent is meant (a pack agent of that venture, or the venture's own); without it, the registry's agent, else the first visible venture's pack agent of that key.
+
+### PUT /api/agents/{agent_key} · DELETE /api/agents/{agent_key}
+
+Update (V2 only) or unregister an agent in the in-memory registry. Query `venture` as above. A pack or firm-override agent is read-only: `409` and nothing is written into the pack:
+
+```json
+{ "detail": { "error": "pack_agent_read_only", "agent_key": "estimator", "venture_key": "acme",
+  "layer": "profession", "pack": "developer@0.1.0", "override_path": "systems/acme/A-agents/estimator.md",
+  "message": "Agent 'estimator' comes from the profession pack developer@0.1.0 and is read-only here; ... override it in your venture: add systems/acme/A-agents/estimator.md. ..." } }
+```
+
+To change a pack agent for one venture, copy it to `override_path` and edit the copy; the venture's own file wins over the pack's.
+
+---
+
 ## Venture Knowledge Base
 
 ### GET /api/ventures/{key}/kb
