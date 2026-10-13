@@ -1,6 +1,7 @@
 import { useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/hooks/use-auth'
+import { markSignedOut } from '@/lib/sign-out-state'
 
 /**
  * Sign out and go to the sign-in page. `logout` ends the server session and
@@ -11,6 +12,8 @@ export function useSignOut(): () => Promise<void> {
   const { logout } = useAuth()
   const navigate = useNavigate()
   return useCallback(async () => {
+    // Set first: logging out re-renders the auth guard, which redirects before we navigate.
+    markSignedOut()
     await logout()
     navigate('/login', { replace: true })
   }, [logout, navigate])
