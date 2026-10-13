@@ -17,10 +17,18 @@ anything. An archive entry outside the layout (an absolute or drive path,
 ``..``, a backslash, a link or device file, an unknown top-level name, a
 destination that resolves outside the folder) refuses the whole restore
 before anything is written, and so does an archive with more than
-``MAX_MEMBERS`` entries or more than ``MAX_TOTAL_BYTES`` unpacked. Members
-are copied one by one; ``extractall`` is never used. ``.env``,
-``users.yaml`` and ``.credentials/`` are not in an export; they are copied
-by hand.
+``MAX_MEMBERS`` entries or more than ``MAX_TOTAL_BYTES`` unpacked. So does a
+name Windows would rewrite or reserve, on every platform: a segment ending
+in a space or a dot (Windows drops them, so ``.. `` would become ``..``) or a
+device name such as ``CON``, ``NUL`` or ``COM1``. Members are copied one by
+one; ``extractall`` is never used. ``.env``, ``users.yaml`` and
+``.credentials/`` are not in an export; they are copied by hand.
+
+A colon is part of a legal file name on Linux and macOS (``standup 10:30.md``),
+so such files restore there. Windows can't store one (it would open an
+alternate data stream), so on Windows those files are skipped with a warning
+and listed in :attr:`RestoreResult.skipped`. A drive name (``C:``) is refused
+everywhere.
 """
 
 from __future__ import annotations
@@ -28,6 +36,7 @@ from __future__ import annotations
 import logging
 import os
 import posixpath
+import re
 import shutil
 import stat
 import tempfile
@@ -52,6 +61,16 @@ MAX_TOTAL_BYTES = 20 * 1024**3
 
 _CHUNK = 1024 * 1024
 
+#: Device names Windows reserves, as a whole name or before an extension (``nul.txt``).
+_WINDOWS_DEVICE_NAMES = frozenset(
+    {"con", "prn", "aux", "nul", "conin$", "conout$"}
+    | {f"{port}{n}" for port in ("com", "lpt") for n in "0123456789\u00b9\u00b2\u00b3"}
+)
+#: A drive name at the start of a segment (``C:``, ``c:x``).
+_DRIVE = re.compile(r"[A-Za-z]:")
+#: Prefix of a Windows extended-length path, which keeps every name as it is.
+_EXTENDED = "\\\\?\\"
+
 
 class RestoreError(ValueError):
     """The archive can't be restored here; nothing was written."""
@@ -64,6 +83,8 @@ class RestoreResult:
     Attributes:
         target: The folder the export was restored into.
         files: Archive names written, in archive order.
+        skipped: Archive names not written because this system can't store
+            them (a colon in a name on Windows), in archive order.
         data_path: ``<target>/data`` (use as ``DATA_PATH``).
         packs_path: ``<target>/custom-packs`` when the export had custom packs, else None.
         inventory: ``<target>/packs-inventory.json`` when the export had one, else None.
@@ -71,6 +92,7 @@ class RestoreResult:
 
     target: Path
     files: list[str] = field(default_factory=list)
+    skipped: list[str] = field(default_factory=list)
     data_path: Path | None = None
     packs_path: Path | None = None
     inventory: Path | None = None
@@ -81,14 +103,34 @@ def _file_type(info: zipfile.ZipInfo) -> int:
     return stat.S_IFMT(info.external_attr >> 16)
 
 
+def _names_may_hold_colons() -> bool:
+    """True where a file name may contain ``:`` (everywhere but Windows)."""
+    return os.name != "nt"
+
+
+def _check_segment(name: str, part: str) -> None:
+    """Refuse a path segment that names a drive, or that Windows would rewrite or reserve."""
+    if _DRIVE.match(part):
+        raise RestoreError(f"{name!r} names a drive")
+    if part.endswith((" ", ".")):
+        # Windows drops a trailing space or dot, so ".. " would be written as "..".
+        raise RestoreError(f"{name!r} has a name ending in a space or a dot ({part!r})")
+    if part.split(".", 1)[0].rstrip(" ").casefold() in _WINDOWS_DEVICE_NAMES:
+        raise RestoreError(f"{name!r} uses a name Windows reserves for a device ({part!r})")
+
+
 def check_member(info: zipfile.ZipInfo, target: Path | None = None) -> PurePosixPath | None:
     """The entry's relative path inside the export layout, or None for a directory entry.
 
     The name must already be in canonical form: relative, ``/``-separated,
     no ``.`` or ``..`` segments, no empty segments, no drive letter or UNC
-    prefix, no backslash, colon or control character. Only regular files and
-    folders are accepted. With ``target``, the resolved destination must also
-    lie inside ``target`` (a check on real paths, not on strings).
+    prefix, no backslash or control character. No segment may name a drive
+    (``C:``), end in a space or a dot, or be a Windows device name (``CON``,
+    ``NUL``, ``COM1``, ``nul.txt``, ...), on any platform. A colon elsewhere
+    in a name is accepted here (:func:`restore_export` skips such files on
+    Windows). Only regular files and folders are accepted. With ``target``,
+    the resolved destination must also lie inside ``target`` (a check on real
+    paths, not on strings).
 
     Raises:
         RestoreError: The entry is unsafe or isn't part of an export's layout.
@@ -96,14 +138,16 @@ def check_member(info: zipfile.ZipInfo, target: Path | None = None) -> PurePosix
     name = info.filename
     if not name or any(ord(ch) < 32 for ch in name) or "\\" in name:
         raise RestoreError(f"{name!r} is not a valid archive path")
-    if name.startswith("/") or ":" in name:
-        raise RestoreError(f"{name!r} is an absolute path or names a drive")
+    if name.startswith("/"):
+        raise RestoreError(f"{name!r} is an absolute path")
     bare = name.rstrip("/") if info.is_dir() else name
     if posixpath.normpath(bare) != bare or bare in (".", ".."):
         raise RestoreError(f"{name!r} is not a plain relative path")
     path = PurePosixPath(bare)
     if ".." in path.parts:
         raise RestoreError(f"{name!r} leaves the restore folder")
+    for part in path.parts:
+        _check_segment(name, part)
     kind = _file_type(info)
     if stat.S_ISLNK(kind):
         raise RestoreError(f"{name!r} is a link; an export never contains links")
@@ -123,6 +167,54 @@ def check_member(info: zipfile.ZipInfo, target: Path | None = None) -> PurePosix
     if len(path.parts) > 1 and top in EXPORT_TREES:
         return path
     raise RestoreError(f"{name!r} is not part of a RealizeOS export")
+
+
+def _remove_staging(staging: Path) -> None:
+    """Delete the staging folder and everything in it; a folder that's already gone is fine.
+
+    On Windows the usual file APIs drop a trailing space or dot from every
+    name, so a folder such as ``acme.`` can't be removed through them; the
+    extended-length form (``\\\\?\\C:\\...``) passes names through unchanged.
+    A failure is logged, never raised: the restore's own error matters more.
+    """
+    path = str(staging)
+    if os.name == "nt" and not path.startswith(_EXTENDED):
+        path = _EXTENDED + ("UNC\\" + path[2:] if path.startswith("\\\\") else path)
+    try:
+        shutil.rmtree(path)
+    except FileNotFoundError:
+        return
+    except OSError:
+        logger.warning("Could not remove the restore staging folder %s; delete it by hand", staging, exc_info=True)
+
+
+def _checked_members(
+    infos: list[zipfile.ZipInfo], target: Path
+) -> tuple[list[tuple[zipfile.ZipInfo, PurePosixPath | None]], list[str]]:
+    """Every entry through :func:`check_member`, and the files this system must skip.
+
+    Where a file name can't hold a colon (Windows), an entry with one is
+    checked like any other, except that it isn't resolved under ``target``
+    (that would name an alternate data stream), and then left out with a
+    warning.
+    """
+    members: list[tuple[zipfile.ZipInfo, PurePosixPath | None]] = []
+    skipped: list[str] = []
+    colons_ok = _names_may_hold_colons()
+    for info in infos:
+        if colons_ok or ":" not in info.filename:
+            members.append((info, check_member(info, target)))
+            continue
+        path = check_member(info)
+        if path is not None:
+            skipped.append(str(path))
+    if skipped:
+        logger.warning(
+            "Skipping %d file(s) whose names hold a colon, which this system can't store: %s",
+            len(skipped),
+            ", ".join(skipped),
+        )
+    return members, skipped
 
 
 def _require_empty(target: Path) -> None:
@@ -166,7 +258,11 @@ def restore_export(
     are then copied one by one (never ``extractall``) into a temporary
     folder next to ``target``, each destination checked again on the real
     filesystem, and moved into place at the end, so a failure leaves
-    ``target`` as it was.
+    ``target`` as it was and the temporary folder is removed.
+
+    On Windows a file whose name holds a colon (legal on Linux, where the
+    export may have been made) can't be written: it is checked like every
+    other entry, then skipped with a warning and listed in ``skipped``.
 
     Args:
         archive: The export ZIP.
@@ -192,7 +288,7 @@ def restore_export(
         infos = zf.infolist()
         if len(infos) > max_members:
             raise RestoreError(f"{archive} has {len(infos)} entries; a restore takes at most {max_members}")
-        members = [(info, check_member(info, target)) for info in infos]
+        members, skipped = _checked_members(infos, target)
         files = [(info, path) for info, path in members if path is not None]
         if not files:
             raise RestoreError(f"{archive} contains no files")
@@ -225,13 +321,14 @@ def restore_export(
             moved = True
         finally:
             if not moved:
-                shutil.rmtree(staging, ignore_errors=True)
+                _remove_staging(staging)
 
     names = [str(path) for _, path in files]
     tops = {path.parts[0] for _, path in files}
     result = RestoreResult(
         target=target,
         files=names,
+        skipped=skipped,
         data_path=target / DATA_DIR,
         packs_path=target / CUSTOM_PACKS_DIR if CUSTOM_PACKS_DIR in tops else None,
         inventory=target / INVENTORY_FILE if INVENTORY_FILE in tops else None,
