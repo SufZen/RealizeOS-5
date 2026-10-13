@@ -58,6 +58,8 @@ class SchemaRegistry:
         self._schemas: dict[str, dict] = {}
         self._schemas_dir = schemas_dir or self._default_schemas_dir()
         self._load_schemas()
+        #: The core families loaded from the schemas folder; :meth:`extend` never replaces them.
+        self._core: frozenset[str] = frozenset(self._schemas)
 
     @staticmethod
     def _default_schemas_dir() -> Path:
@@ -113,6 +115,72 @@ class SchemaRegistry:
             schema = {**schema, "properties": {**props, "type": {"type": "string", "const": name}}}
         self._schemas[name] = schema
         return self.check_extension(schema)
+
+    @property
+    def core_types(self) -> frozenset[str]:
+        """The core families (the schemas folder's files), which extensions may not replace."""
+        return self._core
+
+    def _rooted_in_core(self, schema: dict, seen: frozenset[int] = frozenset()) -> bool:
+        """True when the schema's ``allOf`` chain reaches a core family."""
+        if id(schema) in seen:
+            return False
+        for base in self._referenced(schema):
+            if any(self._schemas.get(name) is base for name in self._core):
+                return True
+            if self._rooted_in_core(base, seen | {id(schema)}):
+                return True
+        return False
+
+    def extend(self, name: str, schema: dict) -> tuple[bool, list[str]]:
+        """Register a pack's extension of a core family, refusing anything that isn't one.
+
+        A pack extends core objects and never forks them (ADR 0005), so an
+        extension is refused when it would take a core family's name or
+        ``$id``, or when it doesn't build on a core family through ``allOf``
+        (directly or through an extension already registered). A property
+        that retypes a core property is dropped, so the core type still holds.
+
+        Args:
+            name: Entity type the extension validates (e.g. ``payment-claim``).
+            schema: The extension's JSON Schema.
+
+        Returns:
+            ``(registered, problems)``: whether it was registered, and why not
+            or what was dropped.
+        """
+        if not isinstance(schema, dict):
+            return False, [f"'{name}' is not a JSON object"]
+        shape = _extension_shape_problem(schema)
+        if shape:
+            return False, [f"'{name}': {shape}"]
+        if name in self._core:
+            return False, [f"'{name}' would replace the core schema of the same name"]
+        core_ids = {self._schemas[c].get("$id") for c in self._core} - {None}
+        if schema.get("$id") in core_ids:
+            return False, [f"'{name}' reuses the $id of a core schema ({schema.get('$id')})"]
+        if not self._rooted_in_core(schema):
+            return False, [f"'{name}' doesn't extend a core family with allOf"]
+        problems = self.check_extension(schema)
+        retyped = self._retyped(schema)
+        if retyped:
+            props = {k: v for k, v in schema.get("properties", {}).items() if k not in retyped}
+            schema = {**schema, "properties": props}
+        self.register(name, schema)
+        return True, problems
+
+    def _retyped(self, schema: dict) -> set[str]:
+        """Own properties whose type differs from the type a referenced schema gives them."""
+        out: set[str] = set()
+        own = schema.get("properties", {})
+        for base in self._referenced(schema):
+            base_props = self._resolve(base, seen=set()).get("properties", {})
+            for prop_name, prop in own.items():
+                base_type = base_props.get(prop_name, {}).get("type")
+                new_type = prop.get("type") if isinstance(prop, dict) else None
+                if base_type and new_type and base_type != new_type:
+                    out.add(prop_name)
+        return out
 
     def check_extension(self, schema: dict) -> list[str]:
         """List places where ``schema`` retypes a property defined by a schema it extends."""
@@ -170,6 +238,22 @@ class SchemaRegistry:
     def known_types(self) -> list[str]:
         """List all entity types with registered schemas."""
         return sorted(self._schemas.keys())
+
+
+def _extension_shape_problem(schema: dict) -> str:
+    """Why a pack schema can't be used as an extension ('' when its shape is fine)."""
+    all_of = schema.get("allOf", [])
+    if not isinstance(all_of, list) or not all(
+        isinstance(part, dict) and isinstance(part.get("$ref", ""), str) for part in all_of
+    ):
+        return "allOf must be a list of {$ref: text} objects"
+    props = schema.get("properties", {})
+    if not isinstance(props, dict) or not all(isinstance(p, dict) for p in props.values()):
+        return "properties must map names to objects"
+    required = schema.get("required", [])
+    if not isinstance(required, list) or not all(isinstance(r, str) for r in required):
+        return "required must be a list of property names"
+    return ""
 
 
 def validate_entity(
