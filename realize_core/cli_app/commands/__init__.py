@@ -28,6 +28,7 @@ def register_commands(app: typer.Typer) -> None:
 
     # --- MCP + REPL (Story 8) ---
     from realize_core.cli_app.commands.mcp import mcp_app
+    from realize_core.cli_app.commands.packs import packs_app
     from realize_core.cli_app.commands.repl import repl
     from realize_core.cli_app.commands.serve import serve
     from realize_core.cli_app.commands.setup import setup
@@ -66,3 +67,5 @@ def register_commands(app: typer.Typer) -> None:
     app.add_typer(fabric_app, name="fabric", help="FABRIC knowledge system: lint, reindex, search, dream.")
     # STORY-37 — bring your own agent
     app.add_typer(agent_token_app, name="agent-token", help="Venture-scoped tokens for outside agents.")
+    # STORY-45 — reviewer kit for market packs
+    app.add_typer(packs_app, name="packs", help="Market packs: review sheets, review submission, desk checks.")

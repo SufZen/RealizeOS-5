@@ -1,0 +1,39 @@
+﻿"id";"type";"statement";"details";"source";"as_of";"review_by";"applies_to";"verification";"facts_checked";"verdict";"facts_corrected";"corrected_statement";"reviewer_note"
+"es.contracts.payments-on-account";"rule";"In Spanish public works, the contractor may receive payments on account for preparatory operations such as site installations and materials stored on site, secured by a guarantee (Article 240.2 of Law 9/2017; Article 155 of Royal Decree 1098/2001).";"Monthly works certificates (certificaciones) are the usual basis for payment; check Article 240.1 in the consolidated text.";"https://www.granada.org/inet/wordenanz.nsf/22aa6d111eebda1ac12573520022b5f2/9f65f01a6772928bc1258a8b003c4b34!OpenDocument";"2026-10-13";"2027-04-13";"money-event: payment_claim";"1 (drafted)";"2";"";"";"";""
+"es.sales.energy-certificate";"rule";"An energy efficiency certificate (Royal Decree 390/2021) is required for new buildings and for existing buildings or units sold or let to a new tenant; agents must show it when marketing.";"Law-firm summary of the decree (BOE-A-2021-9176).";"https://www.cuatrecasas.com/resources/nl21-254-rd-390-de-2021-procedimiento-certificacion-eficiencia-energetica-edificios-60c32c5031f2e578468900.pdf";"2026-10-13";"2027-04-13";"milestone: handover";"1 (drafted)";"2";"";"";"";""
+"es.loe.liability-periods";"rule";"Under the Building Act (Ley 38/1999 de Ordenación de la Edificación, Article 17), building agents answer for material damage for 10 years (structural defects), 3 years (habitability defects) and 1 year (finishing defects), counted from acceptance of the works without reservations.";"Once damage appears within the period, the claim must be brought within two years (Supreme Court ruling 1211/2023). Record the acceptance date as the start of every period.";"https://www.congreso.es/constitucion/ficheros/leyes_espa/l_038_1999.pdf";"2026-10-13";"2027-04-13";"issue: defect";"1 (drafted)";"1";"";"";"";""
+"es.planning.licence-or-declaration";"rule";"Building works in Spain need a municipal works licence (licencia de obras) or, for works the regional law allows, a declaración responsable; occupation needs a first-occupation licence or its regional equivalent.";"Procedures are regional and municipal. This card only names the instruments; the Building Act gives the national framework.
+
+Source note: the Building Act gives the national framework only; the licence instruments named here are general knowledge to verify with the municipality.";"https://www.congreso.es/constitucion/ficheros/leyes_espa/l_038_1999.pdf";"2026-10-13";"2027-04-13";"milestone: permit, handover";"1 (drafted)";"2";"";"";"";""
+"es.contracts.price-revision";"rule";"In Spanish public contracts, periodic price revision (Article 103 of Law 9/2017) applies only where the tender documents provide it, covers only raw materials, intermediate goods and energy, and never overheads or profit; Law 11/2023 widened it to all contract types.";"Check the formula and official index named in the pliego before accepting a revised claim.";"https://www.osborneclarke.com/es/insights/la-ley-de-contratos-del-sector-publico-acoge-por-fin-la-posibilidad-de-revisar-el-precio";"2026-10-13";"2027-04-13";"money-event: payment_claim";"1 (drafted)";"2";"";"";"";""
+"es.subcontracting.chain-limit";"rule";"Law 32/2006 limits subcontracting chains in construction to three levels, with justified exceptions approved by the site management and recorded in the Libro de Subcontratación, which every construction site must keep.";"Breaches are serious or very serious infringements and create joint liability for labour and social security obligations.";"https://www.comunidad.madrid/node/73594";"2026-10-13";"2027-04-13";"requirement: code_rule";"1 (drafted)";"1";"";"";"";""
+"es.subcontracting.rea";"rule";"Contractors and subcontractors in Spanish construction must be registered in the Registro de Empresas Acreditadas (REA) of their region (Law 32/2006, Royal Decree 1109/2007); registration is valid nationwide.";"Check REA registration before awarding any subcontract package.";"https://www.comunidad.madrid/node/73594";"2026-10-13";"2027-04-13";"contact: contractor, subcontractor";"1 (drafted)";"2";"";"";"";""
+"es.taxes.transfer-tax-regional";"rule";"Resale of property in Spain pays transfer tax (ITP) at rates set by each autonomous community, while new dwellings pay IVA plus stamp duty (AJD) at regional rates.";"Never quote an ITP or AJD rate without the region's current table.";"https://motordepresupuestos.com/iva-obra-nueva";"2026-10-13";"2027-04-13";"money-event: budget_line";"1 (drafted)";"1";"";"";"";""
+"es.vat.housing";"rule";"In Spain, the first delivery of a new dwelling by the developer pays 10% IVA (Article 91.Uno.1.7 of Law 37/1992), protected housing (VPO, special regime) 4%, and commercial premises, offices and most construction for companies the general 21%.";"Up to two parking spaces and annexes sold with the dwelling share the 10% rate. Secondary source; confirm with AEAT binding rulings. The Canary Islands use IGIC instead.";"https://motordepresupuestos.com/iva-obra-nueva";"2026-10-13";"2027-04-13";"money-event: invoice, budget_line";"1 (drafted)";"1";"";"";"";""
+"es.vat.renovation-10";"rule";"Renovation works on a private dwelling can carry 10% IVA instead of 21% only when conditions are met (private residential use, the dwelling more than two years old, materials below the legal share); otherwise 21% applies to the whole job.";"Check the conditions on every renovation quote; secondary source.";"https://www.cecamagan.com/blog/empresas-construccion-cuando-repercute-10-iva-reformas";"2026-10-13";"2027-04-13";"money-event: invoice, quote";"1 (drafted)";"2";"";"";"";""
+"defaults";"defaults";"country: ES
+currency: EUR
+units: metric
+locale: es-ES
+work_week: mon, tue, wed, thu, fri";"Defaults the pack sets for every venture in this market.";"";"";"";"";"1 (drafted)";"5";"";"";"";""
+"glossary:en";"glossary";"works certificate → money-event / payment_claim
+building licence → milestone / permit
+first occupation licence → milestone / handover";"Glossary (en): each local term mapped to a core family and kind. Check that each term means what its mapping says.";"";"";"";"";"1 (drafted)";"3";"";"";"";""
+"glossary:es";"glossary";"certificación de obra → money-event / payment_claim
+presupuesto → money-event / quote
+mediciones → source / contract
+pliego de condiciones → source / contract
+revisión de precios → money-event
+modificado → change / variation
+precios contradictorios → change / variation
+licencia de obras → milestone / permit
+declaración responsable → milestone / permit
+licencia de primera ocupación → milestone / handover
+acta de recepción → milestone / handover
+contratista → contact / contractor
+subcontratista → contact / subcontractor
+promotor → contact / client
+dirección facultativa → contact / supervisor
+aval bancario → requirement / covenant
+vicio constructivo → issue / defect
+retraso → issue / delay";"Glossary (es): each local term mapped to a core family and kind. Check that each term means what its mapping says.";"";"";"";"";"1 (drafted)";"18";"";"";"";""

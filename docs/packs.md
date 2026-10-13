@@ -115,6 +115,18 @@ A pack extends a core family with `allOf` (see [`fabric-schemas/README.md`](fabr
 
 A card's level is the lower of its own level and the pack's level. A card whose `review_by` date has passed drops to level 1.
 
+## Reviewing a market pack
+
+Raising a market pack above level 1 needs a named local professional. Each level-1 pack ships a review sheet in `packs/market/<id>/reviews/` (`review-sheet.csv` to fill in, `review-sheet.md` to print). The loader ignores `reviews/`, so sheets, review records and removed cards kept there never reach an answer.
+
+```bash
+python cli.py packs review-sheet <id> [--format csv|md]     # export a sheet
+python cli.py packs desk-check <id>                          # mechanical card checks, no network
+python cli.py packs review-submit <id> --sheet filled.csv --reviewer "Name, title (registration)" [--venture KEY] [--apply-corrections [--yes]] [--whole-pack]
+```
+
+`review-submit` validates the sheet, writes a review record with the correction ratio, and queues a `pack_verify` approval; a person approves the level change. See [drafting-a-market-pack.md](drafting-a-market-pack.md#2-review-level-2) for the flow and [reviewing-a-market-pack.md](reviewing-a-market-pack.md) for the page to send the reviewer.
+
 ## Agent access (MCP)
 
 `list_packs`, `resolve_pack_item` and `glossary_lookup` are in the `kb` tool family. See [mcp-server.md](mcp-server.md).

@@ -58,6 +58,11 @@ realize-os
 │   ├── status                                   Show MCP health
 │   └── token [--user USER] [--role ROLE]        Issue bearer token
 │
+├── packs
+│   ├── review-sheet MARKET [--format csv|md]    Export a review sheet for a market pack
+│   ├── review-submit MARKET --sheet --reviewer  Record a review; queue pack_verify
+│   └── desk-check MARKET [--on DATE]            Mechanical card checks (no network)
+│
 ├── wedge                                        Self-serve tender register pilot
 │   ├── invite EMAIL                             Add an invite-only pilot user
 │   ├── funnel [--days N] [--format json]        Runs, users and calls per market
@@ -202,6 +207,31 @@ realize-os agent-token revoke 3f9a0c1d2e4b   # stops now; withdraws its writes w
 | `--directory`, `-d` | Project root (default `.`). |
 
 `create` prints the token (`rzag_...`) once; it is stored only as a hash. The agent sends it as `Authorization: Bearer <token>` to `/mcp` (or the REST API). It warns when auth is off, since an open API makes the token meaningless. See [mcp-server.md](mcp-server.md#agent-tokens-one-agent-one-clients-brain) for what an agent may do and which writes wait for a person.
+
+### `realize-os packs`
+
+Reviewer kit for market packs (STORY-45). A named local professional fills in a sheet; the CLI records it and queues the level change for approval. See [drafting-a-market-pack.md](drafting-a-market-pack.md#2-review-level-2).
+
+```bash
+realize-os packs review-sheet pt                        # packs/market/pt/reviews/review-sheet.csv
+realize-os packs review-sheet pt --format md            # printable sheet with instructions
+realize-os packs review-sheet gr --delimiter comma --out gr.csv
+realize-os packs desk-check pt                          # exit 1 if any card has an error
+realize-os packs review-submit pt --sheet filled.csv --reviewer "Ana Silva, advogada (OA 12345)" --venture ops --apply-corrections
+```
+
+| Option | Command | Meaning |
+|---|---|---|
+| `--format csv\|md` | `review-sheet` | CSV to fill in (UTF-8 with BOM, every cell quoted) or a printable sheet. |
+| `--out PATH` | `review-sheet` | Where to write. Default: `packs/market/<id>/reviews/review-sheet.<format>`. |
+| `--delimiter` | `review-sheet` | `auto` (`;` for decimal-comma locales, else `,`), `comma`, `semicolon` or `tab`. |
+| `--sheet PATH` | `review-submit` | The filled CSV. Comma, semicolon and tab separated files are read. |
+| `--reviewer TEXT` | `review-submit` | `"Name, title (registration)"`. Recorded on the cards when approved. |
+| `--venture KEY` | `review-submit` | Venture whose approval queue gets the request. Default: the first configured venture. |
+| `--apply-corrections` | `review-submit` | Write corrected statements into the cards and move removed cards to `reviews/removed/`, after showing a diff. |
+| `--yes` | `review-submit` | Apply without asking. |
+| `--whole-pack` | `review-submit` | Also raise `pack.yaml`. Needs every row reviewed and the corrections applied. |
+| `--on DATE` | `desk-check` | Check dates as of this day. |
 
 ### `realize-os wedge`
 

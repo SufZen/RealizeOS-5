@@ -1,0 +1,36 @@
+﻿"id","type","statement","details","source","as_of","review_by","applies_to","verification","facts_checked","verdict","facts_corrected","corrected_statement","reviewer_note"
+"us.payments.aia-g702","rule","US pay applications commonly use AIA Document G702 (Application and Certificate for Payment) with G703 (Continuation Sheet), which lists each line of the schedule of values, work completed, stored materials and the balance to finish.","Check each G703 line against the schedule of values and the milestone before certifying. AIA forms are copyrighted; use licensed copies.","https://oasas.ny.gov/aia-document-g703","2026-10-13","2027-04-13","money-event: payment_claim","1 (drafted)","1","","","",""
+"us.permits.local","rule","Building permits and certificates of occupancy are issued by the local building department under the building code the state or locality has adopted; occupancy normally needs a certificate of occupancy.","Procedures and timelines are local; record the jurisdiction on the project.
+
+Source note: the cited page covers energy codes only; the permit and occupancy statement is general knowledge to verify with the local building department.","https://www.energycodes.gov/status/states/new-york","2026-10-13","2027-04-13","milestone: permit, handover","1 (drafted)","2","","","",""
+"us.contractors.state-licensing","rule","Contractor licensing is set by each state (thresholds, classifications, exams, bonding and insurance), and many localities add their own registration or business licence.","Training-provider source. Verify each bidder's licence with the state board before award.","https://contractortrainingcenter.com/blogs/news/nascla-or-icc-exam-which-should-i-take","2026-10-13","2027-04-13","contact: contractor, subcontractor","1 (drafted)","1","","","",""
+"us.codes.energy-code-by-state","rule","Each state adopts its own energy code, usually an edition of the IECC (residential) and ASHRAE 90.1 (commercial), sometimes with amendments; editions differ widely between states.","Look up the project state's profile on energycodes.gov at the design stage.","https://www.energycodes.gov/status/states/new-york","2026-10-13","2027-04-13","requirement: code_rule","1 (drafted)","2","","","",""
+"us.federal.subcontractor-payment","rule","Federal prime contractors must pay subcontractors within 7 days of receiving payment from the Government, or owe interest, under the Prompt Payment for Construction Contracts clause.","Federal Register notice from 2001; confirm against the current clause.","https://www.govinfo.gov/content/pkg/FR-2001-08-07/pdf/01-19662.pdf","2026-10-13","2027-04-13","money-event: payment_claim","1 (drafted)","1","","","",""
+"us.federal.prompt-payment","rule","On federal construction contracts, the Prompt Payment clause (FAR 52.232-27) sets 14 days for progress payments after a proper request, which the contracting officer may not shorten below 7 days.","Private and state work follow state prompt-payment laws, which differ.","https://www.acquisition.gov/far/32.908","2026-10-13","2027-04-13","money-event: payment_claim","1 (drafted)","1","","","",""
+"us.liens.state-deadlines","rule","Mechanics lien rights are state law: most states require a preliminary notice to preserve them, and lien filing deadlines are usually 3 months to a year after the work is completed, depending on the state and the claimant's role.","For example, California requires preliminary notice within 20 days of first furnishing. Always check the project state's statute; collect lien waivers with each payment.","https://www.levelset.com/blog/lien-and-notice-deadlines-in-all-50-states/","2026-10-13","2027-04-13","requirement: code_rule","1 (drafted)","1","","","",""
+"us.federal.miller-act-claims","rule","Second-tier claimants on a Miller Act payment bond must give notice within 90 days of last furnishing labour or materials, and suits must be filed within one year.","Credit-services source; confirm against 40 U.S.C. 3133.","https://www.ncscredit.com/education-center/blog/payment-bond-information-federal-project","2026-10-13","2027-04-13","requirement: covenant","1 (drafted)","1","","","",""
+"us.federal.miller-act-bonds","rule","Federal construction contracts over $150,000 require performance and payment bonds under the Miller Act as implemented by FAR 28.102-1; the statute's own threshold is $100,000.","Between $35,000 and $150,000 the contracting officer must require alternative payment protections. Many states have 'Little Miller Acts' for state projects.","https://www.acquisition.gov/far/28.102-1","2026-10-13","2027-04-13","requirement: covenant","1 (drafted)","2","","","",""
+"us.payments.retainage","rule","Retainage of 5–10% of each progress payment is common in the US and is regulated by state law; California caps it at 5% for contracts entered into from 1 January 2026, with residential exceptions.","Check the project state's cap and release deadline (California: release within 45 days of completion).","https://www.levelset.com/retainage/california-retainage-law/","2026-10-13","2027-04-13","money-event: payment_claim","1 (drafted)","2","","","",""
+"defaults","defaults","country: US
+currency: USD
+units: imperial
+locale: en-US
+work_week: mon, tue, wed, thu, fri","Defaults the pack sets for every venture in this market.","","","","","1 (drafted)","5","","","",""
+"glossary:en","glossary","pay application → money-event / payment_claim
+pay app → money-event / payment_claim
+schedule of values → money-event / budget_line
+change order → change / variation
+construction change directive → change / variation
+retainage → money-event
+substantial completion → milestone / handover
+certificate of occupancy → milestone / handover
+building permit → milestone / permit
+punch list → issue / defect
+lien waiver → requirement / covenant
+mechanics lien → requirement / covenant
+preliminary notice → requirement / code_rule
+payment bond → requirement / covenant
+performance bond → requirement / covenant
+general contractor → contact / contractor
+subcontractor → contact / subcontractor
+owner → contact / client","Glossary (en): each local term mapped to a core family and kind. Check that each term means what its mapping says.","","","","","1 (drafted)","18","","","",""
