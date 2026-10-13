@@ -400,12 +400,16 @@ def answer_request(
 
 
 def _claim_for_execution(approval_id: str, db_path=None, *, action_type: str | None = None) -> dict | None:
-    """Atomically claim an approved, unexpired, not-yet-dispatched action.
+    """Atomically claim an approved, not-yet-dispatched action.
 
     Returns the row when this caller won the claim, else None, so a double
     click or a retry never dispatches the same action twice. The claim is
     committed before the action runs: if the process dies mid-call the row
     stays ``execution_status = 'claimed'`` (unknown outcome) and is not retried.
+
+    Expiry is not checked again: the decision already required an unexpired
+    item, so a person approved it in time. Checking it here made an approval
+    given just before expiry never run (review G-2).
 
     Args:
         approval_id: The approval.
@@ -417,15 +421,14 @@ def _claim_for_execution(approval_id: str, db_path=None, *, action_type: str | N
 
     now = _now()
     if action_type is None:
-        which, params = "action_name IS NOT NULL", (now, now, approval_id, now)
+        which, params = "action_name IS NOT NULL", (now, now, approval_id)
     else:
-        which, params = "action_type = ?", (now, now, approval_id, now, action_type)
+        which, params = "action_type = ?", (now, now, approval_id, action_type)
     conn = get_connection(db_path)
     try:
         cur = conn.execute(
             f"""UPDATE approval_queue SET executed_at = ?, updated_at = ?, execution_status = 'claimed'
-               WHERE id = ? AND status = 'approved' AND executed_at IS NULL
-                 AND (expires_at IS NULL OR expires_at > ?) AND {which}""",
+               WHERE id = ? AND status = 'approved' AND executed_at IS NULL AND {which}""",
             params,
         )
         conn.commit()
@@ -637,7 +640,12 @@ async def decide_approval(
 
     Only one decision can win: the transition requires the item to be pending
     and unexpired. ``decided_by`` / ``channel`` are stored on the row; they
-    default to the decider's.
+    default to the decider's. Once approved, the action runs even if the item
+    expires meanwhile: the person decided in time.
+
+    The decision-log intent is stored with the decision; the entry itself is
+    written after the action has run, in a worker thread, so a slow write
+    never delays the action (review G-2).
 
     Returns ``{"approval": row, "execution": ..., "skill_output": ...,
     "decision_log": {"logged", "pending", "error", "decision_id"}}`` or None
@@ -685,13 +693,7 @@ async def decide_approval(
     if record is None:
         return None
 
-    out: dict = {
-        "approval": record,
-        "execution": None,
-        "skill_output": None,
-        # Logged first, so a failure or crash below can't lose it; a failed write is retried (N05).
-        "decision_log": _record_decision(record, approve, action_type, db_path),
-    }
+    out: dict = {"approval": record, "execution": None, "skill_output": None, "decision_log": None}
     if is_question:
         if approve:
             out["skill_output"] = await _resume_skill_from_approval(record, decision_note or "yes")
@@ -713,6 +715,11 @@ async def decide_approval(
         out["execution"] = await _apply_pack_verification(approval_id, db_path)
     if out["execution"] and out["execution"].get("executed"):
         out["approval"] = _get_row(approval_id, db_path) or record
+    # The decision log is written once what the decision sets off has run, and off the
+    # event loop: a slow write (it also retries other pending writes) must not delay the
+    # approved action or block other requests. The intent was stored with the decision
+    # (log_intent), so a failure or crash before this line can't lose it (N05, review G-2).
+    out["decision_log"] = await asyncio.to_thread(_record_decision, record, approve, action_type, db_path)
     return out
 
 
