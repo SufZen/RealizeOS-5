@@ -57,6 +57,18 @@ def _isolated_pack_state(_pack_state_root, monkeypatch):
     state.clear_cache()
 
 
+@pytest.fixture(autouse=True)
+def _isolated_skill_cascade(monkeypatch):
+    """Start every test with the pack skill cascade off, as a fresh process is.
+
+    An app started with ``features.packs`` on turns it on for later skill
+    loads (``configure_pack_cascade``); it must not carry into other tests.
+    """
+    from realize_core.skills import detector
+
+    monkeypatch.setattr(detector, "_pack_cascade", False)
+
+
 @pytest.fixture
 def kb_root(tmp_path):
     """Create a minimal KB directory structure for testing.

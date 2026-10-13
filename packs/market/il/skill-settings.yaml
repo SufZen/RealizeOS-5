@@ -1,0 +1,18 @@
+# Hebrew triggers for the developer profession pack's skills.
+# A market pack extends a profession skill without copying it (spec 010): it may
+# add triggers only. The sheet and document ids are the firm's, set in the
+# venture's F-foundations/overrides/skill-settings.yaml.
+tender_requirements_register:
+  triggers:
+    - רשימת דרישות
+    - דרישות המכרז
+    - תיק מכרז
+payment_milestone_check:
+  triggers:
+    - דרישת תשלום
+    - תשלום לקבלן
+    - חשבון חלקי
+investor_report:
+  triggers:
+    - דוח למשקיעים
+    - דוח רבעוני

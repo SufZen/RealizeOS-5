@@ -39,9 +39,10 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from enum import Enum
+from pathlib import Path
 from typing import Any
 
-from realize_core.governance.trust_ladder import TrustDecision, check_trust
+from realize_core.governance.trust_ladder import ACTION_MAP, TrustDecision, check_trust, get_trust_rules
 from realize_core.tools.approval import (
     ApprovalAction,
     ApprovalRequest,
@@ -90,12 +91,14 @@ class ToolGate:
         channel: str = "dashboard",
         agent_key: str = "tool_gate",
         system_key: str = "default",
+        kb_path: Path | str | None = None,
     ):
         self._config = config or {}
         self._store = approval_store or ApprovalStore()
         self._channel = channel
         self._agent_key = agent_key
         self._system_key = system_key
+        self._kb_path = Path(kb_path) if kb_path is not None else None
 
     def update_config(self, config: dict[str, Any] | None) -> None:
         """Use a reloaded config (trust level, rules) from the next decision on."""
@@ -124,6 +127,7 @@ class ToolGate:
         params = params or {}
         try:
             decision = check_trust(action_name, self._config, channel=self._channel, is_destructive=is_destructive)
+            decision = self._with_pack_trust(action_name, decision, is_destructive)
             if decision is TrustDecision.AUTO and is_destructive is not False:
                 from realize_core.security.agent_access import outside_agent_active
 
@@ -168,6 +172,44 @@ class ToolGate:
     # ------------------------------------------------------------------
     # internals
     # ------------------------------------------------------------------
+
+    def _with_pack_trust(self, action_name: str, decision: TrustDecision, is_destructive: bool | None) -> TrustDecision:
+        """Lay the venture's pack trust defaults over ``decision``, only where stricter (spec 010).
+
+        Only with ``features.packs`` on and for a call made for a configured
+        venture (the tool-call context). A default may name the tool action
+        (``sheets_append``) or the governance action the ladder files it under
+        (``data_write``; ``unknown_write`` for an unmapped write). A pack never
+        loosens a decision; see :mod:`realize_core.packs.trust`.
+        """
+        features = self._config.get("features")
+        if not (isinstance(features, dict) and features.get("packs")):
+            return decision
+        from realize_core.governance.context import current_tool_context
+
+        venture_dir = self._venture_dir(current_tool_context().system_key)
+        if venture_dir is None:
+            return decision
+        from realize_core.packs.trust import tighten
+
+        trust_action = ACTION_MAP.get(action_name, action_name)
+        names = [action_name, trust_action]
+        if is_destructive and trust_action not in get_trust_rules(self._config):
+            names.append("unknown_write")
+        return TrustDecision(tighten(decision.value, names, venture_dir))
+
+    def _venture_dir(self, system_key: str) -> Path | None:
+        """The folder of a venture configured in ``realize-os.yaml`` (never built from other input)."""
+        if not system_key:
+            return None
+        for system in self._config.get("systems") or []:
+            if isinstance(system, dict) and system.get("key") == system_key:
+                from realize_core.config import KB_PATH
+
+                directory = system.get("directory") or f"systems/{system_key}"
+                venture_dir = (self._kb_path or KB_PATH) / str(directory)
+                return venture_dir if venture_dir.is_dir() else None
+        return None
 
     def _record(self, action_name: str, params: dict[str, Any], status: str) -> str | None:
         """

@@ -233,15 +233,18 @@ async def get_stats(request: Request, venture: str = ""):
 
 @router.post("/fabric/lint")
 async def lint_entities(request: Request, venture: str = ""):
-    """Validate all entities against their schemas."""
+    """Validate all entities against their schemas (with packs on, the venture's pack extensions too)."""
+    from realize_core.config import get_features
     from realize_core.fabric.crud import scan_venture
-    from realize_core.fabric.validator import SchemaRegistry, validate_entity
+    from realize_core.fabric.validator import validate_entity
+    from realize_core.packs.schemas import schema_registry_for
 
     venture_dir = _resolve_venture_dir(request, venture)
     if not venture_dir:
         raise HTTPException(status_code=400, detail="No venture directory found")
 
-    registry = SchemaRegistry()
+    packs_on = bool(get_features(getattr(request.app.state, "config", None) or {}).get("packs"))
+    registry = schema_registry_for(venture_dir, enabled=packs_on)
     entities = scan_venture(venture_dir, venture=venture)
 
     warnings = []

@@ -108,6 +108,7 @@ To add a new agent, create a `.md` file in `A-agents/` and add routing keywords 
 | `agent_tools` | `false` | Agents call registry tools (Google, Sheets, ClickUp, MCP) while answering. Without `enforce_gates`, only read-only tools are offered (see below) |
 | `cite_sources` | `false` | Answers cite knowledge-base sources inline as `[S1]` on the `api`, `dashboard` and `mcp` channels; the trail lists the sources (see below) |
 | `agent_tokens` | `true` | Accept venture-scoped agent tokens (`rzag_...`) for outside agents on MCP and REST. Nothing changes until an owner creates one; `false` makes every agent token stop working at once. See [mcp-server.md](mcp-server.md#agent-tokens-one-agent-one-clients-brain) |
+| `packs` | `false` | Profession and market packs (spec 010). Each venture's linked packs (`systems/<venture>/packs.yaml`) add context, skills, agents and schema extensions, and their trust defaults can only tighten the trust ladder. The API loads the skills at startup and on reload; templates that name packs link them instead of copying their agents and skills. Off: everything works as before packs. See [packs.md](packs.md#what-packs-change-at-run-time) |
 
 Custom flags are passed through without error — the engine ignores unknown flags.
 
@@ -176,6 +177,12 @@ a governance gate at the single tool-dispatch chokepoint
   `GET /api/approvals`) and the tool returns a "requires operator approval"
   result instead of executing.
 - **BLOCK** → the action is refused.
+
+With `features.packs` on, a call made for a venture also gets that venture's pack trust
+defaults (`trust.yaml` in its packs and in `F-foundations/overrides/`), **only where they are
+stricter** than the ladder's decision: `auto` → `approve` or `block`, `approve` → `block`. A pack
+value that would loosen a decision is ignored and logged. See
+[packs.md](packs.md#what-packs-change-at-run-time).
 
 The gate **fails open**: any internal gate error logs and allows the action, so
 a gate bug can never brick tool execution. When `enforce_gates` is `false`

@@ -122,6 +122,22 @@ def _rel(path: Path, root: Path) -> str:
         return path.name
 
 
+def _inside(path: Path, root: Path, warnings: list[str]) -> bool:
+    """True when ``path`` really lives in the pack folder ``root``.
+
+    A link that points outside the pack (``A-agents/x.md -> /etc/...``) is
+    skipped with a warning, so pack content can only come from the pack.
+    """
+    try:
+        inside = path.resolve().is_relative_to(root.resolve())
+    except (OSError, RuntimeError) as exc:  # RuntimeError: a symlink loop
+        warnings.append(f"{_rel(path, root)}: cannot resolve ({exc}); skipped")
+        return False
+    if not inside:
+        warnings.append(f"{_rel(path, root)}: points outside the pack folder; skipped")
+    return inside
+
+
 def _read_yaml(path: Path, warnings: list[str], root: Path | None = None) -> Any:
     try:
         return yaml.safe_load(path.read_text(encoding="utf-8"))
@@ -229,6 +245,8 @@ def _load_glossary(pack: Pack, root: Path) -> None:
     w = pack.warnings
     for gfile in sorted((root / "glossary").glob("*.yaml")):
         name = _rel(gfile, root)
+        if not _inside(gfile, root, w):
+            continue
         entries = _read_yaml(gfile, w, root) or []
         if not isinstance(entries, list):
             w.append(f"{name}: glossary must be a list")
@@ -259,16 +277,21 @@ def _load_content(pack: Pack, root: Path) -> None:
     rules_dir = root / "rules"
     if rules_dir.is_dir():
         for rfile in sorted(rules_dir.glob("*.md")):
+            if not _inside(rfile, root, w):
+                continue
             card = load_rule_card(rfile, w, root)
             if card:
                 pack.rules[card.id] = card
     docs_dir = root / "documents"
     if docs_dir.is_dir():
         for dfile in sorted(p for p in docs_dir.iterdir() if p.is_file()):
-            pack.documents[dfile.stem] = dfile
+            if _inside(dfile, root, w):
+                pack.documents[dfile.stem] = dfile
     skills_dir = root / "R-routines" / "skills"
     if skills_dir.is_dir():
         for sfile in sorted(skills_dir.glob("*.yaml")):
+            if not _inside(sfile, root, w):
+                continue
             data = _read_yaml(sfile, w, root)
             if data is not None and not isinstance(data, dict):
                 w.append(f"{_rel(sfile, root)}: a skill must be a mapping; skipped")
@@ -277,15 +300,17 @@ def _load_content(pack: Pack, root: Path) -> None:
             skill_id = data.get("id") if _scalar(data.get("id")) else None
             skill_id = skill_id or (data.get("name") if _scalar(data.get("name")) else None) or sfile.stem
             pack.skills[str(skill_id)] = sfile
+    _load_agents(pack, root)
+    _load_skill_settings(pack, root)
     trust_file = root / "trust.yaml"
-    if trust_file.is_file():
+    if trust_file.is_file() and _inside(trust_file, root, w):
         data = _read_yaml(trust_file, w, root)
         if isinstance(data, dict):
             pack.trust.update({str(k): str(v) for k, v in data.items() if _scalar(v)})
         elif data is not None:
             w.append("trust.yaml: must be a mapping of action to trust level; ignored")
     measures_file = root / "measures.yaml"
-    if measures_file.is_file():
+    if measures_file.is_file() and _inside(measures_file, root, w):
         data = _read_yaml(measures_file, w, root)
         if data is not None and not isinstance(data, list):
             w.append("measures.yaml: must be a list; ignored")
@@ -297,6 +322,8 @@ def _load_content(pack: Pack, root: Path) -> None:
     schemas_dir = root / "schemas"
     if schemas_dir.is_dir():
         for jfile in sorted(schemas_dir.glob("*.json")):
+            if not _inside(jfile, root, w):
+                continue
             try:
                 schema = json.loads(jfile.read_text(encoding="utf-8"))
             except (OSError, ValueError) as exc:  # JSONDecodeError and undecodable bytes are ValueErrors
@@ -306,6 +333,75 @@ def _load_content(pack: Pack, root: Path) -> None:
                 pack.schemas[jfile.stem] = schema
             else:
                 w.append(f"{_rel(jfile, root)}: a schema must be a JSON object; skipped")
+
+
+def agent_key(path: Path) -> str:
+    """The agent key for an agent file, the same rule as venture ``A-agents/`` (stem, ``-`` → ``_``)."""
+    return path.stem.replace("-", "_")
+
+
+def _load_agents(pack: Pack, root: Path) -> None:
+    """Index ``A-agents/*.md``; ``_``-prefixed files are notes, except the routing guide ``_README.md``."""
+    w = pack.warnings
+    agents_dir = root / "A-agents"
+    if not agents_dir.is_dir():
+        return
+    for afile in sorted(agents_dir.glob("*.md")):
+        if not afile.is_file() or not _inside(afile, root, w):
+            continue
+        if afile.name == "_README.md":
+            pack.agents_readme = afile
+        elif not afile.name.startswith("_"):
+            pack.agents[agent_key(afile)] = afile
+
+
+def _text_list(value: Any) -> list[str] | None:
+    """A list of non-empty texts, or None when ``value`` isn't a list of scalars."""
+    if isinstance(value, str):
+        value = [value]
+    if not isinstance(value, list) or not all(_scalar(v) for v in value):
+        return None
+    return [str(v) for v in value]
+
+
+def _load_skill_settings(pack: Pack, root: Path) -> None:
+    """Read ``skill-settings.yaml``: per skill id, extra ``triggers`` and ``variables``.
+
+    Only the shape is checked here. Which layers may set ``variables`` is
+    decided where the settings are applied (the firm layer only).
+    """
+    w = pack.warnings
+    path = root / "skill-settings.yaml"
+    if not path.is_file() or not _inside(path, root, w):
+        return
+    data = _read_yaml(path, w, root)
+    if data is None:
+        return
+    if not isinstance(data, dict):
+        w.append("skill-settings.yaml: must be a mapping of skill id to settings; ignored")
+        return
+    for skill_id, settings in data.items():
+        if not isinstance(settings, dict):
+            w.append(f"skill-settings.yaml: settings for '{skill_id}' must be a mapping; skipped")
+            continue
+        clean: dict[str, Any] = {}
+        if "triggers" in settings:
+            triggers = _text_list(settings["triggers"])
+            if triggers is None:
+                w.append(f"skill-settings.yaml: triggers for '{skill_id}' must be a list of text; ignored")
+            else:
+                clean["triggers"] = triggers
+        if "variables" in settings:
+            variables = settings["variables"]
+            if isinstance(variables, dict) and all(_scalar(v) for v in variables.values()):
+                clean["variables"] = {str(k): str(v) for k, v in variables.items()}
+            else:
+                w.append(f"skill-settings.yaml: variables for '{skill_id}' must map names to text; ignored")
+        unknown = sorted(set(settings) - {"triggers", "variables"})
+        if unknown:
+            w.append(f"skill-settings.yaml: '{skill_id}' can only set triggers and variables; ignored {unknown}")
+        if clean:
+            pack.skill_settings[str(skill_id)] = clean
 
 
 def load_pack(root: Path, *, apply_state: bool = True) -> Pack | None:

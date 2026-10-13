@@ -370,6 +370,18 @@ def _build_agent_layer(kb_path: Path, system_config: dict, agent_key: str) -> st
     return ""
 
 
+def _pack_agent_source(system_config: dict, agent_key: str) -> dict | None:
+    """Trail source for an agent that came from a profession or market pack (spec 010 §3.2), else None.
+
+    The path is the file name only: pack files live on the server.
+    """
+    provenance = (system_config.get("agent_provenance") or {}).get(agent_key)
+    if not provenance:
+        return None
+    path = system_config.get("agents", {}).get(agent_key, "")
+    return {"id": "A1", "title": f"Agent: {agent_key}", "path": Path(path).name, **provenance}
+
+
 def _build_routing_context(kb_path: Path, system_config: dict) -> str:
     """Load the agents readme (routing table) for orchestrator awareness."""
     agents_readme = system_config.get("agents_readme")
@@ -756,6 +768,7 @@ def build_system_prompt(
     agent = _build_agent_layer(kb_path, system_config, agent_key)
     if agent:
         layers.append(agent)
+    agent_source = _pack_agent_source(system_config, agent_key) if agent else None
 
     # Layer 5: Extra context files (user-loaded)
     if extra_context_files:
@@ -832,5 +845,7 @@ def build_system_prompt(
         sources_out.extend(kb_sources)
     if sources_out is not None and pack_context and pack_context in layers:
         sources_out.extend(pack_sources)
+    if sources_out is not None and agent_source and agent in layers:
+        sources_out.append(agent_source)
 
     return "\n\n---\n\n".join(layers)

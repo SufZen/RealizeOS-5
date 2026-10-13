@@ -14,7 +14,16 @@ import asyncio
 import logging
 from typing import Any
 
+from realize_core.utils.cells import neutralize_rows
+
 logger = logging.getLogger(__name__)
+
+#: How appended values are read. USER_ENTERED parses numbers and dates, so
+#: amounts stay summable; RAW stores values exactly as given. Either way, text
+#: that would start a formula is written with a leading apostrophe first
+#: (:func:`realize_core.utils.cells.neutralize_rows`), so it stays text.
+VALUE_INPUT_OPTIONS = ("RAW", "USER_ENTERED")
+DEFAULT_VALUE_INPUT_OPTION = "USER_ENTERED"
 
 
 # =====================================================================
@@ -94,18 +103,23 @@ def _sheets_append_sync(
     spreadsheet_id: str,
     range: str = "Sheet1",
     values: list[list[Any]] | None = None,
-    value_input_option: str = "USER_ENTERED",
+    value_input_option: str = DEFAULT_VALUE_INPUT_OPTION,
     insert_data_option: str = "INSERT_ROWS",
 ) -> dict:
     """
-    Append rows to a spreadsheet.
+    Append rows to a spreadsheet, as data.
+
+    Values often carry text a model took from an untrusted document, so a
+    text cell that starts with ``=``, ``+``, ``-``, ``@``, a tab or a line
+    break is prefixed with an apostrophe (it can't become a formula, here or
+    in an export), whichever input option is asked for.
 
     Args:
         spreadsheet_id: The ID of the spreadsheet.
         range: Target sheet/range (e.g. "Sheet1" or "Sheet1!A:D").
         values: 2D list of values to append (each inner list is a row).
-        value_input_option: How input data is interpreted
-            (RAW or USER_ENTERED).
+        value_input_option: How input data is interpreted: USER_ENTERED (the
+            default; an unknown value falls back to it) or RAW.
         insert_data_option: How the input data should be inserted
             (OVERWRITE or INSERT_ROWS).
 
@@ -114,9 +128,12 @@ def _sheets_append_sync(
     """
     if not values:
         return {"error": "No values provided to append"}
+    if value_input_option not in VALUE_INPUT_OPTIONS:
+        logger.warning("Unknown value_input_option %r; appending as %s", value_input_option, DEFAULT_VALUE_INPUT_OPTION)
+        value_input_option = DEFAULT_VALUE_INPUT_OPTION
 
     service = _sheets_service()
-    body = {"values": values}
+    body = {"values": neutralize_rows(values)}
     result = (
         service.spreadsheets()
         .values()
@@ -242,10 +259,10 @@ async def sheets_append(
     spreadsheet_id: str,
     range: str = "Sheet1",
     values: list[list[Any]] | None = None,
-    value_input_option: str = "USER_ENTERED",
+    value_input_option: str = DEFAULT_VALUE_INPUT_OPTION,
     insert_data_option: str = "INSERT_ROWS",
 ) -> dict:
-    """Append rows to a Google Sheets spreadsheet (async)."""
+    """Append rows to a Google Sheets spreadsheet (async); cells are written as data."""
     return await asyncio.to_thread(
         _sheets_append_sync,
         spreadsheet_id,
@@ -321,8 +338,12 @@ SHEETS_TOOL_SCHEMAS = [
                 },
                 "value_input_option": {
                     "type": "string",
-                    "description": "RAW or USER_ENTERED (default).",
-                    "default": "USER_ENTERED",
+                    "enum": list(VALUE_INPUT_OPTIONS),
+                    "description": (
+                        "USER_ENTERED (default: numbers and dates are parsed) or RAW (values are stored as "
+                        "given). Text that would start a formula is always stored as text."
+                    ),
+                    "default": DEFAULT_VALUE_INPUT_OPTION,
                 },
             },
             "required": ["spreadsheet_id", "values"],

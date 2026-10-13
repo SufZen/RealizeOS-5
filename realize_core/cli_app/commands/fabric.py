@@ -27,12 +27,14 @@ def lint(
     venture: str = typer.Option("", "--venture", "-v", help="Venture key to validate"),
     directory: str = typer.Option(".", "--directory", "-d", help="Project root"),
 ) -> None:
-    """Validate all FABRIC entities against their schemas."""
-    from realize_core.config import load_config
+    """Validate all FABRIC entities against their schemas (with packs on, each venture's pack extensions too)."""
+    from realize_core.config import get_features, load_config
     from realize_core.fabric.crud import scan_venture
-    from realize_core.fabric.validator import SchemaRegistry, validate_entity
+    from realize_core.fabric.validator import validate_entity
+    from realize_core.packs.schemas import schema_registry_for
 
     config = load_config()
+    packs_on = bool(get_features(config).get("packs"))
     kb_path = Path(config.get("kb_path", "."))
 
     if venture:
@@ -45,7 +47,6 @@ def lint(
             typer.echo("No ventures found. Run: realize-os venture create --key my-venture")
             raise typer.Exit(1)
 
-    registry = SchemaRegistry()
     total_entities = 0
     total_warnings = 0
 
@@ -55,6 +56,7 @@ def lint(
             typer.echo(f"  SKIP Venture '{v}' not found on disk")
             continue
 
+        registry = schema_registry_for(venture_dir, enabled=packs_on)
         entities = scan_venture(venture_dir, venture=v)
         v_warnings = 0
 

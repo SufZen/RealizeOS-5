@@ -77,8 +77,10 @@ market:
 | Glossary term | `(language, term)` | Higher layer wins per key; all layers' terms stay searchable |
 | Rule card | `rule.id` | Higher layer replaces by id; the firm can also `disable` an id |
 | Document template | `template.id` | Higher layer replaces |
-| Skill | `skill.id` | Higher layer replaces; skills from all layers are listed |
-| Trust default | `action_name` | Higher layer wins; the firm's `trust-policy.yaml` is always the top layer |
+| Skill | `skill.id` | The venture's own skill wins; then higher layer replaces; skills from all layers are listed. `skill-settings.yaml` adds triggers from any layer and variables from the firm only |
+| Agent | agent key | The venture's own agent wins; then higher layer replaces |
+| Schema extension | file name | Higher layer replaces; never a core schema (extend only) |
+| Trust default | `action_name` | Only stricter: packs and firm overrides tighten the venture's trust ladder (`realize-os.yaml`) and never loosen it; a looser value is ignored and logged (owner decision 2026-10-13) |
 | Measure (value-report line) | `measure.id` | Union; the firm can disable |
 | Defaults (currency, units, locale, work week) | field name | Higher layer wins |
 
@@ -111,6 +113,7 @@ packs/<kind>/<id>/
   pack.yaml            manifest
   A-agents/            agent definitions (same format as templates)
   R-routines/skills/   skills v2 YAML
+  skill-settings.yaml  extra triggers for skills of lower layers
   schemas/             JSON Schema extensions of core families
   glossary/<lang>.yaml term -> family/kind mapping
   rules/               rule cards (market packs mainly)

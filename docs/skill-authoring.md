@@ -122,6 +122,13 @@ before anything is written.
   json_params: [values]
 ```
 
+**Rows are written as data.** Values in a step often come from an untrusted document through the
+model, so any text cell that `sheets_append` writes and that starts with `=`, `+`, `-`, `@`, a tab
+or a line break gets an apostrophe in front, whichever `value_input_option` a step asks for
+(`USER_ENTERED` by default, so numbers and dates stay numbers and dates). Plain signed numbers such
+as `-1200` are left alone, so amounts stay summable. A tender line like `=IMPORTXML(...)` stays text in the sheet
+and in its exports. Ask the model for plain-text cells as well, but don't rely on it.
+
 **A failed tool step stops the workflow.** An unknown tool, unusable JSON, a wrong shape, a
 policy block or a tool error ends the skill at that step. The answer says which step stopped and
 why, and no later step runs, so a report is never written on top of a failed read. A write held
@@ -191,4 +198,34 @@ systems/my-business/R-routines/skills/
   meeting-prep.yaml
 ```
 
-Skills are loaded automatically. Use `/reload` (Telegram) or POST `/api/systems/reload` to pick up changes.
+With `features.packs` on, the API loads every venture's skills (its own and its packs') at
+startup and again on every config reload, such as POST `/api/systems/reload`. With the flag off,
+venture skill files are loaded when a skill is installed from the library
+(POST `/api/skills/install`), as before packs.
+
+## Skills from profession and market packs
+
+With `features.packs` on, a venture also gets the skills of the packs it links
+([packs.md](packs.md#what-packs-change-at-run-time)). A pack skill is an ordinary skill file in
+the pack's `R-routines/skills/`, in the format above. It runs exactly like the venture's own: the
+same executor, tool steps through the governance gate, held writes, approvals and trail (where it
+shows as a `W1` source with its layer and pack).
+
+- **The venture's own skill wins.** A skill in `systems/<venture>/R-routines/skills/` (or a shared
+  one) with the same id or name replaces the pack's. Copy a pack skill into the venture to change
+  its steps.
+- **Ids per venture.** Don't edit a pack skill's `variables:`; set the venture's values in
+  `systems/<venture>/F-foundations/overrides/skill-settings.yaml`:
+
+  ```yaml
+  tender_requirements_register:
+    variables:
+      tender_doc_id: "1AbC..."
+      register_sheet_id: "1XyZ..."
+    triggers: ["bid requirements"]   # optional, added to the skill's own
+  ```
+
+- **Switch one off** by listing its id in `F-foundations/overrides/disable.yaml`.
+- **Writing one for a pack:** keep it market-neutral (English triggers, no local terms or
+  currencies); a market pack adds local-language triggers in its own `skill-settings.yaml`
+  (triggers only, never variables).

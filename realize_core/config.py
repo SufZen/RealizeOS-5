@@ -205,6 +205,9 @@ def build_systems_dict(config: dict, kb_path: Path | None = None) -> dict:
     """
     kb_path = kb_path or KB_PATH
     systems = {}
+    # Profession and market packs (spec 010): their agents join each venture's own.
+    features = config.get("features")
+    packs_on = isinstance(features, dict) and bool(features.get("packs"))
 
     for sys_conf in config.get("systems", []):
         key = sys_conf["key"]
@@ -237,8 +240,26 @@ def build_systems_dict(config: dict, kb_path: Path | None = None) -> dict:
             # Agent routing (agent → keyword list for message-based selection)
             "agent_routing": sys_conf.get("agent_routing", {}),
         }
+        if packs_on:
+            _add_pack_agents(systems[key], kb_path / sys_dir, kb_path)
 
     return systems
+
+
+def _add_pack_agents(system: dict, venture_dir: Path, kb_path: Path) -> None:
+    """Add the agents of the venture's linked packs (``features.packs``, spec 010).
+
+    The venture's own ``A-agents/`` files win. ``agent_provenance`` records
+    where each pack agent came from (layer, pack, verification); the pack's
+    routing guide is used when the venture has none.
+    """
+    from realize_core.packs.agents import pack_agents
+
+    added = pack_agents(venture_dir, kb_path, system["agents"])
+    system["agents"] = {**system["agents"], **added.agents}
+    system["agent_provenance"] = added.provenance
+    if added.readme:
+        system["agents_readme"] = added.readme
 
 
 def discover_workspace_state(root: Path | None = None, config: dict | None = None) -> dict:
@@ -306,6 +327,8 @@ def validate_systems(config: dict, kb_path: Path | None = None) -> list[str]:
     """
     kb_path = kb_path or KB_PATH
     warnings = []
+    features = config.get("features")
+    packs_on = isinstance(features, dict) and bool(features.get("packs"))
 
     for sys_conf in config.get("systems", []):
         key = sys_conf.get("key", "unknown")
@@ -327,6 +350,10 @@ def validate_systems(config: dict, kb_path: Path | None = None) -> list[str]:
             available_agents = {f.stem.replace("-", "_") for f in agents_dir.glob("*.md") if not f.name.startswith("_")}
             # Also check .yaml agent files
             available_agents |= {f.stem.replace("-", "_") for f in agents_dir.glob("*.yaml")}
+            if packs_on:
+                from realize_core.packs.agents import pack_agents
+
+                available_agents |= set(pack_agents(sys_dir, kb_path, {}).agents)
 
             for route_type, agent_list in sys_conf.get("routing", {}).items():
                 if isinstance(agent_list, list):

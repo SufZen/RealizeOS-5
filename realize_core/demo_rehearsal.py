@@ -59,6 +59,25 @@ def _skills_dir(root: Path, key: str) -> Path:
     return root / "systems" / key / "R-routines" / "skills"
 
 
+def _skill_settings(root: Path, key: str) -> Path:
+    """The firm's settings for pack skills (used when the venture links the developer pack)."""
+    return root / "systems" / key / "F-foundations" / "overrides" / "skill-settings.yaml"
+
+
+def _id_files(root: Path, key: str) -> list[Path]:
+    """Where the demo's Google ids live.
+
+    The venture's own skill files when it has them (created with packs off),
+    else the firm's ``skill-settings.yaml`` for the developer pack's skills
+    (created with ``features.packs`` on: the skills are linked, not copied).
+    """
+    own = sorted(_skills_dir(root, key).glob("*.yaml"))
+    if own:
+        return own
+    settings = _skill_settings(root, key)
+    return [settings] if settings.is_file() else []
+
+
 def set_demo_ids(project_root: str | Path, sheet_id: str, tender_doc_id: str, key: str = DEMO_KEY) -> list[str]:
     """Write the Google ids into the demo venture's skill variables.
 
@@ -82,13 +101,14 @@ def set_demo_ids(project_root: str | Path, sheet_id: str, tender_doc_id: str, ke
         if not re.fullmatch(r"[A-Za-z0-9_-]{10,}", value or ""):
             raise ValueError(f"The {label} doesn't look like a Google id: {value!r}")
 
-    skills_dir = _skills_dir(Path(project_root), key)
-    if not skills_dir.is_dir():
-        raise FileNotFoundError(f"No skills in {skills_dir}; run scripts/seed_webinar_demo.py first")
+    root = Path(project_root)
+    files = _id_files(root, key)
+    if not files:
+        raise FileNotFoundError(f"No skills in {_skills_dir(root, key)}; run scripts/seed_webinar_demo.py first")
 
     values = dict.fromkeys(_SHEET_VARIABLES, sheet_id) | dict.fromkeys(_DOC_VARIABLES, tender_doc_id)
     changed: list[str] = []
-    for path in sorted(skills_dir.glob("*.yaml")):
+    for path in files:
         text = path.read_text(encoding="utf-8")
         updated = text
         for name, value in values.items():
@@ -140,20 +160,27 @@ def _check_llm_key() -> Check:
 
 
 def _check_ids(root: Path, key: str) -> Check:
-    skills_dir = _skills_dir(root, key)
-    pending = [p.name for p in skills_dir.glob("*.yaml") if PLACEHOLDER in p.read_text(encoding="utf-8")]
+    files = _id_files(root, key)
+    pending = [p.name for p in files if PLACEHOLDER in p.read_text(encoding="utf-8")]
     return Check(
         "Google ids set in skills",
-        skills_dir.is_dir() and not pending,
+        bool(files) and not pending,
         "all set" if not pending else f"placeholders left in {', '.join(sorted(pending))}",
         "python scripts/rehearse_webinar_demo.py set-ids --sheet <id> --tender-doc <id>",
     )
 
 
+def _packs_on(root: Path) -> bool:
+    from realize_core.config import get_features, load_config
+
+    return bool(get_features(load_config(root / "realize-os.yaml")).get("packs"))
+
+
 def _check_storyline(root: Path, key: str) -> list[Check]:
     from realize_core.skills.detector import detect_skill, reload_skills
 
-    reload_skills(kb_path=root)
+    # With packs on, the venture's skills may come from the developer pack.
+    reload_skills(kb_path=root, packs=_packs_on(root) or None)
     checks = []
     for case, message, expected in STORYLINE:
         skill = detect_skill(message, key)
@@ -185,7 +212,16 @@ def _skill_variables(root: Path, key: str) -> dict[str, str]:
     import yaml
 
     variables: dict[str, str] = {}
-    for path in _skills_dir(root, key).glob("*.yaml"):
+    own = list(_skills_dir(root, key).glob("*.yaml"))
+    if not own:
+        # Linked developer pack: the loaded skills carry the pack's defaults
+        # with the firm's ids from skill-settings.yaml on top.
+        from realize_core.skills.detector import get_skills_for_system
+
+        for skill in get_skills_for_system(key):
+            variables.update({k: str(v) for k, v in (skill.get("variables") or {}).items()})
+        return variables
+    for path in own:
         data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
         variables.update({k: str(v) for k, v in (data.get("variables") or {}).items()})
     return variables

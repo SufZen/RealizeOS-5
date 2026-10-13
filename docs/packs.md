@@ -44,10 +44,29 @@ The **firm** layer wins over the **market** pack, which wins over the **professi
 | Glossary term | `glossary/<lang>.yaml` | Highest layer wins per term |
 | Rule card | `rules/*.md` | Highest layer wins per id; the firm can disable an id |
 | Document template | `documents/` | Highest layer wins per file name |
-| Skill | `R-routines/skills/*.yaml` | Highest layer wins per skill id |
-| Trust default | `trust.yaml` | Highest layer wins per action |
+| Skill | `R-routines/skills/*.yaml` | The venture's own skill wins; then highest layer per skill id; the firm can disable an id |
+| Skill settings | `skill-settings.yaml` | Triggers from every layer are added; variables come from the firm only |
+| Agent | `A-agents/*.md` | The venture's own agent wins; then highest layer per agent key |
+| Schema extension | `schemas/*.json` | Highest layer wins per name; never replaces a core schema |
+| Trust default | `trust.yaml` | Only where stricter than the venture's trust ladder; never loosens |
 | Measure | `measures.yaml` | Union; the firm can disable one |
 | Default (currency, units, locale, work week) | `pack.yaml` `defaults` | Highest layer wins per field |
+
+## What packs change at run time
+
+With `features.packs` on, a venture's packs are used everywhere the venture's own files are. Nothing new runs: pack content goes through the same code, checks and approvals as the firm's own.
+
+The order is always the same, highest first: **the venture's own files** (its `A-agents/`, `R-routines/skills/`, the firm's shared skills), then **firm overrides** (`F-foundations/overrides/`), then **market packs**, then **profession packs**, then **the core**.
+
+- **Context.** Local terms, defaults and the most relevant rule cards go into the agent's prompt; each rule card appears in the answer trail with its level (see below).
+- **Skills.** The skills of the venture's packs join its own skills: they trigger on their phrases, show in skill lists, and run with `trigger_skill`. A pack skill runs through the same executor as any skill: its tool steps go through the governance gate, writes wait for an approval, a held step pauses the workflow until it is approved, and an outside agent's writes are always held. A skill the venture already has (same id or name) is never replaced, so existing ventures with copied skills keep running their copies, and no skill is listed or run twice. The answer trail lists a pack skill as a `W1` source with its layer and pack. The app loads the skills at startup and on every config reload (`POST /api/systems/reload`); edit a pack, then reload.
+- **Agents.** The agents of the venture's packs join its own. The venture's own file wins over a pack agent with the same key. A pack agent is only a prompt: it gets the same tools as any agent of the venture, behind the same gate, and can't bring a `persona.yaml`. The answer trail lists it as an `A1` source with its layer and pack. When the venture has no `A-agents/_README.md`, the routing guide of its highest pack is used.
+- **Schemas.** Entity validation (`POST /api/fabric/lint`, `realize-os fabric lint`) uses the core schemas plus the schema extensions of the venture's packs, per venture: another venture never sees them. An extension may add fields and constrain `kind`; one that takes a core schema's name or `$id`, or doesn't extend a core family with `allOf`, is skipped with a warning, and a property that retypes a core one is dropped (the core type holds).
+- **Trust defaults.** A pack's `trust.yaml` can only make the venture stricter: `auto` can become `approve` or `block`, `approve` can become `block`. The trust ladder in `realize-os.yaml` decides first; packs and the firm's `F-foundations/overrides/trust.yaml` are laid over it where they are stricter. A value that would loosen a decision is ignored and logged (`... would loosen gmail_send from approve to auto; ignored`). The key is a tool action (`sheets_append`) or the governance action it falls under (`data_write`, `send_email`; `unknown_write` for a write the ladder has no rule for). To switch a pack's default off, list the action in `F-foundations/overrides/disable.yaml`: the action goes back to the ladder's decision, never below it.
+
+A pack file that resolves outside its pack folder (a link to elsewhere) is skipped with a warning.
+
+With the flag off, none of this happens: skills, agents, validation and trust are exactly what they were before packs.
 
 ## Firm overrides
 
@@ -55,17 +74,35 @@ A firm overrides any pack inside its own venture folder, so the overrides travel
 
 ```
 systems/<venture>/F-foundations/overrides/
-  defaults.yaml      e.g. {currency: USD}
-  disable.yaml       list of rule, term or measure ids to switch off
+  defaults.yaml        e.g. {currency: USD}
+  disable.yaml         list of rule, term, measure, skill, agent, schema or trust ids to switch off
+  skill-settings.yaml  the venture's ids (and extra triggers) for skills that come from packs
   glossary/ rules/ documents/ trust.yaml measures.yaml
 ```
+
+### Skill settings
+
+A skill from a pack is shared by every venture that links the pack, so its sheet and document ids can't live in it. Each venture sets them in `F-foundations/overrides/skill-settings.yaml`, by skill id:
+
+```yaml
+payment_milestone_check:
+  variables:
+    milestones_sheet_id: "1AbC..."
+    payments_sheet_id: "1AbC..."
+  triggers: ["payment claim 7"]     # optional: more phrases, in your own words
+```
+
+Triggers are added to the skill's own. A pack can ship a `skill-settings.yaml` too, to add triggers to a skill from a lower layer: the Israel market pack adds Hebrew triggers to the developer pack's skills. Only the firm sets `variables`; a pack that tries is ignored and logged. A venture created from a template that links packs gets a starter file listing the ids it needs.
 
 ## Writing a pack
 
 ```
 packs/<profession|market>/<id>/
-  pack.yaml  glossary/  rules/  documents/  R-routines/skills/  schemas/  trust.yaml  measures.yaml  README.md
+  pack.yaml  glossary/  rules/  documents/  A-agents/  R-routines/skills/  skill-settings.yaml
+  schemas/  trust.yaml  measures.yaml  README.md
 ```
+
+`A-agents/*.md` and `R-routines/skills/*.yaml` use the same format as a venture's own agents and skills (see [skill-authoring.md](skill-authoring.md)). `A-agents/_README.md` is the team's routing guide; other `_` files are notes.
 
 `pack.yaml`:
 
@@ -112,7 +149,11 @@ How agents should use the rule, and its exceptions.
 
 ### Schemas
 
-A pack extends a core family with `allOf` (see [`fabric-schemas/README.md`](fabric-schemas/README.md)). It may add fields but must not retype core ones.
+A pack extends a core family with `allOf` (see [`fabric-schemas/README.md`](fabric-schemas/README.md)). It may add fields but must not retype core ones. The file name is the entity type it validates (`schemas/payment-claim.json` validates `type: payment-claim`). It can't use a core family's name or `$id`.
+
+### Templates that link packs
+
+A venture template can name packs (`packs:` in `templates/<name>.yaml`). With the flag on, `scaffold_venture(template=...)` (the dashboard, `realize-os venture create --template`) writes the venture's `packs.yaml`, copies only the firm's starter files, and leaves out the agents and skills the linked packs provide, at the same path, in `A-agents/` and `R-routines/skills/`. It writes `F-foundations/overrides/skill-settings.yaml` with the ids to set. With the flag off it copies the whole template, as before. `python cli.py init --template` is unchanged.
 
 ## Verification levels
 
@@ -179,4 +220,4 @@ python cli.py packs inventory [--compare packs-inventory.json]   # installed pac
 
 ## Agent access (MCP)
 
-`list_packs`, `resolve_pack_item` and `glossary_lookup` are in the `kb` tool family. See [mcp-server.md](mcp-server.md).
+`list_packs`, `resolve_pack_item` and `glossary_lookup` are in the `kb` tool family. `resolve_pack_item` resolves `term`, `rule`, `document`, `skill`, `agent`, `trust`, `measure` and `default` items. A venture's pack skills and agents also show in `list_skills`, `list_workflows` and `list_agents` like its own, and run with `trigger_skill` (held for a person's approval when an outside agent asks). See [mcp-server.md](mcp-server.md).

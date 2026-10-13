@@ -13,7 +13,10 @@ Layer = Literal["firm", "market", "profession", "core"]
 LAYER_ORDER: tuple[Layer, ...] = ("firm", "market", "profession", "core")
 
 #: Item types the resolver understands (spec 010 §3.1).
-ITEM_TYPES = ("term", "rule", "document", "skill", "trust", "measure", "default")
+ITEM_TYPES = ("term", "rule", "document", "skill", "agent", "trust", "measure", "default")
+
+#: Trust levels a pack or firm override may name, from least to most strict.
+TRUST_STRICTNESS: dict[str, int] = {"auto": 0, "approve": 1, "block": 2}
 
 VERIFICATION_NAMES = {
     0: "general knowledge",
@@ -95,6 +98,12 @@ class Pack:
     rules: dict[str, RuleCard] = field(default_factory=dict)
     documents: dict[str, Path] = field(default_factory=dict)
     skills: dict[str, Path] = field(default_factory=dict)
+    #: Agent definitions (``A-agents/*.md``), keyed like venture agents (file stem, ``-`` → ``_``).
+    agents: dict[str, Path] = field(default_factory=dict)
+    #: The team routing guide (``A-agents/_README.md``), when the pack has one.
+    agents_readme: Path | None = None
+    #: ``skill-settings.yaml``: per skill id, extra ``triggers`` and (firm layer only) ``variables``.
+    skill_settings: dict[str, dict[str, Any]] = field(default_factory=dict)
     trust: dict[str, str] = field(default_factory=dict)
     measures: dict[str, dict[str, Any]] = field(default_factory=dict)
     schemas: dict[str, dict[str, Any]] = field(default_factory=dict)
