@@ -41,6 +41,7 @@ NEEDS_VENTURE = frozenset(
         "list_packs",
         "resolve_pack_item",
         "glossary_lookup",
+        "log_decision",
     }
 )
 #: Tools that run a skill by name: the skill's own venture is checked too.
@@ -79,7 +80,9 @@ TOOL_PERMISSIONS = {
         ),
         "system:read",
     ),
-    **dict.fromkeys(("realize_chat", "clear_history", "run_workflow", "trigger_skill"), "agents:execute"),
+    **dict.fromkeys(
+        ("realize_chat", "clear_history", "run_workflow", "trigger_skill", "log_decision"), "agents:execute"
+    ),
     **dict.fromkeys(
         ("approve_request", "reject_request", "approve_suggestion", "dismiss_suggestion"), "pipeline:approve"
     ),

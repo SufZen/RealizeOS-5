@@ -94,7 +94,7 @@ Rules:
 |---|---|---|
 | `chat` | always on | `realize_chat`, `realize_health`, `realize_status`, `list_systems`, `get_system`, `list_agents`, `list_skills`, `get_history`, `clear_history`, `get_session` |
 | `kb`   | `mcp.expose_kb` (on by default) | `kb_search`, `venture_kb_search`, `kb_get_document`, `list_ventures`, `list_packs`, `resolve_pack_item`, `glossary_lookup` |
-| `ops`  | `mcp.expose_ops` (on by default) | `list_workflows`, `run_workflow`, `trigger_skill`, `run_evolution`, `list_suggestions`, `approve_suggestion`, `dismiss_suggestion`, `list_approvals`, `approve_request`, `reject_request` |
+| `ops`  | `mcp.expose_ops` (on by default) | `list_workflows`, `run_workflow`, `trigger_skill`, `run_evolution`, `list_suggestions`, `approve_suggestion`, `dismiss_suggestion`, `list_approvals`, `approve_request`, `reject_request`, `log_decision` |
 | `admin`| `mcp.allow_admin` + `role=owner` + production JWT | `create_venture`, `delete_venture`, `update_setting`, `reload_agents` |
 
 ### Chat tool behaviour
@@ -106,6 +106,10 @@ Rules:
 ### Venture scope
 
 A caller limited to some ventures (a `users.yaml` user with `ventures`, or a JWT with `venture:<key>` scopes) gets a fail-closed subset: chat, agents, skills, history, session, KB search and approvals tools work only when they name one of those ventures; `approve_request` / `reject_request` only for approvals in them; `list_systems` / `list_ventures` are filtered; anything that spans every venture (admin, evolution, cross-venture KB) returns `MCP_FORBIDDEN`. Callers without a venture limit are unaffected.
+
+### Decision log
+
+`log_decision` (ops, editor scope) proposes a decision made outside RealizeOS, such as in a meeting, a call or a message thread, with its source and locator. It never writes directly: the proposal goes to the approval queue, and the decision is recorded in the venture's `B-brain/decisions/` only when a person approves it. Without a located source the decision is stored as unverified. See [decision-log.md](decision-log.md).
 
 ### Admin tool behaviour
 
