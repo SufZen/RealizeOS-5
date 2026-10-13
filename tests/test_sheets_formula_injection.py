@@ -87,7 +87,7 @@ def test_the_append_path_writes_values_as_data(sheets, option):
     _sheets_append_sync("sheet-1", "Requirements", [["6.1", MALICIOUS, "yes"]], **kwargs)
     [call] = sheets.appends
     assert call["body"]["values"] == [["6.1", "'" + MALICIOUS, "yes"]]
-    assert call["valueInputOption"] == ("RAW" if option == "RAW" else "USER_ENTERED")
+    assert call["valueInputOption"] == ("USER_ENTERED" if option == "USER_ENTERED" else "RAW")
 
 
 @pytest.mark.parametrize(
@@ -100,12 +100,43 @@ def test_plain_signed_numbers_stay_numbers(cell, kept):
     assert neutralize_cell(cell) == (cell if kept else "'" + cell)
 
 
-def test_the_tool_schema_defaults_to_user_entered():
+@pytest.mark.parametrize("cell", [" =IMPORTXML(1,2)", "\u00a0+A1", "  @SUM(A1)"])
+def test_leading_spaces_dont_hide_a_formula(cell):
+    from realize_core.utils.cells import neutralize_cell
+
+    assert neutralize_cell(cell) == "'" + cell
+
+
+def test_raw_appends_keep_numbers_numbers_and_text_text(sheets):
+    from realize_core.tools.google_sheets import _sheets_append_sync
+
+    _sheets_append_sync("sheet-1", "Payments", [["6.10", -1200.5, 4800, "=SUM(A1)", "007"]])
+    [call] = sheets.appends
+    assert call["valueInputOption"] == "RAW"
+    # JSON numbers stay numbers (summable); a clause "6.10" or "007" is never turned into a number.
+    assert call["body"]["values"] == [["6.10", -1200.5, 4800, "'=SUM(A1)", "007"]]
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "templates/real-estate-developer/R-routines/skills/payment-milestone-check.yaml",
+        "packs/profession/developer/R-routines/skills/payment-milestone-check.yaml",
+    ],
+)
+def test_payment_rows_ask_for_amounts_as_numbers(path):
+    skill = yaml.safe_load((ROOT / path).read_text(encoding="utf-8"))
+    row = next(step for step in skill["steps"] if step.get("id") == "payment_row")
+    assert "amounts" in row["prompt"]
+    assert "JSON numbers" in row["prompt"]
+
+
+def test_the_tool_schema_defaults_to_raw():
     from realize_core.tools.google_sheets import SHEETS_TOOL_SCHEMAS
 
     append = next(s for s in SHEETS_TOOL_SCHEMAS if s["name"] == "sheets_append")
     option = append["input_schema"]["properties"]["value_input_option"]
-    assert option["default"] == "USER_ENTERED"
+    assert option["default"] == "RAW"
     assert option["enum"] == ["RAW", "USER_ENTERED"]
 
 
@@ -227,7 +258,7 @@ async def test_a_tender_with_a_formula_is_registered_as_text(
 
     [call] = sheets.appends
     assert call["spreadsheetId"] == "sheet-r"
-    assert call["valueInputOption"] == "USER_ENTERED"
+    assert call["valueInputOption"] == "RAW"
     assert call["body"]["values"] == [["6.1", "'" + MALICIOUS, "yes", "Dana", "", "Tender 6.1"]]
 
 
