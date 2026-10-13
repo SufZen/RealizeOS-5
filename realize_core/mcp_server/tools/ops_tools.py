@@ -456,48 +456,60 @@ def _decision_summary(result: dict) -> dict:
     }
 
 
-async def approve_request(args: dict[str, Any], app_state: Any, user: CurrentUser) -> Any:
-    """Approve a pending request in the approval queue."""
+def _mcp_decider(user: CurrentUser):
+    """The MCP caller as a decider: role, venture scope and whether it is an outside agent."""
+    from realize_core.governance.gates import Decider
+    from realize_core.mcp_server.venture_guard import caller_ventures
+    from realize_core.security.agent_access import is_agent_subject
+
+    return Decider(
+        user_id=getattr(user, "user_id", None),
+        role=getattr(user, "role", None),
+        allowed_ventures=caller_ventures(user),
+        is_agent=is_agent_subject(user),
+        channel="mcp",
+    )
+
+
+async def _decide(args: dict[str, Any], user: CurrentUser, approve: bool) -> Any:
+    """Decide an approval for the MCP caller. ``MCP_FORBIDDEN`` when they may not decide it."""
     try:
-        from realize_core.governance.gates import decide_approval
+        from realize_core.governance.gates import ApprovalForbiddenError, decide_approval
     except ImportError as exc:
         return {"error": f"Governance module unavailable: {exc}", "code": "MCP_INTERNAL"}
 
     approval_id = (args.get("approval_id") or "").strip()
     if not approval_id:
         return {"error": "approval_id is required", "code": "MCP_VALIDATION"}
-    result = await decide_approval(
-        approval_id,
-        approve=True,
-        decision_note=args.get("decision_note") or None,
-        decided_by=getattr(user, "user_id", None),
-        channel="mcp",
-    )
+    try:
+        result = await decide_approval(
+            approval_id,
+            approve=approve,
+            decision_note=args.get("decision_note") or None,
+            decider=_mcp_decider(user),
+        )
+    except ApprovalForbiddenError as exc:
+        logger.warning("MCP decision on %s refused for %s: %s", approval_id, getattr(user, "user_id", None), exc)
+        return {"error": str(exc), "code": "MCP_FORBIDDEN"}
     if result is None:
         return {"error": "Approval not found or not pending", "code": "MCP_NOT_FOUND"}
     return _decision_summary(result)
+
+
+async def approve_request(args: dict[str, Any], app_state: Any, user: CurrentUser) -> Any:
+    """Approve a pending request in the approval queue.
+
+    A pack verification needs an owner with access to every venture.
+    """
+    return await _decide(args, user, True)
 
 
 async def reject_request(args: dict[str, Any], app_state: Any, user: CurrentUser) -> Any:
-    """Reject a pending request in the approval queue."""
-    try:
-        from realize_core.governance.gates import decide_approval
-    except ImportError as exc:
-        return {"error": f"Governance module unavailable: {exc}", "code": "MCP_INTERNAL"}
+    """Reject a pending request in the approval queue.
 
-    approval_id = (args.get("approval_id") or "").strip()
-    if not approval_id:
-        return {"error": "approval_id is required", "code": "MCP_VALIDATION"}
-    result = await decide_approval(
-        approval_id,
-        approve=False,
-        decision_note=args.get("decision_note") or None,
-        decided_by=getattr(user, "user_id", None),
-        channel="mcp",
-    )
-    if result is None:
-        return {"error": "Approval not found or not pending", "code": "MCP_NOT_FOUND"}
-    return _decision_summary(result)
+    A pack verification needs an owner with access to every venture.
+    """
+    return await _decide(args, user, False)
 
 
 # ---------------------------------------------------------------------------
