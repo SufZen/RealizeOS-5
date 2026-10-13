@@ -62,7 +62,7 @@ wedge:
     pt: {name: "Partner name", url: "https://partner.example"}
 ```
 
-`.env`: production posture (`REALIZE_ENV=production`, `REALIZE_API_KEY`, `REALIZE_JWT_ENABLED=true` and a strong `REALIZE_JWT_SECRET`), plus `MCP_PUBLIC_URL` if you prefer it to the YAML. Behind a reverse proxy, set `REALIZE_TRUSTED_PROXIES` so rate limits see real client addresses, and start uvicorn with `--proxy-headers` (see [mcp-server.md](mcp-server.md#connect-claudeai-custom-connector-oauth)).
+`.env`: production posture (`REALIZE_ENV=production`, `REALIZE_API_KEY`, `REALIZE_JWT_ENABLED=true` and a strong `REALIZE_JWT_SECRET`), plus `MCP_PUBLIC_URL` if you prefer it to the YAML. Behind a reverse proxy, set `REALIZE_TRUSTED_PROXIES` to the proxy's address so rate limits see real client addresses, and start uvicorn with `--proxy-headers --forwarded-allow-ips=<proxy ip>` (both flags; the image's default command has neither, so override it; see [mcp-server.md](mcp-server.md#connect-claudeai-custom-connector-oauth)).
 
 With `docker-compose.prod.yml`, use a separate project and data volume, and bind-mount a writable `users.yaml` (the container's root is read-only):
 
