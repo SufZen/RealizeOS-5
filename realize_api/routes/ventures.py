@@ -81,7 +81,7 @@ async def get_venture_detail(venture_key: str, request: Request):
 
     sys_conf = systems[venture_key]
     fabric = analyze_fabric(kb_path, sys_conf)
-    agents = get_agents_with_status(sys_conf, venture_key)
+    agents = get_agents_with_status(sys_conf, venture_key, kb_path)
     skills = get_skills(kb_path, sys_conf)
 
     return {

@@ -2,9 +2,24 @@
  * Words on the approvals surface, in English and Hebrew. The language comes
  * from the locale mechanism (`useLocale().language`: the venture's locale or
  * the person's choice); anything that isn't Hebrew reads English.
+ *
+ * Text the server provides (an error, a tool's output, who decided) is set
+ * apart with `<bdi>` (`isolate`), so a left-to-right error inside a Hebrew
+ * sentence, or the other way round, never reorders the sentence around it.
  */
+import { createElement, Fragment, type ReactNode } from 'react'
 import type { ApprovalStatus, DecisionProblem, Outcome, OutcomeKind } from '@/lib/approval-outcome'
 import { baseLanguage } from '@/lib/locale'
+
+/** Server-provided text, isolated from the direction of the sentence around it. */
+export function isolate(value: string): ReactNode {
+  return createElement('bdi', null, value)
+}
+
+/** One sentence from words and isolated values. */
+function phrase(...parts: ReactNode[]): ReactNode {
+  return createElement(Fragment, null, ...parts)
+}
 
 export interface ApprovalText {
   title: string
@@ -55,13 +70,17 @@ export interface ApprovalText {
   yesSendNote: string
   expiredNotice: string
   viewOnly: (role: string) => string
+  /** Why someone who may decide other items can't decide a pack verification. */
+  ownerOnly: string
   outcome: Record<OutcomeKind, string>
-  succeededWith: (output: string) => string
-  failedWith: (error: string) => string
+  succeededWith: (output: string) => ReactNode
+  failedWith: (error: string) => ReactNode
   notRetried: string
   decisionLogged: string
-  decisionNotLogged: (error?: string | null) => string
-  problem: (p: DecisionProblem) => string
+  /** The decision-log write failed and a retry is queued. */
+  decisionQueued: string
+  decisionNotLogged: (error?: string | null) => ReactNode
+  problem: (p: DecisionProblem) => ReactNode
 }
 
 const EN_STATUS: Record<ApprovalStatus, string> = {
@@ -143,6 +162,8 @@ const EN: ApprovalText = {
     'This request expired before anyone decided it. Nothing was done, and it can no longer be approved or rejected.',
   viewOnly: (role) =>
     `View only: your role (${role}) can see approvals but can’t approve or reject them.`,
+  ownerOnly:
+    'A pack’s verification is shared by every venture: only an owner with access to every venture can approve or reject it.',
   outcome: {
     held: 'Waiting for a decision. Nothing has run.',
     expired: 'No one decided in time, so nothing was done.',
@@ -155,31 +176,44 @@ const EN: ApprovalText = {
       'Approved and started, but no result is recorded. If the server restarted while it ran, the outcome is unknown: it is never re-run automatically, so a person has to check.',
     not_started: 'Approved, but it has not run, and it will not start on its own later.',
   },
-  succeededWith: (output) => `Approved and done: ${output}`,
-  failedWith: (error) => `Approved, but it failed: ${error}`,
+  succeededWith: (output) => phrase('Approved and done: ', isolate(output)),
+  failedWith: (error) => phrase('Approved, but it failed: ', isolate(error)),
   notRetried: 'It is not retried automatically.',
   decisionLogged: 'Added to the decision log.',
+  decisionQueued: 'Queued for the decision log; it will be added shortly.',
   decisionNotLogged: (error) =>
-    error ? `Not added to the decision log: ${error}` : 'Not added to the decision log.',
+    error
+      ? phrase('Not added to the decision log: ', isolate(error))
+      : 'Not added to the decision log.',
   problem: (p) => {
     switch (p.kind) {
       case 'expired':
         return 'This request expired before anyone decided it, so nothing was done. The list was refreshed.'
       case 'already_decided': {
         const status = p.approval?.status ? EN_STATUS[p.approval.status].toLowerCase() : 'decided'
-        const by = p.approval?.decided_by ? ` by ${p.approval.decided_by}` : ''
-        return `Someone else already decided this (${status}${by}). Your decision was not applied. The list was refreshed.`
+        const by = p.approval?.decided_by
+        return phrase(
+          `Someone else already decided this (${status}`,
+          by ? phrase(' by ', isolate(by)) : null,
+          '). Your decision was not applied. The list was refreshed.',
+        )
       }
       case 'gone':
         return 'This request is no longer available. The list was refreshed.'
       case 'forbidden':
-        return `You can’t decide this request${p.detail ? `: ${p.detail}` : '.'}`
+        return p.detail
+          ? phrase('You can’t decide this request: ', isolate(p.detail))
+          : 'You can’t decide this request.'
       case 'session':
         return 'Your session ended, so nothing was decided. Sign in again to continue.'
       case 'network':
         return 'The server could not be reached, so the decision may not have been recorded. The list was refreshed: check this request before trying again.'
       default:
-        return `The server could not record this decision${p.detail ? ` (${p.detail})` : ''}. The list was refreshed: check this request before trying again.`
+        return phrase(
+          'The server could not record this decision',
+          p.detail ? phrase(' (', isolate(p.detail), ')') : null,
+          '. The list was refreshed: check this request before trying again.',
+        )
     }
   },
 }
@@ -245,6 +279,8 @@ const HE: ApprovalText = {
   expiredNotice:
     'תוקף הבקשה פג לפני שמישהו החליט עליה. שום דבר לא בוצע, ואי אפשר עוד לאשר או לדחות אותה.',
   viewOnly: (role) => `צפייה בלבד: התפקיד שלך (${role}) מאפשר לראות אישורים, אבל לא לאשר או לדחות.`,
+  ownerOnly:
+    'אימות של חבילה משותף לכל המיזמים: רק בעלים עם גישה לכל המיזמים יכולים לאשר או לדחות אותו.',
   outcome: {
     held: 'ממתין להחלטה. שום דבר לא רץ.',
     expired: 'אף אחד לא החליט בזמן, ולכן שום דבר לא בוצע.',
@@ -257,31 +293,42 @@ const HE: ApprovalText = {
       'אושר והתחיל לרוץ, אבל לא נרשמה תוצאה. אם השרת הופעל מחדש בזמן הריצה, התוצאה לא ידועה: הפעולה לא תורץ שוב אוטומטית, ולכן מישהו צריך לבדוק.',
     not_started: 'אושר, אבל לא רץ, והוא לא יתחיל מעצמו בהמשך.',
   },
-  succeededWith: (output) => `אושר ובוצע: ${output}`,
-  failedWith: (error) => `אושר, אבל הביצוע נכשל: ${error}`,
+  succeededWith: (output) => phrase('אושר ובוצע: ', isolate(output)),
+  failedWith: (error) => phrase('אושר, אבל הביצוע נכשל: ', isolate(error)),
   notRetried: 'הוא לא ינוסה שוב אוטומטית.',
   decisionLogged: 'נוסף ליומן ההחלטות.',
+  decisionQueued: 'ממתין בתור ליומן ההחלטות; יתווסף בקרוב.',
   decisionNotLogged: (error) =>
-    error ? `לא נוסף ליומן ההחלטות: ${error}` : 'לא נוסף ליומן ההחלטות.',
+    error ? phrase('לא נוסף ליומן ההחלטות: ', isolate(error)) : 'לא נוסף ליומן ההחלטות.',
   problem: (p) => {
     switch (p.kind) {
       case 'expired':
         return 'תוקף הבקשה פג לפני שמישהו החליט עליה, ולכן שום דבר לא בוצע. הרשימה רועננה.'
       case 'already_decided': {
         const status = p.approval?.status ? HE_STATUS[p.approval.status] : 'הוחלט'
-        const by = p.approval?.decided_by ? ` ע״י ${p.approval.decided_by}` : ''
-        return `מישהו אחר כבר החליט על הבקשה (${status}${by}). ההחלטה שלך לא נרשמה. הרשימה רועננה.`
+        const by = p.approval?.decided_by
+        return phrase(
+          `מישהו אחר כבר החליט על הבקשה (${status}`,
+          by ? phrase(' ע״י ', isolate(by)) : null,
+          '). ההחלטה שלך לא נרשמה. הרשימה רועננה.',
+        )
       }
       case 'gone':
         return 'הבקשה כבר לא זמינה. הרשימה רועננה.'
       case 'forbidden':
-        return `אין לך הרשאה להחליט על הבקשה${p.detail ? `: ${p.detail}` : '.'}`
+        return p.detail
+          ? phrase('אין לך הרשאה להחליט על הבקשה: ', isolate(p.detail))
+          : 'אין לך הרשאה להחליט על הבקשה.'
       case 'session':
         return 'החיבור שלך הסתיים, ולכן שום החלטה לא נרשמה. יש להתחבר שוב כדי להמשיך.'
       case 'network':
         return 'לא ניתן היה להגיע לשרת, וייתכן שההחלטה לא נרשמה. הרשימה רועננה: כדאי לבדוק את הבקשה לפני שמנסים שוב.'
       default:
-        return `השרת לא הצליח לרשום את ההחלטה${p.detail ? ` (${p.detail})` : ''}. הרשימה רועננה: כדאי לבדוק את הבקשה לפני שמנסים שוב.`
+        return phrase(
+          'השרת לא הצליח לרשום את ההחלטה',
+          p.detail ? phrase(' (', isolate(p.detail), ')') : null,
+          '. הרשימה רועננה: כדאי לבדוק את הבקשה לפני שמנסים שוב.',
+        )
     }
   },
 }
@@ -291,12 +338,14 @@ export function approvalText(language: string | null | undefined): ApprovalText 
   return baseLanguage(language) === 'he' ? HE : EN
 }
 
-/** The sentence for an outcome, with the tool's output or error when there is one. */
-export function outcomeMessage(outcome: Outcome, text: ApprovalText): string {
+/** The sentence for an outcome, with the tool's output or error (isolated) when there is one. */
+export function outcomeMessage(outcome: Outcome, text: ApprovalText): ReactNode {
   if (outcome.kind === 'succeeded' && outcome.detail) return text.succeededWith(outcome.detail)
   if (outcome.kind === 'failed') {
-    const head = outcome.detail ? text.failedWith(outcome.detail.trim()) : text.outcome.failed
-    return `${head}${/[.!?]$/.test(head) ? ' ' : '. '}${text.notRetried}`
+    const detail = outcome.detail?.trim()
+    const head = detail ? text.failedWith(detail) : text.outcome.failed
+    const ended = /[.!?]$/.test(detail || text.outcome.failed)
+    return phrase(head, ended ? ' ' : '. ', text.notRetried)
   }
   return text.outcome[outcome.kind]
 }

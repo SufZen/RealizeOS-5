@@ -2,6 +2,8 @@ import { useNavigate } from 'react-router-dom'
 import { AlertCircle, Plug, ArrowRight, ShieldCheck } from 'lucide-react'
 import { useApi } from '@/hooks/use-api'
 import { useAuth } from '@/hooks/use-auth'
+import { useHeldApprovals } from '@/hooks/use-held-approvals'
+import { useLocale } from '@/components/locale-provider'
 import { Skeleton, SkeletonCard, SkeletonText } from '@/components/ui/skeleton'
 import { VentureHealthCard } from '@/components/venture-health-card'
 import { ActivityFeed, type ActivityEvent } from '@/components/activity-feed'
@@ -34,6 +36,7 @@ export default function OverviewPage() {
   const { data, loading, error } = useApi<DashboardData>('/dashboard', 30000, 30000)
   const navigate = useNavigate()
   const { user } = useAuth()
+  const { language } = useLocale()
 
   if (loading) {
     return (
@@ -75,7 +78,7 @@ export default function OverviewPage() {
   if (!data) return null
 
   const figures = agentFigures(data)
-  const setupBlocked = setupGate(user)
+  const setupBlocked = setupGate(user, language)
 
   return (
     <div className="mx-auto max-w-[1240px]">
@@ -186,13 +189,24 @@ export function OverviewFigures({
   )
 }
 
-/** The first thing a person sees: what is held for their decision. */
+/**
+ * The first thing a person sees: what is held for their decision. Counted like
+ * the approvals page (`heldApprovals`): an item whose time ran out leaves at once.
+ */
 function HeldForYou() {
   const navigate = useNavigate()
-  const { data, loading } = useApi<{ approvals: Approval[] }>('/approvals?status=pending')
-  const held = (data?.approvals ?? []).filter((a) => a.status === 'pending')
+  const { held, loading } = useHeldApprovals()
   if (loading) return null
+  return (
+    <HeldForYouPanel
+      held={held}
+      onReview={() => navigate('/approvals', { viewTransition: true })}
+    />
+  )
+}
 
+/** The held items as the Overview shows them (at most four, and a count). */
+export function HeldForYouPanel({ held, onReview }: { held: Approval[]; onReview: () => void }) {
   return (
     <Panel
       held={held.length > 0}
@@ -204,7 +218,7 @@ function HeldForYou() {
       }
       actions={
         held.length > 0 ? (
-          <Button size="sm" onClick={() => navigate('/approvals', { viewTransition: true })}>
+          <Button size="sm" onClick={onReview}>
             Review
             <ArrowRight className="rtl:rotate-180" />
           </Button>

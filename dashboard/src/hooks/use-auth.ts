@@ -17,8 +17,9 @@ import {
   useState,
   type ReactNode,
 } from 'react'
+import type { QueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
-import { principalKey, resetQueryCache } from '@/lib/query-client'
+import { principalKey, queryClient, resetQueryCache } from '@/lib/query-client'
 
 export interface AuthUser {
   user_id: string
@@ -53,6 +54,25 @@ interface AuthContextValue {
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
+
+/**
+ * Sign out: end the server session (a failed call still signs out here), drop
+ * everything cached for this person (`resetQueryCache`: in-flight requests are
+ * aborted, so a late answer can't land for the next one) and forget the user.
+ */
+export async function endSession(
+  forgetUser: () => void,
+  post: (path: string) => Promise<unknown> = (path) => api.post(path),
+  client: QueryClient = queryClient,
+): Promise<void> {
+  try {
+    await post('/auth/logout')
+  } catch {
+    // even if the server call fails, drop the client state
+  }
+  resetQueryCache(client)
+  forgetUser()
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUserState] = useState<AuthUser | null>(null)
@@ -107,14 +127,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [setUser],
   )
 
-  const logout = useCallback(async () => {
-    try {
-      await api.post('/auth/logout')
-    } catch {
-      // even if the server call fails, drop the client state
-    }
-    setUser(null)
-  }, [setUser])
+  const logout = useCallback(() => endSession(() => setUser(null)), [setUser])
 
   useEffect(() => {
     refresh()

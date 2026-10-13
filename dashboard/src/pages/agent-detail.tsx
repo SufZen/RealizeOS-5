@@ -6,7 +6,9 @@ import { useAuth } from '@/hooks/use-auth'
 import { AgentStatusBadge, type AgentStatus } from '@/components/agent-status-badge'
 import { ActivityFeed, type ActivityEvent } from '@/components/activity-feed'
 import { useToast } from '@/components/ui/toast'
+import { useLocale } from '@/components/locale-provider'
 import { api } from '@/lib/api'
+import { agentChangeFailed } from '@/lib/agent-text'
 import { cn } from '@/lib/utils'
 import { agentControlsGate, type Gate } from '@/lib/permissions'
 
@@ -162,6 +164,7 @@ function ScheduleEditor({
 export default function AgentDetailPage() {
   const { key: ventureKey, id: agentKey } = useParams<{ key: string; id: string }>()
   const { user } = useAuth()
+  const { language } = useLocale()
   const toast = useToast()
   const { data, loading, error, refetch } = useApi<AgentData>(
     `/ventures/${ventureKey}/agents/${agentKey}`,
@@ -172,7 +175,9 @@ export default function AgentDetailPage() {
       await api.post(`/ventures/${ventureKey}/agents/${agentKey}/${verb}`)
     } catch (err) {
       // The server decides every change; a refusal is said, not swallowed.
-      toast.error(err instanceof Error && err.message ? err.message : `Couldn’t ${verb} the agent`)
+      toast.error(
+        err instanceof Error && err.message ? err.message : agentChangeFailed(verb, language),
+      )
     } finally {
       refetch()
     }
@@ -203,7 +208,7 @@ export default function AgentDetailPage() {
     <AgentDetailView
       data={data}
       ventureKey={ventureKey ?? data.venture_key}
-      gate={agentControlsGate(user)}
+      gate={agentControlsGate(user, language)}
       onPause={() => change('pause')}
       onResume={() => change('resume')}
       onScheduleSaved={refetch}
