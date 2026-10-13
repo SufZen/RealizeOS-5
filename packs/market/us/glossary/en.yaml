@@ -1,0 +1,53 @@
+- term: pay application
+  family: money-event
+  kind: payment_claim
+- term: pay app
+  family: money-event
+  kind: payment_claim
+- term: schedule of values
+  family: money-event
+  kind: budget_line
+- term: change order
+  family: change
+  kind: variation
+- term: construction change directive
+  family: change
+  kind: variation
+- term: retainage
+  family: money-event
+- term: substantial completion
+  family: milestone
+  kind: handover
+- term: certificate of occupancy
+  family: milestone
+  kind: handover
+- term: building permit
+  family: milestone
+  kind: permit
+- term: punch list
+  family: issue
+  kind: defect
+- term: lien waiver
+  family: requirement
+  kind: covenant
+- term: mechanics lien
+  family: requirement
+  kind: covenant
+- term: preliminary notice
+  family: requirement
+  kind: code_rule
+- term: payment bond
+  family: requirement
+  kind: covenant
+- term: performance bond
+  family: requirement
+  kind: covenant
+- term: general contractor
+  family: contact
+  kind: contractor
+- term: subcontractor
+  family: contact
+  kind: subcontractor
+- term: owner
+  family: contact
+  kind: client

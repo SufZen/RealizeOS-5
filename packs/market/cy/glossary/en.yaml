@@ -1,0 +1,24 @@
+- term: title deed
+  family: source
+  kind: contract
+- term: contract of sale
+  family: source
+  kind: contract
+- term: planning permit
+  family: milestone
+  kind: permit
+- term: building permit
+  family: milestone
+  kind: permit
+- term: certificate of final approval
+  family: milestone
+  kind: handover
+- term: interim payment certificate
+  family: money-event
+  kind: payment_claim
+- term: variation
+  family: change
+  kind: variation
+- term: encumbrance
+  family: requirement
+  kind: covenant

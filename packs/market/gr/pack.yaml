@@ -1,0 +1,33 @@
+id: gr
+kind: market
+version: 0.1.0
+title: Greece
+requires:
+  core: '>=0.1'
+languages:
+- el
+- en
+defaults:
+  country: GR
+  currency: EUR
+  units: metric
+  locale: el-GR
+  work_week:
+  - mon
+  - tue
+  - wed
+  - thu
+  - fri
+verification:
+  level: 1
+  reviewed_by: null
+  reviewed_at: null
+  review_by: '2027-04-13'
+limits:
+- Drafted by an agent from public sources and not yet reviewed by a professional in Greece (verification
+  1).
+- Does not replace a Greek lawyer, notary or licensed engineer (μηχανικός).
+- Rates, thresholds and forms change; check the source and the as-of date before relying on a rule.
+authors:
+- Realization (agent-drafted)
+license: BSL-1.1

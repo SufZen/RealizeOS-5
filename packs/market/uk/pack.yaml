@@ -1,0 +1,33 @@
+id: uk
+kind: market
+version: 0.1.0
+title: United Kingdom
+requires:
+  core: '>=0.1'
+languages:
+- en
+defaults:
+  country: GB
+  currency: GBP
+  units: metric
+  locale: en-GB
+  work_week:
+  - mon
+  - tue
+  - wed
+  - thu
+  - fri
+verification:
+  level: 1
+  reviewed_by: null
+  reviewed_at: null
+  review_by: '2027-04-13'
+limits:
+- Drafted by an agent from public sources and not yet reviewed by a professional in United Kingdom (verification
+  1).
+- Covers England unless a card says otherwise; Scotland, Wales and Northern Ireland differ in places.
+- Does not replace a solicitor, a chartered surveyor or a building control body.
+- Rates, thresholds and forms change; check the source and the as-of date before relying on a rule.
+authors:
+- Realization (agent-drafted)
+license: BSL-1.1

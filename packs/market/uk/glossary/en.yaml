@@ -1,0 +1,53 @@
+- term: interim payment application
+  family: money-event
+  kind: payment_claim
+- term: interim valuation
+  family: money-event
+  kind: payment_claim
+- term: payment notice
+  family: money-event
+  kind: payment_claim
+- term: pay less notice
+  family: money-event
+  kind: payment_claim
+- term: variation
+  family: change
+  kind: variation
+- term: compensation event
+  family: change
+  kind: variation
+- term: practical completion
+  family: milestone
+  kind: handover
+- term: completion certificate
+  family: milestone
+  kind: handover
+- term: planning permission
+  family: milestone
+  kind: permit
+- term: building regulations approval
+  family: milestone
+  kind: permit
+- term: defects liability period
+  family: milestone
+  kind: handover
+- term: snagging
+  family: issue
+  kind: defect
+- term: retention
+  family: money-event
+- term: main contractor
+  family: contact
+  kind: contractor
+- term: subcontractor
+  family: contact
+  kind: subcontractor
+- term: employer
+  family: contact
+  kind: client
+- term: contract administrator
+  family: contact
+  kind: supervisor
+- term: adjudication
+  family: issue
+  kind: compliance

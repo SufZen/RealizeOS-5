@@ -1,0 +1,9 @@
+- term: works certificate
+  family: money-event
+  kind: payment_claim
+- term: building licence
+  family: milestone
+  kind: permit
+- term: first occupation licence
+  family: milestone
+  kind: handover

@@ -1,0 +1,54 @@
+- term: λογαριασμός
+  family: money-event
+  kind: payment_claim
+- term: πιστοποίηση εργασιών
+  family: money-event
+  kind: payment_claim
+- term: προσφορά
+  family: money-event
+  kind: quote
+- term: προϋπολογισμός
+  family: money-event
+  kind: budget_line
+- term: ανακεφαλαιωτικός πίνακας εργασιών
+  family: change
+  kind: variation
+- term: συμπληρωματική σύμβαση
+  family: change
+  kind: variation
+- term: οικοδομική άδεια
+  family: milestone
+  kind: permit
+- term: έγκριση εργασιών μικρής κλίμακας
+  family: milestone
+  kind: permit
+- term: ηλεκτρονική ταυτότητα κτιρίου
+  family: milestone
+  kind: handover
+- term: πιστοποιητικό ενεργειακής απόδοσης
+  family: milestone
+  kind: handover
+- term: εργολάβος
+  family: contact
+  kind: contractor
+- term: υπεργολάβος
+  family: contact
+  kind: subcontractor
+- term: κύριος του έργου
+  family: contact
+  kind: client
+- term: επίβλεψη
+  family: contact
+  kind: supervisor
+- term: εγγυητική επιστολή
+  family: requirement
+  kind: covenant
+- term: κακοτεχνία
+  family: issue
+  kind: defect
+- term: καθυστέρηση
+  family: issue
+  kind: delay
+- term: αυθαίρετο
+  family: issue
+  kind: compliance
