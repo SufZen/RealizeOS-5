@@ -184,6 +184,58 @@ class TestPreflight:
         assert not any(c.name.startswith(("Storyline", "Tab", "LLM")) for c in checks)
 
 
+@pytest.fixture
+def packs_project(tmp_path, monkeypatch):
+    """The demo created with features.packs on: it links the developer pack (STORY-43)."""
+    from realize_core.packs import clear_cache
+    from realize_core.skills import detector
+
+    clear_cache()
+    monkeypatch.setattr(detector, "_loaded_skills", {})
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "realize-os.yaml").write_text(
+        "features:\n  agent_tools: true\n  enforce_gates: true\n  cite_sources: true\n  packs: true\nsystems: []\n",
+        encoding="utf-8",
+    )
+    seed_webinar_demo(tmp_path)
+    yield tmp_path
+    clear_cache()
+
+
+class TestWithPacksOn:
+    """The rehearsal kit works when the demo's skills come from the developer pack."""
+
+    def test_set_ids_writes_the_firm_settings(self, packs_project):
+        venture = packs_project / "systems" / DEMO_KEY
+        assert list((venture / "R-routines" / "skills").glob("*.yaml")) == []
+        assert set_demo_ids(packs_project, SHEET, DOC) == ["skill-settings.yaml"]
+        settings = yaml.safe_load(
+            (venture / "F-foundations" / "overrides" / "skill-settings.yaml").read_text(encoding="utf-8")
+        )
+        assert settings["tender_requirements_register"]["variables"] == {
+            "tender_doc_id": DOC,
+            "register_sheet_id": SHEET,
+        }
+        assert settings["payment_milestone_check"]["variables"]["payments_sheet_id"] == SHEET
+        assert "דרישת תשלום" in settings["payment_milestone_check"]["triggers"]
+
+    @pytest.mark.asyncio
+    async def test_everything_ready(self, packs_project, google, monkeypatch):
+        (packs_project / "users.yaml").write_text(
+            f"users:\n  - email: dana@demo.io\n    role: operator\n    ventures: [{DEMO_KEY}]\n"
+            f'    password_hash: "$2b$12$x"\n',
+            encoding="utf-8",
+        )
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+        assert not _by_name(await preflight(packs_project))["Google ids set in skills"].ok
+        set_demo_ids(packs_project, SHEET, DOC)
+        checks = await preflight(packs_project)
+        assert [c.name for c in checks if not c.ok] == []
+        # The pack's ranges with the firm's ids, read-only.
+        assert ("sheets_read", {"spreadsheet_id": SHEET, "range": "Milestones"}) in google.calls
+        assert {a for a, _ in google.calls} == {"sheets_read", "drive_read_content"}
+
+
 class TestSheetKit:
     """The import files match what the skills read and write."""
 
