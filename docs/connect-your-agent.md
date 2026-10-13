@@ -21,8 +21,8 @@ For the server side (tool families, configuration keys, OAuth internals, error c
 | Claude Desktop, Claude.ai, Cowork | Custom connector (OAuth) | Not yet verified: needs a public HTTPS host |
 | ChatGPT | Custom MCP server (OAuth) | Not yet verified: needs a public HTTPS host |
 | Cursor and other clients | stdio or HTTP with a header | Not yet verified |
-| MCP Python SDK client | stdio | Verified on 2026-10-13 with `mcp` 1.27.1 (`tests/test_mcp_stdio.py`, run in CI) |
-| MCP Python SDK client | Streamable HTTP with an agent token | Verified on 2026-10-13 with `mcp` 1.27.1 against a real server process (`tests/e2e/test_one_client_agent.py`, run in CI) |
+| MCP Python SDK client | stdio | Verified on 2026-10-13 with `mcp` 1.27.1; CI runs `tests/test_mcp_stdio.py` on every change with the current supported version (`mcp>=1.28.1,<2`) |
+| MCP Python SDK client | Streamable HTTP with an agent token | Verified on 2026-10-13 against a real server process; CI runs `tests/e2e/test_one_client_agent.py` on every change with the current supported version (`mcp>=1.28.1,<2`) |
 
 What "verified" covered: the agent connected, listed the tools, and called them as a user limited to one venture. `list_ventures` showed only that venture, `kb_search` found a document in it, and `get_system` for another venture returned `MCP_FORBIDDEN`.
 

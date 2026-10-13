@@ -79,7 +79,7 @@ include-package-data = true
 include = ["realize_core*", "realize_api*", "realize_lite*", "templates*", "packs*"]
 
 [tool.setuptools.package-data]
-"*" = ["*.yaml", "*.yml", "*.md", "*.html", "*.json", "*.txt"]
+"*" = ["*.yaml", "*.yml", "*.md", "*.html", "*.json", "*.txt", "*.csv"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

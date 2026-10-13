@@ -303,7 +303,7 @@ jobs:
 
       - name: Install dependencies
         working-directory: realize-os-cli
-        run: npm install
+        run: npm ci
 
       - name: Lint
         working-directory: realize-os-cli
