@@ -77,6 +77,31 @@ def test_empty_funnel_never_passes(db):
     assert wedge_store.funnel_summary()["passed"] is False
 
 
+def test_unknown_markets_are_not_abroad(db):
+    """The reviewer's case: four Israeli users; the two who asked gave no market, or typed "Israel"."""
+    _run("u1", "il")
+    _run("u2", "il")
+    no_market = _run("u3", "")  # stored as "any"
+    typed = _run("u4", "Israel")  # not a code: stored as "other"
+    wedge_store.request_call(no_market, "u3", "u3@example.com")
+    wedge_store.request_call(typed, "u4", "u4@example.com")
+
+    summary = wedge_store.funnel_summary()
+
+    assert {r["market"] for r in wedge_store.funnel()} == {"il", "any", "other"}
+    assert summary["call_rate"] == 0.5
+    assert summary["converted_outside_home"] == 0
+    assert summary["passed"] is False
+
+
+@pytest.mark.parametrize(
+    ("market", "abroad"),
+    [("pt", True), ("es-ct", True), ("il", False), ("il-north", False), ("any", False), ("other", False), ("", False)],
+)
+def test_outside_home_counts_only_known_codes(market, abroad):
+    assert wedge_store.outside_home(market) is abroad
+
+
 # ---------------------------------------------------------------- N10: contact queue
 
 

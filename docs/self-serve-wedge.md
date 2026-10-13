@@ -116,6 +116,6 @@ Check it daily during the pilot. A person who asks again after being contacted g
 - per market: runs, users, **converted users** (people who asked for a call, each counted once), call requests (how many runs asked; volume only) and the rate, converted users ÷ users;
 - across all markets: the same, with each person counted once, and how many converted users ran a market outside Israel.
 
-The pilot passes if at least 30% of users ask for a call and at least one of them comes from outside Israel. `--format json` returns `{"markets": [...], "summary": {...}}`.
+The pilot passes if at least 30% of users ask for a call and at least one of them comes from outside Israel. Only a known market code other than `il` counts as outside Israel (`pt`, `es-ct`): a run with no market (`any`), with text that isn't a market code such as "Israel" (`other`), or with an Israeli sub-region (`il-north`) never does. `--format json` returns `{"markets": [...], "summary": {...}}`.
 
 Connection guides for each agent: [connect-your-agent.md](connect-your-agent.md).

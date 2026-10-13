@@ -49,6 +49,8 @@ FOLLOW_UP_COLUMNS = {"call_requested_at": "TEXT", "call_handled_at": "TEXT", "ca
 #: The pilot's pass signal (docs/self-serve-wedge.md).
 PASS_RATE = 0.30
 HOME_MARKET = "il"
+#: Stored market values that aren't a market: no market given, or text that isn't a code.
+UNKNOWN_MARKETS = ("any", "other")
 
 
 _MARKET = re.compile(r"[a-z]{2}(?:[-_][a-z0-9]{1,10})?")
@@ -242,25 +244,44 @@ def funnel(days: int = 30) -> list[dict]:
     return out
 
 
+def outside_home(market: str | None) -> bool:
+    """True for a known market code other than :data:`HOME_MARKET`.
+
+    ``any`` (no market given) and ``other`` (text that isn't a market code,
+    such as "Israel") say nothing about where the user works, so they never
+    count as outside the home market; neither does a home sub-region
+    (``il-north``).
+    """
+    code = (market or "").strip().lower()
+    if code in {HOME_MARKET, *UNKNOWN_MARKETS} or not _MARKET.fullmatch(code):
+        return False
+    return re.split(r"[-_]", code, maxsplit=1)[0] != HOME_MARKET
+
+
 def funnel_summary(days: int = 30) -> dict:
     """The pilot's pass check over the last ``days``, counting each person once across markets.
 
     Passes when at least :data:`PASS_RATE` of users asked for a call and at
-    least one of those ran a market other than :data:`HOME_MARKET`.
+    least one of those ran a known market other than :data:`HOME_MARKET`
+    (:func:`outside_home`: ``any`` and ``other`` don't count as abroad).
     """
     conn = _conn()
     try:
         since = (_now() - timedelta(days=days)).isoformat()
         row = conn.execute(
             """SELECT COUNT(DISTINCT user_id) AS users,
-                      COUNT(DISTINCT CASE WHEN call_requested = 1 THEN user_id END) AS converted,
-                      COUNT(DISTINCT CASE WHEN call_requested = 1 AND market != ? THEN user_id END) AS abroad
+                      COUNT(DISTINCT CASE WHEN call_requested = 1 THEN user_id END) AS converted
                FROM wedge_runs WHERE created_at > ?""",
-            (HOME_MARKET, since),
+            (since,),
         ).fetchone()
+        asked = conn.execute(
+            "SELECT DISTINCT user_id, market FROM wedge_runs WHERE created_at > ? AND call_requested = 1",
+            (since,),
+        ).fetchall()
     finally:
         conn.close()
-    users, converted, abroad = row["users"] or 0, row["converted"] or 0, row["abroad"] or 0
+    users, converted = row["users"] or 0, row["converted"] or 0
+    abroad = len({r["user_id"] for r in asked if outside_home(r["market"])})
     rate = round(converted / users, 3) if users else 0.0
     return {
         "days": days,
