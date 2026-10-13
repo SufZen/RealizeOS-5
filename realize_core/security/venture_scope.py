@@ -169,3 +169,17 @@ def has_permission(role: str | None, permission: str) -> bool:
     from realize_core.security.rbac import get_rbac_manager
 
     return get_rbac_manager().check_access(role or "", permission).allowed
+
+
+def role_permissions(role: str | None) -> list[str]:
+    """Every permission ``role`` has (inherited included), sorted; empty for an unknown role.
+
+    The dashboard uses this to hide controls a role can't use. It is a UX
+    hint only: :func:`has_permission` still decides each request.
+    """
+    from realize_core.security.rbac import get_rbac_manager
+
+    manager = get_rbac_manager()
+    if not role or manager.get_role(role) is None:
+        return []
+    return sorted(manager.resolve_permissions(role))

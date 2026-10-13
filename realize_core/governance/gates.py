@@ -153,20 +153,20 @@ def create_approval_request(
 
 
 def get_pending_approvals(venture_key: str = None, db_path=None) -> list[dict]:
-    """Get all pending approvals, optionally filtered by venture."""
+    """Get the approvals still waiting for a decision (not expired), optionally for one venture."""
     from realize_core.db.schema import get_connection
+    from realize_core.governance.approval_status import now_stamp, status_clause
 
+    clause, params = status_clause("pending", now_stamp())
+    if venture_key:
+        clause += " AND venture_key = ?"
+        params.append(venture_key)
     conn = get_connection(db_path)
     try:
-        if venture_key:
-            rows = conn.execute(
-                "SELECT * FROM approval_queue WHERE status = 'pending' AND venture_key = ? ORDER BY created_at DESC",
-                (venture_key,),
-            ).fetchall()
-        else:
-            rows = conn.execute(
-                "SELECT * FROM approval_queue WHERE status = 'pending' ORDER BY created_at DESC",
-            ).fetchall()
+        rows = conn.execute(
+            f"SELECT * FROM approval_queue WHERE {clause} ORDER BY created_at DESC",
+            params,
+        ).fetchall()
         return [dict(r) for r in rows]
     finally:
         conn.close()
