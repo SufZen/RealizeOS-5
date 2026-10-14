@@ -282,6 +282,10 @@ async def _chat(monkeypatch, provider, events):
         routed.append(system_prompt)
         return "I can't see the sheet right now."
 
+    import realize_core.llm.registry as llm_registry
+
+    # No LLM provider is registered: the tool loop can only get ``provider``.
+    monkeypatch.setattr(llm_registry, "get_registry", lambda: llm_registry.ProviderRegistry())
     monkeypatch.setattr(tl, "tool_capable_provider", lambda: provider)
     monkeypatch.setattr(bh, "route_to_llm", fake_route)
     monkeypatch.setattr(bh, "build_system_prompt", lambda **_: "prompt")

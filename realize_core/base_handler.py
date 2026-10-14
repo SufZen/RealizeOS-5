@@ -178,7 +178,7 @@ async def standard_llm_handling(
 
         with tool_call_context(system_key=system_key, agent_key=agent_key, user_id=user_id, channel=channel):
             response, tools_lost = await _answer_with_tools(
-                system_prompt, messages, agent_key, kb_path, system_config or {}, emit=emit
+                system_prompt, messages, agent_key, kb_path, system_config or {}, emit=emit, message=message
             )
         if tools_lost:
             system_prompt = f"{system_prompt}\n\n{NO_LIVE_DATA_NOTE}"
@@ -218,8 +218,44 @@ def agent_tool_schemas(agent_key: str, kb_path, system_config: dict) -> list[dic
     return schemas
 
 
+def _tool_loop_route(message: str):
+    """(provider, model) for the agent tool loop, following tier routing.
+
+    The tier comes from the user message (``message_tier``, ``standard`` when
+    no category matches). The provider ``resolve_tier`` picks for it (an
+    ``LLM_MODEL_<TIER>`` pin, else the primary) is used with that model when it
+    is available and supports tools. Otherwise the first tool-capable provider
+    (``tool_capable_provider``) runs with its own model for the tier.
+    """
+    from realize_core.agents import tool_loop
+    from realize_core.llm.base_provider import Capability
+    from realize_core.llm.registry import get_registry
+    from realize_core.llm.router import _tier_model, message_tier, resolve_tier
+
+    tier = message_tier(message)
+    registry = get_registry()
+    name, model_id = resolve_tier(tier)
+    provider = registry.get_provider_by_name(name) if name else None
+    try:
+        usable = bool(provider and provider.is_available() and provider.supports(Capability.TOOLS))
+    except Exception as e:
+        logger.debug(f"Tool support check failed for {name}: {e}")
+        usable = False
+    if usable:
+        return provider, model_id
+    provider = tool_loop.tool_capable_provider()
+    if provider is None:
+        return None, None
+    try:
+        model = _tier_model(registry, provider, tier)
+    except Exception as e:
+        logger.debug(f"No {tier} model for {getattr(provider, 'name', provider)}: {e}")
+        model = None
+    return provider, model
+
+
 async def _answer_with_tools(
-    system_prompt, messages, agent_key, kb_path, system_config, emit=None
+    system_prompt, messages, agent_key, kb_path, system_config, emit=None, message: str = ""
 ) -> tuple[str | None, bool]:
     """Answer via the agent tool loop.
 
@@ -228,17 +264,17 @@ async def _answer_with_tools(
     this turn, so the plain answer must not pretend it read live data. That
     case is never silent: it is logged and reported as a trail ``notice``.
     """
-    from realize_core.agents.tool_loop import run_tool_loop, tool_capable_provider
+    from realize_core.agents.tool_loop import run_tool_loop
 
     tools = agent_tool_schemas(agent_key, kb_path, system_config)
     if not tools:
         return None, False
-    provider = tool_capable_provider()
+    provider, model = _tool_loop_route(message)
     if provider is None:
         logger.warning("Agent %s has %d tools but no tool-capable LLM provider is available", agent_key, len(tools))
         await _notice(emit, "tools_unavailable", TOOLS_UNAVAILABLE_MESSAGE)
         return None, True
-    result = await run_tool_loop(system_prompt, messages, tools, provider=provider, emit=emit)
+    result = await run_tool_loop(system_prompt, messages, tools, provider=provider, model=model, emit=emit)
     if result.stop_reason == "error":
         logger.warning("Tool loop for agent %s failed on %s; answering without tools", agent_key, provider.name)
         await _notice(emit, "tools_error", TOOLS_ERROR_MESSAGE)

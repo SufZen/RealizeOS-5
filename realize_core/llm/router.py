@@ -378,6 +378,20 @@ def select_model(task_type: str) -> str:
     return TASK_TIERS.get(task_type, DEFAULT_TIER)
 
 
+def message_tier(message: str, system_key: str | None = None, default: str = "standard") -> str:
+    """The routing tier for a user message.
+
+    A message matching a task category uses that category's tier (with the
+    quality self-tuning of ``select_model``). A message no category matches
+    uses ``default``.
+    """
+    task_type = classify_task(message or "", system_key=system_key)
+    lowered = (message or "").lower()
+    if task_type == "simple" and not any(kw in lowered for kw in SIMPLE_KEYWORDS):
+        return _get_quality_override(task_type) or default
+    return select_model(task_type)
+
+
 def _check_tier(tier: str) -> None:
     if tier not in TIERS:
         raise ValueError(f"Unknown LLM tier {tier!r}; expected one of {', '.join(TIERS)}")
