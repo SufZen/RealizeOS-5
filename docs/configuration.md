@@ -319,12 +319,12 @@ The generic LiteLLM provider uses `LITELLM_MODEL` for every tier. Setting a qual
 | Variable | Default | What it does |
 |----------|---------|--------------|
 | `LLM_PRIMARY` | first available | Provider tried first: `anthropic`, `gemini`, `openai`, `ollama` or `litellm` (`google` and `claude` are accepted as aliases) |
-| `LLM_FALLBACK` | see below | Provider order used when the primary fails, e.g. `gemini,openai,ollama`. Unknown names are ignored with a warning |
+| `LLM_FALLBACK` | see below | Providers tried after the primary, in order, e.g. `gemini,openai,ollama`. It never replaces `LLM_PRIMARY`. Unknown names are ignored with a warning |
 | `LLM_MODEL_FAST` | provider default | Pin the `fast` tier to a LiteLLM model string, e.g. `gemini/gemini-2.5-flash` |
 | `LLM_MODEL_STANDARD` | provider default | Pin the `standard` tier, e.g. `openai/gpt-4o` |
 | `LLM_MODEL_DEEP` | provider default | Pin the `deep` tier, e.g. `anthropic/claude-opus-5-5` |
 
-Without `LLM_FALLBACK` the order is `LLM_PRIMARY` first, then Claude, Gemini, OpenAI, Ollama, LiteLLM, then any other registered provider. A pinned tier model's prefix chooses the provider: `anthropic/` (Claude), `gemini/`, `openai/`, `ollama/` (or `ollama_chat/`), and anything else goes to the generic LiteLLM provider.
+The chain always starts with `LLM_PRIMARY` (when set). With `LLM_FALLBACK` set, its providers follow in that order and no others are tried; for example `LLM_PRIMARY=openai` with `LLM_FALLBACK=gemini,ollama` gives OpenAI, Gemini, Ollama. Without `LLM_FALLBACK`, `LLM_PRIMARY` is followed by Claude, Gemini, OpenAI, Ollama, LiteLLM, then any other registered provider. A pinned tier model's prefix chooses the provider: `anthropic/` (Claude), `gemini/`, `openai/`, `ollama/` (or `ollama_chat/`), and anything else goes to the generic LiteLLM provider.
 
 When the primary fails, the router tries the next available provider with that provider's own model for the same tier. A refusal is final and is not retried elsewhere.
 

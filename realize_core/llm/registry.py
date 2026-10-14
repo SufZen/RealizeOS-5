@@ -167,35 +167,38 @@ class ProviderRegistry:
     def _resolve_fallback_chain(self) -> list[str]:
         """Compute the fallback order from the environment and registered providers.
 
-        LLM_FALLBACK (comma list) wins outright; unknown names are dropped.
-        Otherwise LLM_PRIMARY goes first, followed by the remaining registered
-        providers in the default order.
+        The chain always starts with LLM_PRIMARY (when set and registered).
+        LLM_FALLBACK entries follow in order, de-duplicated with aliases
+        folded and unknown names dropped. When LLM_FALLBACK names at least one
+        registered provider, nothing else is appended; otherwise the remaining
+        registered providers follow in the default order.
         """
         from realize_core.config import llm_fallback, llm_primary
 
-        explicit = [_PROVIDER_ALIASES.get(n, n) for n in llm_fallback()]
-        if explicit:
-            chain = []
-            for name in explicit:
-                if name not in self._providers:
-                    logger.warning(f"LLM_FALLBACK names unknown provider '{name}', ignoring it")
-                elif name not in chain:
-                    chain.append(name)
-            if chain:
-                return chain
-            logger.warning("LLM_FALLBACK has no registered providers; using the default order")
-
-        chain = [n for n in _DEFAULT_ORDER if n in self._providers]
-        chain += [n for n in self._providers if n not in chain]
+        chain: list[str] = []
         primary = llm_primary()
         if primary:
             primary = _PROVIDER_ALIASES.get(primary, primary)
             if primary in self._providers:
-                chain.remove(primary)
-                chain.insert(0, primary)
+                chain.append(primary)
             else:
                 logger.warning(f"LLM_PRIMARY names unknown provider '{primary}', ignoring it")
-        return chain
+
+        explicit = [_PROVIDER_ALIASES.get(n, n) for n in llm_fallback()]
+        if explicit:
+            listed = []
+            for name in explicit:
+                if name not in self._providers:
+                    logger.warning(f"LLM_FALLBACK names unknown provider '{name}', ignoring it")
+                elif name not in listed:
+                    listed.append(name)
+            if listed:
+                return chain + [n for n in listed if n not in chain]
+            logger.warning("LLM_FALLBACK has no registered providers; using the default order")
+
+        rest = [n for n in _DEFAULT_ORDER if n in self._providers]
+        rest += [n for n in self._providers if n not in rest]
+        return chain + [n for n in rest if n not in chain]
 
     def auto_register(self):
         """Auto-discover and register all known providers.

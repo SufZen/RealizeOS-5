@@ -455,9 +455,23 @@ class TestRegistryFallbackOrder:
         monkeypatch.setenv("LLM_PRIMARY", "nonsense")
         assert _registry(*ALL)._resolve_fallback_chain() == list(ALL)
 
-    def test_llm_fallback_overrides_and_drops_unknown(self, monkeypatch):
+    def test_llm_fallback_follows_primary_and_drops_unknown(self, monkeypatch):
         monkeypatch.setenv("LLM_PRIMARY", "claude")
         monkeypatch.setenv("LLM_FALLBACK", "ollama, bogus ,gemini")
+        assert _registry(*ALL)._resolve_fallback_chain() == ["claude", "ollama", "gemini"]
+
+    def test_llm_primary_is_not_overridden_by_llm_fallback(self, monkeypatch):
+        monkeypatch.setenv("LLM_PRIMARY", "openai")
+        monkeypatch.setenv("LLM_FALLBACK", "gemini,ollama")
+        assert _registry(*ALL)._resolve_fallback_chain() == ["openai", "gemini", "ollama"]
+
+    def test_llm_fallback_dedupes_primary_and_folds_aliases(self, monkeypatch):
+        monkeypatch.setenv("LLM_PRIMARY", "anthropic")
+        monkeypatch.setenv("LLM_FALLBACK", "google,claude,google_ai,ollama")
+        assert _registry(*ALL)._resolve_fallback_chain() == ["claude", "gemini", "ollama"]
+
+    def test_llm_fallback_without_primary(self, monkeypatch):
+        monkeypatch.setenv("LLM_FALLBACK", "ollama,gemini")
         assert _registry(*ALL)._resolve_fallback_chain() == ["ollama", "gemini"]
 
     def test_llm_fallback_with_no_valid_names_uses_default(self, monkeypatch):

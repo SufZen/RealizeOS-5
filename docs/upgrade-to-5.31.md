@@ -47,7 +47,7 @@ Knowledge-base search now has a semantic part, and it uses a multilingual model:
 | Setting | Default | What it does |
 |---|---|---|
 | `LLM_PRIMARY` | first available provider | Which provider is tried first: `anthropic`, `gemini`, `openai`, `ollama` or `litellm` |
-| `LLM_FALLBACK` | `LLM_PRIMARY`, then Claude, Gemini, OpenAI, Ollama, LiteLLM | Provider order when the primary fails, e.g. `gemini,openai,ollama` |
+| `LLM_FALLBACK` | `LLM_PRIMARY`, then Claude, Gemini, OpenAI, Ollama, LiteLLM | Providers tried after `LLM_PRIMARY`, in order, e.g. `gemini,openai,ollama`. It never replaces the primary, and when it is set no other providers are tried |
 | `LLM_MODEL_FAST` / `LLM_MODEL_STANDARD` / `LLM_MODEL_DEEP` | each provider's own model | Pin a task tier to a LiteLLM model string, e.g. `openai/gpt-4o` |
 | `OLLAMA_BASE_URL` | `http://localhost:11434` | Ollama server. **`OLLAMA_HOST` still works as an alias** when `OLLAMA_BASE_URL` is empty |
 | `OLLAMA_MODEL` | `llama3.1:8b` | The Ollama model tag. Tool use and vision are detected from Ollama's `/api/show` |
