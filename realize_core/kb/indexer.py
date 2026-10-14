@@ -95,8 +95,9 @@ def _create_fts(conn: sqlite3.Connection) -> None:
 def _init_index_db(db_path: Path):
     """Create the index tables, migrating an older index to the current schema.
 
-    Below :data:`KB_SCHEMA_VERSION` the FTS table and its triggers are
-    recreated with the current tokenizer and rebuilt from ``kb_files``. When
+    Below :data:`KB_SCHEMA_VERSION`, or when the tokenizer recorded in
+    ``kb_meta`` isn't the one this SQLite gets (:func:`fts_tokenizer`), the FTS
+    table and its triggers are recreated and rebuilt from ``kb_files``. When
     the embedding model changed, stored vectors are cleared so the next index
     run embeds them again.
     """
@@ -117,17 +118,19 @@ def _init_index_db(db_path: Path):
         conn.execute("CREATE TABLE IF NOT EXISTS kb_meta (key TEXT PRIMARY KEY, value TEXT)")
         conn.commit()
 
-        if _schema_version(conn) < KB_SCHEMA_VERSION:
+        if _fts_outdated(conn):
             conn.execute("BEGIN IMMEDIATE")
-            # Another process may have migrated while this one waited for the lock.
-            if _schema_version(conn) < KB_SCHEMA_VERSION:
+            # Another process may have rebuilt it while this one waited for the lock.
+            if _fts_outdated(conn):
+                tokenizer = fts_tokenizer()
                 for trigger in _FTS_TRIGGERS:
                     conn.execute(f"DROP TRIGGER IF EXISTS {trigger}")
                 conn.execute("DROP TABLE IF EXISTS kb_fts")
                 _create_fts(conn)
                 conn.execute("INSERT INTO kb_fts(kb_fts) VALUES('rebuild')")
+                conn.execute("INSERT OR REPLACE INTO kb_meta (key, value) VALUES ('fts_tokenizer', ?)", (tokenizer,))
                 conn.execute(f"PRAGMA user_version = {KB_SCHEMA_VERSION}")
-                logger.info("KB index at schema v%d (FTS tokenizer: %s)", KB_SCHEMA_VERSION, fts_tokenizer())
+                logger.info("KB index at schema v%d, FTS rebuilt (tokenizer: %s)", KB_SCHEMA_VERSION, tokenizer)
         else:
             _create_fts(conn)
         conn.commit()
@@ -147,6 +150,18 @@ def _init_index_db(db_path: Path):
 
 def _schema_version(conn: sqlite3.Connection) -> int:
     return conn.execute("PRAGMA user_version").fetchone()[0]
+
+
+def _fts_outdated(conn: sqlite3.Connection) -> bool:
+    """True when ``kb_fts`` predates the current schema or was built with another tokenizer.
+
+    The tokenizer depends on the SQLite version (:func:`fts_tokenizer`), so a
+    SQLite upgrade moves the index to the better tokenizer on the next open.
+    """
+    if _schema_version(conn) < KB_SCHEMA_VERSION:
+        return True
+    row = conn.execute("SELECT value FROM kb_meta WHERE key = 'fts_tokenizer'").fetchone()
+    return row is None or row["value"] != fts_tokenizer()
 
 
 def embed_model_name() -> str | None:
@@ -352,12 +367,16 @@ def _do_index(conn: sqlite3.Connection, kb_path: Path, force: bool, systems_conf
 
     # Load existing mtimes for incremental check
     existing_mtimes = {}
+    existing_keys: dict[str, str] = {}
     # Unchanged files without a vector (model changed, or indexed while embeddings were off)
     missing_vectors: set[str] = set()
     if not force:
         try:
-            rows = conn.execute("SELECT path, file_mtime, embedding IS NULL AS no_vec FROM kb_files").fetchall()
+            rows = conn.execute(
+                "SELECT path, file_mtime, system_key, embedding IS NULL AS no_vec FROM kb_files"
+            ).fetchall()
             existing_mtimes = {r["path"]: r["file_mtime"] or 0 for r in rows}
+            existing_keys = {r["path"]: r["system_key"] for r in rows}
             missing_vectors = {r["path"] for r in rows if r["no_vec"]}
         except Exception:
             pass
@@ -399,9 +418,12 @@ def _do_index(conn: sqlite3.Connection, kb_path: Path, force: bool, systems_conf
 
                     current_mtime = found_file.stat().st_mtime
 
+                    system_key = _detect_system(rel_path, systems_config)
                     if not force and rel_path in existing_mtimes:
                         needs_vector = re_embed and rel_path in missing_vectors
-                        if current_mtime <= existing_mtimes[rel_path] and not needs_vector:
+                        # A venture's system_dir config can move a file to another key.
+                        moved = existing_keys.get(rel_path) != system_key
+                        if current_mtime <= existing_mtimes[rel_path] and not needs_vector and not moved:
                             skipped += 1
                             continue
 
@@ -417,7 +439,6 @@ def _do_index(conn: sqlite3.Connection, kb_path: Path, force: bool, systems_conf
                             continue
 
                     title = _extract_title(content, rel_path)
-                    system_key = _detect_system(rel_path, systems_config)
                     indexed_content = content[:5000]
                     file_data.append((rel_path, title, system_key, indexed_content, current_mtime))
                 except Exception as e:

@@ -317,6 +317,11 @@ def test_directory_runs_in_process_and_stdout_is_json_rpc_only(stdio_project, tm
     (project / "realize_api").mkdir()
     (project / "realize_api" / "__init__.py").write_text(payload, encoding="utf-8")
     (project / "fastembed.py").write_text(payload, encoding="utf-8")
+    # Make KB indexing import fastembed (conftest turns embeddings off): the real
+    # package must load from site-packages. An unknown model fails before any download.
+    env["KB_EMBED_MODEL"] = "realizeos-test/no-such-model"
+    fastembed_cache = tmp_path / "fastembed-cache"
+    env["FASTEMBED_CACHE_PATH"] = str(fastembed_cache)
 
     stderr_path = tmp_path / "stderr.log"
     with stderr_path.open("wb") as stderr:
@@ -390,6 +395,9 @@ def test_directory_runs_in_process_and_stdout_is_json_rpc_only(stdio_project, tm
     assert not marker.exists(), marker.read_text()
     log = stderr_path.read_text(encoding="utf-8", errors="replace")
     assert "MCP stdio server ready" in log
+    # fastembed was really imported (the planted module wasn't) and downloaded nothing.
+    assert "Embedding model realizeos-test/no-such-model failed to load" in log
+    assert not any(fastembed_cache.rglob("*.onnx"))
     # A stdio session is an outside agent: always venture-scoped (an owner gets every configured venture).
     assert "user=owner@example.com role=owner ventures=alpha,beta" in log
 

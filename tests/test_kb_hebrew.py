@@ -13,6 +13,7 @@ from pathlib import Path
 
 import pytest
 from realize_core.kb import indexer
+from realize_core.utils import fts
 
 ROOT = Path(__file__).resolve().parent.parent
 DEMO_PROJECT = ROOT / "templates" / "demos" / "tower-b-he" / "B-brain" / "project"
@@ -26,8 +27,15 @@ def _no_embedder(monkeypatch):
     monkeypatch.setattr(indexer, "_get_embedder", lambda: None)
 
 
+@pytest.fixture(params=[fts.TRIGRAM_TOKENIZE, fts.PLAIN_TRIGRAM_TOKENIZE, fts.FALLBACK_TOKENIZE])
+def tokenizer(request, monkeypatch):
+    """Each tokenizer a SQLite version can get (>= 3.45, 3.34-3.44, older)."""
+    monkeypatch.setattr(indexer, "fts_tokenizer", lambda: request.param)
+    return request.param
+
+
 @pytest.fixture
-def kb(tmp_path):
+def kb(tmp_path, tokenizer):
     """A KB with the Hebrew demo project in one venture and a rival budget in another."""
     project = tmp_path / "systems" / VENTURE / "B-brain" / "project"
     project.mkdir(parents=True)
@@ -195,3 +203,44 @@ def test_custom_system_dir_gets_its_venture_key(tmp_path):
 
     results = indexer.semantic_search("budget", system_key="acme", db_path=db_path)
     assert [Path(r["path"]).name for r in results] == ["plan.md"]
+
+
+def test_tokenizer_change_rebuilds_the_index(tmp_path, monkeypatch):
+    """A SQLite upgrade (different best tokenizer) rebuilds kb_fts on the next open."""
+    kb_dir = tmp_path / "systems" / VENTURE / "B-brain"
+    kb_dir.mkdir(parents=True)
+    shutil.copy(DEMO_PROJECT / "budget.md", kb_dir / "budget.md")
+    db_path = tmp_path / "kb_index.db"
+
+    monkeypatch.setattr(indexer, "fts_tokenizer", lambda: fts.FALLBACK_TOKENIZE)
+    indexer.index_kb_files(str(tmp_path), db_path=db_path, force=True)
+    monkeypatch.setattr(indexer, "fts_tokenizer", lambda: fts.PLAIN_TRIGRAM_TOKENIZE)
+    results = indexer.semantic_search("כמה נשאר לנו נטו בתקציב?", system_key=VENTURE, db_path=db_path)
+
+    assert [Path(r["path"]).name for r in results] == ["budget.md"]
+    conn = sqlite3.connect(db_path)
+    try:
+        assert fts.table_tokenizer(conn, "kb_fts") == fts.PLAIN_TRIGRAM_TOKENIZE
+        stored = conn.execute("SELECT value FROM kb_meta WHERE key = 'fts_tokenizer'").fetchone()[0]
+        assert stored == fts.PLAIN_TRIGRAM_TOKENIZE
+    finally:
+        conn.close()
+
+
+def test_incremental_index_moves_file_to_configured_venture_key(tmp_path):
+    """An index built before system_dir was honoured gets the right key without a forced reindex."""
+    venture_dir = tmp_path / "systems" / "acme-folder" / "B-brain"
+    venture_dir.mkdir(parents=True)
+    (venture_dir / "plan.md").write_text("# Plan\nquarterly budget", encoding="utf-8")
+    db_path = tmp_path / "kb_index.db"
+    indexer.index_kb_files(str(tmp_path), db_path=db_path, force=True)
+    assert indexer.semantic_search("budget", system_key="acme", db_path=db_path) == []
+
+    systems = {"acme": {"system_dir": "systems/acme-folder"}}
+    assert indexer.index_kb_files(str(tmp_path), db_path=db_path, systems_config=systems) == 1
+
+    results = indexer.semantic_search("budget", system_key="acme", db_path=db_path)
+    assert [Path(r["path"]).name for r in results] == ["plan.md"]
+    assert indexer.semantic_search("budget", system_key="acme-folder", db_path=db_path) == []
+    # Nothing changed since: the next incremental run skips it.
+    assert indexer.index_kb_files(str(tmp_path), db_path=db_path, systems_config=systems) == 0

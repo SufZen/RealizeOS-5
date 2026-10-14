@@ -187,6 +187,23 @@ class TestKBSearchVentureScope:
         assert [r["system_key"] for r in result["results"]] == ["beta", "alpha"]
 
     @pytest.mark.asyncio
+    async def test_keyword_only_results_merge_by_keyword_score(self):
+        """Without embeddings, hits carry ``keyword_score`` only; the merge still ranks by it."""
+        from realize_core.mcp_server.tools.kb_tools import kb_search
+
+        hits = {
+            "alpha": [{"path": "a.md", "title": "A", "system_key": "alpha", "snippet": "", "keyword_score": 0.2}],
+            "beta": [{"path": "b.md", "title": "B", "system_key": "beta", "snippet": "", "keyword_score": 1.0}],
+        }
+        with (
+            patch("realize_core.mcp_server.venture_guard.caller_ventures", return_value=frozenset({"alpha", "beta"})),
+            patch("realize_core.kb.indexer.semantic_search", side_effect=lambda **kw: hits[kw["system_key"]]),
+        ):
+            result = await kb_search({"query": "budget", "top_k": 1}, SimpleNamespace(), _user("user"))
+
+        assert [(r["path"], r["score"]) for r in result["results"]] == [("b.md", 1.0)]
+
+    @pytest.mark.asyncio
     async def test_other_venture_refused(self):
         from realize_core.mcp_server.tools.kb_tools import kb_search
 

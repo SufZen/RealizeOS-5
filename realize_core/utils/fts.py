@@ -23,7 +23,9 @@ import unicodedata
 
 #: Tokenizer for FTS5 tables: trigram with diacritic folding (SQLite >= 3.45).
 TRIGRAM_TOKENIZE = "trigram remove_diacritics 1"
-#: Fallback for older SQLite, where trigram can't fold diacritics.
+#: Trigram on SQLite 3.34-3.44 (no diacritic folding there; e.g. Debian bookworm's 3.40).
+PLAIN_TRIGRAM_TOKENIZE = "trigram"
+#: Fallback for SQLite before 3.34, which has no trigram tokenizer.
 FALLBACK_TOKENIZE = "unicode61 remove_diacritics 2"
 
 #: Shortest term trigram can match.
@@ -123,6 +125,8 @@ STOPWORDS = HEBREW_STOPWORDS | ENGLISH_STOPWORDS
 # Niqqud and cantillation marks (U+0591-U+05C7) that aren't letters or punctuation.
 # Hebrew letters (U+05D0-U+05EA) are outside this range.
 _HEBREW_MARKS = re.compile("[֑-ׇֽֿׁׂׅׄ]")
+# tokenize='...' / tokenize="..." in a CREATE VIRTUAL TABLE statement.
+_TOKENIZE = re.compile(r"""tokenize\s*=\s*['"]([^'"]*)['"]""", re.IGNORECASE)
 # Runs of letters and digits in any script (``\w`` minus the underscore).
 _WORD = re.compile(r"[^\W_]+")
 
@@ -185,7 +189,22 @@ def build_match_query(text: str) -> str | None:
 
 
 def fts_tokenizer() -> str:
-    """The ``tokenize=`` value for new FTS5 tables on this SQLite."""
+    """The best ``tokenize=`` value this SQLite supports for FTS5 tables."""
     if sqlite3.sqlite_version_info >= (3, 45, 0):
         return TRIGRAM_TOKENIZE
+    if sqlite3.sqlite_version_info >= (3, 34, 0):
+        return PLAIN_TRIGRAM_TOKENIZE
     return FALLBACK_TOKENIZE
+
+
+def table_tokenizer(conn: sqlite3.Connection, table: str) -> str | None:
+    """The ``tokenize=`` an existing FTS5 table was created with ("unicode61" when unset), or None if absent.
+
+    Compare it with :func:`fts_tokenizer` to know when a table should be
+    recreated and rebuilt, without keeping a separate record.
+    """
+    row = conn.execute("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?", (table,)).fetchone()
+    if row is None:
+        return None
+    match = _TOKENIZE.search(row[0] or "")
+    return match.group(1) if match else "unicode61"

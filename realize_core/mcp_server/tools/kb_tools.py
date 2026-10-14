@@ -64,6 +64,14 @@ KB_SEARCH_SCHEMA = {
 }
 
 
+def _result_score(result: dict[str, Any]) -> float:
+    """A search hit's score: hybrid ``score``, else the keyword-only ``keyword_score``."""
+    score = result.get("score")
+    if score is None:
+        score = result.get("keyword_score", 0.0)
+    return float(score or 0.0)
+
+
 async def kb_search(args: dict[str, Any], app_state: Any, user: CurrentUser) -> Any:
     """Hybrid FTS5 + vector search across the knowledge base.
 
@@ -104,7 +112,7 @@ async def kb_search(args: dict[str, Any], app_state: Any, user: CurrentUser) -> 
     if allowed is not None:
         results = [r for r in results if r.get("system_key") in allowed]
         if len(scopes) > 1:
-            results = sorted(results, key=lambda r: r.get("score") or 0.0, reverse=True)[:top_k]
+            results = sorted(results, key=_result_score, reverse=True)[:top_k]
 
     trimmed: list[dict[str, Any]] = []
     for r in results:
@@ -117,7 +125,7 @@ async def kb_search(args: dict[str, Any], app_state: Any, user: CurrentUser) -> 
                 "title": r.get("title"),
                 "system_key": r.get("system_key"),
                 "snippet": snippet,
-                "score": r.get("score") or r.get("rank"),
+                "score": _result_score(r),
             }
         )
 

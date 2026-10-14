@@ -60,6 +60,21 @@ class TestTokenizer:
         monkeypatch.setattr(fts.sqlite3, "sqlite_version_info", (3, 45, 0))
         assert fts.fts_tokenizer() == fts.TRIGRAM_TOKENIZE == "trigram remove_diacritics 1"
 
-    def test_unicode61_on_old_sqlite(self, monkeypatch):
-        monkeypatch.setattr(fts.sqlite3, "sqlite_version_info", (3, 44, 2))
-        assert fts.fts_tokenizer() == "unicode61 remove_diacritics 2"
+    @pytest.mark.parametrize("version", [(3, 34, 0), (3, 40, 1), (3, 44, 2)])
+    def test_plain_trigram_on_3_34_to_3_44(self, monkeypatch, version):
+        """Debian bookworm (python:3.12-slim) ships 3.40: trigram, without diacritic folding."""
+        monkeypatch.setattr(fts.sqlite3, "sqlite_version_info", version)
+        assert fts.fts_tokenizer() == fts.PLAIN_TRIGRAM_TOKENIZE == "trigram"
+
+    def test_unicode61_before_trigram_existed(self, monkeypatch):
+        monkeypatch.setattr(fts.sqlite3, "sqlite_version_info", (3, 33, 0))
+        assert fts.fts_tokenizer() == fts.FALLBACK_TOKENIZE == "unicode61 remove_diacritics 2"
+
+    @pytest.mark.parametrize("tokenize", [fts.TRIGRAM_TOKENIZE, fts.PLAIN_TRIGRAM_TOKENIZE, fts.FALLBACK_TOKENIZE])
+    def test_table_tokenizer_reads_the_create_statement(self, tokenize):
+        conn = sqlite3.connect(":memory:")
+        conn.execute(f"CREATE VIRTUAL TABLE t USING fts5(body, tokenize='{tokenize}')")
+        conn.execute("CREATE VIRTUAL TABLE plain USING fts5(body)")
+        assert fts.table_tokenizer(conn, "t") == tokenize
+        assert fts.table_tokenizer(conn, "plain") == "unicode61"
+        assert fts.table_tokenizer(conn, "missing") is None
