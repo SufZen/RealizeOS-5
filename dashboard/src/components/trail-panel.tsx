@@ -1,4 +1,4 @@
-import { FileText, Scale } from 'lucide-react'
+import { AlertTriangle, FileText, Scale } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { Badge } from '@/components/ui/badge'
 import { useLocale } from '@/components/locale-provider'
@@ -7,10 +7,12 @@ import {
   isRuleSource,
   sourceAnchorId,
   toolRows,
+  trailNotices,
   type ToolStatus,
   type Trail,
   type TrailSource,
 } from '@/lib/chat-stream'
+import { noticeLine } from '@/lib/llm-settings-text'
 import { levelLabel, TRAIL_COPY, trailLang, type TrailLang } from '@/lib/trail-copy'
 
 /** Tool status → trail node state, drawn by .rz-trail__step[data-state]. */
@@ -132,10 +134,12 @@ function hasProvenance(source: TrailSource): boolean {
  */
 export function TrailPanel({ trail, anchorPrefix }: { trail: Trail; anchorPrefix: string }) {
   const navigate = useNavigate()
-  const lang = trailLang(useLocale().language)
+  const { language } = useLocale()
+  const lang = trailLang(language)
   const copy = TRAIL_COPY[lang]
   const rows = toolRows(trail.steps)
-  if (!trail.sources.length && !rows.length) return null
+  const notices = trailNotices(trail.steps)
+  if (!trail.sources.length && !rows.length && !notices.length) return null
 
   return (
     // Follows the page direction; mixed-direction pieces are isolated with <bdi>.
@@ -155,8 +159,27 @@ export function TrailPanel({ trail, anchorPrefix }: { trail: Trail; anchorPrefix
         </ol>
       )}
 
+      {notices.length > 0 && (
+        <ul
+          className={cn('m-0 grid list-none gap-1 p-0', trail.sources.length > 0 && 'mt-2')}
+          data-trail="notices"
+        >
+          {notices.map((n, i) => (
+            <li key={i} role="status" className="flex items-start gap-2 text-amber-400">
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+              <span className="min-w-0">{noticeLine(n, language)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+
       {rows.length > 0 && (
-        <ol className={cn('rz-trail m-0 list-none p-0', trail.sources.length > 0 && 'mt-2')}>
+        <ol
+          className={cn(
+            'rz-trail m-0 list-none p-0',
+            (trail.sources.length > 0 || notices.length > 0) && 'mt-2',
+          )}
+        >
           {rows.map((row) => {
             const label = copy.status[row.status]
             return (

@@ -1,3 +1,4 @@
+import type { ModelInfo } from '@/lib/llm-routing'
 import { useState } from 'react'
 import { AlertCircle } from 'lucide-react'
 import { useApi } from '@/hooks/use-api'
@@ -25,7 +26,8 @@ import {
 interface Provider {
   name: string
   available: boolean
-  models: string[]
+  /** Model objects (`ModelInfo`), not bare ids. */
+  models: ModelInfo[]
 }
 
 interface SettingsData {

@@ -1,4 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
+import type { ModelInfo } from '@/lib/llm-routing'
 import { Settings, Shield, Cpu, Server, Database, RefreshCw } from 'lucide-react'
 import { Toggle } from './shared'
 import { cn } from '@/lib/utils'
@@ -25,7 +26,8 @@ export const GATE_LABELS: Record<string, string> = {
 interface Provider {
   name: string
   available: boolean
-  models: string[]
+  /** Model objects (`ModelInfo`), not bare ids. */
+  models: ModelInfo[]
 }
 
 interface SystemInfo {

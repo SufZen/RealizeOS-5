@@ -18,6 +18,7 @@ import {
   Zap,
 } from 'lucide-react'
 import { api } from '@/lib/api'
+import { routingNameForSetupId } from '@/lib/llm-routing'
 import { cn } from '@/lib/utils'
 import { isUnrestricted, setupGate, type Actor } from '@/lib/permissions'
 import { onboardingText, type OnboardingText, type ProviderId } from '@/lib/onboarding-text'
@@ -50,9 +51,21 @@ export function markOnboardingComplete() {
   }
 }
 
-/** True when the server already has an AI provider configured (onboarding was done). */
-export function serverHasAiProvider(connections: { category: string; configured: boolean }[]) {
-  return connections.some((c) => c.category === 'llm' && c.configured)
+/**
+ * True when the server already has an AI provider configured (onboarding was
+ * done). The "llm" category also holds routing settings (primary, tier
+ * models), which are not providers; a row that names its `id` counts only
+ * when it is one of the providers the wizard connects.
+ */
+export function serverHasAiProvider(
+  connections: { id?: string; category: string; configured: boolean }[],
+) {
+  return connections.some(
+    (c) =>
+      c.category === 'llm' &&
+      c.configured &&
+      (c.id === undefined || LLM_PROVIDERS.some((p) => p.id === c.id)),
+  )
 }
 
 /**
@@ -151,7 +164,7 @@ interface Connection {
   name: string
   category: string
   env_key: string
-  type: 'secret' | 'toggle' | 'url' | 'number'
+  type: 'secret' | 'toggle' | 'url' | 'number' | 'text'
   configured: boolean
   masked_value: string | null
   description: string
@@ -164,15 +177,26 @@ export interface LlmProvider {
   /** Product name: the same in every language. */
   name: string
   icon: typeof Brain
-  recommended: boolean
+  /** The field is a server URL (shown as plain text), not a secret key. */
   isUrl?: boolean
+  /** The field is a model id (LiteLLM), not a key. */
+  isModel?: boolean
+  /** Setup connection id of an optional second field: the gateway URL. */
+  baseUrlId?: string
 }
 
 export const LLM_PROVIDERS: LlmProvider[] = [
-  { id: 'anthropic', name: 'Claude (Anthropic)', icon: Brain, recommended: true },
-  { id: 'google_ai', name: 'Gemini (Google)', icon: Brain, recommended: false },
-  { id: 'openai', name: 'GPT-4 (OpenAI)', icon: Brain, recommended: false },
-  { id: 'ollama', name: 'Ollama (Local)', icon: Server, recommended: false, isUrl: true },
+  { id: 'anthropic', name: 'Claude (Anthropic)', icon: Brain },
+  { id: 'google_ai', name: 'Gemini (Google)', icon: Brain },
+  { id: 'openai', name: 'GPT-4 (OpenAI)', icon: Brain },
+  { id: 'ollama', name: 'Ollama (Local)', icon: Server, isUrl: true },
+  {
+    id: 'litellm',
+    name: 'LiteLLM (any other)',
+    icon: Brain,
+    isModel: true,
+    baseUrlId: 'litellm_api_base',
+  },
 ]
 
 /** Icons for the four welcome lines, in `OnboardingText.features` order. */
@@ -257,12 +281,15 @@ export function ProviderCard({
 }) {
   const text = useWizardText(given)
   const [value, setValue] = useState('')
+  const [baseUrl, setBaseUrl] = useState('')
   const [showValue, setShowValue] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(configured)
   const [error, setError] = useState('')
   const inputId = useId()
   const noteId = `${inputId}-note`
+  const baseId = `${inputId}-base`
+  const plain = provider.isUrl || provider.isModel
   const Icon = provider.icon
   const words = text.providers[provider.id]
 
@@ -272,8 +299,10 @@ export function ProviderCard({
     setError('')
     try {
       await onSave(provider.id, value.trim())
+      if (provider.baseUrlId && baseUrl.trim()) await onSave(provider.baseUrlId, baseUrl.trim())
       setSaved(true)
       setValue('')
+      setBaseUrl('')
     } catch (err) {
       setError(saveErrorText(err, text))
     } finally {
@@ -300,7 +329,6 @@ export function ProviderCard({
             <h3 className="m-0 text-[15px] font-semibold text-foreground">
               <bdi>{provider.name}</bdi>
             </h3>
-            {provider.recommended && !saved && <Badge tone="accent">{text.recommended}</Badge>}
             {saved && (
               <Badge tone="success">
                 <Check aria-hidden />
@@ -321,7 +349,7 @@ export function ProviderCard({
           }}
         >
           <label htmlFor={inputId} className="rz-label">
-            {provider.isUrl ? text.serverUrl : text.apiKey}
+            {provider.isModel ? text.modelId : provider.isUrl ? text.serverUrl : text.apiKey}
           </label>
           <div className="flex gap-2">
             {/* Keys and URLs read left to right in every language: the field, its
@@ -330,22 +358,24 @@ export function ProviderCard({
             <div dir="ltr" className="relative min-w-0 flex-1">
               <input
                 id={inputId}
-                type={showValue || provider.isUrl ? 'text' : 'password'}
+                type={showValue || plain ? 'text' : 'password'}
                 value={value}
                 onChange={(e) => setValue(e.target.value)}
-                placeholder={provider.isUrl ? 'http://localhost:11434' : undefined}
+                placeholder={
+                  provider.isModel
+                    ? 'mistral/mistral-large-latest'
+                    : provider.isUrl
+                      ? 'http://localhost:11434'
+                      : undefined
+                }
                 autoComplete="off"
                 spellCheck={false}
-                dir="ltr"
+                dir={provider.isModel ? 'auto' : 'ltr'}
                 aria-describedby={noteId}
                 aria-invalid={error ? true : undefined}
-                className={cn(
-                  'rz-input font-mono',
-                  !provider.isUrl && 'pe-10',
-                  error && 'rz-nudge',
-                )}
+                className={cn('rz-input font-mono', !plain && 'pe-10', error && 'rz-nudge')}
               />
-              {!provider.isUrl && (
+              {!plain && (
                 <IconButton
                   label={showValue ? text.hideKey : text.showKey}
                   size="sm"
@@ -361,6 +391,24 @@ export function ProviderCard({
               {text.connect}
             </Button>
           </div>
+          {provider.baseUrlId && (
+            <>
+              <label htmlFor={baseId} className="rz-label mt-2">
+                {text.apiBaseOptional}
+              </label>
+              <input
+                id={baseId}
+                type="text"
+                value={baseUrl}
+                onChange={(e) => setBaseUrl(e.target.value)}
+                placeholder="http://localhost:4000"
+                autoComplete="off"
+                spellCheck={false}
+                dir="ltr"
+                className="rz-input font-mono"
+              />
+            </>
+          )}
           {error ? (
             <span id={noteId} className="rz-error" role="alert">
               <AlertCircle className="h-3.5 w-3.5 shrink-0" aria-hidden />
@@ -377,17 +425,90 @@ export function ProviderCard({
   )
 }
 
-/** Step 2: connect at least one AI provider. */
+/**
+ * Which connected provider answers first. "Automatic" (the default) leaves
+ * it to the server; a choice is saved at once as the routing's primary.
+ */
+export function PrimaryProviderChoice({
+  connected,
+  value,
+  onChoose,
+  text: given,
+}: {
+  connected: LlmProvider[]
+  value: string
+  /** Save the choice (a routing provider name, or "" for automatic). */
+  onChoose: (primary: string) => Promise<void>
+  text?: OnboardingText
+}) {
+  const text = useWizardText(given)
+  const [error, setError] = useState('')
+  const [saved, setSaved] = useState(false)
+  const id = useId()
+  const noteId = `${id}-note`
+
+  async function choose(next: string) {
+    setError('')
+    setSaved(false)
+    try {
+      await onChoose(next)
+      setSaved(true)
+    } catch (err) {
+      const detail = err instanceof Error ? err.message.trim() : ''
+      setError(text.primaryError(detail))
+    }
+  }
+
+  return (
+    <div className="rz-card mt-4 grid gap-2" data-choice="primary-provider">
+      <label htmlFor={id} className="rz-label">
+        {text.primaryTitle}
+      </label>
+      <select
+        id={id}
+        value={value}
+        onChange={(e) => void choose(e.target.value)}
+        aria-describedby={noteId}
+        aria-invalid={error ? true : undefined}
+        className="rz-select"
+      >
+        <option value="">{text.primaryAuto}</option>
+        {connected.map((p) => (
+          <option key={p.id} value={routingNameForSetupId(p.id)}>
+            {p.name}
+          </option>
+        ))}
+      </select>
+      {error ? (
+        <span id={noteId} className="rz-error" role="alert">
+          <AlertCircle className="h-3.5 w-3.5 shrink-0" aria-hidden />
+          {error}
+        </span>
+      ) : (
+        <span id={noteId} className="rz-help" role="status">
+          {saved ? text.primarySaved : text.primaryHelp}
+        </span>
+      )}
+    </div>
+  )
+}
+
+/** Step 2: connect at least one AI provider, then pick the primary one. */
 export function ConnectStep({
   connected,
   onSave,
+  primary = '',
+  onPrimary,
   text: given,
 }: {
   connected: Set<string>
   onSave: (id: string, value: string) => Promise<void>
+  primary?: string
+  onPrimary?: (primary: string) => Promise<void>
   text?: OnboardingText
 }) {
   const text = useWizardText(given)
+  const configured = LLM_PROVIDERS.filter((p) => connected.has(p.id))
   return (
     <>
       <TitleBlock
@@ -406,6 +527,14 @@ export function ConnectStep({
           />
         ))}
       </ul>
+      {onPrimary && configured.length > 0 && (
+        <PrimaryProviderChoice
+          connected={configured}
+          value={primary}
+          onChoose={onPrimary}
+          text={text}
+        />
+      )}
     </>
   )
 }
@@ -578,6 +707,7 @@ export default function OnboardingWizard({ onComplete }: { onComplete: () => voi
   const [step, setStep] = useState(0)
   const [connectedProviders, setConnectedProviders] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
+  const [primary, setPrimary] = useState('')
   const reduced = usePrefersReducedMotion()
   const scrollRef = useRef<HTMLDivElement>(null)
   const stepRef = useRef<HTMLDivElement>(null)
@@ -617,7 +747,15 @@ export default function OnboardingWizard({ onComplete }: { onComplete: () => voi
 
   async function handleProviderSave(id: string, value: string) {
     await api.put('/setup/connection', { id, value })
-    setConnectedProviders((prev) => new Set([...prev, id]))
+    // A second field of a provider (the LiteLLM gateway URL) is not a provider itself.
+    if (LLM_PROVIDERS.some((p) => p.id === id)) {
+      setConnectedProviders((prev) => new Set([...prev, id]))
+    }
+  }
+
+  async function handlePrimary(choice: string) {
+    await api.put('/llm/routing', { primary: choice })
+    setPrimary(choice)
   }
 
   function handleFinish() {
@@ -701,7 +839,13 @@ export default function OnboardingWizard({ onComplete }: { onComplete: () => voi
       >
         {step === 0 && <WelcomeStep text={text} />}
         {step === 1 && (
-          <ConnectStep connected={connectedProviders} onSave={handleProviderSave} text={text} />
+          <ConnectStep
+            connected={connectedProviders}
+            onSave={handleProviderSave}
+            primary={primary}
+            onPrimary={handlePrimary}
+            text={text}
+          />
         )}
         {step === 2 && (
           <DoneStep

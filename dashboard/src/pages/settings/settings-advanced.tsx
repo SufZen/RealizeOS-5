@@ -1,47 +1,202 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { Route, Search, Loader2, FileText, Shield, Check } from 'lucide-react'
-import { useApi } from '@/hooks/use-api'
+import { useApi, useInvalidateApi } from '@/hooks/use-api'
 import { useVenture } from '@/hooks/use-venture'
 import { useLocale } from '@/components/locale-provider'
 import { VentureTrustPanel } from '@/components/venture-trust'
 import { api } from '@/lib/api'
+import {
+  canonicalProvider,
+  deadModels,
+  formFromSettings,
+  modelSuggestions,
+  routingUpdate,
+  saveRouting,
+  TIERS,
+  type RoutingData,
+  type RoutingForm,
+  type RoutingUpdate,
+} from '@/lib/llm-routing'
+import { llmSettingsText, type LlmSettingsText } from '@/lib/llm-settings-text'
 import type { VentureTrust } from '@/lib/trust-copy'
 import { cn } from '@/lib/utils'
 
-interface RoutingRule {
-  model: string
-  description: string
-}
+/** Field look shared by the routing form's inputs. */
+const FIELD =
+  'w-full bg-surface-800 border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder-muted-foreground outline-none focus:border-brand-400'
 
-interface RoutingData {
-  routing_rules: Record<string, RoutingRule>
-  providers: Array<{
-    name: string
-    available: boolean
-    models: string[]
-    model_errors?: Record<string, string>
-  }>
+/**
+ * The routing form: primary provider, a model per tier, the fallback order.
+ * It starts from the settings as configured (empty = unset, so the default
+ * shows as the placeholder) and sends only what changed.
+ */
+export function LLMRoutingForm({
+  data,
+  text,
+  onSave,
+}: {
+  data: RoutingData
+  text: LlmSettingsText
+  onSave: (update: RoutingUpdate) => Promise<void>
+}) {
+  const [form, setForm] = useState<RoutingForm>(() => formFromSettings(data.settings))
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const [saved, setSaved] = useState(false)
+  const listId = useId()
+  const update = routingUpdate(form, data.settings)
+  const suggestions = modelSuggestions(data.providers ?? [])
+
+  // Providers that can answer, plus the current choice if it can't (so it stays visible).
+  const options = (data.providers ?? []).filter(
+    (p) => p.available || canonicalProvider(p.name) === form.primary,
+  )
+
+  function edit(next: Partial<RoutingForm>) {
+    setForm((f) => ({ ...f, ...next }))
+    setSaved(false)
+  }
+
+  async function handleSave() {
+    if (!update) return
+    setSaving(true)
+    setError('')
+    try {
+      await onSave(update)
+      setSaved(true)
+    } catch (err) {
+      setError(text.saveError(err instanceof Error ? err.message.trim() : ''))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <form
+      className="space-y-4"
+      onSubmit={(e) => {
+        e.preventDefault()
+        void handleSave()
+      }}
+    >
+      <div>
+        <label htmlFor={`${listId}-primary`} className="text-sm font-medium text-foreground">
+          {text.primaryLabel}
+        </label>
+        <select
+          id={`${listId}-primary`}
+          value={form.primary}
+          onChange={(e) => edit({ primary: e.target.value })}
+          className={cn(FIELD, 'mt-1')}
+        >
+          <option value="">{text.primaryAuto}</option>
+          {options.map((p) => (
+            <option key={p.name} value={canonicalProvider(p.name)}>
+              {p.available ? p.name : `${p.name} (${text.notAvailable})`}
+            </option>
+          ))}
+        </select>
+        <p className="mt-1 text-xs text-muted-foreground">{text.primaryHelp}</p>
+      </div>
+
+      <fieldset className="space-y-3 border-0 p-0">
+        <legend className="text-sm font-medium text-foreground">{text.tiersTitle}</legend>
+        {TIERS.map((tier) => (
+          <div key={tier}>
+            <label htmlFor={`${listId}-${tier}`} className="text-xs text-foreground">
+              {text.tierLabel[tier]}
+              <span className="text-muted-foreground"> · {text.tierHelp[tier]}</span>
+            </label>
+            <input
+              id={`${listId}-${tier}`}
+              dir="auto"
+              list={`${listId}-models`}
+              value={form.tiers[tier]}
+              onChange={(e) => edit({ tiers: { ...form.tiers, [tier]: e.target.value } })}
+              placeholder={data.tiers?.[tier]?.model || text.modelPlaceholder}
+              autoComplete="off"
+              spellCheck={false}
+              className={cn(FIELD, 'mt-1 font-mono')}
+            />
+          </div>
+        ))}
+        <datalist id={`${listId}-models`}>
+          {suggestions.map((m) => (
+            <option key={m} value={m} />
+          ))}
+        </datalist>
+      </fieldset>
+
+      <div>
+        <label htmlFor={`${listId}-fallback`} className="text-sm font-medium text-foreground">
+          {text.fallbackLabel}
+        </label>
+        <input
+          id={`${listId}-fallback`}
+          dir="auto"
+          value={form.fallback}
+          onChange={(e) => edit({ fallback: e.target.value })}
+          placeholder={text.fallbackPlaceholder}
+          autoComplete="off"
+          spellCheck={false}
+          className={cn(FIELD, 'mt-1 font-mono')}
+        />
+        <p className="mt-1 text-xs text-muted-foreground">{text.fallbackHelp}</p>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          type="submit"
+          disabled={saving || !update}
+          className="px-4 py-2 text-sm rounded-lg bg-brand-400 text-black font-medium hover:bg-brand-300 disabled:opacity-50 transition-colors"
+        >
+          {saving ? text.saving : text.save}
+        </button>
+        {saved && !update && (
+          <span role="status" className="flex items-center gap-1 text-xs text-green-400">
+            <Check className="h-3.5 w-3.5" aria-hidden />
+            {text.saved}
+          </span>
+        )}
+        {!update && !saved && (
+          <span className="text-xs text-muted-foreground">{text.nothingToSave}</span>
+        )}
+      </div>
+      {error && (
+        <p role="alert" className="text-sm text-red-400">
+          {error}
+        </p>
+      )}
+    </form>
+  )
 }
 
 export function LLMRoutingSection() {
   const { data } = useApi<RoutingData>('/llm/routing')
   const { data: usageData } = useApi<{ usage: Record<string, unknown> }>('/llm/usage')
+  const invalidate = useInvalidateApi()
+  const text = llmSettingsText(useLocale().language)
 
   if (!data) return null
 
-  const deadModels = (data.providers || []).flatMap((p) =>
-    Object.keys(p.model_errors || {}).map((model) => ({ provider: p.name, model })),
-  )
+  async function save(update: RoutingUpdate) {
+    await saveRouting(update)
+    invalidate('/llm/routing')
+  }
+
+  const dead = deadModels(data.providers || [])
 
   return (
     <div className="rounded-xl border border-border bg-card p-6">
       <div className="flex items-center gap-2 mb-4">
         <Route className="h-5 w-5 text-brand-400" />
-        <h2 className="text-lg font-semibold text-foreground">LLM Routing</h2>
+        <h2 className="text-lg font-semibold text-foreground">{text.title}</h2>
       </div>
-      <p className="text-xs text-muted-foreground mb-4">
-        How tasks are automatically routed to the best model
-      </p>
+      <p className="text-xs text-muted-foreground mb-4">{text.subtitle}</p>
+
+      <LLMRoutingForm data={data} text={text} onSave={save} />
+
+      <h3 className="mt-6 mb-2 text-sm font-semibold text-foreground">{text.rulesTitle}</h3>
       <div className="space-y-2">
         {Object.entries(data.routing_rules || {}).map(([taskType, rule]) => (
           <div
@@ -52,25 +207,19 @@ export function LLMRoutingSection() {
               <span className="text-sm font-medium text-foreground capitalize">{taskType}</span>
               <span className="text-xs text-muted-foreground ms-2">{rule.description}</span>
             </div>
-            <span className="text-xs font-mono px-2 py-0.5 rounded bg-brand-400/10 text-brand-400 shrink-0">
+            <bdi className="text-xs font-mono px-2 py-0.5 rounded bg-brand-400/10 text-brand-400 shrink-0">
               {rule.model}
-            </span>
+            </bdi>
           </div>
         ))}
       </div>
 
-      {deadModels.length > 0 && (
+      {dead.length > 0 && (
         <div role="alert" className="mt-4 rounded-lg border border-red-500/40 bg-red-500/10 p-3">
-          <p className="text-sm font-medium text-red-400">
-            Some configured models are not answering
-          </p>
+          <p className="text-sm font-medium text-red-400">{text.deadTitle}</p>
           <ul className="mt-1 space-y-0.5 text-xs text-muted-foreground">
-            {deadModels.map(({ provider, model }) => (
-              <li key={`${provider}:${model}`}>
-                <span className="font-mono">{model}</span> ({provider}) returned &quot;not
-                found&quot;. It is probably retired. Update the model ID in the server settings and
-                restart.
-              </li>
+            {dead.map(({ provider, model }) => (
+              <li key={`${provider}:${model}`}>{text.deadLine(model, provider)}</li>
             ))}
           </ul>
         </div>
@@ -78,7 +227,7 @@ export function LLMRoutingSection() {
 
       {usageData?.usage && Object.keys(usageData.usage).length > 0 && (
         <div className="mt-4 pt-4 border-t border-border">
-          <h3 className="text-sm font-semibold text-foreground mb-2">Usage Stats</h3>
+          <h3 className="text-sm font-semibold text-foreground mb-2">{text.usageTitle}</h3>
           <div className="grid grid-cols-2 gap-2 text-sm">
             {Object.entries(usageData.usage).map(([key, val]) => (
               <div key={key} className="flex justify-between">
