@@ -171,7 +171,8 @@ async def reindex_kb(request: Request):
     try:
         from realize_core.kb.indexer import index_kb_files
 
-        count = index_kb_files(str(kb_path), force=True)
+        systems = getattr(request.app.state, "systems", None)
+        count = index_kb_files(str(kb_path), force=True, systems_config=systems)
         return {"status": "reindexed", "files_indexed": count}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

@@ -345,14 +345,14 @@ def cmd_audit(args):
 
 def cmd_index(args):
     """Rebuild the KB search index."""
-    from realize_core.config import load_config
+    from realize_core.config import build_systems_dict, load_config
 
     config = load_config()
     kb_path = config.get("kb_path", ".")
 
     from realize_core.kb.indexer import index_kb_files
 
-    count = index_kb_files(kb_path, force=True)
+    count = index_kb_files(kb_path, force=True, systems_config=build_systems_dict(config, Path(kb_path)))
     print(f"Indexed {count} files from {kb_path}")
 
 

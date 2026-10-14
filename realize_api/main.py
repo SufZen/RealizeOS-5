@@ -177,7 +177,7 @@ async def lifespan(app: FastAPI):
     try:
         from realize_core.kb.indexer import index_kb_files
 
-        index_kb_files(str(app.state.kb_path))
+        index_kb_files(str(app.state.kb_path), systems_config=app.state.systems)
         logger.info("KB index initialized")
     except Exception as e:
         logger.warning(f"KB indexing skipped: {e}")

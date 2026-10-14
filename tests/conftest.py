@@ -1,6 +1,11 @@
 """Shared test fixtures for RealizeOS test suite."""
 
+import os
 import sys
+
+# KB embeddings off for the whole run, subprocesses included: fastembed is a core
+# dependency and would otherwise download its model. Tests that need vectors fake them.
+os.environ["KB_EMBED_MODEL"] = "none"
 
 import pytest
 from realize_core.memory import conversation as _conversation

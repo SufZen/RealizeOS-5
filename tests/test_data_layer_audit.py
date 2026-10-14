@@ -223,6 +223,18 @@ class TestFTS5SafeSearch:
             results = semantic_search(query, db_path=db_path, kb_root=str(kb_with_mixed_files))
             assert isinstance(results, list)
 
+    def test_like_fallback_keeps_venture_scope(self, kb_with_mixed_files, monkeypatch):
+        """``a OR b AND scope`` used to bind as ``a OR (b AND scope)`` and leak other ventures."""
+        from realize_core.kb import indexer
+
+        db_path = kb_with_mixed_files / "test_index.db"
+        indexer.index_kb_files(kb_root=str(kb_with_mixed_files), db_path=db_path, force=True)
+        # Force the FTS query to fail so the LIKE fallback runs.
+        monkeypatch.setattr(indexer, "build_match_query", lambda q: '"unterminated', raising=False)
+
+        results = indexer.semantic_search("Shared", system_key="v1", db_path=db_path)
+        assert all(r["system_key"] == "v1" for r in results), results
+
 
 # ---------------------------------------------------------------------------
 # KB Indexer Robustness

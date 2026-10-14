@@ -3,23 +3,42 @@ Knowledge Base Indexer: Indexes markdown files for hybrid search.
 
 Combines FTS5 keyword search with vector embeddings for semantic matching.
 Hybrid scoring: 0.7 * vector_similarity + 0.3 * keyword_rank (BM25).
-Uses fastembed for local-only embeddings (no API calls, no data leaving the machine).
-Falls back to FTS5-only search when fastembed is not installed.
+Uses fastembed for local-only embeddings (no API calls, no data leaving the machine)
+with a multilingual model (``KB_EMBED_MODEL``; ``none`` turns embeddings off).
+Falls back to FTS5-only search when the model can't load.
+
+Keyword search uses a trigram FTS5 index and a sanitised OR query
+(:mod:`realize_core.utils.fts`), so questions in any language and with any
+punctuation are safe and match documents in that language.
 
 Index stored in SQLite for persistence across restarts.
 """
 
 import logging
+import os
 import sqlite3
 import struct
 from datetime import datetime
-from pathlib import Path
+from pathlib import Path, PurePath
+
+from realize_core.utils.fts import build_match_query, fts_tokenizer, match_terms, short_tokens
 
 logger = logging.getLogger(__name__)
+
+#: Index schema version (``PRAGMA user_version``). 2: trigram FTS tokenizer.
+KB_SCHEMA_VERSION = 2
+
+#: Default embedding model: multilingual (Hebrew included), 384 dimensions.
+#: fastembed doesn't ship ``intfloat/multilingual-e5-small``; this is the
+#: closest model it supports. ``KB_EMBED_MODEL`` overrides it.
+DEFAULT_EMBED_MODEL = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+#: ``KB_EMBED_MODEL`` values that turn embeddings off (keyword search only).
+_EMBED_OFF = frozenset({"", "none", "off", "0", "false"})
 
 # Embedding model (lazy-loaded)
 _embedder = None
 _embedder_available = None
+_embedder_model = None
 
 # Max file size for indexing (1 MB) — skip larger files to prevent memory issues
 MAX_INDEX_FILE_SIZE = 1_048_576
@@ -40,8 +59,47 @@ def _get_conn(db_path: Path) -> sqlite3.Connection:
     return conn
 
 
+_FTS_TRIGGERS = ("kb_ai", "kb_ad", "kb_au")
+
+
+def _create_fts(conn: sqlite3.Connection) -> None:
+    """Create the FTS table (current tokenizer) and the triggers that keep it in sync."""
+    conn.execute(f"""
+        CREATE VIRTUAL TABLE IF NOT EXISTS kb_fts
+        USING fts5(path, title, content, system_key, content='kb_files', content_rowid='id',
+                   tokenize='{fts_tokenizer()}')
+    """)
+    conn.execute("""
+        CREATE TRIGGER IF NOT EXISTS kb_ai AFTER INSERT ON kb_files BEGIN
+            INSERT INTO kb_fts(rowid, path, title, content, system_key)
+            VALUES (new.id, new.path, new.title, new.content, new.system_key);
+        END
+    """)
+    conn.execute("""
+        CREATE TRIGGER IF NOT EXISTS kb_ad AFTER DELETE ON kb_files BEGIN
+            INSERT INTO kb_fts(kb_fts, rowid, path, title, content, system_key)
+            VALUES ('delete', old.id, old.path, old.title, old.content, old.system_key);
+        END
+    """)
+    # Only the indexed columns: clearing or writing an embedding leaves the FTS index alone.
+    conn.execute("""
+        CREATE TRIGGER IF NOT EXISTS kb_au AFTER UPDATE OF path, title, content, system_key ON kb_files BEGIN
+            INSERT INTO kb_fts(kb_fts, rowid, path, title, content, system_key)
+            VALUES ('delete', old.id, old.path, old.title, old.content, old.system_key);
+            INSERT INTO kb_fts(rowid, path, title, content, system_key)
+            VALUES (new.id, new.path, new.title, new.content, new.system_key);
+        END
+    """)
+
+
 def _init_index_db(db_path: Path):
-    """Create the index tables."""
+    """Create the index tables, migrating an older index to the current schema.
+
+    Below :data:`KB_SCHEMA_VERSION` the FTS table and its triggers are
+    recreated with the current tokenizer and rebuilt from ``kb_files``. When
+    the embedding model changed, stored vectors are cleared so the next index
+    run embeds them again.
+    """
     conn = _get_conn(db_path)
     try:
         conn.execute("""
@@ -56,66 +114,97 @@ def _init_index_db(db_path: Path):
                 last_indexed TEXT
             )
         """)
-        conn.execute("""
-            CREATE VIRTUAL TABLE IF NOT EXISTS kb_fts
-            USING fts5(path, title, content, system_key, content='kb_files', content_rowid='id')
-        """)
-        conn.execute("""
-            CREATE TRIGGER IF NOT EXISTS kb_ai AFTER INSERT ON kb_files BEGIN
-                INSERT INTO kb_fts(rowid, path, title, content, system_key)
-                VALUES (new.id, new.path, new.title, new.content, new.system_key);
-            END
-        """)
-        conn.execute("""
-            CREATE TRIGGER IF NOT EXISTS kb_ad AFTER DELETE ON kb_files BEGIN
-                INSERT INTO kb_fts(kb_fts, rowid, path, title, content, system_key)
-                VALUES ('delete', old.id, old.path, old.title, old.content, old.system_key);
-            END
-        """)
-        conn.execute("""
-            CREATE TRIGGER IF NOT EXISTS kb_au AFTER UPDATE ON kb_files BEGIN
-                INSERT INTO kb_fts(kb_fts, rowid, path, title, content, system_key)
-                VALUES ('delete', old.id, old.path, old.title, old.content, old.system_key);
-                INSERT INTO kb_fts(rowid, path, title, content, system_key)
-                VALUES (new.id, new.path, new.title, new.content, new.system_key);
-            END
-        """)
+        conn.execute("CREATE TABLE IF NOT EXISTS kb_meta (key TEXT PRIMARY KEY, value TEXT)")
         conn.commit()
+
+        if _schema_version(conn) < KB_SCHEMA_VERSION:
+            conn.execute("BEGIN IMMEDIATE")
+            # Another process may have migrated while this one waited for the lock.
+            if _schema_version(conn) < KB_SCHEMA_VERSION:
+                for trigger in _FTS_TRIGGERS:
+                    conn.execute(f"DROP TRIGGER IF EXISTS {trigger}")
+                conn.execute("DROP TABLE IF EXISTS kb_fts")
+                _create_fts(conn)
+                conn.execute("INSERT INTO kb_fts(kb_fts) VALUES('rebuild')")
+                conn.execute(f"PRAGMA user_version = {KB_SCHEMA_VERSION}")
+                logger.info("KB index at schema v%d (FTS tokenizer: %s)", KB_SCHEMA_VERSION, fts_tokenizer())
+        else:
+            _create_fts(conn)
+        conn.commit()
+
+        model = embed_model_name()
+        if model:
+            row = conn.execute("SELECT value FROM kb_meta WHERE key = 'embed_model'").fetchone()
+            if row is None or row["value"] != model:
+                cleared = conn.execute("UPDATE kb_files SET embedding = NULL WHERE embedding IS NOT NULL").rowcount
+                conn.execute("INSERT OR REPLACE INTO kb_meta (key, value) VALUES ('embed_model', ?)", (model,))
+                conn.commit()
+                if cleared:
+                    logger.info("KB embedding model is now %s: %d stored vectors will be re-embedded", model, cleared)
     finally:
         conn.close()
 
 
+def _schema_version(conn: sqlite3.Connection) -> int:
+    return conn.execute("PRAGMA user_version").fetchone()[0]
+
+
+def embed_model_name() -> str | None:
+    """The configured embedding model (``KB_EMBED_MODEL``), or None when embeddings are off."""
+    name = os.environ.get("KB_EMBED_MODEL", DEFAULT_EMBED_MODEL).strip()
+    return None if name.lower() in _EMBED_OFF else name
+
+
+def _uses_e5_prefixes(model: str | None) -> bool:
+    """E5 models expect ``query: `` / ``passage: `` before the text."""
+    return bool(model) and "e5" in model.rsplit("/", 1)[-1].lower()
+
+
+def _query_text(text: str) -> str:
+    return f"query: {text}" if _uses_e5_prefixes(embed_model_name()) else text
+
+
+def _passage_text(text: str) -> str:
+    return f"passage: {text}" if _uses_e5_prefixes(embed_model_name()) else text
+
+
 def _get_embedder():
-    """Get the fastembed embedding model (lazy-loaded, optional)."""
-    global _embedder, _embedder_available
-    if _embedder_available is False:
+    """Get the fastembed embedding model (lazy-loaded, optional).
+
+    A model that can't load is logged once; search stays keyword-only.
+    """
+    global _embedder, _embedder_available, _embedder_model
+    model = embed_model_name()
+    if model != _embedder_model:
+        _embedder, _embedder_available, _embedder_model = None, None, model
+    if model is None or _embedder_available is False:
         return None
     if _embedder is not None:
         return _embedder
     try:
         from fastembed import TextEmbedding
 
-        _embedder = TextEmbedding(model_name="BAAI/bge-small-en-v1.5")
+        _embedder = TextEmbedding(model_name=model)
         _embedder_available = True
-        logger.info("Fastembed loaded: BAAI/bge-small-en-v1.5 (local embeddings active)")
+        logger.info("Fastembed loaded: %s (local embeddings active)", model)
         return _embedder
     except ImportError:
         _embedder_available = False
-        logger.info("Fastembed not installed — FTS5-only search (pip install fastembed for hybrid)")
+        logger.warning("Fastembed not installed — FTS5-only search (pip install fastembed for hybrid)")
         return None
     except Exception as e:
         _embedder_available = False
-        logger.warning(f"Fastembed failed to load: {e} — FTS5-only search")
+        logger.warning("Embedding model %s failed to load: %s — FTS5-only search", model, e)
         return None
 
 
 def _embed_text(text: str) -> bytes | None:
-    """Embed text and return as bytes (for SQLite BLOB storage)."""
+    """Embed a search query and return it as bytes (for SQLite BLOB storage)."""
     embedder = _get_embedder()
     if embedder is None:
         return None
     try:
-        embeddings = list(embedder.embed([text[:2000]]))
+        embeddings = list(embedder.embed([_query_text(text[:2000])]))
         vec = embeddings[0]
         return struct.pack(f"{len(vec)}f", *vec)
     except Exception as e:
@@ -140,15 +229,24 @@ def _cosine_similarity(a: list[float], b: list[float]) -> float:
 
 
 def _detect_system(path: str, systems_config: dict = None) -> str:
-    """Detect which system a file belongs to from its path."""
-    path_lower = path.lower()
+    """Detect which system a file belongs to from its path.
+
+    A venture's configured ``system_dir`` wins (the longest one the file is
+    under); otherwise ``systems/<key>/...`` gives the key, else ``shared``.
+    """
+    posix = PurePath(path).as_posix().lower()
     if systems_config:
+        best_key, best_len = None, 0
         for key, conf in systems_config.items():
-            sys_dir = conf.get("system_dir", "").lower()
-            if sys_dir and sys_dir in path_lower:
-                return key
+            sys_dir = PurePath(str(conf.get("system_dir") or "")).as_posix().lower().strip("/")
+            if sys_dir in ("", ".") or len(sys_dir) <= best_len:
+                continue
+            if posix == sys_dir or posix.startswith(sys_dir + "/"):
+                best_key, best_len = key, len(sys_dir)
+        if best_key is not None:
+            return best_key
     # Default: extract from path structure (systems/<key>/...)
-    parts = Path(path).parts
+    parts = PurePath(path).parts
     if len(parts) >= 2 and parts[0] == "systems":
         return parts[1]
     return "shared"
@@ -163,20 +261,30 @@ def _extract_title(content: str, path: str) -> str:
     return Path(path).stem.replace("-", " ").title()
 
 
-def _build_search_dirs(kb_path: Path) -> list[str]:
+_FABRIC_DIRS = ("F-foundations", "A-agents", "B-brain", "R-routines", "I-insights")
+
+
+def _build_search_dirs(kb_path: Path, systems_config: dict | None = None) -> list[str]:
     """
     Auto-discover FABRIC directories to index from all systems.
-    No hardcoded paths — scans the systems/ directory dynamically.
+    No hardcoded paths — scans the systems/ directory dynamically, plus each
+    configured venture's ``system_dir`` when it lives elsewhere in the KB.
     """
     dirs = []
+    system_dirs: list[Path] = []
     systems_dir = kb_path / "systems"
     if systems_dir.exists():
-        for system_dir in systems_dir.iterdir():
-            if system_dir.is_dir() and not system_dir.name.startswith("."):
-                for fabric_dir in ["F-foundations", "A-agents", "B-brain", "R-routines", "I-insights"]:
-                    subdir = system_dir / fabric_dir
-                    if subdir.exists():
-                        dirs.append(str(subdir.relative_to(kb_path)))
+        system_dirs = [d for d in systems_dir.iterdir() if d.is_dir() and not d.name.startswith(".")]
+    for conf in (systems_config or {}).values():
+        sys_dir = kb_path / str(conf.get("system_dir") or "")
+        if sys_dir == kb_path or sys_dir in system_dirs or not sys_dir.is_dir() or not _is_safe_path(sys_dir, kb_path):
+            continue
+        system_dirs.append(sys_dir)
+    for system_dir in system_dirs:
+        for fabric_dir in _FABRIC_DIRS:
+            subdir = system_dir / fabric_dir
+            if subdir.exists():
+                dirs.append(str(subdir.relative_to(kb_path)))
 
     # Also index shared/ directory
     shared_dir = kb_path / "shared"
@@ -201,16 +309,24 @@ def _escape_like(query: str) -> str:
     return query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
-def index_kb_files(kb_root: str, db_path: Path = None, force: bool = False) -> int:
+def index_kb_files(
+    kb_root: str,
+    db_path: Path = None,
+    force: bool = False,
+    systems_config: dict | None = None,
+) -> int:
     """
     Walk supported files in KB directories, index their content and embeddings.
-    Uses incremental indexing — only re-indexes files whose mtime changed.
+    Uses incremental indexing — only re-indexes files whose mtime changed (or
+    that still need a vector from the current embedding model).
 
     Args:
         kb_root: Root path of the knowledge base
         db_path: Path for the index database. Defaults to <kb_root>/kb_index.db when
             that folder is writable, else DATA_PATH/kb_index.db
         force: If True, re-index all files regardless of mtime
+        systems_config: Venture configs (``build_systems_dict``): a venture with a
+            custom ``system_dir`` is indexed under its own key
 
     Returns:
         Number of files indexed.
@@ -224,27 +340,32 @@ def index_kb_files(kb_root: str, db_path: Path = None, force: bool = False) -> i
     _init_index_db(db_path)
     conn = _get_conn(db_path)
     try:
-        return _do_index(conn, kb_path, force)
+        return _do_index(conn, kb_path, force, systems_config)
     finally:
         conn.close()
 
 
-def _do_index(conn: sqlite3.Connection, kb_path: Path, force: bool) -> int:
+def _do_index(conn: sqlite3.Connection, kb_path: Path, force: bool, systems_config: dict | None = None) -> int:
     """Internal indexing implementation with guaranteed connection cleanup."""
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     count = 0
 
     # Load existing mtimes for incremental check
     existing_mtimes = {}
+    # Unchanged files without a vector (model changed, or indexed while embeddings were off)
+    missing_vectors: set[str] = set()
     if not force:
         try:
-            rows = conn.execute("SELECT path, file_mtime FROM kb_files").fetchall()
+            rows = conn.execute("SELECT path, file_mtime, embedding IS NULL AS no_vec FROM kb_files").fetchall()
             existing_mtimes = {r["path"]: r["file_mtime"] or 0 for r in rows}
+            missing_vectors = {r["path"] for r in rows if r["no_vec"]}
         except Exception:
             pass
+    # Loads the model only when an unchanged file needs a vector.
+    re_embed = bool(missing_vectors) and _get_embedder() is not None
 
     # Auto-discover directories to index
-    search_dirs = _build_search_dirs(kb_path)
+    search_dirs = _build_search_dirs(kb_path, systems_config)
 
     file_data = []
     skipped = 0
@@ -279,7 +400,8 @@ def _do_index(conn: sqlite3.Connection, kb_path: Path, force: bool) -> int:
                     current_mtime = found_file.stat().st_mtime
 
                     if not force and rel_path in existing_mtimes:
-                        if current_mtime <= existing_mtimes[rel_path]:
+                        needs_vector = re_embed and rel_path in missing_vectors
+                        if current_mtime <= existing_mtimes[rel_path] and not needs_vector:
                             skipped += 1
                             continue
 
@@ -295,7 +417,7 @@ def _do_index(conn: sqlite3.Connection, kb_path: Path, force: bool) -> int:
                             continue
 
                     title = _extract_title(content, rel_path)
-                    system_key = _detect_system(rel_path)
+                    system_key = _detect_system(rel_path, systems_config)
                     indexed_content = content[:5000]
                     file_data.append((rel_path, title, system_key, indexed_content, current_mtime))
                 except Exception as e:
@@ -323,7 +445,7 @@ def _do_index(conn: sqlite3.Connection, kb_path: Path, force: bool) -> int:
     embeddings_map = {}
     if embedder and file_data:
         try:
-            texts = [f"{title} {content[:2000]}" for _, title, _, content, _ in file_data]
+            texts = [_passage_text(f"{title} {content[:2000]}") for _, title, _, content, _ in file_data]
             vectors = list(embedder.embed(texts))
             for i, (rel_path, _, _, _, _) in enumerate(file_data):
                 vec = vectors[i]
@@ -344,8 +466,9 @@ def _do_index(conn: sqlite3.Connection, kb_path: Path, force: bool) -> int:
                         (title, indexed_content, system_key, embedding_blob, file_mtime, now, rel_path),
                     )
                 else:
+                    # The old vector described the old content: clear it so a later run re-embeds.
                     conn.execute(
-                        "UPDATE kb_files SET title=?, content=?, system_key=?, file_mtime=?, last_indexed=? WHERE path=?",
+                        "UPDATE kb_files SET title=?, content=?, system_key=?, embedding=NULL, file_mtime=?, last_indexed=? WHERE path=?",
                         (title, indexed_content, system_key, file_mtime, now, rel_path),
                     )
             else:
@@ -405,54 +528,71 @@ def semantic_search(
 
 
 def _fts_search(conn, query: str, system_key: str = None, top_k: int = 10) -> list[dict]:
-    """FTS5 keyword search with BM25 ranking."""
+    """FTS5 keyword search with BM25 ranking.
+
+    The query never reaches ``MATCH`` raw: :func:`build_match_query` quotes
+    every term and joins them with ``OR``. Words too short for trigrams, or an
+    FTS error, fall back to a ``LIKE`` search with the same venture filter.
+    """
+    match = build_match_query(query)
+    if match is None:
+        return _like_search(conn, short_tokens(query), system_key, top_k)
+    sql = (
+        "SELECT path, title, system_key, snippet(kb_fts, 2, '>>>', '<<<', '...', 50) AS snippet, "
+        "bm25(kb_fts) AS score FROM kb_fts WHERE kb_fts MATCH ?"
+    )
+    params: list = [match]
+    if system_key:
+        sql += " AND system_key = ?"
+        params.append(system_key)
+    sql += " ORDER BY score LIMIT ?"
+    params.append(top_k)
     try:
-        if system_key:
-            rows = conn.execute(
-                "SELECT path, title, system_key, snippet(kb_fts, 2, '>>>', '<<<', '...', 50) as snippet, rank "
-                "FROM kb_fts WHERE kb_fts MATCH ? AND system_key = ? ORDER BY rank LIMIT ?",
-                (query, system_key, top_k),
-            ).fetchall()
-        else:
-            rows = conn.execute(
-                "SELECT path, title, system_key, snippet(kb_fts, 2, '>>>', '<<<', '...', 50) as snippet, rank "
-                "FROM kb_fts WHERE kb_fts MATCH ? ORDER BY rank LIMIT ?",
-                (query, top_k),
-            ).fetchall()
-
-        results = []
-        if rows:
-            min_rank = min(r["rank"] for r in rows)
-            max_rank = max(r["rank"] for r in rows)
-            rank_range = max_rank - min_rank if max_rank != min_rank else 1.0
-            for row in rows:
-                norm_score = 1.0 - ((row["rank"] - min_rank) / rank_range) if rank_range else 1.0
-                results.append(
-                    {
-                        "path": row["path"],
-                        "title": row["title"],
-                        "system_key": row["system_key"],
-                        "snippet": row["snippet"],
-                        "keyword_score": norm_score,
-                    }
-                )
-        return results
-
-    except sqlite3.OperationalError:
-        # Fallback to LIKE search — escape special chars to prevent injection
-        escaped_query = _escape_like(query)
-        sql = (
-            "SELECT path, title, system_key, substr(content, 1, 200) as snippet "
-            "FROM kb_files WHERE content LIKE ? ESCAPE '\\' OR title LIKE ? ESCAPE '\\'"
-        )
-        params: list = [f"%{escaped_query}%", f"%{escaped_query}%"]
-        if system_key:
-            sql += " AND system_key = ?"
-            params.append(system_key)
-        sql += " LIMIT ?"
-        params.append(top_k)
         rows = conn.execute(sql, params).fetchall()
-        return [{**dict(row), "keyword_score": 0.5} for row in rows]
+    except sqlite3.OperationalError as e:
+        logger.warning("KB FTS search failed (%s): using LIKE search", e)
+        return _like_search(conn, match_terms(query) + short_tokens(query), system_key, top_k)
+
+    if not rows:
+        return _like_search(conn, short_tokens(query), system_key, top_k)
+
+    # bm25: lower is better. Min-max normalise so the best match scores 1.0.
+    scores = [row["score"] for row in rows]
+    best, spread = min(scores), max(scores) - min(scores)
+    return [
+        {
+            "path": row["path"],
+            "title": row["title"],
+            "system_key": row["system_key"],
+            "snippet": row["snippet"],
+            "keyword_score": 1.0 - (row["score"] - best) / spread if spread else 1.0,
+        }
+        for row in rows
+    ]
+
+
+def _like_search(conn, terms: list[str], system_key: str = None, top_k: int = 10) -> list[dict]:
+    """Substring search of content and title for any of ``terms``, within ``system_key`` when given."""
+    if not terms:
+        return []
+    clauses: list[str] = []
+    params: list = []
+    for term in terms:
+        pattern = f"%{_escape_like(term)}%"
+        clauses.append("content LIKE ? ESCAPE '\\' OR title LIKE ? ESCAPE '\\'")
+        params += [pattern, pattern]
+    # Parenthesised: the venture filter must apply to every alternative.
+    sql = (
+        "SELECT path, title, system_key, substr(content, 1, 200) AS snippet "
+        f"FROM kb_files WHERE ({' OR '.join(clauses)})"
+    )
+    if system_key:
+        sql += " AND system_key = ?"
+        params.append(system_key)
+    sql += " LIMIT ?"
+    params.append(top_k)
+    rows = conn.execute(sql, params).fetchall()
+    return [{**dict(row), "keyword_score": 0.5} for row in rows]
 
 
 def _vector_search(conn, query_blob: bytes, system_key: str = None, top_k: int = 10) -> list[dict]:
