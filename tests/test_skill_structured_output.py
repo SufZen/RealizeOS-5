@@ -178,6 +178,63 @@ def test_inject_leaves_unknown_names_and_json_braces_alone():
     assert _ctx().inject(text) == text
 
 
+def test_inject_does_not_scan_substituted_data():
+    """A step result is untrusted data: a {name} inside it never aborts the step."""
+    ctx = _ctx()
+    ctx.step_results["check"] = "the model wrote {rows} and {sheet_id} and {user_message}"
+    assert ctx.inject("Result: {check}") == "Result: the model wrote {rows} and {sheet_id} and {user_message}"
+
+
+def test_inject_variable_value_with_step_reference_is_left_alone():
+    ctx = _ctx()
+    ctx.variables["note"] = "see {rows}"
+    assert ctx.inject("{note} / {sheet_id}") == "see {rows} / s-1"
+
+
+# ---------------------------------------------------------------------------
+# Failed LLM calls and JSON schemas
+# ---------------------------------------------------------------------------
+
+
+async def test_failed_llm_call_fails_the_step_with_the_error(gemini, monkeypatch):
+    from realize_core.llm.base_provider import STOP_ERROR
+    from realize_core.skills.executor import StepFailedError, _call_llm
+
+    async def broken(*_a, **_k):
+        gemini.calls.append({})
+        return LLMResponse(text="An error occurred processing your request.", error="quota exceeded", stop_reason=STOP_ERROR)
+
+    monkeypatch.setattr(gemini, "complete", broken)
+    with pytest.raises(StepFailedError, match="quota exceeded"):
+        await _call_llm("s", [{"role": "user", "content": "x"}], "acme", route={"tier": "fast"})
+
+
+async def test_failed_json_step_is_not_retried(gemini, monkeypatch):
+    from realize_core.llm.base_provider import STOP_ERROR
+    from realize_core.skills.executor import SkillContext, StepFailedError, _complete_json_step
+
+    async def broken(*_a, **_k):
+        gemini.calls.append({})
+        return LLMResponse(text="", error="provider down", stop_reason=STOP_ERROR)
+
+    monkeypatch.setattr(gemini, "complete", broken)
+    ctx = SkillContext("go", "acme", "u1")
+    with pytest.raises(StepFailedError, match="provider down"):
+        await _complete_json_step("s", "make rows", ctx, {"tier": "fast"}, ROWS_SCHEMA, prompt_text="", context_text="")
+    assert len(gemini.calls) == 1  # route_completion's own fallback aside, no JSON retry
+
+
+@pytest.mark.parametrize("schema", [{}, {"description": "anything"}])
+async def test_untyped_consumer_schema_sends_no_response_schema(gemini, schema):
+    from realize_core.skills.executor import SkillContext, _complete_json_step
+
+    gemini.script = lambda prompt, n: '{"a": 1}'
+    ctx = SkillContext("go", "acme", "u1")
+    out = await _complete_json_step("s", "give json", ctx, {"tier": "fast"}, schema, prompt_text="", context_text="")
+    assert json.loads(out) == {"a": 1}
+    assert "response_schema" not in gemini.calls[0]
+
+
 # ---------------------------------------------------------------------------
 # Tier / model precedence
 # ---------------------------------------------------------------------------

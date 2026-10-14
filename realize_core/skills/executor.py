@@ -264,25 +264,23 @@ class SkillContext:
         return ctx
 
     def inject(self, template: str) -> str:
-        """Replace {variable} placeholders in a template string.
+        """Replace {variable} placeholders in a template string, in one pass.
+
+        Only the template is scanned: values (step results, variables, the
+        user's message) are untrusted data and are inserted as they are, so a
+        ``{name}`` inside them is neither expanded nor an error.
 
         Raises:
-            StepFailedError: a placeholder naming a step, a variable,
-                ``user_message`` or ``today`` is still there (e.g. a step that
-                has no result). Unknown ``{names}`` and JSON braces are left alone.
+            StepFailedError: the template names a known step that has no
+                result yet. Unknown ``{names}`` and JSON braces are left alone.
         """
-        result = template
-        for step_id, value in self.step_results.items():
-            result = result.replace(f"{{{step_id}}}", str(value))
-        for var, value in self.variables.items():
-            result = result.replace(f"{{{var}}}", str(value))
-        result = result.replace("{user_message}", self.user_message)
-        result = result.replace("{today}", date.today().isoformat())
-        known = self.known_steps | set(self.step_results) | set(self.variables) | {"user_message", "today"}
-        for name in _PLACEHOLDER.findall(result):
-            if name in known:
+        values: dict[str, str] = {"user_message": self.user_message, "today": date.today().isoformat()}
+        values.update({var: str(value) for var, value in self.variables.items()})
+        values.update({step_id: str(value) for step_id, value in self.step_results.items()})
+        for name in _PLACEHOLDER.findall(template):
+            if name in self.known_steps and name not in values:
                 raise StepFailedError(f"unresolved placeholder {{{name}}} in step {self.current_step}")
-        return result
+        return _PLACEHOLDER.sub(lambda m: values.get(m.group(1), m.group(0)), template)
 
 
 def _skill_route(source: dict) -> dict[str, str]:
@@ -342,6 +340,8 @@ async def _call_llm(
     if response_schema is not None:
         kwargs["response_schema"] = response_schema
     response = await router.route_completion(system_prompt, messages, system_key=system_key, **kwargs)
+    if not response.ok:
+        raise StepFailedError(response.error or response.text or "the LLM call failed")
     return response.text
 
 
@@ -656,10 +656,13 @@ async def _complete_json_step(
     Returns:
         The validated value as JSON text (what the tool step parses).
 
+    An empty or untyped schema sends no ``response_schema``: the reply is
+    only parsed and retried. A failed LLM call stops the step at once.
+
     Raises:
-        StepFailedError: the retry was rejected too.
+        StepFailedError: the retry was rejected too, or the LLM call failed.
     """
-    response_schema = _response_schema(schema)
+    response_schema = _response_schema(schema) if _is_typed(schema) else None
     message = assembled
     reason = ""
     for attempt in (1, 2):
@@ -707,6 +710,14 @@ def _json_consumer_schema(step_id: str, later_steps: list) -> dict | None:
 
 #: A table cell: text or a number (an empty ``{}`` item schema becomes "object" on some providers).
 _CELL_SCHEMA = {"anyOf": [{"type": "string"}, {"type": "number"}]}
+
+
+_TYPING_KEYS = ("type", "anyOf", "oneOf", "allOf", "properties", "items", "enum", "const", "$ref")
+
+
+def _is_typed(schema: dict | None) -> bool:
+    """True when ``schema`` says anything about the value's type (``{}`` does not)."""
+    return isinstance(schema, dict) and any(schema.get(k) not in (None, {}, []) for k in _TYPING_KEYS)
 
 
 def _response_schema(schema: dict) -> dict:
