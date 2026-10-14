@@ -380,7 +380,7 @@ LLM_MODEL_DEEP=anthropic/claude-opus-5-5
 
 | Variable | Default | What it does |
 |----------|---------|--------------|
-| `KB_EMBED_MODEL` | `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2` | The fastembed model used for semantic search over the knowledge base (about 0.22 GB, downloaded on first use, then cached; the Docker image includes it). Set `none` (also `off`, `0`, `false`) for keyword search only. E5 prefixes are applied automatically if you name an e5 model |
+| `KB_EMBED_MODEL` | `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2` | The fastembed model used for semantic search over the knowledge base (about 0.22 GB, downloaded on first use, then cached; the Docker image build downloads it when the build has network access, otherwise it downloads on first indexing). **Unset** = this default. **Empty, `none`, `off`, `0` or `false`** = no embeddings, keyword search only; use `none` to run fully offline. E5 prefixes are applied automatically if you name an e5 model |
 | `FASTEMBED_CACHE_PATH` | fastembed's own cache | Where the model is stored. The Docker image sets `/app/models/fastembed` |
 
 Keyword search uses SQLite FTS5 with a trigram tokenizer, so Hebrew and other non-English text match. The tokenizer depends on the SQLite version: 3.45 or later uses `trigram remove_diacritics 1`; 3.34 to 3.44 (including the Docker image) uses plain `trigram`; older uses `unicode61`. When the tokenizer changes, the knowledge-base, memory and Synapse indexes rebuild on first start. To rebuild by hand: `realize-os kb reindex` or `POST /api/kb/reindex`.
@@ -402,7 +402,7 @@ LLM_FALLBACK=                       # e.g. gemini,openai,ollama
 LLM_MODEL_FAST=                     # e.g. gemini/gemini-2.5-flash
 LLM_MODEL_STANDARD=
 LLM_MODEL_DEEP=
-KB_EMBED_MODEL=                     # empty = multilingual default; none = no embeddings
+# KB_EMBED_MODEL=                   # unset = multilingual default; empty, none, off, 0 or false = no embeddings
 
 # API Security
 REALIZE_API_KEY=                 # API key for simple auth

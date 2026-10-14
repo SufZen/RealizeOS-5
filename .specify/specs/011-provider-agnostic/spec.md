@@ -98,7 +98,7 @@
 
 - The knowledge-base, memory and Synapse indexes store a schema version and the tokenizer in use. **When the tokenizer changes, the index rebuilds itself** on first open.
 - Results rank by `bm25`. A query that has no usable FTS term falls back to a scoped `LIKE` over short tokens, and the venture scope always applies.
-- Embeddings use fastembed with `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2` (about 0.22 GB), overridable with `KB_EMBED_MODEL`; `none` turns them off. Changing the model clears the stored vectors and re-embeds. A model that cannot load logs a warning and search stays keyword-only.
+- Embeddings use fastembed with `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2` (about 0.22 GB), overridable with `KB_EMBED_MODEL` (unset = default; empty, `none`, `off`, `0` or `false` turn them off). Changing the model clears the stored vectors and re-embeds. A model that cannot load logs a warning and search stays keyword-only.
 - `POST /api/kb/reindex` (and `realize kb reindex`) rebuilds on demand, with the same auth as `/settings/reindex`.
 - MCP `kb_search` is scoped to the caller's ventures, inside the handler as well as in the dispatcher.
 - Token estimates count Hebrew and Arabic letters at 1.5 characters per token, so prompts are not under-counted. A short Hebrew question (3 or more characters) now triggers the knowledge-base lookup.

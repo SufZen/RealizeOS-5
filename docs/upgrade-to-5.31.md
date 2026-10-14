@@ -10,7 +10,7 @@ This guide describes the **5.31 release content**: every feature works on every 
 
 ## Upgrade
 
-- **Docker:** set `REALIZE_VERSION` to the 5.31 tag (or pull `latest`) and recreate the container: `docker compose -f docker-compose.prod.yml pull && docker compose -f docker-compose.prod.yml up -d`. The image already contains the embedding model.
+- **Docker:** set `REALIZE_VERSION` to the 5.31 tag (or pull `latest`) and recreate the container: `docker compose -f docker-compose.prod.yml pull && docker compose -f docker-compose.prod.yml up -d`. The image build downloads the embedding model when the build has network access; otherwise it downloads on first indexing (or set `KB_EMBED_MODEL=none` to run fully offline).
 - **pip:** `pip install -U realize-os`, then restart the service. Two new dependencies, `fastembed` (local embeddings) and `pypdf` (PDF text for providers that cannot read PDFs), are installed with it.
 - **From source / Windows installer:** `git pull` and reinstall the requirements (`pip install -r requirements.txt`), or run `Update-RealizeOS.bat`, then restart.
 
@@ -38,9 +38,9 @@ Venture folders whose `system_dir` is outside `systems/` are now indexed too, an
 
 Knowledge-base search now has a semantic part, and it uses a multilingual model: `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2` (about **0.22 GB**), run locally by `fastembed`. The old default was an English-only model, so every stored vector is recomputed once, during the first index run after the upgrade.
 
-- **Download.** It happens on first use and is cached (`FASTEMBED_CACHE_PATH`; the Docker image sets `/app/models/fastembed` and downloads the model while building).
+- **Download.** It happens on first use and is cached (`FASTEMBED_CACHE_PATH`; the Docker image sets `/app/models/fastembed` and tries to download the model while building, which only works when the build has network access).
 - **Offline or blocked.** If the model cannot be loaded, a warning is logged and search stays keyword-only. Nothing fails. For an air-gapped host, copy the model cache into `FASTEMBED_CACHE_PATH` before starting, or turn embeddings off.
-- **Change or disable it.** `KB_EMBED_MODEL=<fastembed model name>` picks another model (changing it clears the stored vectors and re-embeds); `KB_EMBED_MODEL=none` turns embeddings off.
+- **Change or disable it.** `KB_EMBED_MODEL=<fastembed model name>` picks another model (changing it clears the stored vectors and re-embeds); `KB_EMBED_MODEL=none` turns embeddings off (so do an empty value, `off`, `0` and `false`; leave the variable **unset** for the default).
 
 ### New settings (all optional)
 
@@ -54,7 +54,7 @@ Knowledge-base search now has a semantic part, and it uses a multilingual model:
 | `LITELLM_MODEL`, `LITELLM_API_BASE` | unset | Any other provider LiteLLM supports, and an optional gateway URL for it |
 | `GEMINI_FLASH_MODEL`, `GEMINI_PRO_MODEL` | `gemini-2.5-flash` / `gemini-2.5-pro` | Gemini model ids |
 | `ANTHROPIC_WORKSPACE_ID` | unset | Set it for **workspace-scoped Anthropic keys**; it is sent as the `anthropic-workspace-id` header |
-| `KB_EMBED_MODEL` | the multilingual model above | Embedding model; `none` = keyword search only |
+| `KB_EMBED_MODEL` | unset = the multilingual model above | Embedding model; empty, `none`, `off`, `0` or `false` = keyword search only |
 
 All of these can also be changed in **Settings → LLM Routing** without a restart, and the onboarding wizard asks for the primary provider. See [configuration.md](configuration.md#llm-routing) for examples per provider (Gemini only, OpenAI only, Ollama only, Claude, a LiteLLM proxy).
 
