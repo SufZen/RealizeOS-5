@@ -339,8 +339,11 @@ class TestRealPricing:
     def test_known_model_is_priced_by_litellm(self):
         from realize_core.llm.litellm_provider import LiteLLMProvider
 
-        prompt, completion = real_litellm.cost_per_token(model="gpt-4o-mini", prompt_tokens=1000, completion_tokens=1000)
-        assert prompt > 0 and completion > 0
+        prompt, completion = real_litellm.cost_per_token(
+            model="gpt-4o-mini", prompt_tokens=1000, completion_tokens=1000
+        )
+        assert prompt > 0
+        assert completion > 0
         cost = LiteLLMProvider(default_model="gpt-4o-mini")._calc_cost("gpt-4o-mini", 1000, 1000)
         assert cost == pytest.approx(prompt + completion)
 

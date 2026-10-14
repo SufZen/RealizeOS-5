@@ -21,16 +21,27 @@ _ROUTING_ENV = (
 )
 
 
+def _clear_routing_env(monkeypatch):
+    """Remove the routing variables so monkeypatch undoes anything the route writes.
+
+    ``_write_env_value`` sets ``os.environ`` directly. ``delenv`` on a variable
+    that is absent records nothing, so a value written later would outlive the
+    test; setting it first makes monkeypatch record "absent" and delete it.
+    """
+    for key in _ROUTING_ENV:
+        monkeypatch.setenv(key, "")
+        monkeypatch.delenv(key)
+
+
 @pytest.fixture
 def client(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("REALIZE_ROOT", str(tmp_path))
-    for key in _ROUTING_ENV:
-        monkeypatch.delenv(key, raising=False)
-    # Keys for two providers so primary can move between them; Ollama is not probed.
+    _clear_routing_env(monkeypatch)
+    # Keys for two providers so primary can move between them.
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test-0000000000")
     monkeypatch.setenv("GOOGLE_AI_API_KEY", "g-test-0000000000")
-    monkeypatch.setenv("OLLAMA_BASE_URL", "http://127.0.0.1:9")  # nothing listens; probe fails fast
+    # Ollama points at the conftest's unroutable address; the network guard refuses the probe at once.
     from realize_api.routes import settings_llm
     from realize_core.llm.registry import reset_registry
 
@@ -39,9 +50,6 @@ def client(tmp_path, monkeypatch):
     app.include_router(settings_llm.router, prefix="/api")
     yield TestClient(app)
     reset_registry()
-    # _write_env_value puts values in os.environ directly; undo them.
-    for key in _ROUTING_ENV:
-        monkeypatch.delenv(key, raising=False)
 
 
 def _env_text(tmp_path) -> str:
@@ -266,14 +274,12 @@ class TestPutAuth:
     def _users(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
         monkeypatch.setenv("REALIZE_ROOT", str(tmp_path))
-        monkeypatch.delenv("REALIZE_API_KEY", raising=False)
+        _clear_routing_env(monkeypatch)
         (tmp_path / "users.yaml").write_text(_USERS_YAML, encoding="utf-8")
         yield
         from realize_core.llm.registry import reset_registry
 
         reset_registry()
-        for key in _ROUTING_ENV:
-            monkeypatch.delenv(key, raising=False)
 
     def test_operator_is_refused(self, tmp_path):
         res = _app_as("dana@acme.io", "operator").put("/api/llm/routing", json={"primary": "gemini"})
@@ -291,3 +297,11 @@ class TestPutAuth:
         res = _app_as("owner@realization.co.il", "owner").put("/api/llm/routing", json={"primary": "gemini"})
         assert res.status_code == 200, res.text
         assert "LLM_PRIMARY=gemini" in _env_text(tmp_path)
+
+
+def test_routing_writes_do_not_outlive_the_test():
+    """Runs after the PUT tests above: nothing they wrote is left in the environment."""
+    import os
+
+    leaked = {k: os.environ[k] for k in _ROUTING_ENV if k in os.environ and k != "REALIZE_API_KEY"}
+    assert leaked == {}

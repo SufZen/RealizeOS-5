@@ -73,7 +73,7 @@ async def test_review_failure_is_not_stored_as_review(gemini, monkeypatch):
     from realize_core.llm.base_provider import STOP_ERROR
 
     class _Session:
-        drafts = ["d"]
+        drafts: ClassVar[list[str]] = ["d"]
         review = None
         stage = "drafting"
         active_agent = None
@@ -101,7 +101,7 @@ async def test_review_failure_is_not_stored_as_review(gemini, monkeypatch):
 
     assert session.review is None
     assert session.stage != "approved"
-    assert "review" in result.lower() and "could not" in result.lower()
+    assert "could not run the review" in result.lower()
     assert "An error occurred processing" not in result
 
 

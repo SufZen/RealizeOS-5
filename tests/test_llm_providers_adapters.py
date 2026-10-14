@@ -56,8 +56,9 @@ def _clean_env(monkeypatch):
 @pytest.fixture
 def acompletion():
     mock = AsyncMock()
-    with patch.object(litellm, "acompletion", mock), patch.object(
-        litellm, "cost_per_token", autospec=True, return_value=(0.0015, 0.0005)
+    with (
+        patch.object(litellm, "acompletion", mock),
+        patch.object(litellm, "cost_per_token", autospec=True, return_value=(0.0015, 0.0005)),
     ):
         yield mock
 

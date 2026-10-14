@@ -62,7 +62,9 @@ def providers(monkeypatch):
 async def _answer(message):
     from realize_core.base_handler import _answer_with_tools
 
-    return await _answer_with_tools("prompt", [{"role": "user", "content": message}], "agent", None, {}, message=message)
+    return await _answer_with_tools(
+        "prompt", [{"role": "user", "content": message}], "agent", None, {}, message=message
+    )
 
 
 @pytest.mark.asyncio
@@ -97,7 +99,8 @@ async def test_tier_pinned_to_non_tools_provider_falls_back_with_its_own_tier_mo
 
     assert lost is False
     assert gemini.calls == ["gemini/gemini-2.5-pro"]  # gemini's own standard model
-    assert claude.calls == [] and textonly.calls == []
+    assert claude.calls == []
+    assert textonly.calls == []
 
 
 @pytest.mark.asyncio

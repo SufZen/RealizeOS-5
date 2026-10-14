@@ -202,7 +202,9 @@ async def test_failed_llm_call_fails_the_step_with_the_error(gemini, monkeypatch
 
     async def broken(*_a, **_k):
         gemini.calls.append({})
-        return LLMResponse(text="An error occurred processing your request.", error="quota exceeded", stop_reason=STOP_ERROR)
+        return LLMResponse(
+            text="An error occurred processing your request.", error="quota exceeded", stop_reason=STOP_ERROR
+        )
 
     monkeypatch.setattr(gemini, "complete", broken)
     with pytest.raises(StepFailedError, match="quota exceeded"):
