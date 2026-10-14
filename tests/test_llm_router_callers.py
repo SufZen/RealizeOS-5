@@ -1,13 +1,12 @@
 """Every LLM caller outside the router works with only a non-Claude provider.
 
 Each test registers a single fake "gemini" provider (no Claude anywhere) and
-checks the caller gets its answer through ``route_completion``. A grep check
-keeps direct provider-client imports inside ``realize_core/llm/``.
+checks the caller gets its answer through ``route_completion``. Direct
+provider-client calls and imports are kept out by
+``scripts/check_provider_neutral.py`` (tests/test_check_provider_neutral.py).
 """
 
 import json
-import re
-from pathlib import Path
 from typing import ClassVar
 from unittest.mock import patch
 
@@ -15,8 +14,6 @@ import pytest
 from realize_core.config import MODELS
 from realize_core.llm.base_provider import BaseLLMProvider, LLMResponse, ModelInfo
 from realize_core.llm.registry import ProviderRegistry
-
-REPO = Path(__file__).resolve().parents[1]
 
 
 class _FakeGemini(BaseLLMProvider):
@@ -166,24 +163,6 @@ def test_status_lists_registry_providers(gemini):
     result = asyncio.run(realize_status({}, object(), None))
 
     assert result["llm"] == {"gemini": "available"}
-
-
-_CLIENT_IMPORT = re.compile(
-    r"^\s*(from\s+realize_core\.llm(\.|\s+import\s+)(claude_client|gemini_client)|import\s+realize_core\.llm\.(claude_client|gemini_client))",
-    re.MULTILINE,
-)
-
-
-def test_no_direct_provider_client_imports_outside_llm():
-    offenders = []
-    for path in REPO.rglob("*.py"):
-        rel = path.relative_to(REPO).as_posix()
-        if rel.startswith(("tests/", "realize_core/llm/", ".venv/", "node_modules/")) or "/node_modules/" in rel:
-            continue
-        text = path.read_text(encoding="utf-8", errors="ignore")
-        if _CLIENT_IMPORT.search(text) or re.search(r"import\s+.*\b(call_claude|call_gemini)\w*", text):
-            offenders.append(rel)
-    assert offenders == []
 
 
 def test_nightly_eval_counts_by_recorded_provider(gemini):

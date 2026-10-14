@@ -77,9 +77,9 @@ def convert_tool_schemas(tools: list[dict], fmt: str) -> list[dict]:
     ``{name, description, input_schema}`` as a function tool; entries already
     in OpenAI shape pass through untouched.
     """
-    if fmt == "claude":
+    if fmt == "claude":  # provider-neutral: ok wire-format name from an adapter's tools_format, not a provider check
         return tools
-    if fmt != "openai":
+    if fmt != "openai":  # provider-neutral: ok wire-format name from an adapter's tools_format, not a provider check
         raise ValueError(f"Unknown tool schema format: {fmt!r}")
     converted = []
     for tool in tools:

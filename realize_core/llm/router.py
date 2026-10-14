@@ -349,12 +349,13 @@ TASK_TIERS = {
 }
 
 # LiteLLM model-string prefix -> registered provider name (anything else -> "litellm").
+# LiteLLM prefix -> (provider, the prefix that provider's own model ids carry).
 _PREFIX_PROVIDERS = (
-    ("anthropic/", "claude"),
-    ("gemini/", "gemini"),
-    ("openai/", "openai"),
-    ("ollama_chat/", "ollama"),
-    ("ollama/", "ollama"),
+    ("anthropic/", "claude", ""),  # native Claude ids are bare
+    ("gemini/", "gemini", "gemini/"),
+    ("openai/", "openai", "openai/"),
+    ("ollama_chat/", "ollama", "ollama_chat/"),
+    ("ollama/", "ollama", "ollama_chat/"),
 )
 
 RATE_LIMIT_TEXT = "I'm currently handling too many requests. Please wait a moment and try again."
@@ -389,14 +390,9 @@ def parse_model_string(model: str) -> tuple[str, str]:
     becomes ``ollama_chat/``; other prefixes are kept (the adapters accept them).
     Unknown prefixes go to the generic ``litellm`` provider unchanged.
     """
-    for prefix, name in _PREFIX_PROVIDERS:
+    for prefix, name, native in _PREFIX_PROVIDERS:
         if model.startswith(prefix):
-            rest = model[len(prefix) :]
-            if name == "claude":
-                return name, rest
-            if name == "ollama":
-                return name, f"ollama_chat/{rest}"
-            return name, model
+            return name, f"{native}{model[len(prefix) :]}"
     return "litellm", model
 
 
