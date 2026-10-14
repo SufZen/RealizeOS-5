@@ -337,6 +337,7 @@ async def handle_review(
     session = get_session(system_key, user_id)
 
     content_to_review = None
+    prior_stage = session.stage if session else None
     if session and session.drafts:
         latest = session.latest_draft()
         content_to_review = latest["content"]
@@ -375,7 +376,15 @@ async def handle_review(
         }
     ]
 
-    response = (await route_completion(system_prompt, review_messages, tier="standard", system_key=system_key)).text
+    result = await route_completion(system_prompt, review_messages, tier="standard", system_key=system_key)
+    if not result.ok:
+        # Never store a failure as review content.
+        logger.warning("Review for %s failed: %s", system_key, result.error)
+        if session and session.stage == "reviewing":
+            session.stage = prior_stage
+            session.save()
+        return f"I could not run the review right now ({result.error or 'the LLM call failed'}). Please try again."
+    response = result.text
 
     if session:
         session.review = {"verdict": "reviewed", "content": response}

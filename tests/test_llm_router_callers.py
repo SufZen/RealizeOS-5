@@ -68,6 +68,43 @@ async def test_review_handler(gemini, monkeypatch):
     assert "a draft" in gemini.calls[0]["messages"][0]["content"]
 
 
+async def test_review_failure_is_not_stored_as_review(gemini, monkeypatch):
+    import realize_core.base_handler as bh
+    from realize_core.llm.base_provider import STOP_ERROR
+
+    class _Session:
+        drafts = ["d"]
+        review = None
+        stage = "drafting"
+        active_agent = None
+        saved = 0
+
+        def latest_draft(self):
+            return {"content": "a draft"}
+
+        def save(self):
+            self.saved += 1
+
+        def summary(self):
+            return "[summary]"
+
+    session = _Session()
+
+    async def broken(*_a, **_k):
+        return LLMResponse(text="", error="provider down", stop_reason=STOP_ERROR)
+
+    monkeypatch.setattr(gemini, "complete", broken)
+    monkeypatch.setattr(bh, "get_session", lambda *a: session)
+    monkeypatch.setattr(bh, "build_system_prompt", lambda **kw: "reviewer prompt")
+
+    result = await bh.handle_review("acme", "u1")
+
+    assert session.review is None
+    assert session.stage != "approved"
+    assert "review" in result.lower() and "could not" in result.lower()
+    assert "An error occurred processing" not in result
+
+
 async def test_semantic_match_default_llm(gemini):
     from realize_core.skills.semantic import semantic_match
 
