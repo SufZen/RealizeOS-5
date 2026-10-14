@@ -9,7 +9,7 @@ GEMINI_API_KEY).
 import importlib.util
 import logging
 import os
-from typing import Any
+from typing import Any, ClassVar
 
 from realize_core import config
 from realize_core.llm.base_provider import Capability, ModelInfo
@@ -31,6 +31,7 @@ class GeminiProvider(PrefixedLiteLLMProvider):
     """Google Gemini provider (Flash and Pro)."""
 
     prefix = "gemini/"
+    tier_models: ClassVar[dict[str, str]] = {"fast": "gemini_flash", "standard": "gemini_pro", "deep": "gemini_pro"}
 
     def __init__(self) -> None:
         super().__init__(default_model=self._flash())

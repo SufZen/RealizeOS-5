@@ -178,6 +178,10 @@ class LiteLLMProvider(BaseLLMProvider):
     def name(self) -> str:
         return "litellm"
 
+    def default_model_id(self) -> str | None:
+        """The model used when a call names none (every tier uses it unless a subclass maps tiers)."""
+        return self._default_model
+
     def _get_litellm(self):
         """Lazy-load the litellm module."""
         if self._litellm is None:

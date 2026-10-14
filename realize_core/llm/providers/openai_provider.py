@@ -7,6 +7,7 @@ OPENAI_API_KEY itself.
 
 import importlib.util
 import os
+from typing import ClassVar
 
 from realize_core.llm.base_provider import Capability, ModelInfo
 from realize_core.llm.providers._litellm_adapter import PrefixedLiteLLMProvider
@@ -21,6 +22,7 @@ class OpenAIProvider(PrefixedLiteLLMProvider):
     """OpenAI GPT provider (GPT-4o, GPT-4o mini)."""
 
     prefix = "openai/"
+    tier_models: ClassVar[dict[str, str]] = {"fast": "gpt4o_mini", "standard": "gpt4o", "deep": "gpt4o"}
 
     def __init__(self) -> None:
         super().__init__(default_model="openai/gpt-4o-mini")

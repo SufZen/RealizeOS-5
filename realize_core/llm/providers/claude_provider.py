@@ -75,6 +75,11 @@ class ClaudeProvider(BaseLLMProvider):
     # Process-wide: a restart with a corrected CLAUDE_*_MODEL clears it.
     _dead_models: ClassVar[dict[str, str]] = {}
     tools_format = "claude"
+    tier_models: ClassVar[dict[str, str]] = {
+        "fast": "claude_sonnet",
+        "standard": "claude_sonnet",
+        "deep": "claude_opus",
+    }
 
     @property
     def name(self) -> str:

@@ -74,11 +74,11 @@ def _registry(*providers: _FakeProvider, primary: str) -> ProviderRegistry:
 
 @pytest.fixture
 def no_limits():
-    """Disable rate/cost limits and the LiteLLM extended fallback."""
+    """Disable rate/cost limits and quality-feedback tier overrides."""
     with (
         patch("realize_core.llm.router._check_rate_limit", return_value=True),
         patch("realize_core.llm.router._check_cost_limit", return_value=True),
-        patch("realize_core.llm.router._try_litellm_completion", new=AsyncMock(return_value=None)),
+        patch("realize_core.llm.router._get_quality_override", return_value=None),
     ):
         yield
 
@@ -126,7 +126,7 @@ class TestFallbackChain:
         assert claude.calls <= 1
 
     async def test_max_retries_still_caps_fallback_attempts(self, no_limits):
-        from realize_core.llm.router import route_to_llm
+        from realize_core.llm.router import ALL_FAILED_TEXT, route_to_llm
 
         claude = _FakeProvider("claude", ok=False)
         p1 = _FakeProvider("p1", ok=False)
@@ -134,22 +134,12 @@ class TestFallbackChain:
         p3 = _FakeProvider("p3")
         reg = _registry(claude, p1, p2, p3, primary="claude")
 
-        with (
-            patch("realize_core.llm.registry.get_registry", return_value=reg),
-            patch.dict(
-                sys.modules,
-                {
-                    "realize_core.llm.claude_client": _fake_claude_client(
-                        call_claude_sonnet=AsyncMock(return_value="last resort"),
-                        call_claude_opus=AsyncMock(return_value="last resort"),
-                    )
-                },
-            ),
-        ):
+        with patch("realize_core.llm.registry.get_registry", return_value=reg):
             result = await route_to_llm("sys", [{"role": "user", "content": "hi"}], task_type="content", max_retries=2)
 
         assert (p1.calls, p2.calls, p3.calls) == (1, 1, 0)
-        assert result == "last resort"
+        # No direct-client last resort any more: the user gets the error message.
+        assert result == ALL_FAILED_TEXT
 
 
 def _not_found() -> anthropic.NotFoundError:

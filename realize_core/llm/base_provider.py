@@ -8,7 +8,7 @@ enabling provider-agnostic routing and easy addition of new models.
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any
+from typing import Any, ClassVar
 
 
 class Capability(Enum):
@@ -148,6 +148,9 @@ class BaseLLMProvider(ABC):
 
     # Wire format used to serialise tool schemas ("openai" or "claude").
     tools_format: str = "openai"
+    # Routing tier ("fast", "standard", "deep") -> registry model key for that tier.
+    # A tier without an entry uses default_model_id().
+    tier_models: ClassVar[dict[str, str]] = {}
 
     @property
     @abstractmethod
@@ -249,6 +252,10 @@ class BaseLLMProvider(ABC):
         Default returns True. Override to add runtime checks.
         """
         return True
+
+    def default_model_id(self) -> str | None:
+        """Model used when a call names none (None = the provider decides)."""
+        return None
 
     def is_model_usable(self, model_id: str) -> bool:
         """Check whether a specific model can be called on this provider.

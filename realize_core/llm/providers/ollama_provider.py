@@ -7,7 +7,7 @@ model from OLLAMA_MODEL. Tool support is probed from the model itself.
 
 import logging
 import time
-from typing import Any
+from typing import Any, ClassVar
 
 import httpx
 
@@ -30,6 +30,7 @@ class OllamaProvider(PrefixedLiteLLMProvider):
     """Ollama provider. Cost is always zero."""
 
     prefix = "ollama_chat/"
+    tier_models: ClassVar[dict[str, str]] = {"fast": "ollama", "standard": "ollama", "deep": "ollama"}
 
     def __init__(self) -> None:
         super().__init__(default_model=self._model_id())

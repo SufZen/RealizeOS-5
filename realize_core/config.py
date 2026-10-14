@@ -40,6 +40,11 @@ def llm_fallback() -> list[str]:
     return [n.strip().lower() for n in os.getenv("LLM_FALLBACK", "").split(",") if n.strip()]
 
 
+def llm_tier_model(tier: str) -> str:
+    """LiteLLM model string pinned to a routing tier by LLM_MODEL_<TIER> (empty if unset)."""
+    return os.getenv(f"LLM_MODEL_{tier.upper()}", "").strip()
+
+
 def ollama_base_url() -> str:
     """Ollama server URL: OLLAMA_BASE_URL, else OLLAMA_HOST, else localhost."""
     url = (os.getenv("OLLAMA_BASE_URL") or os.getenv("OLLAMA_HOST") or "http://localhost:11434").strip()
