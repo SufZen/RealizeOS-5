@@ -348,8 +348,7 @@ TASK_TIERS = {
     "complex": "deep",
 }
 
-# LiteLLM model-string prefix -> registered provider name (anything else -> "litellm").
-# LiteLLM prefix -> (provider, the prefix that provider's own model ids carry).
+# LiteLLM prefix -> (provider, the prefix that provider's own model ids carry); anything else -> "litellm".
 _PREFIX_PROVIDERS = (
     ("anthropic/", "claude", ""),  # native Claude ids are bare
     ("gemini/", "gemini", "gemini/"),
@@ -606,12 +605,15 @@ async def route_completion(
 
     tried: set[str] = set()
     if name:
-        tried.add(name)
         provider = registry.get_provider_by_name(name)
         if provider and provider.is_available():
             response = await _call_provider(provider, model_id, system_prompt, messages, extra)
             if response is not None and _accept(response):
                 return response
+        # A failed pinned model (``model`` or LLM_MODEL_<TIER>) leaves its provider
+        # in the walk below, to be retried with that provider's own tier model.
+        if not provider or not provider.is_available() or model_id == _tier_model(registry, provider, tier):
+            tried.add(name)
 
     attempts = 0
     for fallback_name in registry.fallback_chain():

@@ -552,6 +552,32 @@ class TestRouteCompletion:
         assert [c["model"] for c in openai.calls] == ["openai/gpt-4o", "openai/gpt-4o"]
         assert gemini.calls == []
 
+    async def test_failed_pinned_model_retries_its_provider_with_the_tier_model(self, routing_env):
+        """A dead pinned model must not stop the primary from answering with its own tier model."""
+
+        class _DeadPin(_TierFake):
+            async def complete(self, system_prompt, messages, model=None, **kwargs):
+                if model == "gemini/gemini-retired":
+                    self.calls.append({"model": model, **kwargs})
+                    return LLMResponse(text="", provider=self._name, error="model not found")
+                return await super().complete(system_prompt, messages, model=model, **kwargs)
+
+        gemini = _DeadPin("gemini", {"g_flash": "g-flash"}, {"fast": "g_flash"})
+        openai = _TierFake("openai")
+        with _use(_reg(gemini, openai)):
+            response = await route_completion("s", [], tier="fast", model="gemini/gemini-retired")
+        assert response.text == "from gemini"
+        assert [c["model"] for c in gemini.calls] == ["gemini/gemini-retired", "g-flash"]
+        assert openai.calls == []
+
+    async def test_failed_tier_model_is_not_retried_on_the_same_provider(self, routing_env):
+        gemini = _TierFake("gemini", {"g_flash": "g-flash"}, {"fast": "g_flash"}, ok=False)
+        openai = _TierFake("openai")
+        with _use(_reg(gemini, openai)):
+            response = await route_completion("s", [], tier="fast", model="g_flash")
+        assert response.text == "from openai"
+        assert [c["model"] for c in gemini.calls] == ["g-flash"]
+
     async def test_env_tier_override_is_used(self, routing_env):
         gemini = _TierFake("gemini", {"g_flash": "g-flash"}, {"fast": "g_flash"})
         openai = _TierFake("openai")

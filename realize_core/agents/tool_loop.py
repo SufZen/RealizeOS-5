@@ -218,7 +218,7 @@ async def run_tool_loop(
         system_prompt: Agent system prompt.
         messages: Conversation so far (plain role/content messages); not mutated.
         tools: Tool schemas the agent may use (Claude format; converted to the
-            provider's ``tools_format`` before each call).
+            provider's ``tools_format`` once, before the loop).
         registry: Tool registry to execute through (default: global registry).
         provider: LLM provider with ``complete_with_tools`` (default: the first
             tool-capable provider in the fallback chain).
