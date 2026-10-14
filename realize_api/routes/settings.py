@@ -165,14 +165,15 @@ async def update_gates(body_req: GateUpdateRequest, request: Request):
 
 
 @router.post("/settings/reindex")
+@router.post("/kb/reindex")
 async def reindex_kb(request: Request):
-    """Trigger a KB re-index."""
+    """Trigger a KB re-index. ``POST /kb/reindex`` is the same route, which is what ``realize kb reindex`` calls."""
     kb_path = getattr(request.app.state, "kb_path", Path("."))
     try:
         from realize_core.kb.indexer import index_kb_files
 
         systems = getattr(request.app.state, "systems", None)
         count = index_kb_files(str(kb_path), force=True, systems_config=systems)
-        return {"status": "reindexed", "files_indexed": count}
+        return {"status": "reindexed", "files_indexed": count, "message": f"Reindexed {count} documents."}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

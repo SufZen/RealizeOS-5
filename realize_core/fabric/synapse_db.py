@@ -14,6 +14,7 @@ from datetime import datetime
 from pathlib import Path
 
 from realize_core.fabric.entity import FabricEntity
+from realize_core.utils.fts import build_match_query, fts_tokenizer, table_tokenizer
 
 logger = logging.getLogger(__name__)
 
@@ -66,18 +67,64 @@ CREATE TABLE IF NOT EXISTS mission_memory (
     last_updated TEXT NOT NULL DEFAULT ''
 );
 
--- FTS5 for full-text search (L2) — standalone table
-CREATE VIRTUAL TABLE IF NOT EXISTS entities_fts USING fts5(
-    id, title, summary, body, venture, type,
-    tokenize='porter unicode61'
-);
-
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_entities_venture ON entities(venture);
 CREATE INDEX IF NOT EXISTS idx_entities_type ON entities(type);
 CREATE INDEX IF NOT EXISTS idx_tags_tag ON tags(tag);
 CREATE INDEX IF NOT EXISTS idx_refs_to ON refs(to_entity);
 """
+
+
+#: ``PRAGMA user_version`` of synapse.db. 2: multilingual (trigram) FTS tokenizer.
+SYNAPSE_SCHEMA_VERSION = 2
+_FTS_COLUMNS = "id, title, summary, body, venture, type"
+
+
+def _create_entities_fts(conn: sqlite3.Connection) -> None:
+    """FTS5 for full-text search (L2) — a standalone table, not external-content."""
+    conn.execute(
+        f"CREATE VIRTUAL TABLE IF NOT EXISTS entities_fts USING fts5({_FTS_COLUMNS}, tokenize='{fts_tokenizer()}')"
+    )
+
+
+def _entities_fts_outdated(conn: sqlite3.Connection) -> bool:
+    """True when ``entities_fts`` exists but predates the schema or uses another tokenizer."""
+    current = table_tokenizer(conn, "entities_fts")
+    if current is None:
+        return False
+    return conn.execute("PRAGMA user_version").fetchone()[0] < SYNAPSE_SCHEMA_VERSION or current != fts_tokenizer()
+
+
+def _ensure_entities_fts(conn: sqlite3.Connection) -> None:
+    """Create ``entities_fts``; recreate it with the current tokenizer when outdated.
+
+    The table is standalone and holds a body that ``entities`` does not (only a
+    200-character summary), so the rows are copied out of the old table, which is
+    dropped, recreated and refilled. Only if the old table can't be read are they
+    rebuilt from ``entities`` (id, title, summary, venture, type; summary stands
+    in for the body). Re-checked under the write lock in case another process
+    migrated first.
+    """
+    if _entities_fts_outdated(conn):
+        conn.commit()
+        conn.execute("BEGIN IMMEDIATE")
+        if _entities_fts_outdated(conn):
+            try:
+                rows = conn.execute(f"SELECT {_FTS_COLUMNS} FROM entities_fts").fetchall()
+            except sqlite3.DatabaseError as e:
+                logger.warning("Synapse FTS unreadable (%s); rebuilding from the entities table", e)
+                rows = conn.execute("SELECT id, title, summary, summary, venture, type FROM entities").fetchall()
+            conn.execute("DROP TABLE IF EXISTS entities_fts")
+            _create_entities_fts(conn)
+            conn.executemany(
+                f"INSERT INTO entities_fts ({_FTS_COLUMNS}) VALUES (?, ?, ?, ?, ?, ?)",
+                [tuple(r) for r in rows],
+            )
+            logger.info("Synapse FTS rebuilt (%d rows, tokenizer: %s)", len(rows), fts_tokenizer())
+    else:
+        _create_entities_fts(conn)
+    conn.execute(f"PRAGMA user_version = {SYNAPSE_SCHEMA_VERSION}")
+    conn.commit()
 
 
 class SynapseDB:
@@ -95,6 +142,7 @@ class SynapseDB:
         """Create tables if they don't exist."""
         self._conn.executescript(_SCHEMA_SQL)
         self._conn.commit()
+        _ensure_entities_fts(self._conn)
 
     def close(self) -> None:
         """Close the database connection."""
@@ -247,38 +295,22 @@ class SynapseDB:
         entity_type: str | None = None,
         limit: int = 10,
     ) -> list[dict]:
-        """Full-text search using FTS5."""
+        """Full-text search using FTS5; ``query`` is free text, matched as an OR of its words."""
+        match = build_match_query(query)
+        if match is None:
+            return []
+        sql = "SELECT id, title, summary, venture, type, rank FROM entities_fts WHERE entities_fts MATCH ?"
+        params: list[object] = [match]
+        if scope:
+            sql += " AND venture = ?"
+            params.append(scope)
+        if entity_type:
+            sql += " AND type = ?"
+            params.append(entity_type)
+        sql += " ORDER BY bm25(entities_fts) LIMIT ?"
+        params.append(limit)
         try:
-            if scope and entity_type:
-                rows = self._conn.execute(
-                    "SELECT id, title, summary, venture, type, rank "
-                    "FROM entities_fts WHERE entities_fts MATCH ? AND venture = ? AND type = ? "
-                    "ORDER BY rank LIMIT ?",
-                    (query, scope, entity_type, limit),
-                ).fetchall()
-            elif scope:
-                rows = self._conn.execute(
-                    "SELECT id, title, summary, venture, type, rank "
-                    "FROM entities_fts WHERE entities_fts MATCH ? AND venture = ? "
-                    "ORDER BY rank LIMIT ?",
-                    (query, scope, limit),
-                ).fetchall()
-            elif entity_type:
-                rows = self._conn.execute(
-                    "SELECT id, title, summary, venture, type, rank "
-                    "FROM entities_fts WHERE entities_fts MATCH ? AND type = ? "
-                    "ORDER BY rank LIMIT ?",
-                    (query, entity_type, limit),
-                ).fetchall()
-            else:
-                rows = self._conn.execute(
-                    "SELECT id, title, summary, venture, type, rank "
-                    "FROM entities_fts WHERE entities_fts MATCH ? "
-                    "ORDER BY rank LIMIT ?",
-                    (query, limit),
-                ).fetchall()
-
-            return [dict(r) for r in rows]
+            return [dict(r) for r in self._conn.execute(sql, params).fetchall()]
         except sqlite3.OperationalError as e:
             logger.warning(f"FTS search failed: {e}")
             return []

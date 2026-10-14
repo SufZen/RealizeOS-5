@@ -15,11 +15,16 @@ from datetime import datetime, timedelta
 from difflib import SequenceMatcher
 from pathlib import Path
 
+from realize_core.utils.fts import build_match_query, fts_tokenizer, table_tokenizer
+
 logger = logging.getLogger(__name__)
 
 # Retention policy defaults
 MEMORY_RETENTION_DAYS = 90
 MEMORY_MIN_PER_CATEGORY = 50
+
+#: ``PRAGMA user_version`` of memory.db. 2: multilingual (trigram) FTS tokenizer.
+MEMORY_SCHEMA_VERSION = 2
 
 # Database path — configurable
 DB_PATH: Path | None = None
@@ -62,6 +67,44 @@ def db_connection():
         conn.close()
 
 
+def _create_memories_fts(conn: sqlite3.Connection) -> None:
+    conn.execute(
+        "CREATE VIRTUAL TABLE IF NOT EXISTS memories_fts USING fts5("
+        "content, system_key, category, content='memories', content_rowid='id', "
+        f"tokenize='{fts_tokenizer()}')"
+    )
+
+
+def _memories_fts_outdated(conn: sqlite3.Connection) -> bool:
+    """True when ``memories_fts`` exists but predates the schema or uses another tokenizer."""
+    current = table_tokenizer(conn, "memories_fts")
+    if current is None:
+        return False
+    return conn.execute("PRAGMA user_version").fetchone()[0] < MEMORY_SCHEMA_VERSION or current != fts_tokenizer()
+
+
+def _ensure_memories_fts(conn: sqlite3.Connection) -> None:
+    """Create ``memories_fts``; rebuild it from ``memories`` when its tokenizer is outdated.
+
+    The tokenizer depends on the SQLite version, so the table's own
+    ``tokenize=`` is compared with :func:`fts_tokenizer`; a mismatch (every
+    pre-5.31 table, or a SQLite upgrade) drops and refills it once, re-checked
+    under the write lock in case another process got there first.
+    """
+    if _memories_fts_outdated(conn):
+        conn.commit()
+        conn.execute("BEGIN IMMEDIATE")
+        if _memories_fts_outdated(conn):
+            conn.execute("DROP TABLE IF EXISTS memories_fts")
+            _create_memories_fts(conn)
+            conn.execute("INSERT INTO memories_fts(memories_fts) VALUES('rebuild')")
+            logger.info("Memory FTS rebuilt (tokenizer: %s)", fts_tokenizer())
+    else:
+        _create_memories_fts(conn)
+    conn.execute(f"PRAGMA user_version = {MEMORY_SCHEMA_VERSION}")
+    conn.commit()
+
+
 def init_db():
     """Initialize the memory database and create tables if needed."""
     with db_connection() as conn:
@@ -75,10 +118,7 @@ def init_db():
                 created_at TEXT NOT NULL
             )
         """)
-        conn.execute("""
-            CREATE VIRTUAL TABLE IF NOT EXISTS memories_fts
-            USING fts5(content, system_key, category, content='memories', content_rowid='id')
-        """)
+        _ensure_memories_fts(conn)
         conn.execute("""
             CREATE TRIGGER IF NOT EXISTS memories_ai AFTER INSERT ON memories BEGIN
                 INSERT INTO memories_fts(rowid, content, system_key, category)
@@ -193,15 +233,18 @@ def search_memories(
     """Search memories using FTS5.
 
     Args:
-        query: FTS5 query.
+        query: Free text (a question is fine); it becomes a safe OR query over its words.
         system_key: Only this venture's memories.
         limit: Most rows returned.
         system_keys: Only memories of these ventures (the caller's allowed set);
             None means every venture, and an empty set matches nothing. Applied
             in the query, so ``limit`` counts only rows the caller may see.
     """
+    match = build_match_query(query)
+    if match is None:
+        return []
     clauses = ["memories_fts MATCH ?"]
-    params: list[object] = [query]
+    params: list[object] = [match]
     if system_key:
         clauses.append("m.system_key = ?")
         params.append(system_key)
@@ -212,11 +255,16 @@ def search_memories(
         clauses.append(f"m.system_key IN ({','.join('?' for _ in keys)})")
         params.extend(keys)
     params.append(limit)
-    with db_connection() as conn:
-        rows = conn.execute(
-            f"SELECT m.* FROM memories m JOIN memories_fts f ON m.id = f.rowid WHERE {' AND '.join(clauses)} LIMIT ?",
-            params,
-        ).fetchall()
+    try:
+        with db_connection() as conn:
+            rows = conn.execute(
+                "SELECT m.* FROM memories m JOIN memories_fts f ON m.id = f.rowid "
+                f"WHERE {' AND '.join(clauses)} ORDER BY bm25(memories_fts) LIMIT ?",
+                params,
+            ).fetchall()
+    except sqlite3.OperationalError as e:
+        logger.warning("Memory search failed: %s", e)
+        return []
     return [dict(r) for r in rows]
 
 
