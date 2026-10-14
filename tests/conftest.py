@@ -105,6 +105,19 @@ def _real_conversation_helpers():
             setattr(base_handler, name, helper)
 
 
+@pytest.fixture(params=["anthropic", "openai", "gemini", "ollama"])
+def fake_llm(request, monkeypatch):
+    """The only LLM is one real provider adapter over a scripted, mocked transport.
+
+    Parametrised over the four wire shapes (``tests.fakes.llm.SHAPES``); see
+    ``tests/fakes/llm.py``. The registry, environment and transports are
+    restored after the test.
+    """
+    from tests.fakes.llm import install_fake_llm
+
+    return install_fake_llm(monkeypatch, request.param)
+
+
 @pytest.fixture
 def kb_root(tmp_path):
     """Create a minimal KB directory structure for testing.
