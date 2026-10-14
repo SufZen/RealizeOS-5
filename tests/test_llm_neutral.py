@@ -51,9 +51,9 @@ def _resp(content="hi", tool_calls=None, finish="stop", prompt=10, completion=5)
 
 @pytest.fixture
 def acompletion():
-    """Patch litellm.acompletion (and cost lookup) with an AsyncMock."""
+    """Patch litellm.acompletion with an AsyncMock (pricing stays real, offline)."""
     mock = AsyncMock()
-    with patch.object(litellm, "acompletion", mock), patch.object(litellm, "completion_cost", return_value=0.0):
+    with patch.object(litellm, "acompletion", mock):
         yield mock
 
 

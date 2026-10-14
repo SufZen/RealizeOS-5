@@ -56,7 +56,9 @@ def _clean_env(monkeypatch):
 @pytest.fixture
 def acompletion():
     mock = AsyncMock()
-    with patch.object(litellm, "acompletion", mock), patch.object(litellm, "completion_cost", return_value=0.002):
+    with patch.object(litellm, "acompletion", mock), patch.object(
+        litellm, "cost_per_token", autospec=True, return_value=(0.0015, 0.0005)
+    ):
         yield mock
 
 
@@ -87,7 +89,7 @@ class TestGemini:
         assert resp.ok
         assert resp.text == "ok"
         assert resp.provider == "gemini"
-        assert resp.cost_usd == 0.002  # from litellm.completion_cost, not a hardcoded rate
+        assert resp.cost_usd == pytest.approx(0.002)  # from litellm.cost_per_token, not a hardcoded rate
 
     async def test_max_tokens_floor_for_thinking(self, acompletion, monkeypatch):
         monkeypatch.setenv("GOOGLE_AI_API_KEY", "g-key")

@@ -240,7 +240,6 @@ def install_fake_llm(monkeypatch, shape: str, *, ollama_tools: bool = True) -> F
         client.messages.create = AsyncMock(side_effect=_must_not_call("the anthropic client"))
         monkeypatch.setattr(litellm, "acompletion", AsyncMock(side_effect=fake._litellm))
     monkeypatch.setattr(claude_client, "_get_client", lambda *_a, **_k: client)
-    monkeypatch.setattr(litellm, "completion_cost", lambda *_a, **_k: 0.0)
 
     registry = registry_mod.ProviderRegistry()
     registry.register(provider, keys)

@@ -9,8 +9,9 @@ Covers:
 - Error handling (API errors, import errors)
 """
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, create_autospec, patch
 
+import litellm as real_litellm
 import pytest
 from realize_core.llm.base_provider import Capability, LLMResponse
 
@@ -25,7 +26,8 @@ def mock_litellm():
     mock = MagicMock()
     mock.suppress_debug_info = False
     mock.acompletion = AsyncMock()
-    mock.completion_cost = MagicMock(return_value=0.001)
+    # Autospec of the real function: a call with the wrong signature fails the test.
+    mock.cost_per_token = create_autospec(real_litellm.cost_per_token, return_value=(0.0008, 0.0002))
     return mock
 
 
@@ -311,23 +313,63 @@ class TestCostCalculation:
     """Test cost calculation logic."""
 
     def test_calc_cost_uses_litellm(self, provider, mock_litellm):
-        """Cost calculation tries LiteLLM's pricing first."""
-        mock_litellm.completion_cost.return_value = 0.0025
+        """Cost calculation sums LiteLLM's prompt and completion cost."""
+        mock_litellm.cost_per_token.return_value = (0.002, 0.0005)
         cost = provider._calc_cost("gpt-4o", 1000, 500)
-        assert cost == 0.0025
+        assert cost == pytest.approx(0.0025)
+        mock_litellm.cost_per_token.assert_called_once_with(model="gpt-4o", prompt_tokens=1000, completion_tokens=500)
 
     def test_calc_cost_local_fallback(self, provider, mock_litellm):
         """Falls back to local pricing when LiteLLM fails."""
-        mock_litellm.completion_cost.side_effect = Exception("No pricing data")
+        mock_litellm.cost_per_token.side_effect = Exception("No pricing data")
         cost = provider._calc_cost("gpt-4o", 1_000_000, 1_000_000)
         # GPT-4o: $2.50/M in + $10.00/M out = $12.50
         assert cost == pytest.approx(12.50, abs=0.01)
 
     def test_calc_cost_unknown_model_returns_zero(self, provider, mock_litellm):
         """Unknown models return zero cost when LiteLLM has no pricing."""
-        mock_litellm.completion_cost.side_effect = Exception("Unknown")
+        mock_litellm.cost_per_token.side_effect = Exception("Unknown")
         cost = provider._calc_cost("unknown-model-xyz", 1000, 500)
         assert cost == 0.0
+
+
+class TestRealPricing:
+    """LiteLLM's real price table (bundled cost map, offline; nothing mocked)."""
+
+    def test_known_model_is_priced_by_litellm(self):
+        from realize_core.llm.litellm_provider import LiteLLMProvider
+
+        prompt, completion = real_litellm.cost_per_token(model="gpt-4o-mini", prompt_tokens=1000, completion_tokens=1000)
+        assert prompt > 0 and completion > 0
+        cost = LiteLLMProvider(default_model="gpt-4o-mini")._calc_cost("gpt-4o-mini", 1000, 1000)
+        assert cost == pytest.approx(prompt + completion)
+
+    def test_model_outside_the_local_catalog_is_priced(self):
+        """gpt-4.1-nano is not in the local catalog: only LiteLLM's table can price it."""
+        from realize_core.llm.litellm_provider import LiteLLMProvider
+
+        provider = LiteLLMProvider(default_model="gpt-4o-mini")
+        assert "gpt-4.1-nano" not in {m.model_id for m in provider.list_models()}
+        assert provider._calc_cost("gpt-4.1-nano", 1000, 1000) > 0
+
+    def test_adapter_prefixed_model_is_priced(self):
+        from realize_core.llm.providers.openai_provider import OpenAIProvider
+
+        assert OpenAIProvider()._calc_cost("gpt-4o-mini", 1000, 1000) > 0
+
+    def test_unpriced_model_falls_back_without_raising(self, caplog, monkeypatch):
+        import logging
+
+        from realize_core.llm import litellm_provider
+        from realize_core.llm.litellm_provider import LiteLLMProvider
+
+        monkeypatch.setattr(litellm_provider, "_UNPRICED_MODELS", set())
+
+        with caplog.at_level(logging.DEBUG, logger="realize_core.llm.litellm_provider"):
+            p = LiteLLMProvider(default_model="gpt-4o-mini")
+            assert p._calc_cost("nosuchvendor/not-a-model", 1000, 1000) == 0.0
+            p._calc_cost("nosuchvendor/not-a-model", 1000, 1000)
+        assert sum("not-a-model" in r.getMessage() for r in caplog.records) == 1
 
 
 # ---------------------------------------------------------------------------

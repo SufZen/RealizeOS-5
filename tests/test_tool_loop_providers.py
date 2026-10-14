@@ -159,7 +159,7 @@ async def _scenario(name, turns, registry):
 
     provider, transport, transport_patch = PROVIDERS[name](turns)
     events: list[dict] = []
-    with transport_patch, patch.object(litellm, "completion_cost", return_value=0.0):
+    with transport_patch:
         result = await run_tool_loop(
             "You are the finance agent.", QUESTION, TOOLS, registry=registry, provider=provider, emit=events.append
         )

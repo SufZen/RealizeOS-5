@@ -134,6 +134,10 @@ _DEFAULT_LITELLM_MODELS: list[tuple[str, str, int, set[Capability], float, float
 ]
 
 
+#: Models LiteLLM could not price (logged once each).
+_UNPRICED_MODELS: set[str] = set()
+
+
 class LiteLLMProvider(BaseLLMProvider):
     """Provider that routes to 50+ LLM providers via the LiteLLM library.
 
@@ -497,19 +501,22 @@ class LiteLLMProvider(BaseLLMProvider):
             )
 
     def _calc_cost(self, model: str, input_tokens: int, output_tokens: int) -> float:
-        """Calculate cost using LiteLLM's pricing data, with local fallback."""
-        # Try LiteLLM's built-in cost calculation first
+        """Cost of one call: LiteLLM's price table, else the local catalog, else 0.
+
+        Uses ``litellm.cost_per_token`` (prompt and completion cost, summed). A
+        model LiteLLM has no price for is logged once at debug level.
+        """
         try:
             litellm = self._get_litellm()
-            return litellm.completion_cost(
-                model=model,
-                prompt_tokens=input_tokens,
-                completion_tokens=output_tokens,
+            prompt_cost, completion_cost = litellm.cost_per_token(
+                model=model, prompt_tokens=input_tokens, completion_tokens=output_tokens
             )
-        except Exception:
-            pass
+            return float(prompt_cost) + float(completion_cost)
+        except Exception as e:
+            if model not in _UNPRICED_MODELS:
+                _UNPRICED_MODELS.add(model)
+                logger.debug(f"LiteLLM has no price for {model} ({type(e).__name__}); using the local catalog")
 
-        # Fallback: use our local pricing data
         for m_info in self.list_models():
             if m_info.model_id == model:
                 return (input_tokens * m_info.input_cost_per_m / 1_000_000) + (
