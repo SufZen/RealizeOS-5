@@ -15,10 +15,16 @@ Each step's result feeds into the next step's context.
 
 import json
 import logging
+import re
 from contextlib import AbstractContextManager, nullcontext
 from datetime import date
 
 logger = logging.getLogger(__name__)
+
+#: A ``{name}`` placeholder in a skill template.
+_PLACEHOLDER = re.compile(r"\{([a-zA-Z_][a-zA-Z0-9_]*)\}")
+#: Skill/step fields that pin which model answers an LLM step.
+_ROUTE_FIELDS = ("model", "tier", "task_type")
 
 
 def store_skill_resume_context(
@@ -223,6 +229,12 @@ class SkillContext:
         #: The outside agent (``agent:...``) the run is for, kept when it pauses so
         #: the rest of the run is still governed as the agent's (review G-3).
         self.outside_agent: str | None = None
+        #: The skill's own ``model`` / ``tier`` / ``task_type`` (steps may override).
+        self.llm_route: dict[str, str] = {}
+        #: Every step id of the running skill, so ``{step}`` can be told from other braces.
+        self.known_steps: set[str] = set()
+        #: The step being run (for error messages).
+        self.current_step: str = ""
 
     def to_dict(self) -> dict:
         """Plain data for a durable resume point."""
@@ -235,6 +247,7 @@ class SkillContext:
             "progress_messages": self.progress_messages,
             "annotations": self.annotations,
             "outside_agent": self.outside_agent,
+            "llm_route": self.llm_route,
         }
 
     @classmethod
@@ -247,10 +260,17 @@ class SkillContext:
         ctx.annotations = dict(data.get("annotations") or {})
         outside_agent = data.get("outside_agent")
         ctx.outside_agent = outside_agent if isinstance(outside_agent, str) and outside_agent else None
+        ctx.llm_route = _skill_route(data.get("llm_route") or {})
         return ctx
 
     def inject(self, template: str) -> str:
-        """Replace {variable} placeholders in a template string."""
+        """Replace {variable} placeholders in a template string.
+
+        Raises:
+            StepFailedError: a placeholder naming a step, a variable,
+                ``user_message`` or ``today`` is still there (e.g. a step that
+                has no result). Unknown ``{names}`` and JSON braces are left alone.
+        """
         result = template
         for step_id, value in self.step_results.items():
             result = result.replace(f"{{{step_id}}}", str(value))
@@ -258,16 +278,71 @@ class SkillContext:
             result = result.replace(f"{{{var}}}", str(value))
         result = result.replace("{user_message}", self.user_message)
         result = result.replace("{today}", date.today().isoformat())
+        known = self.known_steps | set(self.step_results) | set(self.variables) | {"user_message", "today"}
+        for name in _PLACEHOLDER.findall(result):
+            if name in known:
+                raise StepFailedError(f"unresolved placeholder {{{name}}} in step {self.current_step}")
         return result
 
 
-async def _call_llm(system_prompt: str, messages: list[dict], system_key: str) -> str:
-    """LLM call for skill steps — through the router (rate/cost limits, provider fallback)."""
-    from realize_core.llm.router import classify_task, route_to_llm
+def _skill_route(source: dict) -> dict[str, str]:
+    """The routing fields (``model``, ``tier``, ``task_type``) a skill or step sets."""
+    return {k: str(source[k]) for k in _ROUTE_FIELDS if source.get(k)}
 
-    last_user = next((m["content"] for m in reversed(messages) if m.get("role") == "user"), "")
-    task_type = classify_task(last_user if isinstance(last_user, str) else "", system_key=system_key)
-    return await route_to_llm(system_prompt, messages, task_type, system_key=system_key)
+
+def _resolve_route(step: dict | None, skill_route: dict | None) -> dict[str, str]:
+    """Which model answers a step, as one ``route_completion`` keyword (or none).
+
+    Precedence: step.model > step.tier > skill.model > skill.tier > skill.task_type.
+    Empty means "classify the user's message".
+
+    Raises:
+        StepFailedError: the winning tier is not a router tier.
+    """
+    from realize_core.llm.router import TIERS
+
+    route: dict[str, str] = {}
+    for source in (step or {}, skill_route or {}):
+        if source.get("model"):
+            route = {"model": str(source["model"])}
+            break
+        if source.get("tier"):
+            route = {"tier": str(source["tier"])}
+            break
+    if not route and (skill_route or {}).get("task_type"):
+        route = {"task_type": str(skill_route["task_type"])}
+    if route.get("tier") and route["tier"] not in TIERS:
+        raise StepFailedError(f"unknown tier '{route['tier']}' (use {', '.join(TIERS)})")
+    return route
+
+
+async def _call_llm(
+    system_prompt: str,
+    messages: list[dict],
+    system_key: str,
+    *,
+    user_message: str | None = None,
+    route: dict[str, str] | None = None,
+    response_schema: dict | None = None,
+) -> str:
+    """LLM call for skill steps — through the router (rate/cost limits, provider fallback).
+
+    ``route`` (from :func:`_resolve_route`) pins a model, tier or task type.
+    Without one the task type is classified from ``user_message`` (the user's
+    own words, never the assembled step prompt).
+    """
+    from realize_core.llm import router
+
+    kwargs: dict = dict(route or {})
+    if not kwargs:
+        if user_message is None:
+            last_user = next((m["content"] for m in reversed(messages) if m.get("role") == "user"), "")
+            user_message = last_user if isinstance(last_user, str) else ""
+        kwargs["task_type"] = router.classify_task(user_message, system_key=system_key)
+    if response_schema is not None:
+        kwargs["response_schema"] = response_schema
+    response = await router.route_completion(system_prompt, messages, system_key=system_key, **kwargs)
+    return response.text
 
 
 async def execute_skill(
@@ -311,30 +386,23 @@ async def execute_skill(
 
         await emit_event(emit, skill_trail_source(skill))
 
-    # V5: SKILL.md format — use markdown instructions
-    if skill_format == "skill_md":
-        return await _execute_skill_md(
-            skill,
-            user_message,
-            system_key,
-            user_id,
-            kb_path,
-            system_config,
-            shared_config,
-            channel,
-        )
-
-    if version == 1:
-        return await _execute_v1_pipeline(
-            skill,
-            user_message,
-            system_key,
-            user_id,
-            kb_path,
-            system_config,
-            shared_config,
-            channel,
-        )
+    if skill_format == "skill_md" or version == 1:
+        # V5 SKILL.md (markdown instructions) or a v1 agent pipeline: one route for the skill.
+        run = _execute_skill_md if skill_format == "skill_md" else _execute_v1_pipeline
+        try:
+            return await run(
+                skill,
+                user_message,
+                system_key,
+                user_id,
+                kb_path,
+                system_config,
+                shared_config,
+                channel,
+            )
+        except StepFailedError as failure:
+            logger.warning("Skill %s stopped: %s", skill_name, failure)
+            return f"⚠️ The skill '{skill_name}' stopped: {failure}."
     else:
         return await _execute_v2_steps(
             skill,
@@ -386,7 +454,13 @@ async def _execute_v1_pipeline(
 
         messages = [{"role": "user", "content": message_content}]
 
-        response = await _call_llm(system_prompt, messages, system_key)
+        response = await _call_llm(
+            system_prompt,
+            messages,
+            system_key,
+            user_message=user_message,
+            route=_resolve_route(None, _skill_route(skill)),
+        )
         results.append(response)
         logger.info(f"Pipeline step {i + 1}/{len(pipeline)}: {agent_key} completed")
 
@@ -413,6 +487,7 @@ async def _execute_v2_steps(
 
     ctx = SkillContext(user_message, system_key, user_id)
     ctx.outside_agent = outside_agent_marker()
+    ctx.llm_route = _skill_route(skill)
     # Skill-level variables (e.g. a venture's spreadsheet ids) for {placeholders}.
     ctx.variables.update({str(k): str(v) for k, v in (skill.get("variables") or {}).items()})
     return await _run_v2_steps(
@@ -431,10 +506,12 @@ async def _run_v2_steps(
     (token revoked or expired, agent tokens turned off, user removed).
     """
     outputs = []
+    ctx.known_steps = {step.get("id", f"step_{i}") for i, step in enumerate(steps)} | set(ctx.step_results)
 
     for i, step in enumerate(steps):
         step_id = step.get("id", f"step_{i}")
         step_type = step.get("type", "agent")
+        ctx.current_step = step_id
 
         gone = _initiator_refusal(ctx) if i else None  # a resume checks before its first step
         if gone:
@@ -443,68 +520,70 @@ async def _run_v2_steps(
 
         logger.info(f"Executing step {i + 1}/{len(steps)}: {step_id} ({step_type})")
 
-        # Check condition for conditional steps
-        condition = step.get("condition")
-        if condition:
-            condition_value = ctx.inject(condition)
-            if "no" in condition_value.lower() or "skip" in condition_value.lower():
-                logger.info(f"Skipping step {step_id} (condition not met)")
-                continue
+        try:
+            # Check condition for conditional steps
+            condition = step.get("condition")
+            if condition:
+                condition_value = ctx.inject(condition)
+                if "no" in condition_value.lower() or "skip" in condition_value.lower():
+                    logger.info(f"Skipping step {step_id} (condition not met)")
+                    continue
 
-        if step_type == "agent":
-            result = await _execute_agent_step(
-                step,
-                ctx,
-                kb_path,
-                system_config,
-                shared_config,
-                channel,
-            )
-        elif step_type == "tool":
-            try:
-                result = await _execute_tool_step(step, ctx, emit=emit)
-            except StepHeldError as held:
-                # Nothing after a held step may run before the operator decides:
-                # dependants would act on an operation that has not happened.
-                store_skill_resume_context(
-                    ctx.user_id,
-                    skill_name,
+            if step_type == "agent":
+                result = await _execute_agent_step(
+                    step,
                     ctx,
-                    steps[i + 1 :],
-                    step_id=step_id,
-                    approval_id=held.request_id,
-                    kind="tool",
+                    kb_path,
+                    system_config,
+                    shared_config,
+                    channel,
+                    json_schema=_json_consumer_schema(step_id, steps[i + 1 :]),
                 )
-                return str(held)
-            except StepFailedError as failure:
-                logger.warning("Skill %s stopped at step %s: %s", skill_name, step_id, failure)
-                return f"⚠️ The workflow stopped at step '{step_id}': {failure}. Nothing after this step ran."
-        elif step_type == "condition":
-            result = await _execute_condition_step(step, ctx)
-            if result == "__SKIP__":
-                continue
-            elif result == "__STOP__":
-                break
-        elif step_type == "delegate":
-            result = await _execute_delegate_step(
-                step,
-                ctx,
-                kb_path,
-                system_config,
-                shared_config,
-                channel,
-            )
-        elif step_type == "human":
-            result = await _execute_human_step(step, ctx)
-            if result.startswith("__HUMAN_INPUT_NEEDED__"):
-                question = result.replace("__HUMAN_INPUT_NEEDED__\n", "")
-                approval_id = _create_skill_input_approval(ctx, skill_name, question)
-                store_skill_resume_context(
-                    ctx.user_id, skill_name, ctx, steps[i + 1 :], step_id=step_id, approval_id=approval_id
+            elif step_type == "tool":
+                try:
+                    result = await _execute_tool_step(step, ctx, emit=emit)
+                except StepHeldError as held:
+                    # Nothing after a held step may run before the operator decides:
+                    # dependants would act on an operation that has not happened.
+                    store_skill_resume_context(
+                        ctx.user_id,
+                        skill_name,
+                        ctx,
+                        steps[i + 1 :],
+                        step_id=step_id,
+                        approval_id=held.request_id,
+                        kind="tool",
+                    )
+                    return str(held)
+            elif step_type == "condition":
+                result = await _execute_condition_step(step, ctx)
+                if result == "__SKIP__":
+                    continue
+                elif result == "__STOP__":
+                    break
+            elif step_type == "delegate":
+                result = await _execute_delegate_step(
+                    step,
+                    ctx,
+                    kb_path,
+                    system_config,
+                    shared_config,
+                    channel,
                 )
-                return question
-        else:
-            result = f"Unknown step type: {step_type}"
+            elif step_type == "human":
+                result = await _execute_human_step(step, ctx)
+                if result.startswith("__HUMAN_INPUT_NEEDED__"):
+                    question = result.replace("__HUMAN_INPUT_NEEDED__\n", "")
+                    approval_id = _create_skill_input_approval(ctx, skill_name, question)
+                    store_skill_resume_context(
+                        ctx.user_id, skill_name, ctx, steps[i + 1 :], step_id=step_id, approval_id=approval_id
+                    )
+                    return question
+            else:
+                result = f"Unknown step type: {step_type}"
+        except StepFailedError as failure:
+            logger.warning("Skill %s stopped at step %s: %s", skill_name, step_id, failure)
+            return f"⚠️ The workflow stopped at step '{step_id}': {failure}. Nothing after this step ran."
 
         ctx.step_results[step_id] = result
         outputs.append(result)
@@ -513,8 +592,15 @@ async def _run_v2_steps(
     return outputs[-1] if outputs else "Skill completed with no output."
 
 
-async def _execute_agent_step(step, ctx, kb_path, system_config, shared_config, channel) -> str:
-    """Execute an agent step: call an LLM agent with context injection."""
+async def _execute_agent_step(
+    step, ctx, kb_path, system_config, shared_config, channel, *, json_schema: dict | None = None
+) -> str:
+    """Execute an agent step: call an LLM agent with context injection.
+
+    ``json_schema`` (not None) marks a JSON step: a later tool step parses this
+    step's output as JSON with that schema (``{}`` = shape unknown). See
+    :func:`_complete_json_step`.
+    """
     from realize_core.prompt.builder import build_system_prompt
 
     agent_key = step.get("agent", "orchestrator")
@@ -538,20 +624,178 @@ async def _execute_agent_step(step, ctx, kb_path, system_config, shared_config, 
                 parts.append(f"### {ref}\n{ctx.step_results[ref]}\n")
             elif ref in ctx.variables:
                 parts.append(f"### {ref}\n{ctx.variables[ref]}\n")
+    context_text = "\n".join(parts)
 
-    if custom_prompt:
-        parts.append(ctx.inject(custom_prompt))
-    else:
-        parts.append(ctx.user_message)
+    instructions = ctx.inject(custom_prompt) if custom_prompt else ctx.user_message
+    parts.append(instructions)
 
     if step.get("review"):
         latest_output = list(ctx.step_results.values())[-1] if ctx.step_results else ""
         parts.append(f"\n\nPlease review this output:\n{latest_output}")
 
     assembled = "\n\n".join(parts)
+    route = _resolve_route(step, ctx.llm_route)
+    if json_schema is not None:
+        return await _complete_json_step(
+            system_prompt, assembled, ctx, route, json_schema, prompt_text=instructions, context_text=context_text
+        )
     messages = [{"role": "user", "content": assembled}]
+    return await _call_llm(system_prompt, messages, ctx.system_key, user_message=ctx.user_message, route=route)
 
-    return await _call_llm(system_prompt, messages, ctx.system_key)
+
+async def _complete_json_step(
+    system_prompt: str, assembled: str, ctx, route: dict, schema: dict, *, prompt_text: str, context_text: str
+) -> str:
+    """Run a JSON step: ask for structured output, validate it, retry once.
+
+    The provider gets the tool's parameter schema as ``response_schema``
+    (wrapped in an object; see :func:`_response_schema`). The reply must parse
+    as JSON, have the schema's shape and pass :func:`_reject_placeholder_echo`.
+    A rejected reply is retried once with the reason appended to the request.
+
+    Returns:
+        The validated value as JSON text (what the tool step parses).
+
+    Raises:
+        StepFailedError: the retry was rejected too.
+    """
+    response_schema = _response_schema(schema)
+    message = assembled
+    reason = ""
+    for attempt in (1, 2):
+        text = await _call_llm(
+            system_prompt,
+            [{"role": "user", "content": message}],
+            ctx.system_key,
+            user_message=ctx.user_message,
+            route=route,
+            response_schema=response_schema,
+        )
+        try:
+            value = _validated_json(text, schema, prompt_text, context_text)
+        except ValueError as err:
+            reason = str(err)
+            logger.warning("JSON step %s rejected (attempt %d): %s", ctx.current_step, attempt, reason)
+            message = (
+                f"{assembled}\n\nYour previous answer was rejected: {reason}. "
+                "Return only the JSON, filled with the real values from the context above."
+            )
+            continue
+        return json.dumps(value, ensure_ascii=False)
+    raise StepFailedError(f"no usable JSON after one retry ({reason})")
+
+
+def _json_consumer_schema(step_id: str, later_steps: list) -> dict | None:
+    """The schema a later tool step parses this step's output with, or None if none does.
+
+    A consumer is a tool step with a ``json_params`` key whose param references
+    ``{step_id}``. Returns that tool parameter's schema (``{}`` when unknown).
+    """
+    from realize_core.tools.tool_registry import get_tool_registry
+
+    token = f"{{{step_id}}}"
+    for later in later_steps:
+        if later.get("type", "agent") != "tool":
+            continue
+        tool_name = later.get("action", later.get("tool"))
+        params = later.get("params") or {}
+        for key in later.get("json_params") or []:
+            if isinstance(params.get(key), str) and token in params[key]:
+                return _param_schema(get_tool_registry(), tool_name, key) if tool_name else {}
+    return None
+
+
+#: A table cell: text or a number (an empty ``{}`` item schema becomes "object" on some providers).
+_CELL_SCHEMA = {"anyOf": [{"type": "string"}, {"type": "number"}]}
+
+
+def _response_schema(schema: dict) -> dict:
+    """A ``response_schema`` every provider accepts, derived from a tool parameter schema.
+
+    The root is an object (``{"value": <schema>}`` unless the schema is one):
+    some providers only accept object roots. Empty item schemas become
+    text-or-number cells.
+    """
+
+    def fill(node):
+        if isinstance(node, dict):
+            out = {k: fill(v) for k, v in node.items()}
+            if out.get("items") == {}:
+                out["items"] = dict(_CELL_SCHEMA)
+            return out
+        if isinstance(node, list):
+            return [fill(v) for v in node]
+        return node
+
+    inner = fill(schema)
+    if inner.get("type") == "object":
+        return inner
+    return {"type": "object", "properties": {"value": inner}, "required": ["value"]}
+
+
+def _validated_json(text: str, schema: dict, prompt_text: str, context_text: str):
+    """Parse a JSON step's reply and check it is real data of the expected shape.
+
+    Raises:
+        ValueError: not JSON, the wrong shape, or an echo of the prompt's template.
+    """
+    value = _parse_json_text(text)
+    if schema.get("type") != "object" and isinstance(value, dict) and set(value) == {"value"}:
+        value = value["value"]  # the object wrapper from _response_schema
+    if not _check_shape(value, schema):
+        raise ValueError("the JSON doesn't have the expected shape")
+    _reject_placeholder_echo(value, prompt_text, context_text)
+    return value
+
+
+def _string_leaves(value) -> list[str]:
+    """Every string inside a JSON value (dict values, list items), in order."""
+    if isinstance(value, str):
+        return [value]
+    if isinstance(value, dict):
+        return [leaf for v in value.values() for leaf in _string_leaves(v)]
+    if isinstance(value, list):
+        return [leaf for v in value for leaf in _string_leaves(v)]
+    return []
+
+
+#: Bracketed example rows in a prompt (innermost ``[...]``) and the quoted labels in them.
+_EXAMPLE_ROW = re.compile(r"\[[^\[\]]*\]")
+_QUOTED = re.compile(r'"([^"\n]+)"')
+#: Separators that split context data into whole values (cells, "label: value" parts, lines).
+_CONTEXT_SPLIT = re.compile(r'[\n\r\t|,;:"\[\]{}]+')
+_BARE_PLACEHOLDER = re.compile(r"\{[a-zA-Z_][a-zA-Z0-9_]*\}")
+
+
+def _reject_placeholder_echo(value, prompt_text: str, context_text: str = "") -> None:
+    """Fail when a JSON step copied its prompt's template instead of filling it in.
+
+    Two deliberately narrow checks:
+
+    1. Any string leaf that is a bare placeholder token, e.g. ``"{contractor}"``.
+    2. The first row (``value[0]`` for a list, else ``value``) has string leaves,
+       EVERY one of them is a label quoted in an example row of the prompt (a
+       ``[...]`` group such as ``["contractor", "milestone", "verdict"]``), and
+       NONE of them is a whole value in the injected context data (the context
+       split on line breaks, ``|``, ``,``, ``;``, ``:``, quotes and brackets,
+       compared case-sensitively). A label the data really holds is accepted.
+
+    Raises:
+        ValueError: the reason, which the retry shows the model.
+    """
+    for leaf in _string_leaves(value):
+        if _BARE_PLACEHOLDER.fullmatch(leaf.strip()):
+            raise ValueError(f"'{leaf}' is a placeholder, not a value")
+
+    row = value[0] if isinstance(value, list) and value else value
+    leaves = [leaf.strip() for leaf in _string_leaves(row)]
+    labels = {label.strip() for group in _EXAMPLE_ROW.findall(prompt_text) for label in _QUOTED.findall(group)}
+    if not leaves or not labels or not all(leaf in labels for leaf in leaves):
+        return
+    data_values = {part.strip(" -*#•") for part in _CONTEXT_SPLIT.split(context_text)}
+    if any(leaf in data_values for leaf in leaves):
+        return
+    raise ValueError(f"the row repeats the example's template labels ({', '.join(leaves)}) instead of real values")
 
 
 async def _execute_delegate_step(step, ctx, kb_path, system_config, shared_config, channel) -> str:
@@ -578,6 +822,7 @@ async def _execute_delegate_step(step, ctx, kb_path, system_config, shared_confi
         "type": "agent",
         "agent": target_agent,
         "inject_context": inject_context,
+        **{k: step[k] for k in ("model", "tier") if step.get(k)},
     }
     if instructions:
         agent_step["prompt"] = ctx.inject(instructions)
@@ -851,7 +1096,13 @@ async def _execute_skill_md(
 
     messages = [{"role": "user", "content": user_message}]
 
-    response = await _call_llm(system_prompt, messages, system_key)
+    response = await _call_llm(
+        system_prompt,
+        messages,
+        system_key,
+        user_message=user_message,
+        route=_resolve_route(None, _skill_route(skill)),
+    )
 
     logger.info(f"SKILL.md execution complete: {skill_name}")
     return response

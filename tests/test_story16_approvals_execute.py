@@ -246,12 +246,13 @@ class TestApprovalsAPI:
 @pytest.fixture
 def skill_env(monkeypatch, db, conversation):
     from realize_core.llm import router
+    from realize_core.llm.base_provider import LLMResponse
     from realize_core.skills import executor
 
-    async def fake_llm(system_prompt, messages, task_type, system_key=""):
-        return f"LLM saw: {messages[-1]['content'][-60:]}"
+    async def fake_llm(system_prompt, messages, **_):
+        return LLMResponse(text=f"LLM saw: {messages[-1]['content'][-60:]}")
 
-    monkeypatch.setattr(router, "route_to_llm", fake_llm)
+    monkeypatch.setattr(router, "route_completion", fake_llm)
     monkeypatch.setattr("realize_core.prompt.builder.build_system_prompt", lambda **_: "prompt")
     return executor
 

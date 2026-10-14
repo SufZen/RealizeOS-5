@@ -37,6 +37,7 @@ steps:
 
   - id: payment_row
     type: agent
+    tier: standard
     agent: site_payments
     inject_context: [check]
     prompt: |

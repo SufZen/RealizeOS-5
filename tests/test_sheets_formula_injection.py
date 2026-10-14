@@ -194,7 +194,7 @@ def llm(monkeypatch):
     """The model copies the injected formula into the register, as a hijacked model would."""
     from realize_core.skills import executor
 
-    async def scripted(system_prompt, messages, system_key):
+    async def scripted(system_prompt, messages, system_key, **_):
         if "Return ONLY a JSON array of rows" in messages[-1]["content"]:
             return json.dumps([["6.1", MALICIOUS, "yes", "Dana", "", "Tender 6.1"]])
         return "summary"

@@ -15,6 +15,7 @@ from datetime import date
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from realize_core.llm.base_provider import LLMResponse
 
 # Pre-register mock modules so patch() can target them even when
 # anthropic SDK is not installed.
@@ -168,8 +169,8 @@ class TestV1Pipeline:
             "_version": 1,
             "pipeline": ["writer"],
         }
-        with patch("realize_core.llm.router.route_to_llm", new_callable=AsyncMock) as mock_llm:
-            mock_llm.return_value = "Generated blog post content"
+        with patch("realize_core.llm.router.route_completion", new_callable=AsyncMock) as mock_llm:
+            mock_llm.return_value = LLMResponse(text="Generated blog post content")
 
             # Need to also patch build_system_prompt
             with patch("realize_core.prompt.builder.build_system_prompt", return_value="system prompt"):
@@ -202,10 +203,10 @@ class TestV1Pipeline:
             nonlocal call_count
             call_count += 1
             if call_count == 1:
-                return "Draft: AI is transforming business"
-            return "APPROVED: Polished content ready"
+                return LLMResponse(text="Draft: AI is transforming business")
+            return LLMResponse(text="APPROVED: Polished content ready")
 
-        with patch("realize_core.llm.router.route_to_llm", side_effect=mock_claude):
+        with patch("realize_core.llm.router.route_completion", side_effect=mock_claude):
             with patch("realize_core.prompt.builder.build_system_prompt", return_value="prompt"):
                 from realize_core.skills.executor import _execute_v1_pipeline
 
@@ -230,8 +231,8 @@ class TestV1Pipeline:
             "_version": 1,
             "pipeline": [],
         }
-        with patch("realize_core.llm.router.route_to_llm", new_callable=AsyncMock) as mock_llm:
-            mock_llm.return_value = "Response"
+        with patch("realize_core.llm.router.route_completion", new_callable=AsyncMock) as mock_llm:
+            mock_llm.return_value = LLMResponse(text="Response")
             with patch("realize_core.prompt.builder.build_system_prompt", return_value="prompt"):
                 from realize_core.skills.executor import _execute_v1_pipeline
 
@@ -287,8 +288,8 @@ class TestV2Steps:
                 {"id": "draft", "type": "agent", "agent": "writer"},
             ],
         }
-        with patch("realize_core.llm.router.route_to_llm", new_callable=AsyncMock) as mock_llm:
-            mock_llm.return_value = "Drafted content"
+        with patch("realize_core.llm.router.route_completion", new_callable=AsyncMock) as mock_llm:
+            mock_llm.return_value = LLMResponse(text="Drafted content")
             with patch("realize_core.prompt.builder.build_system_prompt", return_value="prompt"):
                 from realize_core.skills.executor import _execute_v2_steps
 
