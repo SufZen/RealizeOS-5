@@ -2,7 +2,7 @@
 Skill Suggestion Engine: Auto-generate skill proposals from detected gaps.
 
 When gap detection finds repeated patterns or unhandled requests,
-this module uses Claude to draft a v2 skill YAML that could address the gap.
+this module uses the configured LLM to draft a v2 skill YAML that could address the gap.
 The suggestion is presented to the user for approval before being installed.
 """
 
@@ -64,7 +64,7 @@ async def suggest_skill_from_gap(suggestion: dict, system_config: dict = None) -
 
     Returns YAML string for the proposed skill, or None if generation fails.
     """
-    from realize_core.llm.claude_client import call_claude
+    from realize_core.llm.router import route_completion
 
     action_data = json.loads(suggestion.get("action_data", "{}"))
     samples = action_data.get("samples", [])
@@ -80,13 +80,18 @@ async def suggest_skill_from_gap(suggestion: dict, system_config: dict = None) -
     )
 
     try:
-        response = await call_claude(
-            system_prompt=prompt,
-            messages=[{"role": "user", "content": "Generate the skill YAML."}],
+        response = await route_completion(
+            prompt,
+            [{"role": "user", "content": "Generate the skill YAML."}],
+            tier="standard",
+            system_key=system_key,
             max_tokens=800,
         )
+        if not response.ok:
+            logger.warning(f"Skill suggestion LLM call failed: {response.error}")
+            return None
 
-        yaml_text = response.strip()
+        yaml_text = response.text.strip()
         if yaml_text.startswith("```"):
             yaml_text = yaml_text.split("\n", 1)[1] if "\n" in yaml_text else yaml_text[3:]
             if yaml_text.endswith("```"):

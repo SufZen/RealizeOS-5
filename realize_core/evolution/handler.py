@@ -81,6 +81,24 @@ Respond with ONLY valid JSON (no markdown):
 """
 
 
+# Shape of the JSON EVOLUTION_ANALYSIS_PROMPT asks for ("none" needs only "action").
+EVOLUTION_ANALYSIS_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "action": {
+            "type": "string",
+            "enum": ["create_file", "update_file", "update_agent", "update_state_map", "add_skill", "none"],
+        },
+        "system_key": {"type": "string"},
+        "subfolder": {"type": "string"},
+        "title": {"type": "string"},
+        "content": {"type": "string"},
+        "reason": {"type": "string"},
+    },
+    "required": ["action"],
+}
+
+
 async def analyze_evolution_intent(
     message: str,
     system_key: str,
@@ -91,7 +109,7 @@ async def analyze_evolution_intent(
 
     Returns evolution action dict, or None if not an evolution request.
     """
-    from realize_core.llm.gemini_client import call_gemini
+    from realize_core.llm.router import route_completion
 
     system_prompt = EVOLUTION_ANALYSIS_PROMPT
     user_content = f"Current system: {system_key}\n\n"
@@ -100,11 +118,17 @@ async def analyze_evolution_intent(
     user_content += f"User message: {message}"
 
     try:
-        response = await call_gemini(
-            system_prompt=system_prompt,
-            messages=[{"role": "user", "content": user_content}],
+        response = await route_completion(
+            system_prompt,
+            [{"role": "user", "content": user_content}],
+            tier="fast",
+            system_key=system_key,
+            response_schema=EVOLUTION_ANALYSIS_SCHEMA,
         )
-        result = _parse_json_response(response)
+        if not response.ok:
+            logger.warning(f"Evolution analysis LLM call failed: {response.error}")
+            return None
+        result = _parse_json_response(response.text)
         if not result or result.get("action") == "none":
             return None
         logger.info(f"Evolution intent detected: {result.get('action')}")

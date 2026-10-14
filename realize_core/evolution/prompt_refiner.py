@@ -44,6 +44,29 @@ Respond with a JSON object:
 """
 
 
+# Shape of the JSON REFINE_PROMPT asks for.
+REFINEMENT_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "changes": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "type": {"type": "string", "enum": ["add", "modify"]},
+                    "location": {"type": "string"},
+                    "content": {"type": "string"},
+                    "reason": {"type": "string"},
+                },
+                "required": ["type", "location", "content", "reason"],
+            },
+        },
+        "summary": {"type": "string"},
+    },
+    "required": ["changes", "summary"],
+}
+
+
 async def suggest_prompt_refinement(
     system_key: str,
     agent_key: str,
@@ -56,7 +79,7 @@ async def suggest_prompt_refinement(
 
     Returns dict with suggested changes, or None if no changes needed.
     """
-    from realize_core.llm.claude_client import call_claude
+    from realize_core.llm.router import route_completion
 
     agents = (system_config or {}).get("agents", {})
     prompt_path = agents.get(agent_key)
@@ -77,13 +100,19 @@ async def suggest_prompt_refinement(
     )
 
     try:
-        response = await call_claude(
-            system_prompt=prompt,
-            messages=[{"role": "user", "content": "Suggest improvements."}],
+        response = await route_completion(
+            prompt,
+            [{"role": "user", "content": "Suggest improvements."}],
+            tier="standard",
+            system_key=system_key,
             max_tokens=600,
+            response_schema=REFINEMENT_SCHEMA,
         )
+        if not response.ok:
+            logger.warning(f"Prompt refinement LLM call failed: {response.error}")
+            return None
 
-        text = response.strip()
+        text = response.text.strip()
         if text.startswith("```"):
             text = text.split("\n", 1)[1] if "\n" in text else text[3:]
             if text.endswith("```"):

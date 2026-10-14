@@ -296,7 +296,7 @@ async def handle_review(
     channel: str = "api",
 ) -> str:
     """Run reviewer/gatekeeper review on the latest assistant output."""
-    from realize_core.llm.claude_client import call_claude
+    from realize_core.llm.router import route_completion
 
     session = get_session(system_key, user_id)
 
@@ -339,7 +339,7 @@ async def handle_review(
         }
     ]
 
-    response = await call_claude(system_prompt=system_prompt, messages=review_messages)
+    response = (await route_completion(system_prompt, review_messages, tier="standard", system_key=system_key)).text
 
     if session:
         session.review = {"verdict": "reviewed", "content": response}
