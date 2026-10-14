@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 from types import SimpleNamespace
+from typing import ClassVar
 from unittest.mock import patch
 
 import pytest
@@ -150,6 +151,80 @@ class TestKBSearch:
             result = await kb_search({"query": "x"}, SimpleNamespace(), _user())
         assert result["code"] == "MCP_INTERNAL"
         assert "index corrupt" in result["error"]
+
+    def test_schema_does_not_promise_fts5_syntax(self):
+        from realize_core.mcp_server.tools.kb_tools import KB_SEARCH_SCHEMA
+
+        assert "FTS5" not in KB_SEARCH_SCHEMA["properties"]["query"]["description"]
+
+
+class TestKBSearchVentureScope:
+    """A caller limited to some ventures never gets another venture's documents."""
+
+    HITS: ClassVar[dict] = {
+        "alpha": [{"path": "a.md", "title": "A", "system_key": "alpha", "snippet": "", "score": 0.4}],
+        "beta": [{"path": "b.md", "title": "B", "system_key": "beta", "snippet": "", "score": 0.9}],
+        None: [
+            {"path": "a.md", "title": "A", "system_key": "alpha", "snippet": "", "score": 0.4},
+            {"path": "c.md", "title": "C", "system_key": "gamma", "snippet": "", "score": 0.95},
+        ],
+    }
+
+    def _fake_search(self, **kwargs):
+        return list(self.HITS.get(kwargs.get("system_key"), []))
+
+    @pytest.mark.asyncio
+    async def test_no_system_key_searches_only_the_callers_ventures(self):
+        from realize_core.mcp_server.tools.kb_tools import kb_search
+
+        with (
+            patch("realize_core.mcp_server.venture_guard.caller_ventures", return_value=frozenset({"alpha", "beta"})),
+            patch("realize_core.kb.indexer.semantic_search", side_effect=self._fake_search) as mock,
+        ):
+            result = await kb_search({"query": "budget"}, SimpleNamespace(), _user("user"))
+
+        assert {c.kwargs["system_key"] for c in mock.call_args_list} == {"alpha", "beta"}
+        assert [r["system_key"] for r in result["results"]] == ["beta", "alpha"]
+
+    @pytest.mark.asyncio
+    async def test_other_venture_refused(self):
+        from realize_core.mcp_server.tools.kb_tools import kb_search
+
+        with (
+            patch("realize_core.mcp_server.venture_guard.caller_ventures", return_value=frozenset({"alpha"})),
+            patch("realize_core.kb.indexer.semantic_search", side_effect=self._fake_search) as mock,
+        ):
+            result = await kb_search({"query": "budget", "system_key": "gamma"}, SimpleNamespace(), _user("user"))
+
+        assert result["code"] == "MCP_FORBIDDEN"
+        mock.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_no_ventures_means_no_results(self):
+        from realize_core.mcp_server.tools.kb_tools import kb_search
+
+        with (
+            patch("realize_core.mcp_server.venture_guard.caller_ventures", return_value=frozenset()),
+            patch("realize_core.kb.indexer.semantic_search", side_effect=self._fake_search) as mock,
+        ):
+            result = await kb_search({"query": "budget"}, SimpleNamespace(), _user("user"))
+
+        assert result["results"] == []
+        mock.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_unrestricted_caller_searches_everything(self):
+        from realize_core.mcp_server.tools.kb_tools import kb_search
+
+        with (
+            patch("realize_core.mcp_server.venture_guard.caller_ventures", return_value=None),
+            patch("realize_core.kb.indexer.semantic_search", side_effect=self._fake_search) as mock,
+        ):
+            result = await kb_search({"query": "budget"}, SimpleNamespace(), _user())
+
+        mock.assert_called_once()
+        assert mock.call_args.kwargs["system_key"] is None
+        assert {r["system_key"] for r in result["results"]} == {"alpha", "gamma"}
 
 
 # ---------------------------------------------------------------------------
