@@ -302,35 +302,107 @@ The same `trust_policy:` map format is used for the global
 
 ### LLM Routing
 
-Maps task complexity to models. The defaults use Claude and Gemini, but any provider can be substituted:
+**Any one provider is enough.** Every feature (chat, tools, skills, vision, search) works on Anthropic, Gemini, OpenAI, Ollama, or anything LiteLLM routes to. A provider may be better at a task, but none is required.
 
-| Task Class | Default Model | When Used |
-|------------|---------------|-----------|
-| `simple` | `gemini-flash` | Quick lookups, simple questions |
-| `content` | `claude-sonnet` | Writing, analysis, reasoning |
-| `complex` | `claude-opus` | Strategy, multi-step planning |
+The router classifies each task into a **tier**, and each provider maps the tier to one of its own models:
+
+| Tier | Task classes | Claude | Gemini | OpenAI | Ollama |
+|------|--------------|--------|--------|--------|--------|
+| `fast` | `simple`, unknown | Sonnet | Flash | GPT-4o Mini | `OLLAMA_MODEL` |
+| `standard` | `content`, `reasoning`, `financial`, `google`, `web_research`, `web_action` | Sonnet | Pro | GPT-4o | `OLLAMA_MODEL` |
+| `deep` | `complex` | Opus | Pro | GPT-4o | `OLLAMA_MODEL` |
+
+The generic LiteLLM provider uses `LITELLM_MODEL` for every tier. Setting a quality override still moves a task to `standard` or `deep`.
+
+**Choosing the primary provider and the models.** Set the environment variables below, or use **Settings -> LLM Routing** in the dashboard (it writes the same variables, applies without a restart, and needs the `system:manage` permission). The onboarding wizard also asks which connected provider to prefer. Over the API: `GET` and `PUT /api/llm/routing`.
+
+| Variable | Default | What it does |
+|----------|---------|--------------|
+| `LLM_PRIMARY` | first available | Provider tried first: `anthropic`, `gemini`, `openai`, `ollama` or `litellm` (`google` and `claude` are accepted as aliases) |
+| `LLM_FALLBACK` | see below | Provider order used when the primary fails, e.g. `gemini,openai,ollama`. Unknown names are ignored with a warning |
+| `LLM_MODEL_FAST` | provider default | Pin the `fast` tier to a LiteLLM model string, e.g. `gemini/gemini-2.5-flash` |
+| `LLM_MODEL_STANDARD` | provider default | Pin the `standard` tier, e.g. `openai/gpt-4o` |
+| `LLM_MODEL_DEEP` | provider default | Pin the `deep` tier, e.g. `anthropic/claude-opus-5-5` |
+
+Without `LLM_FALLBACK` the order is `LLM_PRIMARY` first, then Claude, Gemini, OpenAI, Ollama, LiteLLM, then any other registered provider. A pinned tier model's prefix chooses the provider: `anthropic/` (Claude), `gemini/`, `openai/`, `ollama/` (or `ollama_chat/`), and anything else goes to the generic LiteLLM provider.
+
+When the primary fails, the router tries the next available provider with that provider's own model for the same tier. A refusal is final and is not retried elsewhere.
 
 ### LLM Providers
 
-RealizeOS supports multiple LLM providers via a provider registry. Available providers are auto-discovered at startup based on installed SDKs and configured API keys:
+Providers are registered at startup from the keys and URLs found in the environment. A provider is available only when it can actually be used.
 
-| Provider | Env Variable | Models |
-|----------|-------------|--------|
-| Anthropic (Claude) | `ANTHROPIC_API_KEY` | Claude Sonnet, Claude Opus |
-| Google AI (Gemini) | `GOOGLE_AI_API_KEY` | Gemini Flash |
-| OpenAI | `OPENAI_API_KEY` | GPT-4o, GPT-4o Mini |
-| Ollama (local) | `OLLAMA_BASE_URL` | Any Ollama model (Llama, DeepSeek, etc.) |
+| Provider | Env variables | Notes |
+|----------|---------------|-------|
+| Anthropic (Claude) | `ANTHROPIC_API_KEY`; optional `ANTHROPIC_WORKSPACE_ID`, `CLAUDE_SONNET_MODEL`, `CLAUDE_OPUS_MODEL` | Set the workspace ID for workspace-scoped keys. It is sent as the `anthropic-workspace-id` header |
+| Google AI (Gemini) | `GOOGLE_AI_API_KEY`; optional `GEMINI_FLASH_MODEL`, `GEMINI_PRO_MODEL` | Runs through LiteLLM |
+| OpenAI | `OPENAI_API_KEY` | Runs through LiteLLM |
+| Ollama (local) | `OLLAMA_BASE_URL` (default `http://localhost:11434`), `OLLAMA_MODEL` (default `llama3.1:8b`) | No key. `OLLAMA_HOST` still works as an alias when `OLLAMA_BASE_URL` is empty. Available when the server answers. **Tool use and vision are detected per model from Ollama's `/api/show`**, so a model without tools is not offered tool calls |
+| Any other (LiteLLM) | `LITELLM_MODEL` plus that provider's own key (e.g. `MISTRAL_API_KEY`); optional `LITELLM_API_BASE` | `LITELLM_API_BASE` (a gateway or proxy URL) applies to this generic provider only |
 
-At least one provider must be configured. The router automatically falls back to available providers if the primary is unavailable (fallback chain: Claude → Gemini → OpenAI → Ollama).
+**Examples.** Put one of these blocks in `.env`.
+
+```bash
+# Gemini only
+GOOGLE_AI_API_KEY=<your-google-ai-key>
+
+# OpenAI only
+OPENAI_API_KEY=<your-openai-key>
+LLM_PRIMARY=openai
+
+# Ollama only (no key). Run `ollama list` for the tag.
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_MODEL=llama3.1:8b
+
+# Claude only, with a workspace-scoped key
+ANTHROPIC_API_KEY=<your-anthropic-key>
+ANTHROPIC_WORKSPACE_ID=<your-workspace-id>
+
+# A LiteLLM proxy / gateway in front of any model
+LITELLM_MODEL=openai/my-gateway-model
+LITELLM_API_BASE=https://llm-gateway.example.com
+OPENAI_API_KEY=<the gateway key>
+
+# Mixed: Gemini for quick tasks, Claude for deep reasoning, OpenAI as the fallback
+GOOGLE_AI_API_KEY=<key>
+ANTHROPIC_API_KEY=<key>
+OPENAI_API_KEY=<key>
+LLM_PRIMARY=gemini
+LLM_FALLBACK=gemini,anthropic,openai
+LLM_MODEL_DEEP=anthropic/claude-opus-5-5
+```
+
+**Tools without a tool-capable provider.** When an agent has tools but no available provider can run them, the agent says it has no live data in that turn, and the "what I used" trail shows a notice (`tools_unavailable`). It no longer falls back to answering silently. Add a tool-capable provider (any hosted one, or an Ollama model that supports tools) to fix it.
+
+**Check what is available.** `GET /api/status` lists the providers that are usable (`claude`, `gemini`, `openai`, `ollama`, `litellm`). `python scripts/provider_smoke.py --provider <name>` runs the webinar storyline against one real provider; see [Contributing](../CONTRIBUTING.md).
+
+### Search and embeddings
+
+| Variable | Default | What it does |
+|----------|---------|--------------|
+| `KB_EMBED_MODEL` | `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2` | The fastembed model used for semantic search over the knowledge base (about 0.22 GB, downloaded on first use, then cached; the Docker image includes it). Set `none` (also `off`, `0`, `false`) for keyword search only. E5 prefixes are applied automatically if you name an e5 model |
+| `FASTEMBED_CACHE_PATH` | fastembed's own cache | Where the model is stored. The Docker image sets `/app/models/fastembed` |
+
+Keyword search uses SQLite FTS5 with a trigram tokenizer, so Hebrew and other non-English text match. The tokenizer depends on the SQLite version: 3.45 or later uses `trigram remove_diacritics 1`; 3.34 to 3.44 (including the Docker image) uses plain `trigram`; older uses `unicode61`. When the tokenizer changes, the knowledge-base, memory and Synapse indexes rebuild on first start. To rebuild by hand: `realize-os kb reindex` or `POST /api/kb/reindex`.
 
 ## Environment Variables
 
 ```bash
-# LLM API Keys
-ANTHROPIC_API_KEY=<your-key>    # Required for Claude models
-GOOGLE_API_KEY=<your-key>         # Required for Gemini models
-OPENAI_API_KEY=<your-key>         # Optional, for GPT models
-OLLAMA_HOST=http://localhost:11434  # Optional, for local models
+# LLM providers: set any one (see "LLM Providers" above)
+ANTHROPIC_API_KEY=<your-key>        # Claude
+ANTHROPIC_WORKSPACE_ID=             # Optional, for workspace-scoped keys
+GOOGLE_AI_API_KEY=<your-key>        # Gemini
+OPENAI_API_KEY=<your-key>           # GPT models
+OLLAMA_BASE_URL=http://localhost:11434  # Local models, no key (OLLAMA_HOST also works)
+OLLAMA_MODEL=llama3.1:8b
+LITELLM_MODEL=                      # Any other LiteLLM model string
+LITELLM_API_BASE=                   # Optional gateway URL for LITELLM_MODEL
+LLM_PRIMARY=                        # anthropic | gemini | openai | ollama | litellm
+LLM_FALLBACK=                       # e.g. gemini,openai,ollama
+LLM_MODEL_FAST=                     # e.g. gemini/gemini-2.5-flash
+LLM_MODEL_STANDARD=
+LLM_MODEL_DEEP=
+KB_EMBED_MODEL=                     # empty = multilingual default; none = no embeddings
 
 # API Security
 REALIZE_API_KEY=                 # API key for simple auth
