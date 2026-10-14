@@ -39,6 +39,7 @@ _GLOBAL_PREFIXES = (
     "/api/settings",
     "/api/security",
     "/api/setup",
+    "/api/llm",
     "/api/integrations",
     "/api/storage",
     "/api/devmode",

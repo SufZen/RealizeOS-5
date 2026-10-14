@@ -64,6 +64,105 @@ CONNECTION_DEFINITIONS = [
         "description": "Local LLM via Ollama — no API key needed",
         "help": "Install Ollama, then set URL (default: http://localhost:11434)",
     },
+    {
+        "id": "litellm",
+        "name": "LiteLLM (any other provider)",
+        "category": "llm",
+        "env_key": "LITELLM_MODEL",
+        "type": "text",
+        "description": "Default model for the generic LiteLLM provider (e.g. mistral/mistral-large-latest)",
+        "help": "Set the provider's own API key in .env (e.g. MISTRAL_API_KEY); LiteLLM reads it automatically",
+    },
+    {
+        "id": "litellm_api_base",
+        "name": "LiteLLM — API base URL",
+        "category": "llm",
+        "env_key": "LITELLM_API_BASE",
+        "type": "url",
+        "description": "Optional gateway or proxy URL for the generic LiteLLM provider",
+        "help": "Leave empty to call the model's own provider directly",
+    },
+    {
+        "id": "llm_primary",
+        "name": "Primary LLM provider",
+        "category": "llm",
+        "env_key": "LLM_PRIMARY",
+        "type": "text",
+        "description": "Provider tried first: anthropic, gemini, openai, ollama or litellm",
+        "help": "Leave empty to use the first available provider",
+    },
+    {
+        "id": "llm_fallback",
+        "name": "LLM fallback order",
+        "category": "llm",
+        "env_key": "LLM_FALLBACK",
+        "type": "text",
+        "description": "Comma-separated provider order used when the primary fails",
+        "help": "Example: gemini,openai,ollama",
+    },
+    {
+        "id": "llm_model_fast",
+        "name": "Model for fast tasks",
+        "category": "llm",
+        "env_key": "LLM_MODEL_FAST",
+        "type": "text",
+        "description": "LiteLLM model string for quick, simple tasks (e.g. gemini/gemini-2.5-flash)",
+        "help": "Leave empty to use the primary provider's default",
+    },
+    {
+        "id": "llm_model_standard",
+        "name": "Model for standard tasks",
+        "category": "llm",
+        "env_key": "LLM_MODEL_STANDARD",
+        "type": "text",
+        "description": "LiteLLM model string for writing and analysis (e.g. openai/gpt-4o)",
+        "help": "Leave empty to use the primary provider's default",
+    },
+    {
+        "id": "llm_model_deep",
+        "name": "Model for deep tasks",
+        "category": "llm",
+        "env_key": "LLM_MODEL_DEEP",
+        "type": "text",
+        "description": "LiteLLM model string for complex reasoning (e.g. gemini/gemini-2.5-pro)",
+        "help": "Leave empty to use the primary provider's default",
+    },
+    {
+        "id": "gemini_flash_model",
+        "name": "Gemini Flash model id",
+        "category": "llm",
+        "env_key": "GEMINI_FLASH_MODEL",
+        "type": "text",
+        "description": "Override the Gemini fast model id",
+        "help": "Leave empty for the default",
+    },
+    {
+        "id": "gemini_pro_model",
+        "name": "Gemini Pro model id",
+        "category": "llm",
+        "env_key": "GEMINI_PRO_MODEL",
+        "type": "text",
+        "description": "Override the Gemini pro model id",
+        "help": "Leave empty for the default",
+    },
+    {
+        "id": "ollama_model",
+        "name": "Ollama model",
+        "category": "llm",
+        "env_key": "OLLAMA_MODEL",
+        "type": "text",
+        "description": "Model served by Ollama (e.g. qwen3)",
+        "help": "Run `ollama list` to see installed models",
+    },
+    {
+        "id": "anthropic_workspace_id",
+        "name": "Anthropic workspace ID",
+        "category": "llm",
+        "env_key": "ANTHROPIC_WORKSPACE_ID",
+        "type": "text",
+        "description": "Optional: send requests under a specific Anthropic workspace",
+        "help": "Find it in console.anthropic.com under Workspaces",
+    },
     # Search & Tools
     {
         "id": "brave_search",
@@ -169,7 +268,7 @@ def _mask_value(value: str, conn_type: str = "secret") -> str:
         return ""
     if conn_type == "toggle":
         return value
-    if conn_type in ("url", "number"):
+    if conn_type in ("url", "number", "text"):
         return value
     if len(value) < 16:
         return "••••"
