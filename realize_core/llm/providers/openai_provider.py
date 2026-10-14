@@ -1,110 +1,59 @@
 """
-OpenAI LLM Provider: Stub for future OpenAI/GPT integration.
+OpenAI LLM Provider: GPT models through LiteLLM.
 
-To activate: pip install openai, set OPENAI_API_KEY, and uncomment registration in registry.
+Text, vision and tool use are inherited from ``LiteLLMProvider``; LiteLLM reads
+OPENAI_API_KEY itself.
 """
 
-import logging
-from typing import Any
+import importlib.util
+import os
 
-from realize_core.llm.base_provider import (
-    BaseLLMProvider,
-    Capability,
-    LLMResponse,
-    ModelInfo,
-)
-
-logger = logging.getLogger(__name__)
+from realize_core.llm.base_provider import Capability, ModelInfo
+from realize_core.llm.providers._litellm_adapter import PrefixedLiteLLMProvider
 
 
-class OpenAIProvider(BaseLLMProvider):
-    """OpenAI GPT provider (stub — ready for implementation)."""
+def model_keys() -> dict[str, str]:
+    """Registry model keys -> LiteLLM model IDs for OpenAI."""
+    return {"gpt4o": "openai/gpt-4o", "gpt4o_mini": "openai/gpt-4o-mini"}
+
+
+class OpenAIProvider(PrefixedLiteLLMProvider):
+    """OpenAI GPT provider (GPT-4o, GPT-4o mini)."""
+
+    prefix = "openai/"
+
+    def __init__(self) -> None:
+        super().__init__(default_model="openai/gpt-4o-mini")
 
     @property
     def name(self) -> str:
         return "openai"
 
     def list_models(self) -> list[ModelInfo]:
+        caps = {Capability.TEXT, Capability.VISION, Capability.TOOLS}
         return [
             ModelInfo(
-                model_id="gpt-4o",
+                model_id="openai/gpt-4o",
                 display_name="GPT-4o",
                 tier=2,
-                capabilities={Capability.TEXT, Capability.VISION, Capability.TOOLS},
+                capabilities=set(caps),
                 input_cost_per_m=2.50,
                 output_cost_per_m=10.0,
-                max_tokens=4096,
+                max_tokens=16384,
                 context_window=128000,
             ),
             ModelInfo(
-                model_id="gpt-4o-mini",
+                model_id="openai/gpt-4o-mini",
                 display_name="GPT-4o Mini",
                 tier=1,
-                capabilities={Capability.TEXT, Capability.VISION, Capability.TOOLS},
+                capabilities=set(caps),
                 input_cost_per_m=0.15,
                 output_cost_per_m=0.60,
-                max_tokens=4096,
+                max_tokens=16384,
                 context_window=128000,
             ),
         ]
 
     def is_available(self) -> bool:
-        try:
-            import os
-
-            import openai  # noqa: F401
-
-            return bool(os.getenv("OPENAI_API_KEY"))
-        except ImportError:
-            return False
-
-    async def complete(
-        self,
-        system_prompt: str,
-        messages: list[dict],
-        model: str | None = None,
-        max_tokens: int = 4096,
-        temperature: float = 0.7,
-        timeout: float = 60.0,
-        response_schema: dict | None = None,  # accepted for interface parity; unused
-    ) -> LLMResponse:
-        """Text completion via OpenAI API (stub)."""
-        if not self.is_available():
-            return LLMResponse(
-                text="OpenAI provider not configured. Install openai and set OPENAI_API_KEY.",
-                model=model or "gpt-4o",
-                provider=self.name,
-                error="not_configured",
-            )
-
-        import openai
-
-        target_model = model or "gpt-4o"
-        client = openai.AsyncOpenAI()
-        try:
-            openai_messages: Any = [{"role": "system", "content": system_prompt}] + messages
-            response = await client.chat.completions.create(
-                model=target_model,
-                messages=openai_messages,
-                max_tokens=max_tokens,
-                temperature=temperature,
-                timeout=timeout,
-            )
-            choice = response.choices[0]
-            text = choice.message.content or ""
-            return LLMResponse(
-                text=text,
-                model=target_model,
-                provider=self.name,
-                input_tokens=response.usage.prompt_tokens if response.usage else 0,
-                output_tokens=response.usage.completion_tokens if response.usage else 0,
-                raw=response,
-            )
-        except Exception as e:
-            logger.error("OpenAI completion failed: %s", e)
-            return LLMResponse(
-                text=f"OpenAI error: {e}",
-                model=target_model,
-                provider=self.name,
-                error=str(e),
-            )
+        """True when litellm is installed and OPENAI_API_KEY is set."""
+        return bool(os.getenv("OPENAI_API_KEY")) and importlib.util.find_spec("litellm") is not None

@@ -10,11 +10,20 @@ from typing import Any, ClassVar, cast
 
 from realize_core.config import DEFAULT_CLAUDE_OPUS_MODEL, DEFAULT_CLAUDE_SONNET_MODEL
 from realize_core.llm.base_provider import (
+    EMPTY_ERROR,
     REFUSAL_ERROR,
+    STOP_END,
+    STOP_ERROR,
+    STOP_MAX_TOKENS,
+    STOP_PAUSE,
+    STOP_REFUSAL,
+    STOP_TOOL_USE,
     BaseLLMProvider,
     Capability,
     LLMResponse,
     ModelInfo,
+    ToolCall,
+    empty_or_text,
 )
 from realize_core.llm.claude_models import (
     ClaudeModelNotFoundError,
@@ -26,6 +35,37 @@ from realize_core.llm.claude_models import (
 
 logger = logging.getLogger(__name__)
 
+REFUSAL_TEXT = "I can't help with that request."
+
+# Anthropic stop_reason -> neutral stop reason (anything else maps to STOP_END).
+_STOP_REASON_MAP = {
+    "end_turn": STOP_END,
+    "stop_sequence": STOP_END,
+    "tool_use": STOP_TOOL_USE,
+    "max_tokens": STOP_MAX_TOKENS,
+    "pause_turn": STOP_PAUSE,
+    "refusal": STOP_REFUSAL,
+}
+
+
+def _block_to_dict(block: Any) -> dict:
+    """Serialise an SDK content block to a plain dict that is safe to send back."""
+    if isinstance(block, dict):
+        return dict(block)
+    if hasattr(block, "model_dump"):
+        return block.model_dump(exclude_none=True)
+    data = {k: getattr(block, k) for k in ("type", "text", "id", "name", "input") if hasattr(block, k)}
+    return data
+
+
+def _tool_calls(response: Any) -> list[ToolCall]:
+    """Neutral ToolCalls for the ``tool_use`` blocks of a Message."""
+    return [
+        ToolCall(id=block.id, name=block.name, arguments=dict(block.input or {}))
+        for block in response.content
+        if getattr(block, "type", "") == "tool_use"
+    ]
+
 
 class ClaudeProvider(BaseLLMProvider):
     """Anthropic Claude provider (Sonnet, Opus)."""
@@ -34,6 +74,7 @@ class ClaudeProvider(BaseLLMProvider):
     # Model IDs Anthropic answered 404 for (retired or misspelled), mapped to the error.
     # Process-wide: a restart with a corrected CLAUDE_*_MODEL clears it.
     _dead_models: ClassVar[dict[str, str]] = {}
+    tools_format = "claude"
 
     @property
     def name(self) -> str:
@@ -153,23 +194,29 @@ class ClaudeProvider(BaseLLMProvider):
             if is_refusal(response):
                 # Final: the router returns this as-is and does not retry another provider.
                 return LLMResponse(
-                    text="I can't help with that request.",
+                    text=REFUSAL_TEXT,
                     model=model,
                     provider=self.name,
                     input_tokens=input_tokens,
                     output_tokens=output_tokens,
                     cost_usd=cost,
                     error=REFUSAL_ERROR,
+                    stop_reason=STOP_REFUSAL,
                 )
 
+            text, error = empty_or_text(response_text(response))
             return LLMResponse(
-                text=response_text(response),
+                text=text,
                 model=model,
                 provider=self.name,
                 input_tokens=input_tokens,
                 output_tokens=output_tokens,
                 cost_usd=cost,
                 raw=response,
+                error=error,
+                stop_reason=STOP_ERROR
+                if error == EMPTY_ERROR
+                else _STOP_REASON_MAP.get(response.stop_reason, STOP_END),
             )
 
         except anthropic.RateLimitError:
@@ -257,17 +304,7 @@ class ClaudeProvider(BaseLLMProvider):
 
             if candidate != requested:
                 logger.warning("Tool call sent to %s because %s is unavailable", candidate, requested)
-            input_tokens = getattr(response.usage, "input_tokens", 0)
-            output_tokens = getattr(response.usage, "output_tokens", 0)
-            return LLMResponse(
-                text=response_text(response),
-                model=candidate,
-                provider=self.name,
-                input_tokens=input_tokens,
-                output_tokens=output_tokens,
-                cost_usd=self._calc_cost(candidate, input_tokens, output_tokens),
-                raw=response,
-            )
+            return self._build_tool_response(response, candidate)
 
         return LLMResponse(
             text="An error occurred with the AI service.",
@@ -275,6 +312,53 @@ class ClaudeProvider(BaseLLMProvider):
             provider=self.name,
             error="model_not_found",
         )
+
+    def _build_tool_response(self, response: Any, model: str) -> LLMResponse:
+        """Turn an Anthropic Message into a neutral LLMResponse (tool calls, stop reason)."""
+        input_tokens = getattr(response.usage, "input_tokens", 0)
+        output_tokens = getattr(response.usage, "output_tokens", 0)
+        cost = self._calc_cost(model, input_tokens, output_tokens)
+        common: dict[str, Any] = {
+            "model": model,
+            "provider": self.name,
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+            "cost_usd": cost,
+            "raw": response,
+        }
+        if is_refusal(response):
+            return LLMResponse(text=REFUSAL_TEXT, error=REFUSAL_ERROR, stop_reason=STOP_REFUSAL, **common)
+
+        text = response_text(response)
+        tool_calls = _tool_calls(response)
+        stop_reason = STOP_TOOL_USE if tool_calls else _STOP_REASON_MAP.get(response.stop_reason, STOP_END)
+        error = None
+        if not tool_calls and stop_reason != STOP_PAUSE:
+            text, error = empty_or_text(text)
+            if error == EMPTY_ERROR:
+                stop_reason = STOP_ERROR
+        return LLMResponse(
+            text=text,
+            error=error,
+            tool_calls=tool_calls,
+            stop_reason=stop_reason,
+            assistant_message={"role": "assistant", "content": [_block_to_dict(b) for b in response.content]},
+            **common,
+        )
+
+    def user_text_message(self, text: str) -> dict:
+        """Claude content-block user message."""
+        return {"role": "user", "content": [{"type": "text", "text": text}]}
+
+    def tool_result_messages(self, results: list[tuple[ToolCall, str, bool]]) -> list[dict]:
+        """One user message carrying a ``tool_result`` block per executed call."""
+        blocks: list[dict] = []
+        for call, output, is_error in results:
+            block: dict[str, Any] = {"type": "tool_result", "tool_use_id": call.id, "content": output}
+            if is_error:
+                block["is_error"] = True
+            blocks.append(block)
+        return [{"role": "user", "content": blocks}]
 
     async def complete_with_vision(
         self,

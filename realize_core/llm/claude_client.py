@@ -21,19 +21,27 @@ logger = logging.getLogger(__name__)
 # Lazy-initialized client, rebuilt when the key changes (Setup can rotate it at runtime).
 _client: anthropic.AsyncAnthropic | None = None
 _client_key: str = ""
+_client_workspace: str = ""
 
 
 def _get_client(api_key: str | None = None) -> anthropic.AsyncAnthropic:
-    """Get the async Anthropic client for the current key."""
-    global _client, _client_key
-    from realize_core.config import anthropic_api_key
+    """Get the async Anthropic client for the current key and workspace.
+
+    When ANTHROPIC_WORKSPACE_ID is set it is sent as the ``anthropic-workspace-id``
+    header. The client is rebuilt when either the key or the workspace changes.
+    """
+    global _client, _client_key, _client_workspace
+    from realize_core.config import anthropic_api_key, anthropic_workspace_id
 
     key = api_key or anthropic_api_key()
     if not key:
         raise RuntimeError("Anthropic API key not configured. Set ANTHROPIC_API_KEY.")
-    if _client is None or key != _client_key:
-        _client = anthropic.AsyncAnthropic(api_key=key)
+    workspace = anthropic_workspace_id()
+    if _client is None or key != _client_key or workspace != _client_workspace:
+        headers = {"anthropic-workspace-id": workspace} if workspace else None
+        _client = anthropic.AsyncAnthropic(api_key=key, default_headers=headers)
         _client_key = key
+        _client_workspace = workspace
     return _client
 
 

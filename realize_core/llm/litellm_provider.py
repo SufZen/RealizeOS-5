@@ -447,38 +447,22 @@ class LiteLLMProvider(BaseLLMProvider):
 
         b64_image = base64.b64encode(image_data).decode("utf-8")
 
-        # Build vision message
-        openai_messages: list[dict[str, Any]] = []
-        if system_prompt:
-            openai_messages.append({"role": "system", "content": system_prompt})
-
-        # Add any prior text messages
-        for msg in messages[:-1] if messages else []:
-            openai_messages.append(msg)
-
-        # Last user message gets the image
+        # Prior messages stay as-is; the last user message gets the image.
+        history = list(messages[:-1]) if messages else []
         last_text = messages[-1]["content"] if messages else "Describe this image."
-        openai_messages.append(
+        history.append(
             {
                 "role": "user",
                 "content": [
                     {"type": "text", "text": last_text},
-                    {
-                        "type": "image_url",
-                        "image_url": {
-                            "url": f"data:{media_type};base64,{b64_image}",
-                        },
-                    },
+                    {"type": "image_url", "image_url": {"url": f"data:{media_type};base64,{b64_image}"}},
                 ],
             }
         )
 
         try:
             response = await litellm.acompletion(
-                model=model,
-                messages=openai_messages,
-                max_tokens=max_tokens,
-                temperature=temperature,
+                **self._acompletion_kwargs(system_prompt, history, model, max_tokens, temperature)
             )
 
             text = response.choices[0].message.content or ""
