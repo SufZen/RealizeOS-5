@@ -80,6 +80,7 @@ class ClaudeProvider(BaseLLMProvider):
         "standard": "claude_sonnet",
         "deep": "claude_opus",
     }
+    supports_pdf_input: ClassVar[bool] = True  # call_claude_vision sends PDFs as document blocks
 
     @property
     def name(self) -> str:

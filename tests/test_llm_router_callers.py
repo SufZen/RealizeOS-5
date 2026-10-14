@@ -172,8 +172,6 @@ _CLIENT_IMPORT = re.compile(
     r"^\s*(from\s+realize_core\.llm(\.|\s+import\s+)(claude_client|gemini_client)|import\s+realize_core\.llm\.(claude_client|gemini_client))",
     re.MULTILINE,
 )
-# media vision still imports the (non-existent) query_* helpers; Task 5 replaces them.
-_ALLOWED = {"realize_core/media/__init__.py"}
 
 
 def test_no_direct_provider_client_imports_outside_llm():
@@ -181,8 +179,6 @@ def test_no_direct_provider_client_imports_outside_llm():
     for path in REPO.rglob("*.py"):
         rel = path.relative_to(REPO).as_posix()
         if rel.startswith(("tests/", "realize_core/llm/", ".venv/", "node_modules/")) or "/node_modules/" in rel:
-            continue
-        if rel in _ALLOWED:
             continue
         text = path.read_text(encoding="utf-8", errors="ignore")
         if _CLIENT_IMPORT.search(text) or re.search(r"import\s+.*\b(call_claude|call_gemini)\w*", text):

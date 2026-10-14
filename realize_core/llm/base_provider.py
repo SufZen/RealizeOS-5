@@ -151,6 +151,9 @@ class BaseLLMProvider(ABC):
     # Routing tier ("fast", "standard", "deep") -> registry model key for that tier.
     # A tier without an entry uses default_model_id().
     tier_models: ClassVar[dict[str, str]] = {}
+    # True when complete_with_vision() reads application/pdf natively; other
+    # providers get a PDF's extracted text instead.
+    supports_pdf_input: ClassVar[bool] = False
 
     @property
     @abstractmethod

@@ -42,6 +42,7 @@ dependencies = [
     "APScheduler>=3.10",
     "python-telegram-bot>=21.0",
     "pdfplumber>=0.11.0",
+    "pypdf>=4.0",
     "google-api-python-client>=2.100.0,<3",
     "google-auth-oauthlib>=1.2.0,<2",
 ]
