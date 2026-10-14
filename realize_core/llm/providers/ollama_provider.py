@@ -2,7 +2,7 @@
 Ollama LLM Provider: local / self-hosted models through LiteLLM.
 
 No API key. The server URL comes from OLLAMA_BASE_URL (or OLLAMA_HOST), the
-model from OLLAMA_MODEL. Tool support is probed from the model itself.
+model from OLLAMA_MODEL. Tool and vision support are probed from the model itself.
 """
 
 import logging
@@ -36,8 +36,8 @@ class OllamaProvider(PrefixedLiteLLMProvider):
         super().__init__(default_model=self._model_id())
         # (base_url, checked_at, reachable)
         self._availability: tuple[str, float, bool] | None = None
-        # (base_url, model) -> model advertises tool support
-        self._tool_support: dict[tuple[str, str], bool] = {}
+        # (base_url, model) -> capabilities the model advertises ("tools", "vision", ...)
+        self._capabilities: dict[tuple[str, str], frozenset[str]] = {}
 
     @property
     def name(self) -> str:
@@ -61,26 +61,36 @@ class OllamaProvider(PrefixedLiteLLMProvider):
         self._availability = (base, now, reachable)
         return reachable
 
-    def _model_has_tools(self, model: str) -> bool:
-        """True if ``/api/show`` lists "tools" in the model's capabilities (cached)."""
+    def _model_capabilities(self, model: str) -> frozenset[str]:
+        """The ``capabilities`` ``/api/show`` lists for ``model`` (cached; empty when unknown)."""
         base = config.ollama_base_url()
         key = (base, model)
-        if key not in self._tool_support:
+        if key not in self._capabilities:
             if not self.is_available():
-                return False  # not cached: the server may come up later
+                return frozenset()  # not cached: the server may come up later
             try:
                 resp = httpx.post(f"{base}/api/show", json={"model": model, "name": model}, timeout=_PROBE_TIMEOUT)
                 resp.raise_for_status()
-                self._tool_support[key] = "tools" in (resp.json().get("capabilities") or [])
+                self._capabilities[key] = frozenset(resp.json().get("capabilities") or [])
             except Exception as e:
                 logger.debug("Ollama capability probe failed for %s: %s", model, e)
-                self._tool_support[key] = False
-        return self._tool_support[key]
+                self._capabilities[key] = frozenset()
+        return self._capabilities[key]
+
+    def _model_has_tools(self, model: str) -> bool:
+        """True if ``/api/show`` lists "tools" in the model's capabilities."""
+        return "tools" in self._model_capabilities(model)
+
+    def _model_has_vision(self, model: str) -> bool:
+        """True if ``/api/show`` lists "vision" (llava, gemma3, qwen2.5vl, ...)."""
+        return "vision" in self._model_capabilities(model)
 
     def list_models(self) -> list[ModelInfo]:
         caps = {Capability.TEXT}
         if self._model_has_tools(config.ollama_model()):
             caps.add(Capability.TOOLS)
+        if self._model_has_vision(config.ollama_model()):
+            caps.add(Capability.VISION)
         return [
             ModelInfo(
                 model_id=self._model_id(),

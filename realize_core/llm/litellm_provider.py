@@ -20,6 +20,7 @@ from typing import Any
 from realize_core.llm.base_provider import (
     EMPTY_ERROR,
     REFUSAL_ERROR,
+    REFUSAL_TEXT,
     STOP_END,
     STOP_ERROR,
     STOP_MAX_TOKENS,
@@ -284,6 +285,8 @@ class LiteLLMProvider(BaseLLMProvider):
         error: str | None = None
         if stop_reason == STOP_REFUSAL:
             error = REFUSAL_ERROR
+            # A blocked answer usually has no text; never hand back an empty "answer".
+            text = text or REFUSAL_TEXT
         elif not tool_calls:
             text, error = empty_or_text(text)
             if error == EMPTY_ERROR:

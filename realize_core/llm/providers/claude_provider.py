@@ -12,6 +12,7 @@ from realize_core.config import DEFAULT_CLAUDE_OPUS_MODEL, DEFAULT_CLAUDE_SONNET
 from realize_core.llm.base_provider import (
     EMPTY_ERROR,
     REFUSAL_ERROR,
+    REFUSAL_TEXT,
     STOP_END,
     STOP_ERROR,
     STOP_MAX_TOKENS,
@@ -35,7 +36,6 @@ from realize_core.llm.claude_models import (
 
 logger = logging.getLogger(__name__)
 
-REFUSAL_TEXT = "I can't help with that request."
 
 # Anthropic stop_reason -> neutral stop reason (anything else maps to STOP_END).
 _STOP_REASON_MAP = {

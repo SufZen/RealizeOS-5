@@ -49,6 +49,10 @@ class ModelInfo:
 # LLMResponse.error value for a safety refusal (see LLMResponse.refused).
 REFUSAL_ERROR = "refusal"
 
+# User-facing text of a refusal that came back without text of its own
+# (a Gemini SAFETY block, an OpenAI content_filter stop).
+REFUSAL_TEXT = "I can't help with that request."
+
 # LLMResponse.error value when a model returned neither text nor tool calls.
 # Treated as a failure so the router falls back to the next provider.
 EMPTY_ERROR = "empty_response"
