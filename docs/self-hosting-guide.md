@@ -25,9 +25,12 @@ This guide covers deploying RealizeOS V5 on your own infrastructure using Docker
 | CPU | 1 core | 2+ cores |
 | OS | Any with Docker | Ubuntu 22.04+ |
 
-You also need at least one LLM API key:
-- **Anthropic** (`ANTHROPIC_API_KEY`) — for Claude models
-- **Google** (`GOOGLE_AI_API_KEY`) — for Gemini models
+You also need one LLM provider; any one is enough, and every feature works on all of them:
+- **Anthropic** (`ANTHROPIC_API_KEY`) — Claude models
+- **Google** (`GOOGLE_AI_API_KEY`) — Gemini models
+- **OpenAI** (`OPENAI_API_KEY`) — GPT models
+- **Ollama** (`OLLAMA_BASE_URL`, `OLLAMA_MODEL`) — local models, **no API key**
+- Anything else [LiteLLM](https://docs.litellm.ai) supports (`LITELLM_MODEL`)
 
 ## Quick Deploy
 
@@ -38,7 +41,7 @@ cd RealizeOS-5
 
 # 2. Configure environment
 cp .env.example .env
-# Edit .env — add your API keys
+# Edit .env — set any one LLM provider (a key, or a local Ollama)
 
 # 3. Initialize a template
 realize-os init --template consulting
@@ -67,8 +70,12 @@ Key variables:
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `ANTHROPIC_API_KEY` | One of these | Claude API key |
-| `GOOGLE_AI_API_KEY` | required | Gemini API key |
+| `ANTHROPIC_API_KEY` | One provider needed | Claude API key |
+| `GOOGLE_AI_API_KEY` | One provider needed | Gemini API key |
+| `OPENAI_API_KEY` | One provider needed | OpenAI API key |
+| `OLLAMA_BASE_URL` / `OLLAMA_MODEL` | One provider needed | Local Ollama, no key (`OLLAMA_HOST` also works) |
+| `LLM_PRIMARY`, `LLM_FALLBACK`, `LLM_MODEL_FAST` / `_STANDARD` / `_DEEP` | No | Which provider is tried first, the fallback order, and the model per task size. See [configuration.md](configuration.md#llm-routing) |
+| `KB_EMBED_MODEL` | No | Embedding model for knowledge-base search; `none` turns it off |
 | `REALIZE_PORT` | No | API port (default: 8080) |
 | `REALIZE_API_KEY` | Recommended | API authentication key |
 | `REALIZE_JWT_ENABLED` | No | Enable JWT authentication (`true`/`false`) |
@@ -554,7 +561,7 @@ docker compose logs api
 
 ### "No LLM providers available"
 
-At least one API key must be set in `.env`:
+At least one provider must be configured in `.env`: an API key (`ANTHROPIC_API_KEY`, `GOOGLE_AI_API_KEY`, `OPENAI_API_KEY`), or a reachable Ollama (`OLLAMA_BASE_URL`, no key needed):
 
 ```bash
 # Check which providers are detected

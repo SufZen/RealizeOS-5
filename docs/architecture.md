@@ -121,7 +121,7 @@ User Message
 | `media/` | Media handling and processing |
 | `ingestion/` | Data ingestion pipelines |
 | `utils/` | Shared utilities (rate limiter, etc.) |
-| `mcp_server/` | Built-in MCP server — 24 tools, session management, gated access |
+| `mcp_server/` | Built-in MCP server — 35 tools, session management, gated access |
 | `cli_app/` | Typer-based operator CLI — commands, profiles, formatters, REPL |
 
 ### `realize_api/` — FastAPI REST API
@@ -218,7 +218,7 @@ RealizeOS plays a **dual MCP role**:
              ▼
 ┌─────────────────────────────────────┐
 │    realize_core/mcp_server/        │  ← Tool registry + session mgmt
-│    24 tools · 4 families           │
+│    35 tools · 4 families           │
 │    Chat · KB · Ops · Admin         │
 └────────────┬────────────────────────┘
              │

@@ -67,11 +67,11 @@ python -m pytest tests/ -v --tb=short
 
 ### Environment Variables
 
-Copy `.env.example` to `.env` and add at least one LLM API key:
+Copy `.env.example` to `.env` and configure any one LLM provider (an API key for Anthropic, Google or OpenAI, or a local Ollama with no key):
 
 ```bash
 cp .env.example .env
-# Edit .env — add ANTHROPIC_API_KEY or GOOGLE_AI_API_KEY
+# Edit .env — set ANTHROPIC_API_KEY, GOOGLE_AI_API_KEY, OPENAI_API_KEY, or OLLAMA_BASE_URL + OLLAMA_MODEL
 ```
 
 ## How to Contribute
@@ -129,10 +129,41 @@ Reference: [Build Your Own Channel](docs/guides/build-your-own-channel.md)
 
 ### Add a New LLM Provider
 
-1. Create a provider in `realize_core/llm/providers/` extending `BaseLLMProvider`
-2. Implement `name`, `complete()`, `list_models()`, `is_available()`
-3. Register in `registry.py:auto_register()`
-4. Add tests
+1. Create a provider in `realize_core/llm/providers/` extending `BaseLLMProvider`. If LiteLLM can reach it, subclass `PrefixedLiteLLMProvider` (`providers/_litellm_adapter.py`) instead and set its prefix.
+2. Implement `name`, `complete()`, `list_models()`, `is_available()`; fill `tool_calls`, `stop_reason` and `assistant_message` on the response, and declare `tools_format` and the `TOOLS` / `VISION` capabilities you really support
+3. Give it a `tier_models` map (`fast`, `standard`, `deep`)
+4. Register in `registry.py:auto_register()`
+5. Add the provider's shape to `tests/fakes/llm.py` so the cross-provider parity suite (`tests/test_provider_parity.py`) covers it
+6. Add tests
+
+### Keep features provider-neutral
+
+Every feature must work on every provider. Only the provider adapters (`realize_core/llm/providers/`, `claude_*.py`, `gemini_client.py`, `litellm_provider.py`) may name a provider. Everywhere else, ask for a capability (`get_registry().providers_with_capability(Capability.TOOLS)`), call `route_completion()` with a tier, and read the neutral fields of `LLMResponse`.
+
+CI enforces this with a gate you can run locally:
+
+```bash
+python scripts/check_provider_neutral.py
+```
+
+It fails on direct `call_claude*` / `call_gemini*` use, imports of the provider clients, and comparisons against provider-name strings or model-id prefixes in `realize_core/` and `realize_api/`. If a line truly has to name one (for example a wire-format id, which is not a provider check), end it with a pragma that gives the reason:
+
+```python
+if fmt == "claude":  # provider-neutral: ok wire-format name from an adapter's tools_format, not a provider check
+```
+
+A pragma without a reason is itself reported. The gate is a line-by-line heuristic, so it cannot see a comparison split over several lines; review still matters.
+
+### Check a real provider (live smoke test)
+
+Pull-request CI uses fakes only. To check one real provider end to end, run the webinar storyline against it (manual or nightly; it spends real tokens):
+
+```bash
+python scripts/provider_smoke.py --provider gemini      # claude | gemini | openai | ollama
+python scripts/provider_smoke.py --provider ollama --dry-run   # no LLM call: seeds and checks the KB and skills only
+```
+
+It works in a new temporary project (`--keep` leaves it, `--root` names an empty folder), turns every other provider off so a broken one cannot hide, stubs Google Sheets and Drive (nothing is written to a real sheet), and prints a PASS / FAIL / SKIP table. Keys come from the environment or `./.env`. Exit status is 0 when everything passes, 1 on a failure, 2 on a setup error. **Never point it at the demo install:** it refuses to run when `REALIZE_ROOT` or `--root` is under `D:/realization-demo`.
 
 ### Add a Skill
 

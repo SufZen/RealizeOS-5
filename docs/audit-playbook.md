@@ -49,7 +49,7 @@ Treat these interfaces as first-class contracts during audits:
 
 - REST API routes and response/error shapes
 - SSE activity stream behavior
-- MCP server tool surface (24 tools, 4 families)
+- MCP server tool surface (35 tools, 4 families)
 - CLI commands and output formatting
 - FABRIC directory structure under `systems/`
 - Extension and plugin entry points
