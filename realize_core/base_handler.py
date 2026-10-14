@@ -20,6 +20,14 @@ from realize_core.prompt.builder import build_system_prompt
 
 logger = logging.getLogger(__name__)
 
+#: Added to the system prompt when an agent's tools could not be used this turn.
+NO_LIVE_DATA_NOTE = (
+    "You have no access to live tools or data in this turn. If the question needs data you cannot see, "
+    "say so plainly and do not claim to have read or checked anything."
+)
+TOOLS_UNAVAILABLE_MESSAGE = "No AI provider with tool support is available, so this answer used no live tools or data."
+TOOLS_ERROR_MESSAGE = "Using tools failed for this answer, so it was given without live tools or data."
+
 # Knowledge-question prefixes (skip skill detection for these)
 INFO_PREFIXES = (
     "summarize",
@@ -169,9 +177,11 @@ async def standard_llm_handling(
         from realize_core.governance.context import tool_call_context
 
         with tool_call_context(system_key=system_key, agent_key=agent_key, user_id=user_id, channel=channel):
-            response = await _answer_with_tools(
+            response, tools_lost = await _answer_with_tools(
                 system_prompt, messages, agent_key, kb_path, system_config or {}, emit=emit
             )
+        if tools_lost:
+            system_prompt = f"{system_prompt}\n\n{NO_LIVE_DATA_NOTE}"
     if response is None:
         task_class = classify_task(message, system_key=system_key)
         response = await route_to_llm(system_prompt, messages, task_class)
@@ -208,17 +218,37 @@ def agent_tool_schemas(agent_key: str, kb_path, system_config: dict) -> list[dic
     return schemas
 
 
-async def _answer_with_tools(system_prompt, messages, agent_key, kb_path, system_config, emit=None) -> str | None:
-    """Answer via the agent tool loop; None means "use plain routing instead"."""
+async def _answer_with_tools(
+    system_prompt, messages, agent_key, kb_path, system_config, emit=None
+) -> tuple[str | None, bool]:
+    """Answer via the agent tool loop.
+
+    Returns ``(answer, tools_lost)``. ``answer`` None means "use plain routing
+    instead"; ``tools_lost`` means the agent had tools but could not use them
+    this turn, so the plain answer must not pretend it read live data. That
+    case is never silent: it is logged and reported as a trail ``notice``.
+    """
     from realize_core.agents.tool_loop import run_tool_loop, tool_capable_provider
 
     tools = agent_tool_schemas(agent_key, kb_path, system_config)
-    if not tools or tool_capable_provider() is None:
-        return None
-    result = await run_tool_loop(system_prompt, messages, tools, emit=emit)
+    if not tools:
+        return None, False
+    provider = tool_capable_provider()
+    if provider is None:
+        logger.warning("Agent %s has %d tools but no tool-capable LLM provider is available", agent_key, len(tools))
+        await _notice(emit, "tools_unavailable", TOOLS_UNAVAILABLE_MESSAGE)
+        return None, True
+    result = await run_tool_loop(system_prompt, messages, tools, provider=provider, emit=emit)
     if result.stop_reason == "error":
-        return None  # fall back to the provider chain in route_to_llm
-    return result.text
+        logger.warning("Tool loop for agent %s failed on %s; answering without tools", agent_key, provider.name)
+        await _notice(emit, "tools_error", TOOLS_ERROR_MESSAGE)
+        return None, True
+    return result.text, False
+
+
+async def _notice(emit, code: str, message: str) -> None:
+    """Report an answer-quality notice on the "what I used" trail."""
+    await emit_event(emit, {"type": "notice", "code": code, "message": message})
 
 
 async def handle_session_message(

@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import copy
-from types import SimpleNamespace
 from typing import Any
 
 import pytest
-from realize_core.llm.base_provider import LLMResponse
+from realize_core.llm.base_provider import STOP_END, STOP_MAX_TOKENS, STOP_PAUSE, STOP_REFUSAL, LLMResponse, ToolCall
+from realize_core.llm.providers.claude_provider import ClaudeProvider
 from realize_core.tools.base_tool import BaseTool, ToolCategory, ToolResult, ToolSchema
 
 # ---------------------------------------------------------------------------
@@ -15,22 +15,34 @@ from realize_core.tools.base_tool import BaseTool, ToolCategory, ToolResult, Too
 # ---------------------------------------------------------------------------
 
 
-def text(t: str):
-    return SimpleNamespace(type="text", text=t)
+def text(t: str) -> dict:
+    return {"type": "text", "text": t}
 
 
-def tool_use(id_: str, name: str, **inp):
-    return SimpleNamespace(type="tool_use", id=id_, name=name, input=inp)
+def tool_use(id_: str, name: str, **inp) -> dict:
+    return {"type": "tool_use", "id": id_, "name": name, "input": inp}
 
 
-def message(*blocks, stop="end_turn"):
-    return SimpleNamespace(content=list(blocks), stop_reason=stop, stop_details=None)
+def message(*blocks, stop=STOP_END) -> LLMResponse:
+    """A neutral provider response built from Claude-style content blocks."""
+    calls = [ToolCall(b["id"], b["name"], b["input"]) for b in blocks if b["type"] == "tool_use"]
+    return LLMResponse(
+        text="\n".join(b["text"] for b in blocks if b["type"] == "text"),
+        provider="claude",
+        cost_usd=0.001,
+        tool_calls=calls,
+        stop_reason=stop,
+        assistant_message={"role": "assistant", "content": list(blocks)},
+    )
 
 
 class ScriptedProvider:
-    """Returns the scripted Claude messages in order; records every request."""
+    """Returns the scripted responses in order; records every request (Claude wire shapes)."""
 
     name = "claude"
+    tools_format = "claude"
+    user_text_message = ClaudeProvider.user_text_message
+    tool_result_messages = ClaudeProvider.tool_result_messages
 
     def __init__(self, *messages):
         self._messages = list(messages)
@@ -41,10 +53,7 @@ class ScriptedProvider:
 
     async def complete_with_tools(self, system_prompt, messages, tools, model=None, max_tokens=4096):
         self.requests.append({"system": system_prompt, "messages": copy.deepcopy(messages), "tools": tools})
-        msg = self._messages.pop(0)
-        if isinstance(msg, LLMResponse):
-            return msg
-        return LLMResponse(text="", provider="claude", cost_usd=0.001, raw=msg)
+        return self._messages.pop(0)
 
 
 class SheetTool(BaseTool):
@@ -132,7 +141,7 @@ class TestToolLoop:
         result, events = await _run(provider, reg)
 
         assert result.text == "The budget is ₪1.2M [S1]."
-        assert result.stop_reason == "end_turn"
+        assert result.stop_reason == STOP_END
         assert tool.calls == [("sheets_read", {"range": "A1:B9"})]
         # second request carries the assistant turn + the matching tool_result
         second = provider.requests[1]["messages"]
@@ -217,12 +226,36 @@ class TestToolLoop:
     @pytest.mark.asyncio
     async def test_pause_turn_continues(self, registry):
         reg, _ = registry
-        provider = ScriptedProvider(message(text("thinking..."), stop="pause_turn"), message(text("final")))
+        provider = ScriptedProvider(message(text("thinking..."), stop=STOP_PAUSE), message(text("final")))
 
         result, _ = await _run(provider, reg)
 
         assert result.text == "final"
         assert provider.requests[1]["messages"][-1]["role"] == "assistant"
+
+    @pytest.mark.asyncio
+    async def test_refusal_stops_with_refusal_text(self, registry):
+        reg, tool = registry
+        refusal = LLMResponse(text="I can't help with that.", error="refusal", stop_reason=STOP_REFUSAL)
+        provider = ScriptedProvider(refusal)
+
+        result, events = await _run(provider, reg)
+
+        assert result.text == "I can't help with that."
+        assert result.stop_reason == STOP_REFUSAL
+        assert tool.calls == []
+        assert events == [{"type": "text", "text": "I can't help with that."}]
+
+    @pytest.mark.asyncio
+    async def test_max_tokens_ends_with_partial_text(self, registry):
+        reg, _ = registry
+        provider = ScriptedProvider(message(text("The budget is"), stop=STOP_MAX_TOKENS))
+
+        result, _ = await _run(provider, reg)
+
+        assert result.text == "The budget is"
+        assert result.stop_reason == STOP_MAX_TOKENS
+        assert len(provider.requests) == 1
 
     @pytest.mark.asyncio
     async def test_provider_error_stops_cleanly(self, registry):

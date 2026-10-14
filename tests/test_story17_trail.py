@@ -7,7 +7,8 @@ from types import SimpleNamespace
 
 import pytest
 from fastapi.testclient import TestClient
-from realize_core.llm.base_provider import LLMResponse
+from realize_core.llm.base_provider import STOP_END, LLMResponse, ToolCall
+from realize_core.llm.providers.claude_provider import ClaudeProvider
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -277,6 +278,9 @@ class TestStorage:
 
 class ScriptedProvider:
     name = "claude"
+    tools_format = "claude"
+    user_text_message = ClaudeProvider.user_text_message
+    tool_result_messages = ClaudeProvider.tool_result_messages
 
     def __init__(self, *messages):
         self._messages = list(messages)
@@ -287,19 +291,26 @@ class ScriptedProvider:
 
     async def complete_with_tools(self, system_prompt, messages, tools, model=None, max_tokens=4096):
         self.requests.append({"messages": messages})
-        return LLMResponse(text="", provider="claude", cost_usd=0.0, raw=self._messages.pop(0))
+        return self._messages.pop(0)
 
 
 def _text(t):
-    return SimpleNamespace(type="text", text=t)
+    return {"type": "text", "text": t}
 
 
 def _tool_use(id_, name):
-    return SimpleNamespace(type="tool_use", id=id_, name=name, input={})
+    return {"type": "tool_use", "id": id_, "name": name, "input": {}}
 
 
-def _msg(*blocks, stop="end_turn"):
-    return SimpleNamespace(content=list(blocks), stop_reason=stop, stop_details=None)
+def _msg(*blocks, stop=STOP_END):
+    calls = [ToolCall(b["id"], b["name"], b["input"]) for b in blocks if b["type"] == "tool_use"]
+    return LLMResponse(
+        text="\n".join(b["text"] for b in blocks if b["type"] == "text"),
+        provider="claude",
+        tool_calls=calls,
+        stop_reason=stop,
+        assistant_message={"role": "assistant", "content": list(blocks)},
+    )
 
 
 @pytest.fixture
