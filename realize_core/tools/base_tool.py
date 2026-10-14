@@ -50,6 +50,17 @@ class ToolSchema:
             "input_schema": self.input_schema,
         }
 
+    def to_openai_format(self) -> dict:
+        """Convert to OpenAI function-calling schema format."""
+        return {
+            "type": "function",
+            "function": {
+                "name": self.name,
+                "description": self.description,
+                "parameters": self.input_schema,
+            },
+        }
+
     def to_mcp_format(self) -> dict:
         """Convert to MCP tool schema format."""
         return {
@@ -57,6 +68,35 @@ class ToolSchema:
             "description": self.description,
             "inputSchema": self.input_schema,
         }
+
+
+def convert_tool_schemas(tools: list[dict], fmt: str) -> list[dict]:
+    """Convert Claude-format tool schemas to ``fmt`` ("claude" or "openai").
+
+    ``"claude"`` returns the tools unchanged. ``"openai"`` wraps each
+    ``{name, description, input_schema}`` as a function tool; entries already
+    in OpenAI shape pass through untouched.
+    """
+    if fmt == "claude":
+        return tools
+    if fmt != "openai":
+        raise ValueError(f"Unknown tool schema format: {fmt!r}")
+    converted = []
+    for tool in tools:
+        if "function" in tool:
+            converted.append(tool)
+            continue
+        converted.append(
+            {
+                "type": "function",
+                "function": {
+                    "name": tool["name"],
+                    "description": tool.get("description", ""),
+                    "parameters": tool.get("input_schema", {"type": "object", "properties": {}}),
+                },
+            }
+        )
+    return converted
 
 
 @dataclass

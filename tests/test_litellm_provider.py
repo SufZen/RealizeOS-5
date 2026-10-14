@@ -88,9 +88,15 @@ class TestProviderInterface:
             model_ids = {m.model_id for m in models}
             assert model_ids == {"gpt-4o", "gpt-4o-mini"}
 
-    def test_is_available_true_when_litellm_installed(self, provider, mock_litellm):
+    def test_is_available_true_when_litellm_installed_and_keyed(self, provider, mock_litellm):
+        mock_litellm.validate_environment.return_value = {"keys_in_environment": True}
         with patch.dict("sys.modules", {"litellm": mock_litellm}):
             assert provider.is_available() is True
+
+    def test_is_available_false_when_no_keys(self, provider, mock_litellm):
+        mock_litellm.validate_environment.return_value = {"keys_in_environment": False}
+        with patch.dict("sys.modules", {"litellm": mock_litellm}):
+            assert provider.is_available() is False
 
     def test_is_available_false_when_litellm_missing(self):
         """is_available returns False when litellm is not installed."""
@@ -212,7 +218,9 @@ class TestComplete:
             messages=[{"role": "user", "content": "test"}],
         )
 
-        assert result.ok is True
+        # Empty output with no tool calls is an error so router fallbacks run.
+        assert result.ok is False
+        assert result.error == "empty_response"
         assert result.text == ""
 
 

@@ -68,6 +68,7 @@ class GeminiProvider(BaseLLMProvider):
         max_tokens: int = 4096,
         temperature: float = 0.7,
         timeout: float = 60.0,
+        response_schema: dict | None = None,  # accepted for interface parity; unused
     ) -> LLMResponse:
         """Text completion via Gemini API with timeout enforcement."""
         from google import genai
