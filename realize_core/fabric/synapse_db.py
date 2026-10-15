@@ -105,26 +105,31 @@ def _ensure_entities_fts(conn: sqlite3.Connection) -> None:
     in for the body). Re-checked under the write lock in case another process
     migrated first.
     """
-    if _entities_fts_outdated(conn):
-        conn.commit()
-        conn.execute("BEGIN IMMEDIATE")
+    try:
         if _entities_fts_outdated(conn):
-            try:
-                rows = conn.execute(f"SELECT {_FTS_COLUMNS} FROM entities_fts").fetchall()
-            except sqlite3.DatabaseError as e:
-                logger.warning("Synapse FTS unreadable (%s); rebuilding from the entities table", e)
-                rows = conn.execute("SELECT id, title, summary, summary, venture, type FROM entities").fetchall()
-            conn.execute("DROP TABLE IF EXISTS entities_fts")
+            conn.commit()
+            conn.execute("BEGIN IMMEDIATE")
+            if _entities_fts_outdated(conn):
+                try:
+                    rows = conn.execute(f"SELECT {_FTS_COLUMNS} FROM entities_fts").fetchall()
+                except sqlite3.DatabaseError as e:
+                    logger.warning("Synapse FTS unreadable (%s); rebuilding from the entities table", e)
+                    rows = conn.execute("SELECT id, title, summary, summary, venture, type FROM entities").fetchall()
+                conn.execute("DROP TABLE IF EXISTS entities_fts")
+                _create_entities_fts(conn)
+                conn.executemany(
+                    f"INSERT INTO entities_fts ({_FTS_COLUMNS}) VALUES (?, ?, ?, ?, ?, ?)",
+                    [tuple(r) for r in rows],
+                )
+                logger.info("Synapse FTS rebuilt (%d rows, tokenizer: %s)", len(rows), fts_tokenizer())
+        else:
             _create_entities_fts(conn)
-            conn.executemany(
-                f"INSERT INTO entities_fts ({_FTS_COLUMNS}) VALUES (?, ?, ?, ?, ?, ?)",
-                [tuple(r) for r in rows],
-            )
-            logger.info("Synapse FTS rebuilt (%d rows, tokenizer: %s)", len(rows), fts_tokenizer())
-    else:
-        _create_entities_fts(conn)
-    conn.execute(f"PRAGMA user_version = {SYNAPSE_SCHEMA_VERSION}")
-    conn.commit()
+        conn.execute(f"PRAGMA user_version = {SYNAPSE_SCHEMA_VERSION}")
+        conn.commit()
+    except BaseException:
+        # Undo a half-done rebuild (the old table comes back) and release the write lock.
+        conn.rollback()
+        raise
 
 
 class SynapseDB:

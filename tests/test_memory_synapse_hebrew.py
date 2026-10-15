@@ -430,3 +430,28 @@ class TestShortQuestionKbLookup:
         out, calls = self._context(tmp_path, monkeypatch, message)
         assert calls == []
         assert out == ""
+
+
+def test_failed_fts_migration_rolls_back_and_reraises(tmp_path, monkeypatch):
+    """A failure while rebuilding entities_fts keeps the old table and leaves no open transaction."""
+    import sqlite3 as _sqlite3
+
+    from realize_core.fabric import synapse_db
+
+    conn = _sqlite3.connect(str(tmp_path / "old.db"))
+    conn.execute("CREATE VIRTUAL TABLE entities_fts USING fts5(id, title, summary, body, venture, type)")
+    conn.execute("INSERT INTO entities_fts VALUES ('e1', 'Title', 'sum', 'body', 'acme', 'note')")
+    conn.execute("PRAGMA user_version = 1")
+    conn.commit()
+
+    def broken(_conn):
+        raise _sqlite3.OperationalError("disk I/O error")
+
+    monkeypatch.setattr(synapse_db, "_create_entities_fts", broken)
+    with pytest.raises(_sqlite3.OperationalError, match="disk I/O error"):
+        synapse_db._ensure_entities_fts(conn)
+
+    assert not conn.in_transaction
+    assert conn.execute("SELECT id FROM entities_fts").fetchall() == [("e1",)]
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == 1
+    conn.close()
