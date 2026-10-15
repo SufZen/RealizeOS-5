@@ -134,5 +134,8 @@ export function noticeLine(
   language: string | null | undefined,
 ): string {
   const words = NOTICE[baseLanguage(language) === 'he' ? 'he' : 'en']
-  return (notice.code && words.byCode[notice.code]) || notice.message?.trim() || words.generic
+  // Own keys only: a code such as "constructor" must not pick up Object.prototype.
+  const known =
+    notice.code && Object.hasOwn(words.byCode, notice.code) ? words.byCode[notice.code] : undefined
+  return known || notice.message?.trim() || words.generic
 }

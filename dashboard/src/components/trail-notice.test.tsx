@@ -64,6 +64,13 @@ describe('notice words', () => {
     expect(noticeLine({}, 'en')).toBe('Something limited this answer.')
     expect(noticeLine({}, 'he')).toMatch(/[א-ת]/)
   })
+
+  it('never takes a code from the object prototype', () => {
+    for (const code of ['constructor', 'toString', '__proto__', 'hasOwnProperty']) {
+      expect(noticeLine({ code, message: 'server said' }, 'en')).toBe('server said')
+      expect(noticeLine({ code }, 'en')).toBe('Something limited this answer.')
+    }
+  })
 })
 
 describe('TrailPanel notices', () => {
