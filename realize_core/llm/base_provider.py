@@ -8,7 +8,7 @@ enabling provider-agnostic routing and easy addition of new models.
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any
+from typing import Any, ClassVar
 
 
 class Capability(Enum):
@@ -49,6 +49,44 @@ class ModelInfo:
 # LLMResponse.error value for a safety refusal (see LLMResponse.refused).
 REFUSAL_ERROR = "refusal"
 
+# User-facing text of a refusal that came back without text of its own
+# (a Gemini SAFETY block, an OpenAI content_filter stop).
+REFUSAL_TEXT = "I can't help with that request."
+
+# LLMResponse.error value when a model returned neither text nor tool calls.
+# Treated as a failure so the router falls back to the next provider.
+EMPTY_ERROR = "empty_response"
+
+# Provider-neutral stop reasons (LLMResponse.stop_reason).
+STOP_END = "end"
+STOP_TOOL_USE = "tool_use"
+STOP_MAX_TOKENS = "max_tokens"
+STOP_REFUSAL = "refusal"
+STOP_PAUSE = "pause"
+STOP_ERROR = "error"
+
+
+def empty_or_text(text: str | None) -> tuple[str, str | None]:
+    """Normalise model text and flag empty output.
+
+    Returns ``(text, error)``: ``error`` is ``EMPTY_ERROR`` when the text is
+    empty or whitespace-only, else None. Call it only when there are no tool
+    calls (a tool-only turn legitimately has no text).
+    """
+    text = text or ""
+    if not text.strip():
+        return text, EMPTY_ERROR
+    return text, None
+
+
+@dataclass
+class ToolCall:
+    """A provider-neutral tool invocation requested by the model."""
+
+    id: str
+    name: str
+    arguments: dict
+
 
 @dataclass
 class LLMResponse:
@@ -63,6 +101,10 @@ class LLMResponse:
         cost_usd: Estimated cost in USD
         raw: The raw provider-specific response object (for tool_use, etc.)
         error: Error message if the call failed (text will contain a user-friendly fallback)
+        tool_calls: Tool invocations the model requested (neutral form)
+        stop_reason: One of the STOP_* constants
+        assistant_message: Provider-native assistant message to append to the
+            history when continuing a tool loop
     """
 
     text: str
@@ -73,6 +115,9 @@ class LLMResponse:
     cost_usd: float = 0.0
     raw: Any = None
     error: str | None = None
+    tool_calls: list[ToolCall] = field(default_factory=list)
+    stop_reason: str = STOP_END
+    assistant_message: dict | None = None
 
     @property
     def ok(self) -> bool:
@@ -89,6 +134,27 @@ class LLMResponse:
         return self.error == REFUSAL_ERROR
 
 
+#: Audio MIME type -> file extension / audio format name used by transcription APIs.
+AUDIO_FORMATS = {
+    "audio/ogg": "ogg",
+    "audio/opus": "ogg",
+    "audio/mp3": "mp3",
+    "audio/mpeg": "mp3",
+    "audio/wav": "wav",
+    "audio/x-wav": "wav",
+    "audio/webm": "webm",
+    "audio/m4a": "m4a",
+    "audio/mp4": "m4a",
+    "audio/x-m4a": "m4a",
+    "audio/flac": "flac",
+}
+
+
+def audio_format(mime_type: str) -> str:
+    """File extension / format name for an audio MIME type (``ogg`` when unknown)."""
+    return AUDIO_FORMATS.get((mime_type or "").split(";")[0].strip().lower(), "ogg")
+
+
 class BaseLLMProvider(ABC):
     """Abstract base class for LLM providers.
 
@@ -101,7 +167,18 @@ class BaseLLMProvider(ABC):
     - complete_with_tools(): tool-use completion
     - complete_with_vision(): vision completion
     - is_available(): runtime availability check
+    - user_text_message() / tool_result_messages(): history message shapes
+      (defaults are OpenAI-shaped)
     """
+
+    # Wire format used to serialise tool schemas ("openai" or "claude").
+    tools_format: str = "openai"
+    # Routing tier ("fast", "standard", "deep") -> registry model key for that tier.
+    # A tier without an entry uses default_model_id().
+    tier_models: ClassVar[dict[str, str]] = {}
+    # True when complete_with_vision() reads application/pdf natively; other
+    # providers get a PDF's extracted text instead.
+    supports_pdf_input: ClassVar[bool] = False
 
     @property
     @abstractmethod
@@ -118,6 +195,7 @@ class BaseLLMProvider(ABC):
         max_tokens: int = 4096,
         temperature: float = 0.7,
         timeout: float = 60.0,
+        response_schema: dict | None = None,
     ) -> LLMResponse:
         """Send a text completion request.
 
@@ -128,6 +206,9 @@ class BaseLLMProvider(ABC):
             max_tokens: Maximum response tokens
             temperature: Creativity level (0.0 = deterministic, 1.0 = creative)
             timeout: Request timeout in seconds (default 60s)
+            response_schema: Optional JSON schema the reply must follow.
+                Providers without native support may ignore it or fall back
+                to a JSON instruction in the prompt.
 
         Returns:
             LLMResponse with the completion result.
@@ -138,6 +219,27 @@ class BaseLLMProvider(ABC):
     def list_models(self) -> list[ModelInfo]:
         """Return the models this provider offers."""
         ...
+
+    def user_text_message(self, text: str) -> dict:
+        """Build a user message carrying plain text (OpenAI shape by default)."""
+        return {"role": "user", "content": text}
+
+    def tool_result_messages(self, results: list[tuple[ToolCall, str, bool]]) -> list[dict]:
+        """Build history messages returning tool results to the model.
+
+        Args:
+            results: ``(call, output, is_error)`` per executed tool call.
+
+        Default is OpenAI-shaped: one ``role=tool`` message per result.
+        """
+        return [
+            {
+                "role": "tool",
+                "tool_call_id": call.id,
+                "content": f"ERROR: {output}" if is_error else output,
+            }
+            for call, output, is_error in results
+        ]
 
     async def complete_with_tools(
         self,
@@ -172,12 +274,37 @@ class BaseLLMProvider(ABC):
         """
         raise NotImplementedError(f"{self.name} does not support vision")
 
+    def supports_transcription(self) -> bool:
+        """True when ``transcribe()`` can turn speech into text on this provider.
+
+        A capability, not a provider name: media code asks every available
+        provider and uses the first that says yes.
+        """
+        return False
+
+    async def transcribe(
+        self,
+        audio_data: bytes,
+        mime_type: str = "audio/ogg",
+        language: str | None = None,
+    ) -> LLMResponse:
+        """Transcribe audio to text (``LLMResponse.text`` is the transcript).
+
+        Default implementation raises NotImplementedError; providers that
+        return True from ``supports_transcription()`` override it.
+        """
+        raise NotImplementedError(f"{self.name} does not support transcription")
+
     def is_available(self) -> bool:
         """Check if this provider is available (SDK installed, key configured).
 
         Default returns True. Override to add runtime checks.
         """
         return True
+
+    def default_model_id(self) -> str | None:
+        """Model used when a call names none (None = the provider decides)."""
+        return None
 
     def is_model_usable(self, model_id: str) -> bool:
         """Check whether a specific model can be called on this provider.

@@ -6,7 +6,7 @@ Two steps, both run from the project root after ``seed_webinar_demo``:
 - :func:`set_demo_ids` writes the Google Sheet id and the tender document's
   Drive id into the demo venture's skills (their ``variables:`` block).
 - :func:`preflight` checks, read-only, everything the live storyline needs:
-  feature flags, an LLM key, Google access to every tab and the tender
+  feature flags, an available LLM provider, Google access to every tab and the tender
   document, the Hebrew messages triggering the right skills, and a presenter
   account limited to the demo venture. Nothing is written to Google.
 
@@ -19,7 +19,6 @@ Usage::
 from __future__ import annotations
 
 import logging
-import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -29,7 +28,6 @@ from realize_core.demo_seed import DEMO_KEY
 logger = logging.getLogger(__name__)
 
 PLACEHOLDER = "REPLACE_WITH_"
-LLM_KEYS = ("ANTHROPIC_API_KEY", "GOOGLE_AI_API_KEY", "OPENAI_API_KEY")
 REQUIRED_FEATURES = ("agent_tools", "enforce_gates", "cite_sources")
 
 # The live storyline: message → the skill it must trigger (None: answered by an agent).
@@ -149,13 +147,16 @@ def _check_config(root: Path, key: str) -> list[Check]:
     return checks
 
 
-def _check_llm_key() -> Check:
-    present = [name for name in LLM_KEYS if os.environ.get(name, "").strip()]
+def _check_llm_provider() -> Check:
+    """Any one available LLM provider is enough (an API key, a local Ollama server, LiteLLM)."""
+    from realize_core.llm.registry import get_registry
+
+    available = get_registry().list_available()
     return Check(
-        "LLM API key",
-        bool(present),
-        f"found {', '.join(present)}" if present else "none of " + ", ".join(LLM_KEYS),
-        "add ANTHROPIC_API_KEY to .env (a separate key with a spending cap)",
+        "LLM provider",
+        bool(available),
+        f"available: {', '.join(available)}" if available else "no LLM provider available",
+        "configure any one provider in .env (an API key, OLLAMA_BASE_URL or LITELLM_MODEL; see .env.example)",
     )
 
 
@@ -308,7 +309,7 @@ async def preflight(project_root: str | Path, key: str = DEMO_KEY) -> list[Check
     checks = _check_config(root, key)
     if not checks[0].ok:
         return checks
-    checks.append(_check_llm_key())
+    checks.append(_check_llm_provider())
     checks.append(_check_ids(root, key))
     checks.extend(_check_storyline(root, key))
     checks.append(_check_presenter(key))

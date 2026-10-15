@@ -1,168 +1,120 @@
 """
-Gemini LLM Provider: Wraps the existing gemini_client module behind BaseLLMProvider.
+Gemini LLM Provider: Google Gemini through LiteLLM.
 
-Supports text and vision via Google's Gemini API.
+Text, vision and tool use are inherited from ``LiteLLMProvider``. The API key
+is read from GOOGLE_AI_API_KEY and passed explicitly (LiteLLM's own variable is
+GEMINI_API_KEY).
 """
 
-import asyncio
+import importlib.util
 import logging
-from typing import ClassVar
+import os
+from typing import Any, ClassVar
 
-from realize_core.llm.base_provider import (
-    BaseLLMProvider,
-    Capability,
-    LLMResponse,
-    ModelInfo,
-)
+from realize_core import config
+from realize_core.llm.base_provider import STOP_ERROR, Capability, LLMResponse, ModelInfo, audio_format
+from realize_core.llm.providers._litellm_adapter import PrefixedLiteLLMProvider
 
 logger = logging.getLogger(__name__)
 
+_CAPS = {Capability.TEXT, Capability.VISION, Capability.TOOLS}
+# Thinking tokens count against max_tokens, so Gemini needs headroom.
+_MIN_MAX_TOKENS = 8192
 
-class GeminiProvider(BaseLLMProvider):
-    """Google Gemini provider (Flash)."""
 
-    _MODELS: ClassVar[dict[str, str] | None] = None
+def model_keys() -> dict[str, str]:
+    """Registry model keys -> LiteLLM model IDs for Gemini."""
+    return {"gemini_flash": GeminiProvider._flash(), "gemini_pro": GeminiProvider._pro()}
+
+
+class GeminiProvider(PrefixedLiteLLMProvider):
+    """Google Gemini provider (Flash and Pro)."""
+
+    prefix = "gemini/"
+    tier_models: ClassVar[dict[str, str]] = {"fast": "gemini_flash", "standard": "gemini_pro", "deep": "gemini_pro"}
+
+    def __init__(self) -> None:
+        super().__init__(default_model=self._flash())
 
     @property
     def name(self) -> str:
         return "gemini"
 
-    def _get_models_config(self) -> dict[str, str]:
-        if self._MODELS is None:
-            from realize_core.config import MODELS
+    @staticmethod
+    def _flash() -> str:
+        return f"gemini/{config.MODELS.get('gemini_flash') or 'gemini-2.5-flash'}"
 
-            GeminiProvider._MODELS = MODELS
-        return GeminiProvider._MODELS or {}
+    @staticmethod
+    def _pro() -> str:
+        return f"gemini/{os.getenv('GEMINI_PRO_MODEL') or 'gemini-2.5-pro'}"
 
     def list_models(self) -> list[ModelInfo]:
-        models = self._get_models_config()
         return [
             ModelInfo(
-                model_id=models.get("gemini_flash", "gemini-2.5-flash"),
+                model_id=self._flash(),
                 display_name="Gemini Flash",
                 tier=1,
-                capabilities={Capability.TEXT, Capability.VISION},
-                input_cost_per_m=0.15,
-                output_cost_per_m=0.60,
-                max_tokens=8192,
+                capabilities=set(_CAPS),
+                input_cost_per_m=0.30,
+                output_cost_per_m=2.50,
+                max_tokens=65536,
+                context_window=1000000,
+            ),
+            ModelInfo(
+                model_id=self._pro(),
+                display_name="Gemini Pro",
+                tier=2,
+                capabilities=set(_CAPS),
+                input_cost_per_m=1.25,
+                output_cost_per_m=10.0,
+                max_tokens=65536,
                 context_window=1000000,
             ),
         ]
 
     def is_available(self) -> bool:
-        try:
-            from google import genai  # noqa: F401
+        """True when litellm is installed and GOOGLE_AI_API_KEY is set."""
+        return bool(config.google_ai_api_key()) and importlib.util.find_spec("litellm") is not None
 
-            from realize_core.config import google_ai_api_key
+    def supports_transcription(self) -> bool:
+        """Gemini reads audio in a chat message (an ``input_audio`` content part)."""
+        return True
 
-            return bool(google_ai_api_key())
-        except BaseException:
-            # Catch ImportError, ModuleNotFoundError, and Rust/cffi panics
-            return False
-
-    async def complete(
+    async def transcribe(
         self,
-        system_prompt: str,
-        messages: list[dict],
-        model: str | None = None,
-        max_tokens: int = 4096,
-        temperature: float = 0.7,
-        timeout: float = 60.0,
+        audio_data: bytes,
+        mime_type: str = "audio/ogg",
+        language: str | None = None,
     ) -> LLMResponse:
-        """Text completion via Gemini API with timeout enforcement."""
-        from google import genai
+        """Transcribe with the fast Gemini model and the audio as an ``input_audio`` part."""
+        import base64
 
-        from realize_core.llm.gemini_client import _get_client
-
-        models = self._get_models_config()
-        model = model or models.get("gemini_flash") or "gemini-2.5-flash"
-
+        model = self._flash()
+        instruction = "Transcribe this audio verbatim. Reply with the transcript only."
+        if language:
+            instruction += f" The speech is in language '{language}'."
+        content = [
+            {"type": "text", "text": instruction},
+            {
+                "type": "input_audio",
+                "input_audio": {"data": base64.b64encode(audio_data).decode(), "format": audio_format(mime_type)},
+            },
+        ]
         try:
-            client = _get_client()
-
-            contents = []
-            for msg in messages:
-                role = "user" if msg["role"] == "user" else "model"
-                contents.append(genai.types.Content(role=role, parts=[genai.types.Part(text=msg["content"])]))
-
-            response = await asyncio.wait_for(
-                client.aio.models.generate_content(
-                    model=model,
-                    contents=contents,
-                    config=genai.types.GenerateContentConfig(
-                        system_instruction=system_prompt,
-                        max_output_tokens=max_tokens,
-                        temperature=temperature,
-                    ),
-                ),
-                timeout=timeout,
+            response = await self._get_litellm().acompletion(
+                **self._acompletion_kwargs("", [{"role": "user", "content": content}], model, 4096, 0.0, 120.0)
             )
-
-            # Extract usage
-            usage_meta = getattr(response, "usage_metadata", None)
-            input_tokens = getattr(usage_meta, "prompt_token_count", 0) if usage_meta else 0
-            output_tokens = getattr(usage_meta, "candidates_token_count", 0) if usage_meta else 0
-            cost = (input_tokens * 0.15 / 1_000_000) + (output_tokens * 0.60 / 1_000_000)
-
-            # Log usage
-            try:
-                from realize_core.memory.store import log_llm_usage
-
-                log_llm_usage(model=model, input_tokens=input_tokens, output_tokens=output_tokens, cost_usd=cost)
-            except Exception:
-                pass
-
-            return LLMResponse(
-                text=response.text or "Empty response from Gemini.",
-                model=model,
-                provider=self.name,
-                input_tokens=input_tokens,
-                output_tokens=output_tokens,
-                cost_usd=cost,
-                raw=response,
-            )
-
-        except TimeoutError:
-            logger.error(f"Gemini API call timed out after {timeout}s")
-            return LLMResponse(
-                text="Request timed out. Please try again.",
-                model=model,
-                provider=self.name,
-                error="timeout",
-            )
-
+            return self._build_response(response, model)
         except Exception as e:
-            logger.error(f"Gemini API error: {e}", exc_info=True)
-            return LLMResponse(
-                text="An error occurred processing your request. Please try again.",
-                model=model,
-                provider=self.name,
-                error=str(e),
-            )
+            logger.warning(f"Gemini transcription error ({model}): {e}")
+            return LLMResponse(text="", model=model, provider=self.name, error=str(e), stop_reason=STOP_ERROR)
 
-    async def complete_with_vision(
-        self,
-        system_prompt: str,
-        messages: list[dict],
-        image_data: bytes,
-        media_type: str = "image/jpeg",
-        model: str | None = None,
-        max_tokens: int = 4096,
-        temperature: float = 0.7,
-    ) -> LLMResponse:
-        """Vision completion via Gemini API."""
-        from realize_core.llm.gemini_client import call_gemini_vision
+    def _min_max_tokens(self, model: str) -> int:
+        return _MIN_MAX_TOKENS
 
-        models = self._get_models_config()
-        model = model or models.get("gemini_flash") or "gemini-2.5-flash"
-
-        text = await call_gemini_vision(
-            system_prompt=system_prompt,
-            messages=messages,
-            image_data=image_data,
-            media_type=media_type,
-            model=model,
-            max_tokens=max_tokens,
-            temperature=temperature,
-        )
-        return LLMResponse(text=text, model=model, provider=self.name)
+    def _call_kwargs(self, model: str) -> dict[str, Any]:
+        kwargs: dict[str, Any] = {"api_key": config.google_ai_api_key()}
+        if "2.5" in model:
+            # LiteLLM maps reasoning_effort to Gemini's thinking budget; keep it small.
+            kwargs["reasoning_effort"] = "low"
+        return kwargs

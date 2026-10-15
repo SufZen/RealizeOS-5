@@ -150,7 +150,7 @@ def llm(monkeypatch):
 
     calls: list[dict] = []
 
-    async def scripted(system_prompt, messages, system_key):
+    async def scripted(system_prompt, messages, system_key, **_):
         prompt = messages[-1]["content"]
         agent = (
             system_prompt.split("## Active Agent: ", 1)[1].split("\n", 1)[0]

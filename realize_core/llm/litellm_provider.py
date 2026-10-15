@@ -12,17 +12,42 @@ Key features:
 - Feature-gated: only active when `litellm` is installed
 """
 
+import json
 import logging
+import os
 from typing import Any
 
 from realize_core.llm.base_provider import (
+    EMPTY_ERROR,
+    REFUSAL_ERROR,
+    REFUSAL_TEXT,
+    STOP_END,
+    STOP_ERROR,
+    STOP_MAX_TOKENS,
+    STOP_REFUSAL,
+    STOP_TOOL_USE,
     BaseLLMProvider,
     Capability,
     LLMResponse,
     ModelInfo,
+    ToolCall,
+    audio_format,
+    empty_or_text,
 )
+from realize_core.tools.base_tool import convert_tool_schemas
 
 logger = logging.getLogger(__name__)
+
+# OpenAI-style finish_reason -> neutral stop reason.
+_FINISH_REASON_MAP = {
+    "stop": STOP_END,
+    "tool_calls": STOP_TOOL_USE,
+    "function_call": STOP_TOOL_USE,
+    "length": STOP_MAX_TOKENS,
+    "content_filter": STOP_REFUSAL,
+}
+
+_FALLBACK_MODEL = "gpt-4o-mini"
 
 # Default models per provider that LiteLLM can route to.
 # Each entry: (litellm_model_id, display_name, tier, capabilities, input_cost_m, output_cost_m, max_tokens, ctx_window)
@@ -110,6 +135,10 @@ _DEFAULT_LITELLM_MODELS: list[tuple[str, str, int, set[Capability], float, float
 ]
 
 
+#: Models LiteLLM could not price (logged once each).
+_UNPRICED_MODELS: set[str] = set()
+
+
 class LiteLLMProvider(BaseLLMProvider):
     """Provider that routes to 50+ LLM providers via the LiteLLM library.
 
@@ -133,7 +162,7 @@ class LiteLLMProvider(BaseLLMProvider):
     def __init__(
         self,
         enabled_models: list[str] | None = None,
-        default_model: str = "gpt-4o-mini",
+        default_model: str | None = None,
     ):
         """Initialize the LiteLLM provider.
 
@@ -141,14 +170,23 @@ class LiteLLMProvider(BaseLLMProvider):
             enabled_models: Optional list of LiteLLM model IDs to expose.
                             If None, uses the default model catalog.
             default_model: The model to use when none is explicitly specified.
+                Falls back to $LITELLM_MODEL, then "gpt-4o-mini".
+
+        $LITELLM_API_BASE, when set, is passed as ``api_base`` on every call
+        (self-hosted / OpenAI-compatible endpoints).
         """
         self._enabled_models = enabled_models
-        self._default_model = default_model
+        self._default_model = default_model or os.getenv("LITELLM_MODEL") or _FALLBACK_MODEL
+        self._api_base = os.getenv("LITELLM_API_BASE") or None
         self._litellm = None  # Lazy-loaded
 
     @property
     def name(self) -> str:
         return "litellm"
+
+    def default_model_id(self) -> str | None:
+        """The model used when a call names none (every tier uses it unless a subclass maps tiers)."""
+        return self._default_model
 
     def _get_litellm(self):
         """Lazy-load the litellm module."""
@@ -161,13 +199,131 @@ class LiteLLMProvider(BaseLLMProvider):
         return self._litellm
 
     def is_available(self) -> bool:
-        """Check if litellm is installed."""
-        try:
-            import litellm  # noqa: F401
+        """True if litellm is installed and credentials or an endpoint exist.
 
-            return True
-        except ImportError:
+        Reads the environment on every call (it can change at runtime).
+        """
+        try:
+            import litellm
+
+            if os.getenv("LITELLM_API_BASE"):
+                return True
+            return bool(litellm.validate_environment(model=self._default_model).get("keys_in_environment"))
+        except Exception:
             return False
+
+    def _acompletion_kwargs(
+        self,
+        system_prompt: str,
+        messages: list[dict],
+        model: str,
+        max_tokens: int,
+        temperature: float | None = None,
+        timeout: float = 60.0,
+        **extra: Any,
+    ) -> dict[str, Any]:
+        """Build the kwargs shared by every ``litellm.acompletion`` call.
+
+        Prepends the system prompt, omits ``temperature`` when None, adds
+        ``api_base`` when configured, and merges provider-specific ``extra``.
+        """
+        full_messages: list[dict] = []
+        if system_prompt:
+            full_messages.append({"role": "system", "content": system_prompt})
+        full_messages.extend(messages)
+        kwargs: dict[str, Any] = {
+            "model": model,
+            "messages": full_messages,
+            "max_tokens": max_tokens,
+            "timeout": timeout,
+        }
+        if temperature is not None:
+            kwargs["temperature"] = temperature
+        api_base = os.getenv("LITELLM_API_BASE") or self._api_base
+        if api_base:
+            kwargs["api_base"] = api_base
+        kwargs.update(extra)
+        return kwargs
+
+    def _supports_response_schema(self, model: str) -> bool:
+        """True if LiteLLM reports native JSON-schema output for ``model``."""
+        try:
+            return bool(self._get_litellm().supports_response_schema(model=model))
+        except Exception:
+            return False
+
+    @staticmethod
+    def _usage(response: Any) -> tuple[int, int]:
+        usage = getattr(response, "usage", None)
+        return (
+            getattr(usage, "prompt_tokens", 0) if usage else 0,
+            getattr(usage, "completion_tokens", 0) if usage else 0,
+        )
+
+    @staticmethod
+    def _parse_tool_calls(message: Any) -> list[ToolCall]:
+        """Extract neutral ToolCalls from an OpenAI-shaped message."""
+        calls: list[ToolCall] = []
+        for tc in getattr(message, "tool_calls", None) or []:
+            fn = tc.function
+            raw_args = getattr(fn, "arguments", None)
+            try:
+                args = json.loads(raw_args) if raw_args else {}
+                if not isinstance(args, dict):
+                    raise ValueError("arguments is not an object")
+            except (ValueError, TypeError):
+                logger.warning("LiteLLM tool call %s has invalid JSON arguments: %r", fn.name, raw_args)
+                args = {}
+            calls.append(ToolCall(id=tc.id, name=fn.name, arguments=args))
+        return calls
+
+    def _build_response(self, response: Any, model: str, with_tools: bool = False) -> LLMResponse:
+        """Turn a LiteLLM ModelResponse into a neutral LLMResponse."""
+        choice = response.choices[0]
+        message = choice.message
+        text = message.content if isinstance(message.content, str) else ""
+        tool_calls = self._parse_tool_calls(message) if with_tools else []
+        stop_reason = _FINISH_REASON_MAP.get(getattr(choice, "finish_reason", None), STOP_END)
+        if tool_calls:
+            stop_reason = STOP_TOOL_USE
+
+        error: str | None = None
+        if stop_reason == STOP_REFUSAL:
+            error = REFUSAL_ERROR
+            # A blocked answer usually has no text; never hand back an empty "answer".
+            text = text or REFUSAL_TEXT
+        elif not tool_calls:
+            text, error = empty_or_text(text)
+            if error == EMPTY_ERROR:
+                stop_reason = STOP_ERROR
+
+        assistant_message: dict | None = None
+        if with_tools:
+            assistant_message = {"role": "assistant", "content": text or None}
+            if tool_calls:
+                assistant_message["tool_calls"] = [
+                    {
+                        "id": c.id,
+                        "type": "function",
+                        "function": {"name": c.name, "arguments": json.dumps(c.arguments)},
+                    }
+                    for c in tool_calls
+                ]
+
+        input_tokens, output_tokens = self._usage(response)
+        return LLMResponse(
+            text=text,
+            model=model,
+            provider=self.name,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            cost_usd=self._calc_cost(model, input_tokens, output_tokens),
+            raw=response,
+            error=error,
+            tool_calls=tool_calls,
+            stop_reason=stop_reason,
+            assistant_message=assistant_message,
+        )
 
     def list_models(self) -> list[ModelInfo]:
         """Return the models exposed through LiteLLM.
@@ -201,48 +357,35 @@ class LiteLLMProvider(BaseLLMProvider):
         max_tokens: int = 4096,
         temperature: float = 0.7,
         timeout: float = 60.0,
+        response_schema: dict | None = None,
     ) -> LLMResponse:
         """Text completion via LiteLLM.
 
         Delegates to litellm.acompletion(), which auto-routes to the
-        correct provider SDK based on the model string prefix.
+        correct provider SDK based on the model string prefix. With
+        ``response_schema``, uses native JSON-schema output when the model
+        supports it, else JSON mode plus a schema instruction in the prompt.
         """
         litellm = self._get_litellm()
         model = model or self._default_model
 
         try:
-            # Build messages in OpenAI format (LiteLLM uses this universally)
-            openai_messages = []
-            if system_prompt:
-                openai_messages.append({"role": "system", "content": system_prompt})
-            openai_messages.extend(messages)
+            extra: dict[str, Any] = {}
+            if response_schema is not None:
+                if self._supports_response_schema(model):
+                    extra["response_format"] = {
+                        "type": "json_schema",
+                        "json_schema": {"name": "response", "schema": response_schema, "strict": False},
+                    }
+                else:
+                    extra["response_format"] = {"type": "json_object"}
+                    instruction = f"Respond ONLY with JSON matching this schema: {json.dumps(response_schema)}"
+                    system_prompt = f"{system_prompt}\n\n{instruction}" if system_prompt else instruction
 
             response = await litellm.acompletion(
-                model=model,
-                messages=openai_messages,
-                max_tokens=max_tokens,
-                temperature=temperature,
-                timeout=timeout,
+                **self._acompletion_kwargs(system_prompt, messages, model, max_tokens, temperature, timeout, **extra)
             )
-
-            # Extract response data
-            text = response.choices[0].message.content or ""
-            usage = getattr(response, "usage", None)
-            input_tokens = getattr(usage, "prompt_tokens", 0) if usage else 0
-            output_tokens = getattr(usage, "completion_tokens", 0) if usage else 0
-
-            # Calculate cost using LiteLLM's built-in pricing
-            cost = self._calc_cost(model, input_tokens, output_tokens)
-
-            return LLMResponse(
-                text=text,
-                model=model,
-                provider=self.name,
-                input_tokens=input_tokens,
-                output_tokens=output_tokens,
-                cost_usd=cost,
-                raw=response,
-            )
+            return self._build_response(response, model)
 
         except Exception as e:
             logger.error(f"LiteLLM completion error ({model}): {e}", exc_info=True)
@@ -251,6 +394,7 @@ class LiteLLMProvider(BaseLLMProvider):
                 model=model,
                 provider=self.name,
                 error=str(e),
+                stop_reason=STOP_ERROR,
             )
 
     async def complete_with_tools(
@@ -264,49 +408,34 @@ class LiteLLMProvider(BaseLLMProvider):
     ) -> LLMResponse:
         """Tool-use completion via LiteLLM.
 
-        Passes OpenAI-format tool definitions; LiteLLM translates them
-        to the target provider's format automatically.
+        ``tools`` are Claude-format schemas (OpenAI-format entries pass
+        through); they are sent in OpenAI format and LiteLLM translates them
+        to the target provider's format.
         """
         litellm = self._get_litellm()
         model = model or self._default_model
 
         try:
-            openai_messages = []
-            if system_prompt:
-                openai_messages.append({"role": "system", "content": system_prompt})
-            openai_messages.extend(messages)
-
             response = await litellm.acompletion(
-                model=model,
-                messages=openai_messages,
-                tools=tools,
-                max_tokens=max_tokens,
-                timeout=timeout,
+                **self._acompletion_kwargs(
+                    system_prompt,
+                    messages,
+                    model,
+                    max_tokens,
+                    timeout=timeout,
+                    tools=convert_tool_schemas(tools, "openai"),
+                )
             )
-
-            choice = response.choices[0]
-            text = choice.message.content or ""
-            usage = getattr(response, "usage", None)
-            input_tokens = getattr(usage, "prompt_tokens", 0) if usage else 0
-            output_tokens = getattr(usage, "completion_tokens", 0) if usage else 0
-
-            return LLMResponse(
-                text=text,
-                model=model,
-                provider=self.name,
-                input_tokens=input_tokens,
-                output_tokens=output_tokens,
-                cost_usd=self._calc_cost(model, input_tokens, output_tokens),
-                raw=response,
-            )
+            return self._build_response(response, model, with_tools=True)
 
         except Exception as e:
             logger.error(f"LiteLLM tool completion error ({model}): {e}", exc_info=True)
             return LLMResponse(
-                text=str(e),
+                text="",
                 model=model,
                 provider=self.name,
                 error=str(e),
+                stop_reason=STOP_ERROR,
             )
 
     async def complete_with_vision(
@@ -330,38 +459,22 @@ class LiteLLMProvider(BaseLLMProvider):
 
         b64_image = base64.b64encode(image_data).decode("utf-8")
 
-        # Build vision message
-        openai_messages: list[dict[str, Any]] = []
-        if system_prompt:
-            openai_messages.append({"role": "system", "content": system_prompt})
-
-        # Add any prior text messages
-        for msg in messages[:-1] if messages else []:
-            openai_messages.append(msg)
-
-        # Last user message gets the image
+        # Prior messages stay as-is; the last user message gets the image.
+        history = list(messages[:-1]) if messages else []
         last_text = messages[-1]["content"] if messages else "Describe this image."
-        openai_messages.append(
+        history.append(
             {
                 "role": "user",
                 "content": [
                     {"type": "text", "text": last_text},
-                    {
-                        "type": "image_url",
-                        "image_url": {
-                            "url": f"data:{media_type};base64,{b64_image}",
-                        },
-                    },
+                    {"type": "image_url", "image_url": {"url": f"data:{media_type};base64,{b64_image}"}},
                 ],
             }
         )
 
         try:
             response = await litellm.acompletion(
-                model=model,
-                messages=openai_messages,
-                max_tokens=max_tokens,
-                temperature=temperature,
+                **self._acompletion_kwargs(system_prompt, history, model, max_tokens, temperature)
             )
 
             text = response.choices[0].message.content or ""
@@ -388,20 +501,67 @@ class LiteLLMProvider(BaseLLMProvider):
                 error=str(e),
             )
 
+    # -- Transcription ---------------------------------------------------------
+
+    def _transcription_model(self) -> str | None:
+        """LiteLLM model used for speech-to-text, e.g. ``groq/whisper-large-v3`` ($LITELLM_TRANSCRIPTION_MODEL)."""
+        return os.getenv("LITELLM_TRANSCRIPTION_MODEL") or None
+
+    def _transcription_kwargs(self, model: str) -> dict[str, Any]:
+        """Extra ``litellm.atranscription`` kwargs (the gateway URL for the generic provider)."""
+        api_base = os.getenv("LITELLM_API_BASE") or self._api_base
+        return {"api_base": api_base} if api_base else {}
+
+    def supports_transcription(self) -> bool:
+        return self._transcription_model() is not None
+
+    async def transcribe(
+        self,
+        audio_data: bytes,
+        mime_type: str = "audio/ogg",
+        language: str | None = None,
+    ) -> LLMResponse:
+        """Speech-to-text through ``litellm.atranscription`` (Whisper-style APIs)."""
+        model = self._transcription_model()
+        if not model:
+            return LLMResponse(
+                text="", provider=self.name, error="no transcription model configured", stop_reason=STOP_ERROR
+            )
+        kwargs: dict[str, Any] = {
+            "model": model,
+            "file": (f"audio.{audio_format(mime_type)}", audio_data),
+            **self._transcription_kwargs(model),
+        }
+        if language:
+            kwargs["language"] = language
+        try:
+            result = await self._get_litellm().atranscription(**kwargs)
+        except Exception as e:
+            logger.warning(f"LiteLLM transcription error ({model}): {e}")
+            return LLMResponse(text="", model=model, provider=self.name, error=str(e), stop_reason=STOP_ERROR)
+        text = result.get("text") if isinstance(result, dict) else getattr(result, "text", None)
+        text, error = empty_or_text(text)
+        return LLMResponse(
+            text=text, model=model, provider=self.name, error=error, stop_reason=STOP_ERROR if error else STOP_END
+        )
+
     def _calc_cost(self, model: str, input_tokens: int, output_tokens: int) -> float:
-        """Calculate cost using LiteLLM's pricing data, with local fallback."""
-        # Try LiteLLM's built-in cost calculation first
+        """Cost of one call: LiteLLM's price table, else the local catalog, else 0.
+
+        Uses ``litellm.cost_per_token`` (prompt and completion cost, summed). A
+        model LiteLLM has no price for is logged once at debug level.
+        """
         try:
             litellm = self._get_litellm()
-            return litellm.completion_cost(
-                model=model,
-                prompt_tokens=input_tokens,
-                completion_tokens=output_tokens,
+            prompt_cost, completion_cost = litellm.cost_per_token(
+                model=model, prompt_tokens=input_tokens, completion_tokens=output_tokens
             )
-        except Exception:
-            pass
+            return float(prompt_cost) + float(completion_cost)
+        except Exception as e:
+            if model not in _UNPRICED_MODELS:
+                _UNPRICED_MODELS.add(model)
+                logger.debug(f"LiteLLM has no price for {model} ({type(e).__name__}); using the local catalog")
 
-        # Fallback: use our local pricing data
         for m_info in self.list_models():
             if m_info.model_id == model:
                 return (input_tokens * m_info.input_cost_per_m / 1_000_000) + (

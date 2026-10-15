@@ -10,6 +10,8 @@ A :class:`TrailRecorder` is passed as the ``emit`` callback of
   level is shown on every answer whatever the model wrote (Codex audit N03);
 - ``tool_call`` / ``tool_result`` / ``approval_requested`` events from the
   agent tool loop;
+- ``notice`` events (``code``, ``message``) when an answer had to be given
+  without tools, e.g. no tool-capable provider is configured;
 - the id of the stored assistant message (``message_saved``, internal).
 
 Every event except ``message_saved`` is forwarded to an optional downstream
@@ -24,7 +26,7 @@ from typing import Any
 from realize_core.agents.tool_loop import Emit, emit_event
 
 #: Loop events that become trail steps.
-STEP_TYPES = frozenset({"tool_call", "tool_result", "approval_requested"})
+STEP_TYPES = frozenset({"tool_call", "tool_result", "approval_requested", "notice"})
 #: Characters of tool output kept in a stored trail.
 STORED_OUTPUT_CHARS = 500
 #: Internal event carrying the stored assistant message id.
@@ -123,6 +125,7 @@ def trail_summary(trail: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
         "tool_call": ("type", "name"),
         "tool_result": ("type", "name", "success", "held"),
         "approval_requested": ("type", "name", "request_id"),
+        "notice": ("type", "code", "message"),
     }
     steps = []
     for step in trail.get("steps", []):

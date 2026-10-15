@@ -20,6 +20,8 @@ from realize_core.tools.google_signin import (
     token_file_data,
 )
 
+from tests.fakes.llm import install_fake_llm
+
 SHEET = "1AbCdEfGhIjKlMnOpQrStUvWxYz0123456789"
 DOC = "1ZyXwVuTsRqPoNmLkJiHgFeDcBa9876543210"
 KIT = Path(__file__).resolve().parent.parent / "templates" / "demos" / "tower-b-he-google"
@@ -124,7 +126,7 @@ def _by_name(checks):
 class TestPreflight:
     @pytest.mark.asyncio
     async def test_everything_ready(self, project, google, presenter, monkeypatch):
-        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+        install_fake_llm(monkeypatch, "ollama")  # any one provider will do, even one with no API key
         set_demo_ids(project, SHEET, DOC)
         checks = await preflight(project)
         assert [c.name for c in checks if not c.ok] == []
@@ -132,10 +134,11 @@ class TestPreflight:
 
     @pytest.mark.asyncio
     async def test_reports_what_to_fix(self, project, google, monkeypatch):
-        for name in ("ANTHROPIC_API_KEY", "GOOGLE_AI_API_KEY", "OPENAI_API_KEY"):
-            monkeypatch.delenv(name, raising=False)
+        from realize_core.llm import registry
+
+        monkeypatch.setattr(registry, "_registry", registry.ProviderRegistry())  # no provider at all
         checks = _by_name(await preflight(project))
-        assert not checks["LLM API key"].ok
+        assert not checks["LLM provider"].ok
         assert not checks["Google ids set in skills"].ok
         assert not checks["Presenter account"].ok
         assert not checks["Tab: Milestones"].ok
@@ -226,7 +229,7 @@ class TestWithPacksOn:
             f'    password_hash: "$2b$12$x"\n',
             encoding="utf-8",
         )
-        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+        install_fake_llm(monkeypatch, "gemini")
         assert not _by_name(await preflight(packs_project))["Google ids set in skills"].ok
         set_demo_ids(packs_project, SHEET, DOC)
         checks = await preflight(packs_project)

@@ -20,6 +20,14 @@ from realize_core.prompt.builder import build_system_prompt
 
 logger = logging.getLogger(__name__)
 
+#: Added to the system prompt when an agent's tools could not be used this turn.
+NO_LIVE_DATA_NOTE = (
+    "You have no access to live tools or data in this turn. If the question needs data you cannot see, "
+    "say so plainly and do not claim to have read or checked anything."
+)
+TOOLS_UNAVAILABLE_MESSAGE = "No AI provider with tool support is available, so this answer used no live tools or data."
+TOOLS_ERROR_MESSAGE = "Using tools failed for this answer, so it was given without live tools or data."
+
 # Knowledge-question prefixes (skip skill detection for these)
 INFO_PREFIXES = (
     "summarize",
@@ -169,9 +177,11 @@ async def standard_llm_handling(
         from realize_core.governance.context import tool_call_context
 
         with tool_call_context(system_key=system_key, agent_key=agent_key, user_id=user_id, channel=channel):
-            response = await _answer_with_tools(
-                system_prompt, messages, agent_key, kb_path, system_config or {}, emit=emit
+            response, tools_lost = await _answer_with_tools(
+                system_prompt, messages, agent_key, kb_path, system_config or {}, emit=emit, message=message
             )
+        if tools_lost:
+            system_prompt = f"{system_prompt}\n\n{NO_LIVE_DATA_NOTE}"
     if response is None:
         task_class = classify_task(message, system_key=system_key)
         response = await route_to_llm(system_prompt, messages, task_class)
@@ -208,17 +218,73 @@ def agent_tool_schemas(agent_key: str, kb_path, system_config: dict) -> list[dic
     return schemas
 
 
-async def _answer_with_tools(system_prompt, messages, agent_key, kb_path, system_config, emit=None) -> str | None:
-    """Answer via the agent tool loop; None means "use plain routing instead"."""
-    from realize_core.agents.tool_loop import run_tool_loop, tool_capable_provider
+def _tool_loop_route(message: str):
+    """(provider, model) for the agent tool loop, following tier routing.
+
+    The tier comes from the user message (``message_tier``, ``standard`` when
+    no category matches). The provider ``resolve_tier`` picks for it (an
+    ``LLM_MODEL_<TIER>`` pin, else the primary) is used with that model when it
+    is available and supports tools. Otherwise the first tool-capable provider
+    (``tool_capable_provider``) runs with its own model for the tier.
+    """
+    from realize_core.agents import tool_loop
+    from realize_core.llm.base_provider import Capability
+    from realize_core.llm.registry import get_registry
+    from realize_core.llm.router import _tier_model, message_tier, resolve_tier
+
+    tier = message_tier(message)
+    registry = get_registry()
+    name, model_id = resolve_tier(tier)
+    provider = registry.get_provider_by_name(name) if name else None
+    try:
+        usable = bool(provider and provider.is_available() and provider.supports(Capability.TOOLS))
+    except Exception as e:
+        logger.debug(f"Tool support check failed for {name}: {e}")
+        usable = False
+    if usable:
+        return provider, model_id
+    provider = tool_loop.tool_capable_provider()
+    if provider is None:
+        return None, None
+    try:
+        model = _tier_model(registry, provider, tier)
+    except Exception as e:
+        logger.debug(f"No {tier} model for {getattr(provider, 'name', provider)}: {e}")
+        model = None
+    return provider, model
+
+
+async def _answer_with_tools(
+    system_prompt, messages, agent_key, kb_path, system_config, emit=None, message: str = ""
+) -> tuple[str | None, bool]:
+    """Answer via the agent tool loop.
+
+    Returns ``(answer, tools_lost)``. ``answer`` None means "use plain routing
+    instead"; ``tools_lost`` means the agent had tools but could not use them
+    this turn, so the plain answer must not pretend it read live data. That
+    case is never silent: it is logged and reported as a trail ``notice``.
+    """
+    from realize_core.agents.tool_loop import run_tool_loop
 
     tools = agent_tool_schemas(agent_key, kb_path, system_config)
-    if not tools or tool_capable_provider() is None:
-        return None
-    result = await run_tool_loop(system_prompt, messages, tools, emit=emit)
+    if not tools:
+        return None, False
+    provider, model = _tool_loop_route(message)
+    if provider is None:
+        logger.warning("Agent %s has %d tools but no tool-capable LLM provider is available", agent_key, len(tools))
+        await _notice(emit, "tools_unavailable", TOOLS_UNAVAILABLE_MESSAGE)
+        return None, True
+    result = await run_tool_loop(system_prompt, messages, tools, provider=provider, model=model, emit=emit)
     if result.stop_reason == "error":
-        return None  # fall back to the provider chain in route_to_llm
-    return result.text
+        logger.warning("Tool loop for agent %s failed on %s; answering without tools", agent_key, provider.name)
+        await _notice(emit, "tools_error", TOOLS_ERROR_MESSAGE)
+        return None, True
+    return result.text, False
+
+
+async def _notice(emit, code: str, message: str) -> None:
+    """Report an answer-quality notice on the "what I used" trail."""
+    await emit_event(emit, {"type": "notice", "code": code, "message": message})
 
 
 async def handle_session_message(
@@ -266,11 +332,12 @@ async def handle_review(
     channel: str = "api",
 ) -> str:
     """Run reviewer/gatekeeper review on the latest assistant output."""
-    from realize_core.llm.claude_client import call_claude
+    from realize_core.llm.router import route_completion
 
     session = get_session(system_key, user_id)
 
     content_to_review = None
+    prior_stage = session.stage if session else None
     if session and session.drafts:
         latest = session.latest_draft()
         content_to_review = latest["content"]
@@ -309,7 +376,15 @@ async def handle_review(
         }
     ]
 
-    response = await call_claude(system_prompt=system_prompt, messages=review_messages)
+    result = await route_completion(system_prompt, review_messages, tier="standard", system_key=system_key)
+    if not result.ok:
+        # Never store a failure as review content.
+        logger.warning("Review for %s failed: %s", system_key, result.error)
+        if session and session.stage == "reviewing":
+            session.stage = prior_stage
+            session.save()
+        return f"I could not run the review right now ({result.error or 'the LLM call failed'}). Please try again."
+    response = result.text
 
     if session:
         session.review = {"verdict": "reviewed", "content": response}

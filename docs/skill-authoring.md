@@ -128,6 +128,20 @@ before anything is written.
   json_params: [values]
 ```
 
+**JSON steps (5.31).** An `agent` step whose result feeds a later tool step's `json_params` is a
+JSON step, and RealizeOS treats it that way automatically. The model is asked for structured
+output (a native JSON schema where the provider supports it, a JSON-only instruction where it does
+not), the reply is checked against the parameter schema of the tool that will receive it, and a
+reply that fails is retried **once**, with the reason added to the prompt. A second failure stops
+the skill at that step ("no usable JSON after one retry"). This works the same on every provider,
+so you no longer need to say "return ONLY JSON" for the sake of one model, though it still helps
+readability.
+
+A JSON step is also checked for **echoed placeholders**: a cell that is a bare `{name}`, or a row
+made only of the labels from your example row (such as `"contractor"` or `"amount"`), is
+rejected and retried, because it means the model copied the example instead of using the data. A
+label that really appears in the injected data is accepted.
+
 **Rows are written as data.** Values in a step often come from an untrusted document through the
 model, so any text cell that `sheets_append` writes and that starts with `=`, `+`, `-`, `@`, a tab
 or a line break gets an apostrophe in front, whichever `value_input_option` a step asks for
@@ -164,6 +178,52 @@ call with its input, the approval request when the write is held, and the result
 ```
 
 The workflow pauses and waits for user confirmation before continuing.
+
+## Choosing the model: `tier:` and `model:`
+
+By default a skill's model follows the task: RealizeOS classifies your message (or the skill's
+`task_type:`) and picks the model for that tier on whichever provider is primary. Two optional
+fields pin it. Both work at the skill level and on an individual `agent` or `delegate` step.
+
+```yaml
+name: payment_milestone_check
+tier: standard            # fast | standard | deep
+steps:
+  - id: read
+    type: agent
+    agent: site_payments
+    tier: fast            # this step needs less
+  - id: judge
+    type: agent
+    agent: site_payments
+    model: anthropic/claude-opus-5-5   # a LiteLLM model string: provider/model
+```
+
+| Field | Value | Meaning |
+|-------|-------|---------|
+| `tier:` | `fast`, `standard` or `deep` | The tier's model on the primary provider (or the model pinned for that tier with `LLM_MODEL_<TIER>`). Any other value stops the skill with "unknown tier" |
+| `model:` | A LiteLLM model string, e.g. `gemini/gemini-2.5-pro`, `openai/gpt-4o`, `ollama/llama3.1:8b` | That exact model; its prefix picks the provider. If that provider is unavailable the router falls back along the normal chain |
+
+Precedence, most specific first: step `model`, step `tier`, skill `model`, skill `tier`, skill
+`task_type`. With none of them, the tier comes from classifying the user's own message (never the
+prompt your skill built).
+
+Prefer `tier:` over `model:` in skills you share. A tier works on whatever provider the operator
+configured; a `model:` string ties the skill to one provider. Use `model:` only when a step really
+needs a particular model.
+
+## Unresolved placeholders stop the step
+
+`{step_id}`, `{variable}`, `{user_message}` and `{today}` are filled in before a step runs, in
+one pass. If the step's prompt or params name a step that has no result yet, for example one that
+was skipped, the step fails with "unresolved placeholder {name} in step ..." and the skill stops
+with an answer that names the step. Nothing is sent to the model with that literal `{name}` in it,
+and nothing is written. Only your template is checked: a value that is filled in (a step result,
+the user's message) may itself contain `{something}`, and it is passed on as it is. Text in braces
+that is not a known name (JSON examples, for instance `{"a": 1}`) is left alone.
+
+A step whose LLM call fails (every provider errored) stops the skill with that error; the error is
+never passed to the next step as if it were the step's output.
 
 ## Variables and Context Injection
 

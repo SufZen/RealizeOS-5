@@ -120,18 +120,18 @@ def check_env_file(root: Path) -> CheckResult:
     if not lines:
         return CheckResult("Environment", CheckStatus.WARN, ".env is empty")
 
-    # Check for at least one LLM key
-    llm_keys = ("ANTHROPIC_API_KEY", "GOOGLE_AI_API_KEY", "OPENAI_API_KEY")
-    has_llm = any(
-        any(line.startswith(k + "=") and len(line.split("=", 1)[1].strip()) > 5 for line in lines) for k in llm_keys
-    )
+    # At least one LLM provider: any key, a LiteLLM gateway or a reachable Ollama counts.
+    from dotenv import dotenv_values
 
-    if not has_llm:
+    from realize_core.llm.registry import any_provider_available
+
+    if not any_provider_available(env={k: v for k, v in dotenv_values(env_path).items() if v}):
         return CheckResult(
             "Environment",
             CheckStatus.WARN,
-            "No LLM API key configured",
-            "Set at least one of: ANTHROPIC_API_KEY, GOOGLE_AI_API_KEY, OPENAI_API_KEY",
+            "No LLM provider available",
+            "Configure any one provider: an API key (Anthropic, Gemini, OpenAI), "
+            "LITELLM_MODEL / LITELLM_API_BASE, or a running Ollama (OLLAMA_BASE_URL)",
         )
 
     return CheckResult("Environment", CheckStatus.PASS, f"{len(lines)} variables configured")

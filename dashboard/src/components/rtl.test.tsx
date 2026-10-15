@@ -161,7 +161,7 @@ describe('RTL rendering', () => {
           <WelcomeStep text={he} />
         </WizardSheet>
         <WizardSheet step={1} footer={null} text={he}>
-          <ConnectStep connected={new Set(['ollama'])} onSave={noop} text={he} />
+          <ConnectStep connected={new Set(['ollama'])} onSave={noop} onPrimary={noop} text={he} />
         </WizardSheet>
         <WizardSheet
           step={2}
@@ -180,7 +180,8 @@ describe('RTL rendering', () => {
     expect(html).toContain('חיבור ספק AI')
     expect(html).toContain('מפתח API')
     expect(html).toContain('aria-label="הצגת המפתח"')
-    expect(html).toContain('>מומלץ<')
+    expect(html).not.toContain('>מומלץ<') // no provider is recommended over another
+    expect(html).toContain('ספק ראשי') // the primary-provider choice, once one is connected
     expect(html).toContain('>מחובר<')
     expect(html).toContain('הכול מוכן')
     expect(html).toContain('<span class="font-medium text-foreground">ספק אחד</span>')
@@ -199,6 +200,7 @@ describe('RTL rendering', () => {
       'Connect an AI provider',
       'You’re all set',
       'Recommended',
+      'Primary provider',
       'API key',
       'What to do next',
       'Setup progress',

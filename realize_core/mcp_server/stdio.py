@@ -179,7 +179,7 @@ def build_stdio_state(config: dict, kb_path: str | Path | None = None) -> Simple
     data_path = os.environ.get("DATA_PATH", "data")
     os.environ.setdefault("REALIZE_AUDIT_LOG_DIR", str(Path(data_path) / "audit"))
 
-    _index_kb(kb)
+    _index_kb(kb, getattr(state, "systems", None))
     return state
 
 
@@ -200,14 +200,14 @@ def _load_custom_roles(config: dict) -> None:
     logger.info("Loaded %d custom RBAC roles", count)
 
 
-def _index_kb(kb_path: Path) -> None:
+def _index_kb(kb_path: Path, systems: dict | None = None) -> None:
     """Bring the KB search index up to date (incremental), as the API does at startup."""
     import sqlite3
 
     from realize_core.kb.indexer import index_kb_files
 
     try:
-        index_kb_files(str(kb_path))
+        index_kb_files(str(kb_path), systems_config=systems)
     except (OSError, sqlite3.Error) as exc:
         logger.warning("KB indexing skipped (kb_search may miss recent files): %s", exc)
 

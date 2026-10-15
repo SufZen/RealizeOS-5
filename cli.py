@@ -301,16 +301,15 @@ def cmd_status(args):
         if routing:
             print(f"    Pipelines: {', '.join(routing.keys())}")
 
-    # Check API keys
+    # LLM providers: any one available provider is enough
+    from realize_core.llm.registry import get_registry
+
     print("\nLLM Providers:")
-    if os.environ.get("ANTHROPIC_API_KEY"):
-        print("  Anthropic: configured")
-    else:
-        print("  Anthropic: NOT configured")
-    if os.environ.get("GOOGLE_AI_API_KEY"):
-        print("  Google AI: configured")
-    else:
-        print("  Google AI: NOT configured")
+    providers = get_registry().list_all()
+    for name, available in providers.items():
+        print(f"  {name}: {'available' if available else 'not available'}")
+    if not any(providers.values()):
+        print("  No LLM provider is available. Configure any one: an API key, LiteLLM or Ollama.")
 
     # Check tools
     print("\nTools:")
@@ -345,14 +344,14 @@ def cmd_audit(args):
 
 def cmd_index(args):
     """Rebuild the KB search index."""
-    from realize_core.config import load_config
+    from realize_core.config import build_systems_dict, load_config
 
     config = load_config()
     kb_path = config.get("kb_path", ".")
 
     from realize_core.kb.indexer import index_kb_files
 
-    count = index_kb_files(kb_path, force=True)
+    count = index_kb_files(kb_path, force=True, systems_config=build_systems_dict(config, Path(kb_path)))
     print(f"Indexed {count} files from {kb_path}")
 
 

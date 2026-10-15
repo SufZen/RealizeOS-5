@@ -30,6 +30,39 @@ def google_ai_api_key() -> str:
     return os.getenv("GOOGLE_AI_API_KEY", "")
 
 
+def llm_primary() -> str:
+    """Preferred LLM provider name from LLM_PRIMARY (lower-cased; empty if unset)."""
+    return os.getenv("LLM_PRIMARY", "").strip().lower()
+
+
+def llm_fallback() -> list[str]:
+    """Explicit provider fallback order from LLM_FALLBACK (comma list; empty if unset)."""
+    return [n.strip().lower() for n in os.getenv("LLM_FALLBACK", "").split(",") if n.strip()]
+
+
+def llm_tier_model(tier: str) -> str:
+    """LiteLLM model string pinned to a routing tier by LLM_MODEL_<TIER> (empty if unset)."""
+    return os.getenv(f"LLM_MODEL_{tier.upper()}", "").strip()
+
+
+def ollama_base_url() -> str:
+    """Ollama server URL: OLLAMA_BASE_URL, else OLLAMA_HOST, else localhost."""
+    url = (os.getenv("OLLAMA_BASE_URL") or os.getenv("OLLAMA_HOST") or "http://localhost:11434").strip()
+    if "://" not in url:  # OLLAMA_HOST is conventionally written host:port
+        url = f"http://{url}"
+    return url.rstrip("/")
+
+
+def ollama_model() -> str:
+    """Default Ollama model tag (OLLAMA_MODEL)."""
+    return os.getenv("OLLAMA_MODEL") or "llama3.1:8b"
+
+
+def anthropic_workspace_id() -> str:
+    """Anthropic workspace ID sent as a request header (ANTHROPIC_WORKSPACE_ID); empty if unset."""
+    return os.getenv("ANTHROPIC_WORKSPACE_ID", "").strip()
+
+
 # --- Model Definitions (override via environment variables) ---
 # Defaults are always the newest model in each line. Users who want an older
 # model set CLAUDE_SONNET_MODEL / CLAUDE_OPUS_MODEL. IDs have no date suffix.
@@ -304,7 +337,9 @@ def discover_workspace_state(root: Path | None = None, config: dict | None = Non
         )
 
     unconfigured_system_dirs = [name for name in discovered_system_dirs if name not in configured_keys]
-    has_provider = any(bool(os.getenv(key)) for key in ("ANTHROPIC_API_KEY", "GOOGLE_AI_API_KEY", "OPENAI_API_KEY"))
+    from realize_core.llm.registry import any_provider_available
+
+    has_provider = any_provider_available()
     has_runtime_databases = any((root / filename).exists() for filename in ("realize_data.db", "kb_index.db"))
 
     warnings = []
@@ -318,7 +353,7 @@ def discover_workspace_state(root: Path | None = None, config: dict | None = Non
             + ", ".join(unconfigured_system_dirs)
         )
     if not has_provider:
-        warnings.append("No LLM provider API keys are configured")
+        warnings.append("No LLM provider is available")
 
     return {
         "root": str(root),

@@ -6,10 +6,17 @@ Auto-discovers available providers at startup based on installed SDKs and API ke
 """
 
 import logging
+import os
+from collections.abc import Mapping
 
 from realize_core.llm.base_provider import BaseLLMProvider, Capability, ModelInfo
 
 logger = logging.getLogger(__name__)
+
+# Order used when nothing else says otherwise; unlisted providers follow in registration order.
+_DEFAULT_ORDER = ["claude", "gemini", "openai", "ollama", "litellm"]
+# LLM_PRIMARY spellings -> registered provider names.
+_PROVIDER_ALIASES = {"anthropic": "claude", "google": "gemini", "google_ai": "gemini"}
 
 
 class ProviderRegistry:
@@ -26,6 +33,7 @@ class ProviderRegistry:
         self._providers: dict[str, BaseLLMProvider] = {}  # name → provider instance
         self._model_map: dict[str, str] = {}  # model_key → provider name
         self._fallback_chain: list[str] = []  # provider names in fallback order
+        self._model_ids: dict[str, str] = {}  # model_key → model_id as registered
 
     def register(self, provider: BaseLLMProvider, model_keys: dict[str, str] | None = None):
         """Register a provider with optional model key mappings.
@@ -47,6 +55,7 @@ class ProviderRegistry:
                     )
                     continue
                 self._model_map[key] = provider.name
+                self._model_ids[key] = model_id
 
         try:
             avail = provider.is_available()
@@ -77,15 +86,23 @@ class ProviderRegistry:
     def resolve_model_id(self, model_key: str) -> str | None:
         """Resolve a model key to its actual model ID string.
 
-        Args:
-            model_key: e.g., "claude_sonnet"
+        Config-defined keys (``claude_sonnet``, ``gemini_flash``, ...) resolve
+        from ``config.MODELS``. Any other key resolves through the model the
+        owning provider registered for it, which must still appear in that
+        provider's ``list_models()``.
 
         Returns:
-            The provider's model ID string (e.g., "claude-sonnet-5-5")
+            The provider's model ID string, or None if the key is unknown.
         """
         from realize_core.config import MODELS
 
-        return MODELS.get(model_key)
+        if model_key in MODELS:
+            return MODELS[model_key]
+        provider = self.get_provider(model_key)
+        model_id = self._model_ids.get(model_key)
+        if provider and model_id and any(m.model_id == model_id for m in provider.list_models()):
+            return model_id
+        return None
 
     def get_fallback(self, model_key: str) -> BaseLLMProvider | None:
         """Get a fallback provider when the primary is unavailable.
@@ -126,9 +143,64 @@ class ProviderRegistry:
                 models.extend(provider.list_models())
         return models
 
-    def providers_with_capability(self, capability: Capability) -> list[BaseLLMProvider]:
-        """Find all available providers that support a specific capability."""
-        return [p for p in self._providers.values() if p.is_available() and p.supports(capability)]
+    def fallback_chain(self) -> list[str]:
+        """The provider fallback order (copy)."""
+        return list(self._fallback_chain)
+
+    def primary_provider_name(self) -> str | None:
+        """Name of the first available provider in the fallback chain."""
+        for name in self._fallback_chain:
+            provider = self._providers.get(name)
+            if provider and provider.is_available():
+                return name
+        return None
+
+    def providers_with_capability(self, capability: Capability, available_only: bool = True) -> list[BaseLLMProvider]:
+        """Find providers that support a capability, in fallback-chain order.
+
+        Providers outside the chain follow in registration order. With
+        ``available_only`` (the default) unavailable providers are skipped.
+        """
+        ordered = [n for n in self._fallback_chain if n in self._providers]
+        ordered += [n for n in self._providers if n not in ordered]
+        providers = [self._providers[n] for n in ordered]
+        return [p for p in providers if (not available_only or p.is_available()) and p.supports(capability)]
+
+    def _resolve_fallback_chain(self) -> list[str]:
+        """Compute the fallback order from the environment and registered providers.
+
+        The chain always starts with LLM_PRIMARY (when set and registered).
+        LLM_FALLBACK entries follow in order, de-duplicated with aliases
+        folded and unknown names dropped. When LLM_FALLBACK names at least one
+        registered provider, nothing else is appended; otherwise the remaining
+        registered providers follow in the default order.
+        """
+        from realize_core.config import llm_fallback, llm_primary
+
+        chain: list[str] = []
+        primary = llm_primary()
+        if primary:
+            primary = _PROVIDER_ALIASES.get(primary, primary)
+            if primary in self._providers:
+                chain.append(primary)
+            else:
+                logger.warning(f"LLM_PRIMARY names unknown provider '{primary}', ignoring it")
+
+        explicit = [_PROVIDER_ALIASES.get(n, n) for n in llm_fallback()]
+        if explicit:
+            listed = []
+            for name in explicit:
+                if name not in self._providers:
+                    logger.warning(f"LLM_FALLBACK names unknown provider '{name}', ignoring it")
+                elif name not in listed:
+                    listed.append(name)
+            if listed:
+                return chain + [n for n in listed if n not in chain]
+            logger.warning("LLM_FALLBACK has no registered providers; using the default order")
+
+        rest = [n for n in _DEFAULT_ORDER if n in self._providers]
+        rest += [n for n in self._providers if n not in rest]
+        return chain + [n for n in rest if n not in chain]
 
     def auto_register(self):
         """Auto-discover and register all known providers.
@@ -155,45 +227,25 @@ class ProviderRegistry:
 
         # Gemini
         try:
-            from realize_core.llm.providers.gemini_provider import GeminiProvider
+            from realize_core.llm.providers.gemini_provider import GeminiProvider, model_keys
 
-            gemini = GeminiProvider()
-            self.register(
-                gemini,
-                {
-                    "gemini_flash": MODELS.get("gemini_flash", "gemini-2.5-flash"),
-                },
-            )
+            self.register(GeminiProvider(), model_keys())
         except BaseException as e:
             logger.debug(f"Gemini provider not registered: {e}")
 
-        # OpenAI (stub — registers but is_available will return False without SDK/key)
+        # OpenAI
         try:
-            from realize_core.llm.providers.openai_provider import OpenAIProvider
+            from realize_core.llm.providers.openai_provider import OpenAIProvider, model_keys
 
-            openai_p = OpenAIProvider()
-            self.register(
-                openai_p,
-                {
-                    "gpt4o": "gpt-4o",
-                    "gpt4o_mini": "gpt-4o-mini",
-                },
-            )
+            self.register(OpenAIProvider(), model_keys())
         except Exception as e:
             logger.debug(f"OpenAI provider not registered: {e}")
 
-        # Ollama (stub — registers but is_available depends on local server)
+        # Ollama (available only while a local server answers)
         try:
-            from realize_core.llm.providers.ollama_provider import OllamaProvider
+            from realize_core.llm.providers.ollama_provider import OllamaProvider, model_keys
 
-            ollama = OllamaProvider()
-            self.register(
-                ollama,
-                {
-                    "llama": "llama3.1:8b",
-                    "deepseek": "deepseek-coder-v2:16b",
-                },
-            )
+            self.register(OllamaProvider(), model_keys())
         except Exception as e:
             logger.debug(f"Ollama provider not registered: {e}")
 
@@ -205,8 +257,6 @@ class ProviderRegistry:
             self.register(
                 litellm_p,
                 {
-                    "gpt4o": "gpt-4o",
-                    "gpt4o_mini": "gpt-4o-mini",
                     "o3_mini": "o3-mini",
                     "mistral_large": "mistral/mistral-large-latest",
                     "deepseek_v3": "deepseek/deepseek-chat",
@@ -215,8 +265,8 @@ class ProviderRegistry:
         except Exception as e:
             logger.debug(f"LiteLLM provider not registered: {e}")
 
-        # Default fallback chain: Claude → Gemini → OpenAI → Ollama → LiteLLM
-        self.set_fallback_chain(["claude", "gemini", "openai", "ollama", "litellm"])
+        # LLM_FALLBACK / LLM_PRIMARY, else Claude → Gemini → OpenAI → Ollama → LiteLLM
+        self.set_fallback_chain(self._resolve_fallback_chain())
 
         available = self.list_available()
         logger.info(
@@ -243,3 +293,37 @@ def reset_registry():
     """Reset the registry (for testing)."""
     global _registry
     _registry = None
+
+
+def available_providers(env: Mapping[str, str] | None = None) -> list[str]:
+    """Names of the LLM providers usable right now; any one of them is enough.
+
+    Without ``env`` this asks the global registry. With ``env`` (for example
+    the values of a ``.env`` file that is not loaded into the process) a fresh
+    registry is checked with those values laid over the current environment,
+    which is restored afterwards. Ollama is probed here, at call time.
+    """
+    if env is None:
+        return get_registry().list_available()
+    overlay = {k: str(v) for k, v in env.items() if v is not None}
+    saved = {k: os.environ.get(k) for k in overlay}
+    try:
+        os.environ.update(overlay)
+        registry = ProviderRegistry()
+        registry.auto_register()
+        return registry.list_available()
+    finally:
+        for key, value in saved.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+
+
+def any_provider_available(env: Mapping[str, str] | None = None) -> bool:
+    """True when at least one LLM provider is usable (see ``available_providers``)."""
+    try:
+        return bool(available_providers(env))
+    except Exception as e:
+        logger.warning(f"Could not check LLM providers: {e}")
+        return False

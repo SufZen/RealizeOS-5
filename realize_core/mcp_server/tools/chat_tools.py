@@ -10,7 +10,6 @@ handler's pydantic-validated input shape.
 from __future__ import annotations
 
 import logging
-import os
 from typing import Any
 
 from realize_api.dependencies import CurrentUser
@@ -104,13 +103,9 @@ async def realize_status(args: dict[str, Any], app_state: Any, user: CurrentUser
     """Detailed system status — mirrors ``GET /api/status``."""
     systems = getattr(app_state, "systems", {}) or {}
 
-    llm = {}
-    if os.environ.get("ANTHROPIC_API_KEY"):
-        llm["anthropic"] = "configured"
-    if os.environ.get("GOOGLE_AI_API_KEY"):
-        llm["google"] = "configured"
-    if os.environ.get("OPENAI_API_KEY"):
-        llm["openai"] = "configured"
+    from realize_core.llm.registry import get_registry
+
+    llm = dict.fromkeys(get_registry().list_available(), "available")
 
     return {
         "status": "ok",

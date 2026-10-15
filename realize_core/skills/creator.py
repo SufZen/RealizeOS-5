@@ -209,20 +209,10 @@ async def create_skill(
 
 
 def _get_default_llm() -> LLMCallable | None:
-    """Attempt to import the default LLM client."""
-    try:
-        from realize_core.llm.claude_client import call_claude
+    """The configured LLM (standard tier, any provider), or None if none is available."""
+    from realize_core.llm.router import text_llm
 
-        return call_claude
-    except ImportError:
-        pass
-    try:
-        from realize_core.llm.gemini_client import call_gemini
-
-        return call_gemini
-    except ImportError:
-        pass
-    return None
+    return text_llm("standard")
 
 
 def _clean_generated_content(content: str, output_format: str) -> str:

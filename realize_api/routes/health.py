@@ -42,12 +42,10 @@ async def status(request: Request):
     """Detailed system status."""
     systems = visible_systems(request)
 
-    # Check LLM availability
-    llm_status = {}
-    if os.environ.get("ANTHROPIC_API_KEY"):
-        llm_status["anthropic"] = "configured"
-    if os.environ.get("GOOGLE_AI_API_KEY"):
-        llm_status["google"] = "configured"
+    # LLM providers that can take a call right now (any provider, incl. Ollama / LiteLLM)
+    from realize_core.llm.registry import get_registry
+
+    llm_status = dict.fromkeys(get_registry().list_available(), "available")
 
     # Check tool availability
     tools_status = {}

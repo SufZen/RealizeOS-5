@@ -40,16 +40,21 @@ def run_security_scan(project_root: Path = None, config: dict = None) -> dict:
         status = "pass" if ok else "critical"
         checks.append({"name": name, "status": status, "detail": detail})
 
-    # 1. API keys configured
-    anthropic_key = os.getenv("ANTHROPIC_API_KEY", "")
-    google_key = os.getenv("GOOGLE_AI_API_KEY", "")
+    # 1. At least one LLM provider (any provider: a key, a LiteLLM gateway or a local Ollama)
+    from realize_core.llm.registry import available_providers
+
+    try:
+        providers = available_providers()
+    except Exception:
+        providers = []
     check(
-        "API key configured",
-        bool(anthropic_key or google_key),
-        "At least one LLM API key" if (anthropic_key or google_key) else "No API keys found",
+        "LLM provider configured",
+        bool(providers),
+        f"Available: {', '.join(providers)}" if providers else "No LLM provider is available",
     )
 
-    # 2. API keys not default/placeholder
+    # 2. An Anthropic key, when one is set, is not a placeholder
+    anthropic_key = os.getenv("ANTHROPIC_API_KEY", "")  # provider-neutral: ok format check of an optional key
     if anthropic_key:
         is_real = anthropic_key.startswith("sk-ant-") and len(anthropic_key) > 20
         check("Anthropic key valid format", is_real, "Looks valid" if is_real else "May be a placeholder")

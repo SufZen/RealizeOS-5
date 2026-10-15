@@ -8,6 +8,7 @@ Runs as a scheduled job to:
 4. Track performance trends over time
 """
 
+import json
 import logging
 from datetime import UTC, datetime, timedelta
 
@@ -106,13 +107,7 @@ async def run_nightly_evaluation(
     if llm_events:
         models_used = Counter()
         for e in llm_events:
-            details = e.get("details", "")
-            if "gemini" in details.lower():
-                models_used["gemini"] += 1
-            elif "claude" in details.lower():
-                models_used["claude"] += 1
-            else:
-                models_used["other"] += 1
+            models_used[_llm_provider(e.get("details", ""))] += 1
 
     # 6. Generate summary
     results["summary"] = _build_summary(results, events, systems)
@@ -138,6 +133,32 @@ async def run_nightly_evaluation(
             logger.warning(f"Failed to store suggestions: {e}")
 
     return results
+
+
+def _llm_provider(details: str) -> str:
+    """Provider of an ``llm_called`` event: its ``provider`` field, else the owner of its ``model``, else "other"."""
+    try:
+        data = json.loads(details) if details else {}
+    except (TypeError, ValueError):
+        return "other"
+    if not isinstance(data, dict):
+        return "other"
+    if data.get("provider"):
+        return str(data["provider"])
+    model = data.get("model")
+    if not model:
+        return "other"
+    try:
+        from realize_core.llm.registry import get_registry
+
+        registry = get_registry()
+        for name in registry.list_all():
+            provider = registry.get_provider_by_name(name)
+            if provider and any(m.model_id == model for m in provider.list_models()):
+                return name
+    except Exception as e:
+        logger.debug(f"Could not resolve the provider of model {model}: {e}")
+    return "other"
 
 
 def _summarize_errors(error_events: list[dict]) -> str:

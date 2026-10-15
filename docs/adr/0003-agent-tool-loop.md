@@ -40,6 +40,7 @@ bypassed the `ToolRegistry`, its MCP servers, and the governance gate installed 
 
 - Tool use runs on providers with a native tool API (Claude). Without one, chat falls back to
   plain `route_to_llm`. LiteLLM/OpenAI tool formats are a follow-up.
+  *Superseded in 5.31 by [ADR 0006](0006-neutral-llm-interface.md): the loop runs on any tool-capable provider.*
 - The iteration cap (default 8) ends with one wrap-up turn instructing the model to answer with
   what it has.
 - Approving a held action does not execute it yet. That is STORY-16, which unifies the approval

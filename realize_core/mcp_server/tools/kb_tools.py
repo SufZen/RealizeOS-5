@@ -45,12 +45,12 @@ KB_SEARCH_SCHEMA = {
     "properties": {
         "query": {
             "type": "string",
-            "description": "Search query — supports FTS5 syntax (e.g. 'investment AND thesis').",
+            "description": "Search query in plain words, any language (e.g. 'investment thesis').",
             "maxLength": MAX_QUERY_CHARS,
         },
         "system_key": {
             "type": ["string", "null"],
-            "description": "Optional system/venture filter. Omit to search across all systems.",
+            "description": "Optional system/venture filter. Omit to search every venture you may see.",
         },
         "top_k": {
             "type": "integer",
@@ -64,8 +64,22 @@ KB_SEARCH_SCHEMA = {
 }
 
 
+def _result_score(result: dict[str, Any]) -> float:
+    """A search hit's score: hybrid ``score``, else the keyword-only ``keyword_score``."""
+    score = result.get("score")
+    if score is None:
+        score = result.get("keyword_score", 0.0)
+    return float(score or 0.0)
+
+
 async def kb_search(args: dict[str, Any], app_state: Any, user: CurrentUser) -> Any:
-    """Hybrid FTS5 + vector search across the knowledge base."""
+    """Hybrid FTS5 + vector search across the knowledge base.
+
+    A caller limited to some ventures only ever searches those: a
+    ``system_key`` outside them is refused, and no ``system_key`` searches each
+    of their ventures (never ``shared`` files or another venture's). Callers
+    without a limit (owners, the API key, dev mode) search everything.
+    """
     query = (args.get("query") or "").strip()
     if not query:
         return {"error": "Query is required", "code": "MCP_VALIDATION"}
@@ -78,13 +92,27 @@ async def kb_search(args: dict[str, Any], app_state: Any, user: CurrentUser) -> 
     top_k = min(max(int(args.get("top_k", 10) or 10), 1), MAX_TOP_K)
     system_key = args.get("system_key") or None
 
+    from realize_core.mcp_server import venture_guard
+
+    allowed = venture_guard.caller_ventures(user)
+    if allowed is not None and system_key is not None and system_key not in allowed:
+        return {"error": f"You don't have access to venture '{system_key}'", "code": "MCP_FORBIDDEN"}
+    scopes = [system_key] if allowed is None or system_key is not None else sorted(allowed)
+
     try:
         from realize_core.kb.indexer import semantic_search
 
-        results = semantic_search(query=query, system_key=system_key, top_k=top_k)
+        results: list[dict[str, Any]] = []
+        for scope in scopes:
+            results += semantic_search(query=query, system_key=scope, top_k=top_k)
     except Exception as exc:
         logger.warning("kb_search failed: %s", exc)
         return {"query": query, "results": [], "error": str(exc)[:200], "code": "MCP_INTERNAL"}
+
+    if allowed is not None:
+        results = [r for r in results if r.get("system_key") in allowed]
+        if len(scopes) > 1:
+            results = sorted(results, key=_result_score, reverse=True)[:top_k]
 
     trimmed: list[dict[str, Any]] = []
     for r in results:
@@ -97,7 +125,7 @@ async def kb_search(args: dict[str, Any], app_state: Any, user: CurrentUser) -> 
                 "title": r.get("title"),
                 "system_key": r.get("system_key"),
                 "snippet": snippet,
-                "score": r.get("score") or r.get("rank"),
+                "score": _result_score(r),
             }
         )
 

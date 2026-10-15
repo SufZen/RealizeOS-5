@@ -1,117 +1,124 @@
 """
-Ollama LLM Provider: Stub for local/self-hosted LLM integration via Ollama.
+Ollama LLM Provider: local / self-hosted models through LiteLLM.
 
-To activate: install Ollama, pull a model, and set OLLAMA_HOST if not localhost.
-No API key required — runs locally.
+No API key. The server URL comes from OLLAMA_BASE_URL (or OLLAMA_HOST), the
+model from OLLAMA_MODEL. Tool and vision support are probed from the model itself.
 """
 
 import logging
+import time
+from typing import Any, ClassVar
 
-from realize_core.llm.base_provider import (
-    BaseLLMProvider,
-    Capability,
-    LLMResponse,
-    ModelInfo,
-)
+import httpx
+
+from realize_core import config
+from realize_core.llm.base_provider import Capability, ModelInfo
+from realize_core.llm.providers._litellm_adapter import PrefixedLiteLLMProvider
 
 logger = logging.getLogger(__name__)
 
+_PROBE_TIMEOUT = 2.0
+_AVAILABILITY_TTL = 30.0
+# A failed /api/show probe is retried after this long (a success is kept).
+_CAPABILITY_FAILURE_TTL = 60.0
 
-class OllamaProvider(BaseLLMProvider):
-    """Ollama local LLM provider (stub — ready for implementation)."""
+
+def model_keys() -> dict[str, str]:
+    """Registry model keys -> LiteLLM model IDs for Ollama."""
+    return {"ollama": OllamaProvider._model_id()}
+
+
+class OllamaProvider(PrefixedLiteLLMProvider):
+    """Ollama provider. Cost is always zero."""
+
+    prefix = "ollama_chat/"
+    tier_models: ClassVar[dict[str, str]] = {"fast": "ollama", "standard": "ollama", "deep": "ollama"}
+
+    def __init__(self) -> None:
+        super().__init__(default_model=self._model_id())
+        # (base_url, checked_at, reachable)
+        self._availability: tuple[str, float, bool] | None = None
+        # (base_url, model) -> capabilities the model advertises ("tools", "vision", ...)
+        self._capabilities: dict[tuple[str, str], frozenset[str]] = {}
+        # (base_url, model) -> when its /api/show probe last failed
+        self._probe_failed_at: dict[tuple[str, str], float] = {}
 
     @property
     def name(self) -> str:
         return "ollama"
 
-    def list_models(self) -> list[ModelInfo]:
-        return [
-            ModelInfo(
-                model_id="llama3.1:8b",
-                display_name="Llama 3.1 8B (local)",
-                tier=1,
-                capabilities={Capability.TEXT, Capability.CODE},
-                input_cost_per_m=0.0,
-                output_cost_per_m=0.0,
-                max_tokens=4096,
-                context_window=128000,
-            ),
-            ModelInfo(
-                model_id="deepseek-coder-v2:16b",
-                display_name="DeepSeek Coder V2 (local)",
-                tier=1,
-                capabilities={Capability.TEXT, Capability.CODE},
-                input_cost_per_m=0.0,
-                output_cost_per_m=0.0,
-                max_tokens=4096,
-                context_window=128000,
-            ),
-        ]
+    @classmethod
+    def _model_id(cls) -> str:
+        return f"{cls.prefix}{config.ollama_model()}"
 
     def is_available(self) -> bool:
-        """Check if Ollama is running locally."""
+        """True when the Ollama server answers ``/api/tags`` (cached for 30s)."""
+        base = config.ollama_base_url()
+        now = time.monotonic()
+        cached = self._availability
+        if cached and cached[0] == base and now - cached[1] < _AVAILABILITY_TTL:
+            return cached[2]
         try:
-            import os
-
-            import httpx
-
-            host = os.getenv("OLLAMA_HOST", "http://localhost:11434")
-            # Quick sync check — don't block on this
-            resp = httpx.get(f"{host}/api/tags", timeout=2.0)
-            return resp.status_code == 200
+            reachable = httpx.get(f"{base}/api/tags", timeout=_PROBE_TIMEOUT).status_code == 200
         except Exception:
-            return False
+            reachable = False
+        self._availability = (base, now, reachable)
+        return reachable
 
-    async def complete(
-        self,
-        system_prompt: str,
-        messages: list[dict],
-        model: str | None = None,
-        max_tokens: int = 4096,
-        temperature: float = 0.7,
-        timeout: float = 60.0,
-    ) -> LLMResponse:
-        """Text completion via Ollama API (stub)."""
+    def _model_capabilities(self, model: str) -> frozenset[str]:
+        """The ``capabilities`` ``/api/show`` lists for ``model`` (empty when unknown).
+
+        A successful probe is cached; a failed one is retried after
+        ``_CAPABILITY_FAILURE_TTL`` seconds (the model may still be pulling).
+        """
+        base = config.ollama_base_url()
+        key = (base, model)
+        if key in self._capabilities:
+            return self._capabilities[key]
+        failed_at = self._probe_failed_at.get(key)
+        if failed_at is not None and time.monotonic() - failed_at < _CAPABILITY_FAILURE_TTL:
+            return frozenset()
         if not self.is_available():
-            return LLMResponse(
-                text="Ollama not running. Start Ollama and pull a model first.",
-                model=model or "llama3.1:8b",
-                provider=self.name,
-                error="not_available",
-            )
-
-        import os
-
-        import httpx
-
-        host = os.getenv("OLLAMA_HOST", "http://localhost:11434")
-        target_model = model or "llama3.1:8b"
+            return frozenset()  # not cached: the server may come up later
         try:
-            async with httpx.AsyncClient(timeout=max(timeout, 1.0)) as client:
-                response = await client.post(
-                    f"{host}/api/chat",
-                    json={
-                        "model": target_model,
-                        "messages": [{"role": "system", "content": system_prompt}] + messages,
-                        "options": {"temperature": temperature, "num_predict": max_tokens},
-                        "stream": False,
-                    },
-                )
-                response.raise_for_status()
-                data = response.json()
-                return LLMResponse(
-                    text=data.get("message", {}).get("content", ""),
-                    model=target_model,
-                    provider=self.name,
-                    input_tokens=data.get("prompt_eval_count", 0),
-                    output_tokens=data.get("eval_count", 0),
-                    raw=data,
-                )
+            resp = httpx.post(f"{base}/api/show", json={"model": model, "name": model}, timeout=_PROBE_TIMEOUT)
+            resp.raise_for_status()
+            caps = frozenset(resp.json().get("capabilities") or [])
         except Exception as e:
-            logger.error("Ollama completion failed: %s", e)
-            return LLMResponse(
-                text=f"Ollama error: {e}",
-                model=target_model,
-                provider=self.name,
-                error=str(e),
+            logger.debug("Ollama capability probe failed for %s: %s", model, e)
+            self._probe_failed_at[key] = time.monotonic()
+            return frozenset()
+        self._probe_failed_at.pop(key, None)
+        self._capabilities[key] = caps
+        return caps
+
+    def _model_has_tools(self, model: str) -> bool:
+        """True if ``/api/show`` lists "tools" in the model's capabilities."""
+        return "tools" in self._model_capabilities(model)
+
+    def _model_has_vision(self, model: str) -> bool:
+        """True if ``/api/show`` lists "vision" (llava, gemma3, qwen2.5vl, ...)."""
+        return "vision" in self._model_capabilities(model)
+
+    def list_models(self) -> list[ModelInfo]:
+        caps = {Capability.TEXT}
+        if self._model_has_tools(config.ollama_model()):
+            caps.add(Capability.TOOLS)
+        if self._model_has_vision(config.ollama_model()):
+            caps.add(Capability.VISION)
+        return [
+            ModelInfo(
+                model_id=self._model_id(),
+                display_name=f"{config.ollama_model()} (local)",
+                tier=1,
+                capabilities=caps,
+                max_tokens=4096,
+                context_window=128000,
             )
+        ]
+
+    def _call_kwargs(self, model: str) -> dict[str, Any]:
+        return {"api_base": config.ollama_base_url()}
+
+    def _calc_cost(self, model: str, input_tokens: int, output_tokens: int) -> float:
+        return 0.0

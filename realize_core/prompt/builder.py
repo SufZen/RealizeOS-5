@@ -15,7 +15,7 @@ Layers (assembled in order):
 11. Channel format instructions
 
 Token optimization features:
-- estimate_tokens(): Fast token count estimation (chars / 3.5)
+- estimate_tokens(): Fast token count estimation (~3.5 chars per token; Hebrew and Arabic ~1.5)
 - truncate_to_budget(): Smart per-layer budget with priority preservation
 - deduplicate_layers(): Detect and remove redundant content across layers
 """
@@ -118,21 +118,30 @@ def clear_cache():
 # Average ratio of characters to tokens for English text across major models.
 # GPT-4/Claude average ~3.5 chars per token; we use this as a fast estimator.
 _CHARS_PER_TOKEN = 3.5
+# Hebrew and Arabic tokenise far worse: roughly 1.5 letters per token.
+_RTL_CHARS_PER_TOKEN = 1.5
+_RTL_FIRST, _RTL_LAST = chr(0x0590), chr(0x06FF)  # Hebrew .. Arabic blocks
+# Shortest message (non-space characters) that triggers a KB lookup.
+_MIN_KB_QUERY_CHARS = 3
 
 
 def estimate_tokens(text: str) -> int:
     """
     Fast token count estimation without loading a tokenizer.
 
-    Uses the empirical average of ~3.5 characters per token for English text.
-    This is within 10% of tiktoken/sentencepiece for typical prompts.
+    Uses the empirical average of ~3.5 characters per token for English text,
+    which is within 10% of tiktoken/sentencepiece for typical prompts. Hebrew
+    and Arabic letters (U+0590-U+06FF) count at ~1.5 characters per token,
+    since those scripts tokenise into many more tokens than English.
 
     Returns:
         Estimated token count.
     """
     if not text:
         return 0
-    return max(1, int(len(text) / _CHARS_PER_TOKEN))
+    rtl = sum(1 for ch in text if _RTL_FIRST <= ch <= _RTL_LAST)
+    other = len(text) - rtl
+    return max(1, int(rtl / _RTL_CHARS_PER_TOKEN + other / _CHARS_PER_TOKEN))
 
 
 # Layer priority: higher number = cut last (more important).
@@ -432,14 +441,15 @@ def _build_dynamic_kb_context(
     """
     Query the KB index for content relevant to the user's message.
     Skips files already loaded as static extra_context_files.
-    Only triggers for messages longer than 20 characters.
+    Skips messages with fewer than 3 non-space characters; short questions
+    (Hebrew ones are short) still search.
 
     Hits are labelled ``[S1]…[Sn]``; with ``cite`` the model is also told to
     cite them inline. When ``sources_out`` is given, the same numbered list
     (``id``, ``title``, ``path``) is appended to it so callers can show what
     the answer read.
     """
-    if not user_message or len(user_message) < 20:
+    if not user_message or len("".join(user_message.split())) < _MIN_KB_QUERY_CHARS:
         return ""
 
     try:

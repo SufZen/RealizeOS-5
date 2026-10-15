@@ -5,7 +5,7 @@
 ## Prerequisites
 
 - **Docker** and **Docker Compose** installed ([Get Docker](https://docs.docker.com/get-docker/))
-- At least one LLM API key: `ANTHROPIC_API_KEY` or `GOOGLE_AI_API_KEY`
+- One LLM provider is enough: an API key (`ANTHROPIC_API_KEY`, `GOOGLE_AI_API_KEY` or `OPENAI_API_KEY`), or a local [Ollama](https://ollama.com) with no key
 
 ## Step 1: Clone
 
@@ -20,13 +20,20 @@ cd RealizeOS-5
 cp .env.example .env
 ```
 
-Open `.env` and add your API key(s):
+Open `.env` and set any one provider (more than one is fine):
 
 ```bash
 ANTHROPIC_API_KEY=<your-anthropic-api-key>
-# and/or
+# or
 GOOGLE_AI_API_KEY=<your-google-ai-api-key>
+# or
+OPENAI_API_KEY=<your-openai-api-key>
+# or a local model, no key:
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_MODEL=llama3.1:8b
 ```
+
+Every feature works on every provider. To choose which one is tried first, or the model for each task size, see [LLM Routing](docs/configuration.md#llm-routing).
 
 ## Step 3: Launch
 
@@ -86,7 +93,7 @@ pip install -r requirements.txt
 
 # 3. Configure
 cp .env.example .env
-# Edit .env — add your API key(s)
+# Edit .env — set any one LLM provider (a key, or a local Ollama)
 
 # 4. Start the server
 realize-os serve

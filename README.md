@@ -39,30 +39,17 @@ RealizeOS is a **self-hosted AI operations system** that gives your business a c
 
 ---
 
-## 🆕 What's New in v5.5.0
+## 🆕 What's New
 
-v5.5.0 marks the **open-source relaunch** under BSL 1.1 — free core; monetize via guided installation sessions + vertical consulting. The positioning thesis:
+**Every feature works on every LLM provider.** The 5.31 release content makes Anthropic, Gemini, OpenAI, Ollama and anything [LiteLLM](https://docs.litellm.ai) routes to equal citizens: chat, agent tools, skills, vision and search all run on whichever provider you configure. A provider may be better at a task; none is required. A local Ollama with no API key is enough to run the whole system.
 
-> **You own the Heart** (FABRIC knowledge graph + event log + identity) forever; agent runtimes, models, channels, and even the dashboard are swappable adapters; local-first.
+- **Choose your provider and models.** Set `LLM_PRIMARY` and `LLM_MODEL_FAST` / `LLM_MODEL_STANDARD` / `LLM_MODEL_DEEP` in `.env`, or use **Settings → LLM Routing** in the dashboard. See [docs/configuration.md](docs/configuration.md#llm-routing).
+- **Agent tools on any tool-capable provider**, and an honest notice in the trail when none is available (no more silent fallback).
+- **Voice notes on any transcription-capable provider:** OpenAI (Whisper), Gemini, or any LiteLLM speech model via `LITELLM_TRANSCRIPTION_MODEL` (e.g. `groq/whisper-large-v3`). Claude and Ollama cannot transcribe audio, so an install with only those gets a clear "no transcription-capable provider" reply.
+- **Skills** can pin `tier:` or `model:`, and steps that feed a tool get validated JSON. See [docs/skill-authoring.md](docs/skill-authoring.md).
+- **Hebrew-ready search** in the knowledge base, memory and Synapse (trigram index and a local multilingual embedding model).
 
-### Shipped
-
-| Feature | What it does |
-|---------|-------------|
-| **FABRIC Entity System** | Markdown↔entity round-trip, provenance/trust, 3 reference mechanisms, soft JSON-Schema validation (5 entity types) |
-| **Synapse Knowledge Index** | 4-tier agent memory: L1 Hot TOC, L2 FTS5 search, L3 Tool Catalog, L4 Mission Memory |
-| **Event Log + SOUL** | JSONL append-only audit trail w/ SSE; persistent User/Agent identity |
-| **Runtime Adapter Layer** | `AgentRuntime` Protocol, Registry w/ health polling, FABRIC REST API |
-| **Mission Engine (Spine)** | 8-state mission/step machine, planning, runtime routing, cost tracking |
-| **Dreaming Subsystem** | Trust Policy, Reflex + Curator cycles, Dream Inbox with human-in-the-loop |
-| **Dashboard Pages** | `/missions`, `/knowledge`, `/dreams` — styled with the `@realizeos/design-system` |
-| **FABRIC Operator CLI** | `realize-os fabric` — lint, reindex, stats, search, toc, dream |
-
-### Roadmap (coming)
-
-Voice channel (STT/TTS) · Full Workspace UI redesign · Cytoscape visual graph · React Native mobile companion · Host-satellite sync
-
-> 📖 Full details: **[docs/v5.5.0/](docs/v5.5.0/)** · Claims verification: **[SITE-CLAIMS.md](docs/v5.5.0/SITE-CLAIMS.md)**
+Upgrading? Read [docs/upgrade-to-5.31.md](docs/upgrade-to-5.31.md). Everything else that changed is in the [CHANGELOG](CHANGELOG.md) and the earlier [upgrade notes](docs/upgrade-to-5.30.md).
 
 ---
 
@@ -149,15 +136,17 @@ Every venture's AI knowledge is organized into six layers:
 
 ### 🤖 Multi-LLM Routing
 
-The engine classifies every task and selects the optimal model:
+The engine classifies every task into a tier and uses that tier's model on your primary provider:
 
-| Task Type | Model | Examples |
-|-----------|-------|----------|
-| Simple | Gemini Flash | Status checks, formatting, lookups |
-| Content | Claude Sonnet | Writing, analysis, summarization |
-| Complex | Claude Opus | Strategy, multi-step reasoning |
+| Task Type | Tier | Examples |
+|-----------|------|----------|
+| Simple | `fast` | Status checks, formatting, lookups |
+| Content | `standard` | Writing, analysis, summarization |
+| Complex | `deep` | Strategy, multi-step reasoning |
 
-Providers auto-discovered at startup. Supports **Claude**, **Gemini**, **OpenAI**, and **Ollama** (local).
+Each provider maps the tiers to its own models (for example Gemini Flash / Pro, Claude Sonnet / Opus, GPT-4o Mini / GPT-4o), and you can pin any tier to any model with `LLM_MODEL_FAST`, `LLM_MODEL_STANDARD` and `LLM_MODEL_DEEP`.
+
+Providers are auto-discovered at startup. Supports **Claude**, **Gemini**, **OpenAI**, **Ollama** (local, no key) and any model [LiteLLM](https://docs.litellm.ai) can reach. Set the primary provider and the models with `LLM_PRIMARY` and `LLM_MODEL_*` in `.env`, or in **Settings → LLM Routing**.
 
 ### 🔧 Agent System
 
@@ -204,8 +193,8 @@ realize-os init --template consulting
 
 RealizeOS ships a **built-in MCP server** so any MCP-speaking agent can use it as a second brain:
 
-- **24 tools** across 4 families: Chat & Status, KB Read, Ops, Admin
-- **HTTP+SSE transport** — works with Claude Desktop, Cursor, n8n, cloud routines
+- **35 tools** across 4 families: Chat & Status, KB Read, Ops, Admin
+- **Streamable HTTP transport** at `/mcp` (the older HTTP+SSE endpoint at `/mcp/sse` is kept for existing clients) — works with Claude Desktop, Cursor, n8n, cloud routines
 - **Same auth** — Bearer JWT or API key, same roles and audit logs
 - **Gated access** — KB, ops, and admin tools independently toggleable
 
@@ -269,7 +258,7 @@ Both `realize-os` (pip-installed) and `python cli.py` (source checkout) work ide
 ## Requirements
 
 - **Python 3.11+** (3.12+ recommended)
-- At least one LLM API key (Anthropic, Google, OpenAI, or Ollama)
+- One LLM provider: an API key (Anthropic, Google or OpenAI), or a local Ollama with no key
 - Docker 24.0+ (optional, for containerized deployment)
 - Node.js 20+ (optional, for dashboard development)
 

@@ -87,7 +87,7 @@ async def semantic_match(
         skill_summaries: List of dicts with ``key`` and ``description`` fields.
         llm_fn: Async callable for LLM completion. Signature:
                 ``async def fn(system_prompt: str, messages: list) -> str``.
-                If ``None``, attempts to use the default Claude client.
+                If ``None``, uses the configured LLM (fast tier).
         threshold: Minimum score to consider a match (0.0–1.0).
 
     Returns:
@@ -179,23 +179,23 @@ async def semantic_match_batch(
 # ---------------------------------------------------------------------------
 
 
+# Shape of the JSON _SEMANTIC_MATCH_PROMPT asks for.
+_SEMANTIC_MATCH_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "skill_key": {"anyOf": [{"type": "string"}, {"type": "null"}]},
+        "score": {"type": "number"},
+        "reason": {"type": "string"},
+    },
+    "required": ["skill_key", "score", "reason"],
+}
+
+
 def _get_default_llm() -> LLMCallable | None:
-    """Attempt to import the default LLM client."""
-    try:
-        from realize_core.llm.claude_client import call_claude
+    """The configured LLM (fast tier, any provider), or None if none is available."""
+    from realize_core.llm.router import text_llm
 
-        return call_claude
-    except ImportError:
-        pass
-
-    try:
-        from realize_core.llm.gemini_client import call_gemini
-
-        return call_gemini
-    except ImportError:
-        pass
-
-    return None
+    return text_llm("fast", response_schema=_SEMANTIC_MATCH_SCHEMA)
 
 
 # ---------------------------------------------------------------------------

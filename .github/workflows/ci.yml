@@ -51,6 +51,10 @@ jobs:
       - name: Run ruff format check
         run: ruff format --check realize_core/ realize_api/ tests/ cli.py scripts/
 
+      - name: Provider-neutral check
+        # No feature may name an LLM provider outside the adapters (stdlib only, no install needed).
+        run: python scripts/check_provider_neutral.py
+
   # ──────────────────────────────────────────────
   # Job 2: Python Type Check (mypy)
   # ──────────────────────────────────────────────
@@ -104,7 +108,7 @@ jobs:
         env:
           # Prevent tests from hitting real LLM APIs
           ANTHROPIC_API_KEY: "test-key-not-real"
-          GOOGLE_API_KEY: "test-key-not-real"
+          GOOGLE_AI_API_KEY: "test-key-not-real"
           OPENAI_API_KEY: "test-key-not-real"
         run: |
           python -m pytest tests/ \

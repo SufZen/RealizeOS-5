@@ -45,12 +45,15 @@ bcrypt>=4.0
 # True cron triggers (08:00 Europe/Lisbon workdays, daily Curator). MIT.
 APScheduler>=3.10
 
-# Optional: Hybrid search (vector embeddings)
-# fastembed>=0.4.0  # Uncomment for hybrid FTS5+vector search
+# Hybrid KB search (local multilingual vector embeddings, no API calls).
+# Model: KB_EMBED_MODEL (default sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2;
+# "none" turns vectors off). Without the model, search is keyword-only.
+fastembed>=0.4.0
 
 # Telegram channel (first-class capability since v5.2.0)
 python-telegram-bot>=21.0
 pdfplumber>=0.11.0  # PDF parsing for Telegram document uploads
+pypdf>=4.0  # PDF text for media analysis on providers without native PDF input
 
 # Google Workspace tools (Gmail, Calendar, Drive, Sheets) — agent tools since 5.7.0. Apache-2.0.
 google-api-python-client>=2.100.0,<3

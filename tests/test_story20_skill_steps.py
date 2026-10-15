@@ -163,7 +163,7 @@ async def test_a_failed_step_stops_the_workflow(rows_tool, monkeypatch):
 
     later: list[str] = []
 
-    async def llm(system_prompt, messages, system_key):
+    async def llm(system_prompt, messages, system_key, **_):
         later.append(messages[-1]["content"])
         return "FINAL REPORT"
 

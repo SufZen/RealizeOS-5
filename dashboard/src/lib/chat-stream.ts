@@ -2,7 +2,7 @@
  * Chat streaming and the "what I used" trail (STORY-17).
  *
  * `POST /api/chat/stream` answers with Server-Sent Events: `source`,
- * `tool_call`, `tool_result`, `approval_requested`, `text`, then one
+ * `tool_call`, `tool_result`, `approval_requested`, `notice`, `text`, then one
  * `final` (the full chat response) or `error`. EventSource can't POST, so
  * the stream is read with `fetch` and parsed here.
  */
@@ -44,9 +44,20 @@ export interface TrailStep {
   request_id?: string
 }
 
+/**
+ * A warning from the server about this answer, e.g. the model could not use
+ * tools (`tools_unavailable`) or a tool call broke (`tools_error`). `code`
+ * picks our own words in the person's language; `message` is the fallback.
+ */
+export interface TrailNotice {
+  type: 'notice'
+  code?: string
+  message?: string
+}
+
 export interface Trail {
   sources: TrailSource[]
-  steps: TrailStep[]
+  steps: Array<TrailStep | TrailNotice>
 }
 
 export interface ChatFinal {
@@ -62,6 +73,7 @@ export interface ChatFinal {
 export type ChatStreamEvent =
   | ({ type: 'source' } & TrailSource)
   | TrailStep
+  | TrailNotice
   | { type: 'text'; text: string }
   | ChatFinal
   | { type: 'error'; detail: string }
@@ -74,7 +86,7 @@ export interface ChatStreamRequest {
   channel?: string
 }
 
-const STEP_TYPES = new Set(['tool_call', 'tool_result', 'approval_requested'])
+const STEP_TYPES = new Set(['tool_call', 'tool_result', 'approval_requested', 'notice'])
 
 export function emptyTrail(): Trail {
   return { sources: [], steps: [] }
@@ -119,7 +131,7 @@ export function normalizeTrail(raw: unknown): Trail | undefined {
           .filter((s): s is Record<string, unknown> => !!s && typeof s === 'object')
           .map(toTrailSource)
       : [],
-    steps: Array.isArray(steps) ? (steps as TrailStep[]) : [],
+    steps: Array.isArray(steps) ? (steps as Trail['steps']) : [],
   }
 }
 
@@ -187,7 +199,7 @@ export function withEvent(trail: Trail, event: ChatStreamEvent): Trail {
     return { ...trail, sources: [...trail.sources, toTrailSource({ ...event })] }
   }
   if (STEP_TYPES.has(event.type)) {
-    return { ...trail, steps: [...trail.steps, event as TrailStep] }
+    return { ...trail, steps: [...trail.steps, event as TrailStep | TrailNotice] }
   }
   return trail
 }
@@ -203,10 +215,16 @@ export interface ToolRow {
   requestId?: string
 }
 
+/** The warnings in a trail, in the order they arrived. */
+export function trailNotices(steps: Trail['steps']): TrailNotice[] {
+  return steps.filter((s): s is TrailNotice => s.type === 'notice')
+}
+
 /** One row per tool call, in call order, with its latest status. */
-export function toolRows(steps: TrailStep[]): ToolRow[] {
+export function toolRows(steps: Trail['steps']): ToolRow[] {
   const rows = new Map<string, ToolRow>()
   for (const step of steps) {
+    if (step.type === 'notice') continue
     const row = rows.get(step.id) ?? {
       id: step.id,
       name: step.name,

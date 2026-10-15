@@ -114,7 +114,7 @@ class FixtureLLM:
 
     @property
     def url(self) -> str:
-        """Base URL to put in ``OLLAMA_HOST``."""
+        """Base URL to put in ``OLLAMA_BASE_URL``."""
         host, port = self._server.server_address[:2]
         return f"http://{host}:{port}"
 
@@ -151,7 +151,8 @@ class FixtureLLM:
 
             def do_POST(self) -> None:
                 self.rfile.read(int(self.headers.get("Content-Length") or 0))
-                if not self.path.startswith("/api/chat"):
+                # Exactly /api/chat: LiteLLM also probes /api/show (and similar) around a call, which is no completion.
+                if self.path.split("?")[0] != "/api/chat":
                     self.send_error(404)
                     return
                 with fixture._lock:
@@ -204,6 +205,7 @@ def _server_env(kb: Path, *, api_key: str, llm_url: str, audit_dir: Path) -> dic
             "REALIZE_API_KEY": api_key,
             "REALIZE_AUDIT_LOG_DIR": str(audit_dir),
             "MCP_ENABLED": "true",
+            "OLLAMA_BASE_URL": llm_url,  # wins over OLLAMA_HOST; litellm may re-load a .env that sets it
             "OLLAMA_HOST": llm_url,
             "LITELLM_LOCAL_MODEL_COST_MAP": "True",
             "NO_PROXY": "127.0.0.1,localhost",

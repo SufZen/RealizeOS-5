@@ -6,7 +6,7 @@
  */
 import { baseLanguage, type Direction, type LocaleOverride } from '@/lib/locale'
 
-export type ProviderId = 'anthropic' | 'google_ai' | 'openai' | 'ollama'
+export type ProviderId = 'anthropic' | 'google_ai' | 'openai' | 'ollama' | 'litellm'
 
 interface Line {
   title: string
@@ -34,9 +34,17 @@ export interface OnboardingText {
   connectTitle: string
   connectDescription: string
   providers: Record<ProviderId, { description: string; help: string }>
-  recommended: string
   connected: string
   serverUrl: string
+  /** LiteLLM's model field and its optional gateway URL. */
+  modelId: string
+  apiBaseOptional: string
+  /** The primary-provider choice inside the connect step. */
+  primaryTitle: string
+  primaryHelp: string
+  primaryAuto: string
+  primarySaved: string
+  primaryError: (detail: string) => string
   apiKey: string
   showKey: string
   hideKey: string
@@ -115,10 +123,21 @@ const EN: OnboardingText = {
       description: 'Run models locally — free, private, no API key',
       help: 'Default URL: http://localhost:11434',
     },
+    litellm: {
+      description: 'Any other provider LiteLLM supports: Mistral, Groq, Bedrock, a gateway…',
+      help: 'Use the provider/model form, for example mistral/mistral-large-latest. Set that provider’s own key in .env.',
+    },
   },
-  recommended: 'Recommended',
   connected: 'Connected',
   serverUrl: 'Server URL',
+  modelId: 'Model',
+  apiBaseOptional: 'API base URL (optional)',
+  primaryTitle: 'Primary provider',
+  primaryHelp: 'Used first for every task. You can change it later in Settings.',
+  primaryAuto: 'Automatic (first available)',
+  primarySaved: 'Saved',
+  primaryError: (detail) =>
+    detail ? `Couldn’t save the choice: ${detail}` : 'Couldn’t save the choice. Try again.',
   apiKey: 'API key',
   showKey: 'Show key',
   hideKey: 'Hide key',
@@ -190,10 +209,21 @@ const HE: OnboardingText = {
       description: 'מודלים שרצים מקומית: חינם, פרטי, בלי מפתח API',
       help: 'כתובת ברירת המחדל: http://localhost:11434',
     },
+    litellm: {
+      description: 'כל ספק אחר ש-LiteLLM תומך בו: Mistral, Groq, Bedrock, שער ועוד',
+      help: 'כותבים בצורה provider/model, למשל mistral/mistral-large-latest. את המפתח של הספק עצמו מגדירים בקובץ .env.',
+    },
   },
-  recommended: 'מומלץ',
   connected: 'מחובר',
   serverUrl: 'כתובת השרת',
+  modelId: 'מודל',
+  apiBaseOptional: 'כתובת בסיס ל-API (לא חובה)',
+  primaryTitle: 'ספק ראשי',
+  primaryHelp: 'משמש ראשון לכל משימה. אפשר לשנות בהמשך בהגדרות.',
+  primaryAuto: 'אוטומטי (הראשון הזמין)',
+  primarySaved: 'נשמר',
+  primaryError: (detail) =>
+    detail ? `שמירת הבחירה נכשלה: ${detail}` : 'שמירת הבחירה נכשלה. כדאי לנסות שוב.',
   apiKey: 'מפתח API',
   showKey: 'הצגת המפתח',
   hideKey: 'הסתרת המפתח',

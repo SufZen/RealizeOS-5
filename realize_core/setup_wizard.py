@@ -363,15 +363,18 @@ def run_doctor(project_root: Path):
     # .env
     env_path = project_root / ".env"
     if env_path.exists():
-        content = env_path.read_text(encoding="utf-8")
-        has_anthropic = (
-            "ANTHROPIC_API_KEY=" in content and content.split("ANTHROPIC_API_KEY=")[1].split("\n")[0].strip()
-        )
-        has_google = "GOOGLE_AI_API_KEY=" in content and content.split("GOOGLE_AI_API_KEY=")[1].split("\n")[0].strip()
-        if has_anthropic or has_google:
-            _print("OK", ".env with API key(s)")
+        from dotenv import dotenv_values
+
+        from realize_core.llm.registry import available_providers
+
+        try:
+            providers = available_providers(env={k: v for k, v in dotenv_values(env_path).items() if v})
+        except Exception:
+            providers = []
+        if providers:
+            _print("OK", f"LLM provider available: {', '.join(providers)}")
         else:
-            _print("!!", ".env exists but no API keys configured")
+            _print("!!", ".env exists but no LLM provider is available (any one API key, LiteLLM or Ollama)")
             issues += 1
     else:
         _print("!!", ".env not found")

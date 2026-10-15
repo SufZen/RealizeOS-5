@@ -46,6 +46,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Bake the multilingual KB embedding model into the image (keep in step with
+# DEFAULT_EMBED_MODEL in realize_core/kb/indexer.py). An offline build still
+# succeeds: the model then downloads on first use, or search stays keyword-only.
+ENV FASTEMBED_CACHE_PATH=/app/models/fastembed
+RUN python -c "from fastembed import TextEmbedding; TextEmbedding('sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2')" || true
+
 # Conditionally install Google Workspace SDK
 RUN if [ "$INSTALL_GWS" = "true" ]; then \
     pip install --no-cache-dir \

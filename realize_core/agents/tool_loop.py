@@ -15,8 +15,9 @@ callers can stream a live "what I used" trail (STORY-17):
 - ``{"type": "approval_requested", "id", "name", "request_id"}``
 - ``{"type": "text", "text"}`` — final answer
 
-Tool use currently runs on providers with a native tool API (Claude). When
-none is available the caller falls back to plain text routing.
+The loop is wire-neutral: it runs on the first tool-capable provider in the
+fallback chain and uses that provider's hooks to serialise tool schemas, the
+assistant turn and the tool results.
 """
 
 from __future__ import annotations
@@ -29,6 +30,9 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any
 
+from realize_core.llm.base_provider import STOP_ERROR, STOP_PAUSE, STOP_REFUSAL, STOP_TOOL_USE, ToolCall
+from realize_core.tools.base_tool import convert_tool_schemas
+
 logger = logging.getLogger(__name__)
 
 Emit = Callable[[dict[str, Any]], Awaitable[None] | None]
@@ -39,18 +43,27 @@ DEFAULT_MAX_ITERATIONS = 8
 EVENT_PREVIEW_CHARS = 2_000
 
 
-def _append_user_text(convo: list[dict[str, Any]], text: str) -> None:
-    """Add a text block to the trailing user turn (after its tool results), or a new user turn.
+def _as_blocks(content: Any) -> list[Any]:
+    return [{"type": "text", "text": content}] if isinstance(content, str) else list(content)
 
-    The trailing user turn has not been sent yet, so this keeps the history append-only.
+
+def _append_user_text(convo: list[dict[str, Any]], provider, text: str) -> None:
+    """Add text to the trailing user turn (after its tool results), or a new user turn.
+
+    The trailing user turn has not been sent yet, so this keeps the history
+    append-only. The note is built with the provider's ``user_text_message``.
     """
+    note = provider.user_text_message(text)
     last = convo[-1] if convo else None
     if last and last.get("role") == "user":
-        content = last["content"]
-        blocks = [{"type": "text", "text": content}] if isinstance(content, str) else list(content)
-        convo[-1] = {**last, "content": [*blocks, {"type": "text", "text": text}]}
+        old, new = last["content"], note["content"]
+        if isinstance(old, str) and isinstance(new, str):
+            merged: Any = f"{old}\n\n{new}"
+        else:
+            merged = [*_as_blocks(old), *_as_blocks(new)]
+        convo[-1] = {**last, "content": merged}
     else:
-        convo.append({"role": "user", "content": text})
+        convo.append(note)
 
 
 _WRAP_UP_NOTE = (
@@ -109,31 +122,27 @@ async def emit_event(emit: Emit | None, event: dict[str, Any]) -> None:
         logger.warning("Tool loop event listener failed for %s", event.get("type"), exc_info=True)
 
 
-def _block_text(content: list[Any]) -> str:
-    return "\n".join(b.text for b in content if getattr(b, "type", "") == "text" and getattr(b, "text", ""))
-
-
-async def _run_one(registry, block, emit: Emit | None, allowed: frozenset[str]) -> ToolCallRecord:
-    """Execute one ``tool_use`` block through the registry (and its gate).
+async def _run_one(registry, call: ToolCall, emit: Emit | None, allowed: frozenset[str]) -> ToolCallRecord:
+    """Execute one model tool call through the registry (and its gate).
 
     Only tools that were offered to the model (``allowed``) are executed. The
     model may name any action — e.g. after a prompt injection — and the offered
     set is what encodes persona restrictions and the read-only policy when no
     gate is installed.
     """
-    params = dict(block.input or {})
-    record = ToolCallRecord(id=block.id, name=block.name, input=params)
-    await emit_event(emit, {"type": "tool_call", "id": block.id, "name": block.name, "input": params})
+    params = dict(call.arguments or {})
+    record = ToolCallRecord(id=call.id, name=call.name, input=params)
+    await emit_event(emit, {"type": "tool_call", "id": call.id, "name": call.name, "input": params})
 
-    if block.name not in allowed:
-        logger.warning("Tool loop: model called '%s', which was not offered; refused", block.name)
-        record.error = f"Tool '{block.name}' is not available to this agent."
+    if call.name not in allowed:
+        logger.warning("Tool loop: model called '%s', which was not offered; refused", call.name)
+        record.error = f"Tool '{call.name}' is not available to this agent."
         await emit_event(
             emit,
             {
                 "type": "tool_result",
-                "id": block.id,
-                "name": block.name,
+                "id": call.id,
+                "name": call.name,
                 "success": False,
                 "held": False,
                 "output": "",
@@ -144,7 +153,7 @@ async def _run_one(registry, block, emit: Emit | None, allowed: frozenset[str]) 
         return record
 
     started = time.perf_counter()
-    result = await registry.execute(block.name, params)
+    result = await registry.execute(call.name, params)
     record.duration_ms = (time.perf_counter() - started) * 1000
 
     record.request_id = result.metadata.get("request_id") if result.metadata.get("requires_human") else None
@@ -155,14 +164,14 @@ async def _run_one(registry, block, emit: Emit | None, allowed: frozenset[str]) 
     if record.held:
         await emit_event(
             emit,
-            {"type": "approval_requested", "id": block.id, "name": block.name, "request_id": record.request_id},
+            {"type": "approval_requested", "id": call.id, "name": call.name, "request_id": record.request_id},
         )
     await emit_event(
         emit,
         {
             "type": "tool_result",
-            "id": block.id,
-            "name": block.name,
+            "id": call.id,
+            "name": call.name,
             "success": record.success,
             "held": record.held,
             "output": record.output[:EVENT_PREVIEW_CHARS],
@@ -173,25 +182,22 @@ async def _run_one(registry, block, emit: Emit | None, allowed: frozenset[str]) 
     return record
 
 
-def _tool_result_block(record: ToolCallRecord) -> dict[str, Any]:
-    """Build the ``tool_result`` content block sent back to the model."""
+def _tool_result(record: ToolCallRecord) -> tuple[str, bool]:
+    """The ``(output, is_error)`` pair sent back to the model for one call."""
     if record.held:
-        content = _HELD_NOTE.format(request_id=record.request_id)
-        return {"type": "tool_result", "tool_use_id": record.id, "content": content}
+        return _HELD_NOTE.format(request_id=record.request_id), False
     if not record.success:
-        content = record.error or record.output or "The tool failed without an error message."
-        return {"type": "tool_result", "tool_use_id": record.id, "content": content, "is_error": True}
-    return {"type": "tool_result", "tool_use_id": record.id, "content": record.output or "(no output)"}
+        return record.error or record.output or "The tool failed without an error message.", True
+    return record.output or "(no output)", False
 
 
 def tool_capable_provider():
-    """Return an available provider with native tool use (Claude), or None."""
+    """Return the first available tool-capable provider in the fallback chain, or None."""
+    from realize_core.llm.base_provider import Capability
     from realize_core.llm.registry import get_registry
 
-    provider = get_registry().get_provider_by_name("claude")
-    if provider is not None and provider.is_available():
-        return provider
-    return None
+    providers = get_registry().providers_with_capability(Capability.TOOLS)
+    return providers[0] if providers else None
 
 
 async def run_tool_loop(
@@ -210,10 +216,12 @@ async def run_tool_loop(
 
     Args:
         system_prompt: Agent system prompt.
-        messages: Conversation so far (Claude message format); not mutated.
-        tools: Claude-format tool schemas the agent may use.
+        messages: Conversation so far (plain role/content messages); not mutated.
+        tools: Tool schemas the agent may use (Claude format; converted to the
+            provider's ``tools_format`` once, before the loop).
         registry: Tool registry to execute through (default: global registry).
-        provider: LLM provider with ``complete_with_tools`` (default: Claude).
+        provider: LLM provider with ``complete_with_tools`` (default: the first
+            tool-capable provider in the fallback chain).
         model: Model override; provider default when None.
         max_iterations: Max model round-trips before forcing a final answer.
         max_tokens: Per-response token cap.
@@ -235,6 +243,7 @@ async def run_tool_loop(
 
     convo: list[dict[str, Any]] = list(messages)
     allowed = frozenset(t["name"] for t in tools)
+    wire_tools = convert_tool_schemas(tools, getattr(provider, "tools_format", "openai"))
     result = LoopResult(text="")
     prompt = system_prompt
 
@@ -248,45 +257,48 @@ async def run_tool_loop(
         if wrap_up:
             # Append the note instead of editing the system prompt: changing
             # `system` mid-conversation invalidates earlier thinking blocks.
-            _append_user_text(convo, _WRAP_UP_NOTE)
+            _append_user_text(convo, provider, _WRAP_UP_NOTE)
         response = await provider.complete_with_tools(
             system_prompt=prompt,
             messages=convo,
-            tools=tools,
+            tools=wire_tools,
             model=model,
             max_tokens=max_tokens,
         )
         result.iterations = iteration
         result.cost_usd += response.cost_usd
         _record_cost(response.cost_usd)
+        stop = response.stop_reason
 
-        if response.error or response.raw is None:
+        if stop == STOP_REFUSAL:
+            logger.info("Tool loop: model declined the request (%s)", response.provider)
+            result.text = response.text
+            result.stop_reason = STOP_REFUSAL
+            break
+
+        if response.error or stop == STOP_ERROR:
             logger.error("Tool loop: model call failed: %s", response.error)
             result.text = response.text or "Sorry — the AI service is unavailable right now."
             result.stop_reason = "error"
             break
 
-        message = response.raw
-        stop = getattr(message, "stop_reason", "") or ""
-        tool_blocks = [b for b in message.content if getattr(b, "type", "") == "tool_use"]
-
-        if stop == "pause_turn":
-            convo.append({"role": "assistant", "content": message.content})
+        if stop == STOP_PAUSE:
+            if response.assistant_message:
+                convo.append(response.assistant_message)
             continue
 
-        if stop != "tool_use" or not tool_blocks or wrap_up:
-            result.text = _block_text(message.content) or response.text
-            result.stop_reason = "max_iterations" if (wrap_up and tool_blocks) else stop
-            if stop == "refusal":
-                details = getattr(message, "stop_details", None)
-                logger.info("Tool loop: model declined (%s)", getattr(details, "category", None))
+        calls = response.tool_calls
+        if stop != STOP_TOOL_USE or not calls or wrap_up:
+            # End and max-tokens both finish the answer with whatever text came back.
+            result.text = response.text
+            result.stop_reason = "max_iterations" if (wrap_up and calls) else stop
             break
 
-        # Run this turn's tool calls concurrently; answer them in ONE user message.
-        records = await asyncio.gather(*(_run_one(registry, b, emit, allowed) for b in tool_blocks))
+        # Run this turn's tool calls concurrently; answer them together.
+        records = await asyncio.gather(*(_run_one(registry, c, emit, allowed) for c in calls))
         result.tool_calls.extend(records)
-        convo.append({"role": "assistant", "content": message.content})
-        convo.append({"role": "user", "content": [_tool_result_block(r) for r in records]})
+        convo.append(response.assistant_message or {"role": "assistant", "content": response.text})
+        convo.extend(provider.tool_result_messages([(c, *_tool_result(r)) for c, r in zip(calls, records)]))
 
     await emit_event(emit, {"type": "text", "text": result.text})
     return result

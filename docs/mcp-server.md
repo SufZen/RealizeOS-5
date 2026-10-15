@@ -1,6 +1,6 @@
 # RealizeOS Built-in MCP Server
 
-> Shipping in **RealizeOS 5.1.0** — 24 tools across 4 families (Chat & Status, KB Read, Ops, Admin).
+> Introduced in **RealizeOS 5.1.0** — **35 tools** across 4 families in the 5.31 release content: Chat & Status (13), KB Read (7), Ops (11), Admin (4).
 
 RealizeOS exposes its REST surface over the [Model Context Protocol](https://modelcontextprotocol.io) so any MCP-speaking agent — Claude Desktop, Cursor, n8n, cloud routines, your own scripts — can call into a user's RealizeOS instance.
 

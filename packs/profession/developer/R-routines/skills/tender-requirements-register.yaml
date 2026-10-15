@@ -22,6 +22,7 @@ steps:
 
   - id: requirements
     type: agent
+    tier: standard
     agent: tenders
     inject_context: [tender_text]
     prompt: |

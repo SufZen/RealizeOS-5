@@ -13,7 +13,7 @@ Covers:
 import json
 import sys
 import types
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -195,21 +195,16 @@ class TestSemanticMatch:
 
     @pytest.mark.asyncio
     async def test_no_llm_available(self):
-        """Without llm_fn and no importable default, return None."""
-        # Temporarily hide mock LLM modules so _get_default_llm returns None
-        saved = {}
-        for mod_name in list(sys.modules):
-            if "claude_client" in mod_name or "gemini_client" in mod_name:
-                saved[mod_name] = sys.modules.pop(mod_name)
-        try:
+        """Without llm_fn and no available provider, return None."""
+        from realize_core.llm.registry import ProviderRegistry
+
+        with patch("realize_core.llm.registry.get_registry", return_value=ProviderRegistry()):
             result = await semantic_match(
                 message="test",
                 skill_summaries=[{"key": "test", "description": "test"}],
                 llm_fn=None,
             )
-            assert result is None
-        finally:
-            sys.modules.update(saved)
+        assert result is None
 
     @pytest.mark.asyncio
     async def test_custom_threshold(self):
