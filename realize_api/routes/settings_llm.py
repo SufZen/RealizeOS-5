@@ -159,12 +159,14 @@ async def update_llm_routing(body: dict[str, Any] = Body(...)):
     """
     from realize_core.llm.registry import get_registry, reset_registry
 
-    from realize_api.routes.setup import _ALLOWED_ENV_KEYS, _write_env_value
+    from realize_api.routes.setup import _ALLOWED_ENV_KEYS, _has_line_break, _write_env_value
 
     updates = _validate_updates(body)
-    for key in updates:
+    for key, value in updates.items():
         if key not in _ALLOWED_ENV_KEYS:  # keep this route inside Setup's allow-list
             raise _bad(f"{key} is not configurable")
+        if _has_line_break(value):  # incl. U+2028 etc.; checked before any key is written
+            raise _bad(f"{key}: the value must not contain a line break")
     try:
         for key, value in updates.items():
             _write_env_value(key, value)

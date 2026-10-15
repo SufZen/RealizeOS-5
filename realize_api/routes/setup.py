@@ -280,13 +280,27 @@ def _get_env_path() -> Path:
     return Path(os.getenv("REALIZE_ROOT", ".")) / ".env"
 
 
+def _env_lines(text: str) -> list[str]:
+    """Split .env text into lines on LF only (after normalising CRLF / CR).
+
+    ``str.splitlines()`` also breaks on U+2028, U+2029, U+0085, VT, FF and
+    U+001C-U+001E. A stray one of those inside an existing value must stay in
+    that value and never become a line (a key) of its own. A trailing newline
+    does not produce an empty last line.
+    """
+    lines = text.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    if lines and lines[-1] == "":
+        lines.pop()
+    return lines
+
+
 def _read_env_file() -> dict[str, str]:
     """Read .env file into a dict."""
     env_path = _get_env_path()
     if not env_path.exists():
         return {}
     result = {}
-    for line in env_path.read_text(encoding="utf-8").splitlines():
+    for line in _env_lines(env_path.read_text(encoding="utf-8")):
         line = line.strip()
         if not line or line.startswith("#"):
             continue
@@ -296,8 +310,13 @@ def _read_env_file() -> dict[str, str]:
     return result
 
 
+# Every character str.splitlines() treats as a line boundary.
+_LINE_BREAK_CHARS = frozenset("\n\r\v\f\x1c\x1d\x1e\x85\u2028\u2029")
+
+
 def _has_line_break(text: str) -> bool:
-    return "\r" in text or "\n" in text
+    """True when ``text`` holds any line boundary, including the Unicode ones (U+2028 etc.)."""
+    return len(text.splitlines()) > 1 or any(ch in _LINE_BREAK_CHARS for ch in text)
 
 
 def _write_env_value(key: str, value: str) -> None:
@@ -307,14 +326,15 @@ def _write_env_value(key: str, value: str) -> None:
         ValueError: the key or value contains a line break (it would add a line to .env).
     """
     if _has_line_break(key) or _has_line_break(value):
-        raise ValueError(f"{key.splitlines()[0] if key else key}: the value must not contain a line break")
+        safe_key = key.splitlines()[0] if key.splitlines() else key
+        raise ValueError(f"{safe_key}: the value must not contain a line break")
     env_path = _get_env_path()
 
     # Read existing content
     lines = []
     found = False
     if env_path.exists():
-        for line in env_path.read_text(encoding="utf-8").splitlines():
+        for line in _env_lines(env_path.read_text(encoding="utf-8")):
             stripped = line.strip()
             if stripped and not stripped.startswith("#") and "=" in stripped:
                 existing_key = stripped.split("=", 1)[0].strip()
