@@ -141,20 +141,57 @@ def test_a_wrapped_key_read_is_flagged(tmp_path):
 
 
 @pytest.mark.parametrize(
-    "source",
+    ("source", "rule", "line"),
     [
-        'x = os.getenv(\n    "ANTHROPIC_API_KEY"\n)\n',
-        'x = os.environ[\n    "GOOGLE_AI_API_KEY"\n]\n',
-        'if (\n    "OPENAI_API_KEY"\n    in os.environ\n):\n    pass\n',
-        'if provider.name == (\n    "claude"\n):\n    pass\n',
-        'ok = model.startswith(\n    "gemini/"\n)\n',
+        ('x = os.getenv(\n    "ANTHROPIC_API_KEY"\n)\n', "provider-key-env", 1),
+        ('x = os.environ[\n    "GOOGLE_AI_API_KEY"\n]\n', "provider-key-env", 1),
+        ('if (\n    "OPENAI_API_KEY"\n    in os.environ\n):\n    pass\n', "provider-key-env", 2),
+        ('if provider.name == (\n    "claude"\n):\n    pass\n', "provider-compare", 1),
+        ('ok = model.startswith(\n    "gemini/"\n)\n', "provider-prefix", 1),
+        ('if (\n    provider in ("claude", "gemini")\n):\n    pass\n', "provider-in-list", 2),
+        ('ok = check(\n    name in ["openai"],\n)\n', "provider-in-list", 2),
+        ('if (\n    ready\n    and name in ("openai", "ollama")\n):\n    pass\n', "provider-in-list", 3),
+        ('x = (\n    1\n    and name in (\n        "ollama",\n    )\n)\n', "provider-in-list", 3),
+        ("from realize_core.llm import (\n    claude_client,\n)\n", "direct-client-import", 1),
+        ("from realize_core.llm import (\n    base_provider,\n    gemini_client as g,\n)\n", "direct-client-import", 1),
     ],
-    ids=["getenv", "environ-subscript", "key-in-environ", "compare", "prefix"],
+    ids=[
+        "getenv",
+        "environ-subscript",
+        "key-in-environ",
+        "compare",
+        "prefix",
+        "in-tuple",
+        "in-list",
+        "and-chained",
+        "in-wrapped-tuple",
+        "import-list",
+        "import-list-alias",
+    ],
 )
-def test_other_wrapped_forms_are_flagged(tmp_path, source):
+def test_other_wrapped_forms_are_flagged(tmp_path, source, rule, line):
     (tmp_path / "feature.py").write_text(source, encoding="utf-8")
 
-    assert len(gate.scan([tmp_path], root=tmp_path)) == 1
+    offences = gate.scan([tmp_path], root=tmp_path)
+
+    assert len(offences) == 1, offences
+    assert offences[0].startswith(f"feature.py:{line}: [{rule}]"), offences
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        'for name in (\n    "claude",\n    "gemini",\n):\n    pass\n',
+        'x = f(\n    a,\n)\ny = name in ("anything",)\n',
+        "from realize_core.llm import (\n    registry,\n    router,\n)\n",
+        'if (\n    ready\n    and name in values\n):\n    label = "claude"\n',
+    ],
+    ids=["for-loop", "next-statement", "neutral-import", "in-names-variable"],
+)
+def test_wrapped_forms_that_do_not_offend_pass(tmp_path, source):
+    (tmp_path / "feature.py").write_text(source, encoding="utf-8")
+
+    assert gate.scan([tmp_path], root=tmp_path) == []
 
 
 @pytest.mark.parametrize("pragma_line", [1, 2, 3], ids=["first-line", "middle-line", "last-line"])

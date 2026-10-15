@@ -77,12 +77,22 @@ RULES: dict[str, re.Pattern[str]] = {
         rf"(?:\bgetenv\(|\benviron(?:\.get\(|\[))\s*{_KEY}|{_KEY}\s+(?:not\s+)?in\s+(?:os\.)?environ\b"
     ),
     "direct-client-call": re.compile(r"\bcall_(?:claude|gemini)\w*"),
-    "direct-client-import": re.compile(r"^\s*(?:from|import)\s+[\w.]*\b(?:claude_client|gemini_client)\b"),
+    # `^` rules are MULTILINE: a statement is matched as joined lines, and the
+    # anchor must hold at the start of any of its lines. `[ \t]` (not `\s`) keeps
+    # the anchored prefix on one line; `.` never crosses a line.
+    "direct-client-import": re.compile(
+        r"^[ \t]*(?:from|import)[ \t]+[\w.]*\b(?:claude_client|gemini_client)\b"
+        # `from pkg import (a, claude_client)`, the list possibly wrapped
+        r"|^[ \t]*from[ \t]+[\w.]+[ \t]+import[ \t]*\(?[^)#]*?\b(?:claude_client|gemini_client)\b",
+        re.MULTILINE,
+    ),
     "provider-by-name": re.compile(r"get_provider_by_name\(\s*[\"']"),
     # A wrapped operand may sit in parentheses: `x == (\n    "claude"\n)`.
     "provider-compare": re.compile(rf"(?:==|!=)\s*\(?\s*{_NAME}|{_NAME}\s*\)?\s*(?:==|!=)", re.IGNORECASE),
     "provider-in": re.compile(rf"{_NAME}\s+(?:not\s+)?in\b", re.IGNORECASE),
-    "provider-in-list": re.compile(rf"^(?!\s*(?:async\s+)?for\b).*\bin\s*[\(\[{{][^)\]}}]*{_NAME}", re.IGNORECASE),
+    "provider-in-list": re.compile(
+        rf"^(?![ \t]*(?:async[ \t]+)?for\b).*\bin\s*[\(\[{{][^)\]}}]*{_NAME}", re.IGNORECASE | re.MULTILINE
+    ),
     "provider-prefix": re.compile(rf"\.(?:startswith|endswith)\(\s*\(?[^)]*{_NAME}", re.IGNORECASE),
 }
 
