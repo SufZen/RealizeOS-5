@@ -133,7 +133,7 @@ def _validate_updates(body: dict[str, Any]) -> dict[str, str]:
             if not isinstance(model, str):
                 raise _bad(f"tiers.{tier} must be a string")
             model = model.strip()
-            if model and (len(model) > _MAX_MODEL_LEN or not _MODEL_RE.match(model)):
+            if model and (len(model) > _MAX_MODEL_LEN or not _MODEL_RE.fullmatch(model)):
                 raise _bad(f"tiers.{tier}: invalid model string {model[:60]!r}")
             updates[f"LLM_MODEL_{tier.upper()}"] = model
 
@@ -168,6 +168,8 @@ async def update_llm_routing(body: dict[str, Any] = Body(...)):
     try:
         for key, value in updates.items():
             _write_env_value(key, value)
+    except ValueError as e:  # a line break: _validate_updates should already have refused it
+        raise _bad(str(e)) from None
     except Exception:
         logger.error("Failed to save LLM routing settings", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to save configuration")

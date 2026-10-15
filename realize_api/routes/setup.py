@@ -296,8 +296,18 @@ def _read_env_file() -> dict[str, str]:
     return result
 
 
+def _has_line_break(text: str) -> bool:
+    return "\r" in text or "\n" in text
+
+
 def _write_env_value(key: str, value: str) -> None:
-    """Write or update a single key in the .env file atomically."""
+    """Write or update a single key in the .env file atomically.
+
+    Raises:
+        ValueError: the key or value contains a line break (it would add a line to .env).
+    """
+    if _has_line_break(key) or _has_line_break(value):
+        raise ValueError(f"{key.splitlines()[0] if key else key}: the value must not contain a line break")
     env_path = _get_env_path()
 
     # Read existing content
@@ -400,6 +410,9 @@ async def update_connection(body: UpdateConnectionBody, request: Request):
 
     if env_key not in _ALLOWED_ENV_KEYS:
         raise HTTPException(status_code=400, detail=f"Environment variable {env_key} is not configurable")
+
+    if _has_line_break(value):
+        raise HTTPException(status_code=400, detail="The value must not contain a line break")
 
     # Write to .env
     try:
