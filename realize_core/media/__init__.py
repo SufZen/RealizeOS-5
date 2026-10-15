@@ -341,10 +341,9 @@ async def route_media_generation(
         MediaResult with generation outcome or guidance
     """
     if media_type == MediaType.IMAGE:
-        # Try image generation providers
-        api_key = os.environ.get(
-            "OPENAI_API_KEY", ""
-        )  # provider-neutral: ok image generation is an unimplemented stub naming DALL-E
+        # Image generation is not implemented: no provider adapter has an image-generation
+        # capability yet, so this stub only reports whether DALL-E's key is present.
+        api_key = os.environ.get("OPENAI_API_KEY", "")  # provider-neutral: ok DALL-E stub, see above
         if api_key:
             return MediaResult.ok(
                 f"Image generation ready. Prompt: '{prompt[:100]}'. Use DALL-E 3 or Imagen via the routing engine.",

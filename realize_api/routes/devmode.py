@@ -11,6 +11,7 @@ Provides dashboard access to Developer Mode features:
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from pathlib import Path
 from typing import Any
@@ -186,9 +187,11 @@ async def run_health_check_api() -> dict[str, Any]:
     """Run system health check."""
     root = _get_root()
 
-    from realize_core.devmode.health_check import CheckStatus, run_health_check
+    from realize_core.devmode import health_check
+    from realize_core.devmode.health_check import CheckStatus
 
-    results = run_health_check(root, quick=True)
+    # In a worker thread: the check probes LLM providers (Ollama can take ~2s).
+    results = await asyncio.to_thread(health_check.run_health_check, root, quick=True)
 
     return {
         "status": "ok",

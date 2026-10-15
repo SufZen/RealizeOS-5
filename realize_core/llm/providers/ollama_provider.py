@@ -100,6 +100,22 @@ class OllamaProvider(PrefixedLiteLLMProvider):
         """True if ``/api/show`` lists "vision" (llava, gemma3, qwen2.5vl, ...)."""
         return "vision" in self._model_capabilities(model)
 
+    def supports_model(self, model_id: str, capability: Capability) -> bool:
+        """Tools and vision are per pulled model: ask ``/api/show`` for ``model_id`` itself.
+
+        ``model_id`` may carry the LiteLLM prefix (``ollama_chat/`` or ``ollama/``).
+        """
+        tag = model_id
+        for prefix in (self.prefix, "ollama/"):
+            if tag.startswith(prefix):
+                tag = tag[len(prefix) :]
+                break
+        if capability == Capability.TOOLS:
+            return self._model_has_tools(tag)
+        if capability == Capability.VISION:
+            return self._model_has_vision(tag)
+        return capability == Capability.TEXT
+
     def list_models(self) -> list[ModelInfo]:
         caps = {Capability.TEXT}
         if self._model_has_tools(config.ollama_model()):

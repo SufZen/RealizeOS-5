@@ -305,7 +305,8 @@ class LiteLLMProvider(BaseLLMProvider):
                     {
                         "id": c.id,
                         "type": "function",
-                        "function": {"name": c.name, "arguments": json.dumps(c.arguments)},
+                        # ensure_ascii=False: Hebrew (any non-ASCII) stays readable in history.
+                        "function": {"name": c.name, "arguments": json.dumps(c.arguments, ensure_ascii=False)},
                     }
                     for c in tool_calls
                 ]

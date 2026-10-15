@@ -124,3 +124,107 @@ def test_direct_client_rules_apply_to_cli_and_scripts(tmp_path):
     offences = gate.scan([tmp_path], root=tmp_path)
 
     assert sorted(o.split(":")[0] for o in offences) == ["cli.py", "scripts/smoke.py"]
+
+
+# --- statements split over several lines (5.31 follow-up #4) ---------------------------
+
+_WRAPPED_KEY_READ = 'def f():\n    key = os.environ.get(\n        "OPENAI_API_KEY", ""\n    )\n    return key\n'
+
+
+def test_a_wrapped_key_read_is_flagged(tmp_path):
+    (tmp_path / "feature.py").write_text(_WRAPPED_KEY_READ, encoding="utf-8")
+
+    offences = gate.scan([tmp_path], root=tmp_path)
+
+    assert len(offences) == 1
+    assert offences[0].startswith("feature.py:2: [provider-key-env]")
+
+
+@pytest.mark.parametrize(
+    ("source", "rule", "line"),
+    [
+        ('x = os.getenv(\n    "ANTHROPIC_API_KEY"\n)\n', "provider-key-env", 1),
+        ('x = os.environ[\n    "GOOGLE_AI_API_KEY"\n]\n', "provider-key-env", 1),
+        ('if (\n    "OPENAI_API_KEY"\n    in os.environ\n):\n    pass\n', "provider-key-env", 2),
+        ('if provider.name == (\n    "claude"\n):\n    pass\n', "provider-compare", 1),
+        ('ok = model.startswith(\n    "gemini/"\n)\n', "provider-prefix", 1),
+        ('if (\n    provider in ("claude", "gemini")\n):\n    pass\n', "provider-in-list", 2),
+        ('ok = check(\n    name in ["openai"],\n)\n', "provider-in-list", 2),
+        ('if (\n    ready\n    and name in ("openai", "ollama")\n):\n    pass\n', "provider-in-list", 3),
+        ('x = (\n    1\n    and name in (\n        "ollama",\n    )\n)\n', "provider-in-list", 3),
+        ("from realize_core.llm import (\n    claude_client,\n)\n", "direct-client-import", 1),
+        ("from realize_core.llm import (\n    base_provider,\n    gemini_client as g,\n)\n", "direct-client-import", 1),
+    ],
+    ids=[
+        "getenv",
+        "environ-subscript",
+        "key-in-environ",
+        "compare",
+        "prefix",
+        "in-tuple",
+        "in-list",
+        "and-chained",
+        "in-wrapped-tuple",
+        "import-list",
+        "import-list-alias",
+    ],
+)
+def test_other_wrapped_forms_are_flagged(tmp_path, source, rule, line):
+    (tmp_path / "feature.py").write_text(source, encoding="utf-8")
+
+    offences = gate.scan([tmp_path], root=tmp_path)
+
+    assert len(offences) == 1, offences
+    assert offences[0].startswith(f"feature.py:{line}: [{rule}]"), offences
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        'for name in (\n    "claude",\n    "gemini",\n):\n    pass\n',
+        'x = f(\n    a,\n)\ny = name in ("anything",)\n',
+        "from realize_core.llm import (\n    registry,\n    router,\n)\n",
+        'if (\n    ready\n    and name in values\n):\n    label = "claude"\n',
+    ],
+    ids=["for-loop", "next-statement", "neutral-import", "in-names-variable"],
+)
+def test_wrapped_forms_that_do_not_offend_pass(tmp_path, source):
+    (tmp_path / "feature.py").write_text(source, encoding="utf-8")
+
+    assert gate.scan([tmp_path], root=tmp_path) == []
+
+
+@pytest.mark.parametrize("pragma_line", [1, 2, 3], ids=["first-line", "middle-line", "last-line"])
+def test_a_pragma_on_any_line_of_the_statement_applies(tmp_path, pragma_line):
+    lines = ["key = os.environ.get(", '    "OPENAI_API_KEY", ""', ")"]
+    lines[pragma_line - 1] += "  # provider-neutral: ok the DALL-E stub names its key"
+    (tmp_path / "feature.py").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    assert gate.scan([tmp_path], root=tmp_path) == []
+
+
+def test_a_pragma_on_the_next_statement_does_not_apply(tmp_path):
+    source = 'key = os.environ.get(\n    "OPENAI_API_KEY", ""\n)\nx = 1  # provider-neutral: ok unrelated\n'
+    (tmp_path / "feature.py").write_text(source, encoding="utf-8")
+
+    offences = gate.scan([tmp_path], root=tmp_path)
+
+    assert [o.split(":")[1] for o in offences] == ["1"]
+
+
+def test_a_reasonless_pragma_on_a_wrapped_statement_is_reported(tmp_path):
+    source = 'key = os.environ.get(\n    "OPENAI_API_KEY", ""\n)  # provider-neutral: ok\n'
+    (tmp_path / "feature.py").write_text(source, encoding="utf-8")
+
+    offences = gate.scan([tmp_path], root=tmp_path)
+
+    assert len(offences) == 1
+    assert "[provider-key-env]" in offences[0]
+
+
+def test_a_file_that_does_not_tokenize_is_still_scanned_line_by_line(tmp_path):
+    (tmp_path / "feature.py").write_text('x = (\nkey = os.getenv("OPENAI_API_KEY")\n', encoding="utf-8")
+
+    offences = gate.scan([tmp_path], root=tmp_path)
+
+    assert any("feature.py:2: [provider-key-env]" in o for o in offences)

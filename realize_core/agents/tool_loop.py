@@ -13,7 +13,8 @@ callers can stream a live "what I used" trail (STORY-17):
 - ``{"type": "tool_call", "id", "name", "input"}``
 - ``{"type": "tool_result", "id", "name", "success", "output", "error"}``
 - ``{"type": "approval_requested", "id", "name", "request_id"}``
-- ``{"type": "text", "text"}`` — final answer
+- ``{"type": "text", "text"}`` — final answer (not sent when the loop fails: the
+  caller then answers without tools and sends that answer instead)
 
 The loop is wire-neutral: it runs on the first tool-capable provider in the
 fallback chain and uses that provider's hooks to serialise tool schemas, the
@@ -30,7 +31,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any
 
-from realize_core.llm.base_provider import STOP_ERROR, STOP_PAUSE, STOP_REFUSAL, STOP_TOOL_USE, ToolCall
+from realize_core.llm.base_provider import STOP_END, STOP_ERROR, STOP_PAUSE, STOP_REFUSAL, STOP_TOOL_USE, ToolCall
 from realize_core.tools.base_tool import convert_tool_schemas
 
 logger = logging.getLogger(__name__)
@@ -283,8 +284,14 @@ async def run_tool_loop(
             break
 
         if stop == STOP_PAUSE:
+            # Without a message to append, the next call would resend the same conversation.
             if response.assistant_message:
                 convo.append(response.assistant_message)
+            elif response.text:
+                convo.append({"role": "assistant", "content": response.text})
+            else:
+                result.stop_reason = STOP_END  # nothing to continue from: end the turn
+                break
             continue
 
         calls = response.tool_calls
@@ -300,5 +307,8 @@ async def run_tool_loop(
         convo.append(response.assistant_message or {"role": "assistant", "content": response.text})
         convo.extend(provider.tool_result_messages([(c, *_tool_result(r)) for c, r in zip(calls, records)]))
 
-    await emit_event(emit, {"type": "text", "text": result.text})
+    if result.stop_reason != "error":
+        # On "error" the caller answers another way (plain routing) and that answer
+        # is the one final text; the loop's error text must not be shown first.
+        await emit_event(emit, {"type": "text", "text": result.text})
     return result

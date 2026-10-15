@@ -87,11 +87,30 @@ export function routingNameForSetupId(id: string): string {
   return canonicalProvider(id)
 }
 
+/**
+ * A fallback list as the server wants it: trimmed, lowercased, aliases folded
+ * to the registry name (`anthropic` → `claude`) and each provider once, first
+ * mention wins. The server refuses a list that repeats a provider.
+ */
 export function parseFallback(text: string): string[] {
-  return text
-    .split(',')
-    .map((p) => p.trim().toLowerCase())
-    .filter(Boolean)
+  const seen = new Set<string>()
+  for (const part of text.split(',')) {
+    const name = canonicalProvider(part)
+    if (name) seen.add(name)
+  }
+  return [...seen]
+}
+
+/**
+ * The primary-provider choices to list: `names` (routing names, each once)
+ * plus the saved primary when it is not among them, so the select shows what
+ * is saved instead of silently falling back to "automatic".
+ */
+export function primaryChoices(names: string[], saved: string): string[] {
+  const choices = [...new Set(names.map(canonicalProvider).filter(Boolean))]
+  const current = canonicalProvider(saved)
+  if (current && !choices.includes(current)) choices.push(current)
+  return choices
 }
 
 /** The form's starting values, from the settings as configured. */
@@ -153,4 +172,16 @@ export function saveRouting(
   put: <T>(path: string, body?: unknown) => Promise<T> = api.put,
 ): Promise<RoutingData> {
   return put<RoutingData>('/llm/routing', update)
+}
+
+/** The saved primary as a routing name ("" = automatic, or when routing can't be read). */
+export async function loadSavedPrimary(
+  get: <T>(path: string) => Promise<T> = api.get,
+): Promise<string> {
+  try {
+    const routing = await get<RoutingData>('/llm/routing')
+    return canonicalProvider(routing?.settings?.primary)
+  } catch {
+    return ''
+  }
 }

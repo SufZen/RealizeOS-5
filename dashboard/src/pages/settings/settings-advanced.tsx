@@ -10,6 +10,7 @@ import {
   deadModels,
   formFromSettings,
   modelSuggestions,
+  primaryChoices,
   routingUpdate,
   saveRouting,
   TIERS,
@@ -51,6 +52,12 @@ export function LLMRoutingForm({
   const options = (data.providers ?? []).filter(
     (p) => p.available || canonicalProvider(p.name) === form.primary,
   )
+  // The saved primary is shown even when the server lists no provider by that name
+  // (not registered), so the select never reads "automatic" while a primary is saved.
+  const unlisted = primaryChoices(
+    options.map((p) => p.name),
+    form.primary,
+  ).filter((name) => !options.some((p) => canonicalProvider(p.name) === name))
 
   function edit(next: Partial<RoutingForm>) {
     setForm((f) => ({ ...f, ...next }))
@@ -93,6 +100,11 @@ export function LLMRoutingForm({
           {options.map((p) => (
             <option key={p.name} value={canonicalProvider(p.name)}>
               {p.available ? p.name : `${p.name} (${text.notAvailable})`}
+            </option>
+          ))}
+          {unlisted.map((name) => (
+            <option key={name} value={name}>
+              {`${name} (${text.notAvailable})`}
             </option>
           ))}
         </select>
@@ -207,7 +219,7 @@ export function LLMRoutingSection() {
               <span className="text-sm font-medium text-foreground capitalize">{taskType}</span>
               <span className="text-xs text-muted-foreground ms-2">{rule.description}</span>
             </div>
-            <bdi className="text-xs font-mono px-2 py-0.5 rounded bg-brand-400/10 text-brand-400 shrink-0">
+            <bdi className="inline-block text-xs font-mono px-2 py-0.5 rounded bg-brand-400/10 text-brand-400 shrink-0">
               {rule.model}
             </bdi>
           </div>

@@ -211,6 +211,34 @@ async def test_failed_llm_call_fails_the_step_with_the_error(gemini, monkeypatch
         await _call_llm("s", [{"role": "user", "content": "x"}], "acme", route={"tier": "fast"})
 
 
+async def test_a_refused_step_reports_the_refusal_text(gemini, monkeypatch):
+    """5.31 follow-up #5: a refusal names what the model said, not a bare 'refusal'."""
+    from realize_core.llm.base_provider import REFUSAL_ERROR, STOP_REFUSAL
+    from realize_core.skills.executor import StepFailedError, _call_llm
+
+    async def refuses(*_a, **_k):
+        gemini.calls.append({})
+        return LLMResponse(text="I can't write that letter for you.", error=REFUSAL_ERROR, stop_reason=STOP_REFUSAL)
+
+    monkeypatch.setattr(gemini, "complete", refuses)
+    with pytest.raises(StepFailedError) as excinfo:
+        await _call_llm("s", [{"role": "user", "content": "x"}], "acme", route={"tier": "fast"})
+    assert str(excinfo.value) == "The model declined this step: I can't write that letter for you."
+
+
+async def test_a_refusal_without_text_still_reads_as_declined(gemini, monkeypatch):
+    from realize_core.llm.base_provider import REFUSAL_ERROR, STOP_REFUSAL
+    from realize_core.skills.executor import StepFailedError, _call_llm
+
+    async def refuses(*_a, **_k):
+        gemini.calls.append({})
+        return LLMResponse(text="", error=REFUSAL_ERROR, stop_reason=STOP_REFUSAL)
+
+    monkeypatch.setattr(gemini, "complete", refuses)
+    with pytest.raises(StepFailedError, match="^The model declined this step"):
+        await _call_llm("s", [{"role": "user", "content": "x"}], "acme", route={"tier": "fast"})
+
+
 async def test_failed_json_step_is_not_retried(gemini, monkeypatch):
     from realize_core.llm.base_provider import STOP_ERROR
     from realize_core.skills.executor import SkillContext, StepFailedError, _complete_json_step

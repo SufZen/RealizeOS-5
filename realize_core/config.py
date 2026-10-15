@@ -8,6 +8,7 @@ hardcoded dictionaries. Supports environment variable interpolation.
 import logging
 import os
 import re
+from collections.abc import Mapping
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -45,9 +46,13 @@ def llm_tier_model(tier: str) -> str:
     return os.getenv(f"LLM_MODEL_{tier.upper()}", "").strip()
 
 
-def ollama_base_url() -> str:
-    """Ollama server URL: OLLAMA_BASE_URL, else OLLAMA_HOST, else localhost."""
-    url = (os.getenv("OLLAMA_BASE_URL") or os.getenv("OLLAMA_HOST") or "http://localhost:11434").strip()
+def ollama_base_url(env: Mapping[str, str] | None = None) -> str:
+    """Ollama server URL: OLLAMA_BASE_URL, else OLLAMA_HOST, else localhost.
+
+    ``env`` is read instead of the process environment when given.
+    """
+    source = os.environ if env is None else env
+    url = (source.get("OLLAMA_BASE_URL") or source.get("OLLAMA_HOST") or "http://localhost:11434").strip()
     if "://" not in url:  # OLLAMA_HOST is conventionally written host:port
         url = f"http://{url}"
     return url.rstrip("/")

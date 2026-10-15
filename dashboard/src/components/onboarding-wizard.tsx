@@ -18,7 +18,7 @@ import {
   Zap,
 } from 'lucide-react'
 import { api } from '@/lib/api'
-import { routingNameForSetupId } from '@/lib/llm-routing'
+import { loadSavedPrimary, primaryChoices, routingNameForSetupId } from '@/lib/llm-routing'
 import { cn } from '@/lib/utils'
 import { isUnrestricted, setupGate, type Actor } from '@/lib/permissions'
 import { onboardingText, type OnboardingText, type ProviderId } from '@/lib/onboarding-text'
@@ -446,6 +446,11 @@ export function PrimaryProviderChoice({
   const [saved, setSaved] = useState(false)
   const id = useId()
   const noteId = `${id}-note`
+  // A saved primary whose provider is not connected here still shows as selected.
+  const connectedNames = connected.map((p) => routingNameForSetupId(p.id))
+  const savedElsewhere = primaryChoices(connectedNames, value).filter(
+    (name) => !connectedNames.includes(name),
+  )
 
   async function choose(next: string) {
     setError('')
@@ -476,6 +481,11 @@ export function PrimaryProviderChoice({
         {connected.map((p) => (
           <option key={p.id} value={routingNameForSetupId(p.id)}>
             {p.name}
+          </option>
+        ))}
+        {savedElsewhere.map((name) => (
+          <option key={name} value={name}>
+            {name}
           </option>
         ))}
       </select>
@@ -727,9 +737,10 @@ export default function OnboardingWizard({ onComplete }: { onComplete: () => voi
         setConnectedProviders(configured)
       } catch {
         // API not available yet
-      } finally {
-        setLoading(false)
       }
+      // Show the primary already saved (a re-run of setup, or one set in Settings).
+      setPrimary(await loadSavedPrimary())
+      setLoading(false)
     }
     checkExisting()
   }, [])
