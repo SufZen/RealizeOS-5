@@ -1,7 +1,11 @@
 """Shared test fixtures for RealizeOS test suite."""
 
+import ipaddress
 import os
+import socket
 import sys
+
+import pytest
 
 # KB embeddings off for the whole run, subprocesses included: fastembed is a core
 # dependency and would otherwise download its model. Tests that need vectors fake them.
@@ -12,11 +16,55 @@ os.environ["KB_EMBED_MODEL"] = "none"
 os.environ["LITELLM_MODE"] = "PRODUCTION"
 os.environ["LITELLM_LOCAL_MODEL_COST_MAP"] = "True"
 
-import ipaddress
-import socket
+#: Provider keys cleared for the whole run and for every test (a test may set them again).
+_PROVIDER_KEYS = (
+    "ANTHROPIC_API_KEY",
+    "ANTHROPIC_WORKSPACE_ID",
+    "GOOGLE_AI_API_KEY",
+    "GOOGLE_API_KEY",
+    "GEMINI_API_KEY",
+    "OPENAI_API_KEY",
+    "OPENAI_API_BASE",
+    "OPENAI_BASE_URL",
+    "GROQ_API_KEY",
+    "MISTRAL_API_KEY",
+    "DEEPSEEK_API_KEY",
+    "OPENROUTER_API_KEY",
+    "TOGETHER_API_KEY",
+    "COHERE_API_KEY",
+    "XAI_API_KEY",
+)
+_PROVIDER_PREFIXES = ("LLM_", "OLLAMA_", "LITELLM_")
+_KEPT = {"LITELLM_MODE", "LITELLM_LOCAL_MODEL_COST_MAP"}
+#: Where Ollama probes go in tests: a TEST-NET-1 address the network guard refuses at once.
+TEST_OLLAMA_BASE_URL = "http://192.0.2.1:11434"
+_TEST_OLLAMA_HOST = "192.0.2.1"
 
-import pytest
-from realize_core.memory import conversation as _conversation
+
+def _is_provider_env(name: str) -> bool:
+    return name in _PROVIDER_KEYS or (name.startswith(_PROVIDER_PREFIXES) and name not in _KEPT)
+
+
+def _clear_shell_provider_env() -> dict[str, str]:
+    """Remove the shell's provider/LLM settings from os.environ; return what was removed.
+
+    Runs at conftest import, before realize_core is imported (config snapshots
+    keys at import) and before any fixture of any scope is set up. Per-test
+    cleaning (``_clean_provider_env``) and the teardown restore then only ever
+    see this clean baseline, never the developer's real keys.
+    """
+    removed = {k: v for k, v in os.environ.items() if _is_provider_env(k)}
+    for name in removed:
+        del os.environ[name]
+    os.environ["OLLAMA_BASE_URL"] = TEST_OLLAMA_BASE_URL
+    return removed
+
+
+#: The shell's provider settings, put back when the session ends.
+_SHELL_PROVIDER_ENV = _clear_shell_provider_env()
+
+# After the clear above: realize_core.config snapshots provider keys at import.
+from realize_core.memory import conversation as _conversation  # noqa: E402
 
 #: The real conversation helpers, taken before any test can patch them.
 _REAL_CONVERSATION_HELPERS = {
@@ -244,29 +292,9 @@ features:
 # Provider environment and the network guard
 # ---------------------------------------------------------------------------
 
-#: Provider keys cleared for every test (a test may set them again).
-_PROVIDER_KEYS = (
-    "ANTHROPIC_API_KEY",
-    "ANTHROPIC_WORKSPACE_ID",
-    "GOOGLE_AI_API_KEY",
-    "GOOGLE_API_KEY",
-    "GEMINI_API_KEY",
-    "OPENAI_API_KEY",
-    "OPENAI_API_BASE",
-    "OPENAI_BASE_URL",
-    "GROQ_API_KEY",
-    "MISTRAL_API_KEY",
-    "DEEPSEEK_API_KEY",
-    "OPENROUTER_API_KEY",
-    "TOGETHER_API_KEY",
-    "COHERE_API_KEY",
-    "XAI_API_KEY",
-)
-_PROVIDER_PREFIXES = ("LLM_", "OLLAMA_", "LITELLM_")
-_KEPT = {"LITELLM_MODE", "LITELLM_LOCAL_MODEL_COST_MAP"}
-#: Where Ollama probes go in tests: a TEST-NET-1 address the network guard refuses at once.
-TEST_OLLAMA_BASE_URL = "http://192.0.2.1:11434"
-_TEST_OLLAMA_HOST = "192.0.2.1"
+# _PROVIDER_KEYS, _PROVIDER_PREFIXES, _KEPT, TEST_OLLAMA_BASE_URL and
+# _is_provider_env are defined at the top of this file: the shell's provider
+# settings are cleared at import, before any fixture of any scope runs.
 
 
 @pytest.fixture(autouse=True)
@@ -288,10 +316,6 @@ def _clean_provider_env(monkeypatch):
     monkeypatch.setattr(llm_registry, "_registry", None)
 
 
-def _is_provider_env(name: str) -> bool:
-    return name in _PROVIDER_KEYS or (name.startswith(_PROVIDER_PREFIXES) and name not in _KEPT)
-
-
 @pytest.hookimpl(hookwrapper=True)
 def pytest_runtest_setup(item):
     item._provider_env = {k: v for k, v in os.environ.items() if _is_provider_env(k)}
@@ -303,7 +327,9 @@ def pytest_runtest_teardown(item, nextitem):
     """After every fixture (monkeypatch included) is undone, put provider settings back.
 
     Code under test may write ``os.environ`` directly (the settings routes do);
-    a value monkeypatch never saw would otherwise leak into later tests.
+    a value monkeypatch never saw would otherwise leak into later tests. The
+    snapshot was taken after the import-time clear, so it never holds the
+    shell's real keys.
     """
     yield
     before = getattr(item, "_provider_env", None)
@@ -312,6 +338,13 @@ def pytest_runtest_teardown(item, nextitem):
     for name in [k for k in os.environ if _is_provider_env(k) and k not in before]:
         del os.environ[name]
     os.environ.update(before)
+
+
+def pytest_unconfigure(config):
+    """Give the process its shell provider settings back once the run is over."""
+    for name in [k for k in os.environ if _is_provider_env(k)]:
+        del os.environ[name]
+    os.environ.update(_SHELL_PROVIDER_ENV)
 
 
 #: Non-loopback connection attempts refused during the run: (test id, target).
