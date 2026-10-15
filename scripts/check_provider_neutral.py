@@ -19,15 +19,16 @@ and ``plugins/`` (this gate script excepted) for code that does:
 A provider-name literal is a quoted string starting with claude, anthropic,
 gemini, openai or ollama (any case), e.g. "claude", 'gemini/', "openai-x".
 
-It is a simple line-by-line regex heuristic, not a parser: it misses
-comparisons split over several lines and ignores dict tables. Comment lines
-are skipped.
+It is a regex heuristic, not a parser, applied per statement: the tokenizer
+joins a statement wrapped over several lines (inside brackets), so
+``os.environ.get(\\n    "OPENAI_API_KEY", ""\\n)`` is caught like the one-line
+form. It ignores dict tables. Comment lines are skipped.
 
 Exemptions:
 - whole files and folders in ALLOWED (the provider adapters, the alias and
   configuration tables, setup flows);
-- one line, with an inline ``# provider-neutral: ok <reason>`` pragma. The
-  reason is required; a bare pragma is itself reported.
+- one statement, with an inline ``# provider-neutral: ok <reason>`` pragma on
+  any of its lines. The reason is required; a bare pragma is itself reported.
 
 Usage:
     python scripts/check_provider_neutral.py            # scan the default roots
@@ -38,8 +39,10 @@ Exit status 1 lists the offenders; 0 when the tree is clean. Standard library on
 
 from __future__ import annotations
 
+import io
 import re
 import sys
+import tokenize
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
@@ -76,7 +79,8 @@ RULES: dict[str, re.Pattern[str]] = {
     "direct-client-call": re.compile(r"\bcall_(?:claude|gemini)\w*"),
     "direct-client-import": re.compile(r"^\s*(?:from|import)\s+[\w.]*\b(?:claude_client|gemini_client)\b"),
     "provider-by-name": re.compile(r"get_provider_by_name\(\s*[\"']"),
-    "provider-compare": re.compile(rf"(?:==|!=)\s*{_NAME}|{_NAME}\s*(?:==|!=)", re.IGNORECASE),
+    # A wrapped operand may sit in parentheses: `x == (\n    "claude"\n)`.
+    "provider-compare": re.compile(rf"(?:==|!=)\s*\(?\s*{_NAME}|{_NAME}\s*\)?\s*(?:==|!=)", re.IGNORECASE),
     "provider-in": re.compile(rf"{_NAME}\s+(?:not\s+)?in\b", re.IGNORECASE),
     "provider-in-list": re.compile(rf"^(?!\s*(?:async\s+)?for\b).*\bin\s*[\(\[{{][^)\]}}]*{_NAME}", re.IGNORECASE),
     "provider-prefix": re.compile(rf"\.(?:startswith|endswith)\(\s*\(?[^)]*{_NAME}", re.IGNORECASE),
@@ -95,23 +99,62 @@ def is_allowed(rel: str) -> bool:
     return any(rel.startswith(entry) if entry.endswith("/") else rel == entry for entry in ALLOWED)
 
 
+_NON_CODE_TOKENS = frozenset(
+    {tokenize.COMMENT, tokenize.NL, tokenize.INDENT, tokenize.DEDENT, tokenize.ENCODING, tokenize.ENDMARKER}
+)
+
+
+def _statements(lines: list[str]) -> list[list[int]]:
+    """Group 1-based physical line numbers into logical statements.
+
+    A statement wrapped over several lines (inside brackets, or a multi-line
+    string) is one group; comment-only and blank lines belong to none. If the
+    file does not tokenize, every line is its own statement (the old behaviour).
+    """
+    source = "\n".join(lines) + "\n"
+    groups: list[list[int]] = []
+    start: int | None = None
+    try:
+        for tok in tokenize.generate_tokens(io.StringIO(source).readline):
+            if tok.type in _NON_CODE_TOKENS:
+                continue
+            if start is None:
+                start = tok.start[0]
+            if tok.type == tokenize.NEWLINE:
+                groups.append(list(range(start, tok.end[0] + 1)))
+                start = None
+    except (tokenize.TokenError, SyntaxError):  # IndentationError is a SyntaxError
+        return [[n] for n in range(1, len(lines) + 1)]
+    if start is not None:  # a last statement without a NEWLINE token
+        groups.append(list(range(start, len(lines) + 1)))
+    return groups
+
+
 def scan_text(text: str, rel: str) -> list[str]:
-    """Offences in one file's text, as ``path:line: [rule] code``."""
+    """Offences in one file's text, as ``path:line: [rule] code``.
+
+    Each rule is matched against a whole statement, so a call wrapped over
+    several lines is caught; the reported line is where the match starts. A
+    pragma with a reason on any line of the statement exempts it.
+    """
+    lines = text.split("\n")
     offences = []
-    for number, line in enumerate(text.splitlines(), 1):
-        code = line.strip()
-        if not code or code.startswith("#"):
+    for numbers in _statements(lines):
+        kept = [n for n in numbers if lines[n - 1].strip() and not lines[n - 1].strip().startswith("#")]
+        if not kept:
             continue
-        pragma = PRAGMA.search(line)
-        if pragma and pragma.group("reason").strip():
+        joined = "\n".join(lines[n - 1] for n in kept)
+        pragmas = [(n, PRAGMA.search(lines[n - 1])) for n in kept]
+        if any(p and p.group("reason").strip() for _, p in pragmas):
             continue
         for rule, pattern in RULES.items():
-            if pattern.search(line):
-                offences.append(f"{rel}:{number}: [{rule}] {code}")
+            match = pattern.search(joined)
+            if match:
+                number = kept[joined.count("\n", 0, match.start())]
+                offences.append(f"{rel}:{number}: [{rule}] {lines[number - 1].strip()}")
                 break
         else:
-            if pragma:
-                offences.append(f"{rel}:{number}: [pragma-without-reason] {code}")
+            offences.extend(f"{rel}:{n}: [pragma-without-reason] {lines[n - 1].strip()}" for n, p in pragmas if p)
     return offences
 
 
