@@ -19,6 +19,8 @@ logger = logging.getLogger(__name__)
 
 _PROBE_TIMEOUT = 2.0
 _AVAILABILITY_TTL = 30.0
+# A failed /api/show probe is retried after this long (a success is kept).
+_CAPABILITY_FAILURE_TTL = 60.0
 
 
 def model_keys() -> dict[str, str]:
@@ -38,6 +40,8 @@ class OllamaProvider(PrefixedLiteLLMProvider):
         self._availability: tuple[str, float, bool] | None = None
         # (base_url, model) -> capabilities the model advertises ("tools", "vision", ...)
         self._capabilities: dict[tuple[str, str], frozenset[str]] = {}
+        # (base_url, model) -> when its /api/show probe last failed
+        self._probe_failed_at: dict[tuple[str, str], float] = {}
 
     @property
     def name(self) -> str:
@@ -62,20 +66,31 @@ class OllamaProvider(PrefixedLiteLLMProvider):
         return reachable
 
     def _model_capabilities(self, model: str) -> frozenset[str]:
-        """The ``capabilities`` ``/api/show`` lists for ``model`` (cached; empty when unknown)."""
+        """The ``capabilities`` ``/api/show`` lists for ``model`` (empty when unknown).
+
+        A successful probe is cached; a failed one is retried after
+        ``_CAPABILITY_FAILURE_TTL`` seconds (the model may still be pulling).
+        """
         base = config.ollama_base_url()
         key = (base, model)
-        if key not in self._capabilities:
-            if not self.is_available():
-                return frozenset()  # not cached: the server may come up later
-            try:
-                resp = httpx.post(f"{base}/api/show", json={"model": model, "name": model}, timeout=_PROBE_TIMEOUT)
-                resp.raise_for_status()
-                self._capabilities[key] = frozenset(resp.json().get("capabilities") or [])
-            except Exception as e:
-                logger.debug("Ollama capability probe failed for %s: %s", model, e)
-                self._capabilities[key] = frozenset()
-        return self._capabilities[key]
+        if key in self._capabilities:
+            return self._capabilities[key]
+        failed_at = self._probe_failed_at.get(key)
+        if failed_at is not None and time.monotonic() - failed_at < _CAPABILITY_FAILURE_TTL:
+            return frozenset()
+        if not self.is_available():
+            return frozenset()  # not cached: the server may come up later
+        try:
+            resp = httpx.post(f"{base}/api/show", json={"model": model, "name": model}, timeout=_PROBE_TIMEOUT)
+            resp.raise_for_status()
+            caps = frozenset(resp.json().get("capabilities") or [])
+        except Exception as e:
+            logger.debug("Ollama capability probe failed for %s: %s", model, e)
+            self._probe_failed_at[key] = time.monotonic()
+            return frozenset()
+        self._probe_failed_at.pop(key, None)
+        self._capabilities[key] = caps
+        return caps
 
     def _model_has_tools(self, model: str) -> bool:
         """True if ``/api/show`` lists "tools" in the model's capabilities."""

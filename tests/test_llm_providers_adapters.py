@@ -242,6 +242,26 @@ class TestOllama:
             assert not provider.supports(Capability.TOOLS)
         assert post.call_count == 1
 
+    def test_probe_failure_is_retried_after_a_minute(self):
+        """A failed /api/show (model still pulling, server busy) is not remembered forever."""
+        clock = "realize_core.llm.providers.ollama_provider.time.monotonic"
+        get = lambda url, **kw: SimpleNamespace(status_code=200)  # noqa: E731
+        ok = MagicMock()
+        ok.json.return_value = {"capabilities": ["completion", "tools"]}
+        post = MagicMock(side_effect=[RuntimeError("busy"), ok])
+        with patch("httpx.get", get), patch("httpx.post", post):
+            provider = OllamaProvider()
+            with patch(clock, return_value=1000.0):
+                assert not provider.supports(Capability.TOOLS)
+            with patch(clock, return_value=1030.0):
+                assert not provider.supports(Capability.TOOLS)  # within the minute: cached
+            assert post.call_count == 1
+            with patch(clock, return_value=1061.0):
+                assert provider.supports(Capability.TOOLS)
+            with patch(clock, return_value=99999.0):
+                assert provider.supports(Capability.TOOLS)  # a success stays cached
+        assert post.call_count == 2
+
     def test_availability_is_cached_for_ttl(self):
         get = MagicMock(return_value=SimpleNamespace(status_code=200))
         with patch("httpx.get", get):
