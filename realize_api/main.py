@@ -115,6 +115,37 @@ def _validate_production_security() -> None:
         raise RuntimeError(f"Production security validation failed ({len(violations)} issue(s)):{bullet_list}")
 
 
+async def _run_startup_security_scan() -> None:
+    """Run the security scan in a worker thread and log its result.
+
+    The scan asks the provider registry which providers are available; the Ollama
+    ``/api/tags`` probe can take up to 2s on a host without Ollama, so it must not
+    run on the event loop. It still finishes before the app starts serving.
+    """
+    try:
+        from realize_core.security import scanner
+
+        scan = await asyncio.to_thread(scanner.run_security_scan, Path("."))
+        if scan.get("critical", 0) > 0:
+            logger.error(
+                "SECURITY SCAN: %d critical issue(s) found at startup!",
+                scan["critical"],
+            )
+            for check in scan.get("checks", []):
+                if check["status"] == "critical":
+                    logger.error("  ✗ %s — %s", check["name"], check.get("detail", ""))
+        elif scan.get("warnings", 0) > 0:
+            logger.warning(
+                "SECURITY SCAN: %d warning(s) — %d passed",
+                scan["warnings"],
+                scan["passed"],
+            )
+        else:
+            logger.info("SECURITY SCAN: All %d checks passed ✓", scan["passed"])
+    except Exception as e:
+        logger.debug(f"Security scan skipped: {e}")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup and shutdown hooks."""
@@ -215,29 +246,8 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Heartbeat scheduler skipped: {e}")
 
-    # Run security scan at startup
-    try:
-        from realize_core.security.scanner import run_security_scan
-
-        scan = run_security_scan(Path("."))
-        if scan.get("critical", 0) > 0:
-            logger.error(
-                "SECURITY SCAN: %d critical issue(s) found at startup!",
-                scan["critical"],
-            )
-            for check in scan.get("checks", []):
-                if check["status"] == "critical":
-                    logger.error("  ✗ %s — %s", check["name"], check.get("detail", ""))
-        elif scan.get("warnings", 0) > 0:
-            logger.warning(
-                "SECURITY SCAN: %d warning(s) — %d passed",
-                scan["warnings"],
-                scan["passed"],
-            )
-        else:
-            logger.info("SECURITY SCAN: All %d checks passed ✓", scan["passed"])
-    except Exception as e:
-        logger.debug(f"Security scan skipped: {e}")
+    # Run security scan at startup (in a worker thread: it probes providers)
+    await _run_startup_security_scan()
 
     # Initialize RBAC with custom roles (if YAML exists)
     try:
