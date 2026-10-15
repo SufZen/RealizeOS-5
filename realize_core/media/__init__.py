@@ -170,7 +170,21 @@ async def analyze_image(
             return MediaResult.ok(response.text, media_type, model=response.model, provider=provider.name)
         logger.warning(f"Vision via {provider.name} failed: {response.error or 'empty response'}")
 
-    if is_pdf and pdf_text == "":
+    if is_pdf:
+        # No vision provider read it: any text-capable provider can read the extracted text.
+        if pdf_text is None:
+            pdf_text = extract_pdf_text(image_data)
+        if pdf_text:
+            from realize_core.llm.router import route_completion
+
+            content = f"{prompt}\n\n--- Document text ---\n{pdf_text}"
+            response = await route_completion(
+                _VISION_SYSTEM_PROMPT, [{"role": "user", "content": content}], tier="fast", model=model
+            )
+            if response.ok and response.text:
+                return MediaResult.ok(response.text, media_type, model=response.model, provider=response.provider)
+            logger.warning(f"Reading the PDF text failed: {response.error or 'empty response'}")
+            return MediaResult.fail("No provider could read this PDF")
         return MediaResult.fail("No provider could read this PDF (no text layer, and no provider reads PDFs natively)")
     return MediaResult.fail("No vision-capable model available")
 
@@ -186,9 +200,13 @@ async def transcribe_audio(
     language: str = "en",
 ) -> MediaResult:
     """
-    Transcribe audio to text.
+    Transcribe audio to text with any transcription-capable provider.
 
-    Uses OpenAI Whisper API if available, otherwise returns guidance.
+    Providers are asked in fallback-chain order (``supports_transcription()``):
+    OpenAI (Whisper) and the generic LiteLLM provider (any
+    ``LITELLM_TRANSCRIPTION_MODEL``, e.g. ``groq/whisper-large-v3``) go through
+    ``litellm.atranscription``; Gemini reads the audio in a chat message. The
+    first transcript wins.
 
     Args:
         audio_data: Raw audio bytes
@@ -201,39 +219,29 @@ async def transcribe_audio(
     if not audio_data:
         return MediaResult.fail("No audio data provided")
 
-    # Try OpenAI Whisper
-    api_key = os.environ.get("OPENAI_API_KEY", "")
-    if api_key:
+    from realize_core.llm.base_provider import Capability
+    from realize_core.llm.registry import get_registry
+
+    tried = False
+    for provider in get_registry().providers_with_capability(Capability.TEXT):
         try:
-            import io
-
-            import httpx
-
-            # Determine file extension from mime type
-            ext_map = {
-                "audio/ogg": "ogg",
-                "audio/mp3": "mp3",
-                "audio/mpeg": "mp3",
-                "audio/wav": "wav",
-                "audio/webm": "webm",
-                "audio/m4a": "m4a",
-            }
-            ext = ext_map.get(mime_type, "ogg")
-
-            async with httpx.AsyncClient(timeout=60) as client:
-                resp = await client.post(
-                    "https://api.openai.com/v1/audio/transcriptions",
-                    headers={"Authorization": f"Bearer {api_key}"},
-                    data={"model": "whisper-1", "language": language},
-                    files={"file": (f"audio.{ext}", io.BytesIO(audio_data), mime_type)},
-                )
-                resp.raise_for_status()
-                text = resp.json().get("text", "")
-                return MediaResult.ok(text, MediaType.AUDIO, model="whisper-1")
+            if not provider.supports_transcription():
+                continue
+            tried = True
+            response = await provider.transcribe(audio_data, mime_type=mime_type, language=language)
         except Exception as e:
-            logger.warning(f"Whisper transcription failed: {e}")
+            logger.warning(f"Transcription via {provider.name} failed: {e}")
+            continue
+        if response.ok and response.text.strip():
+            return MediaResult.ok(response.text, MediaType.AUDIO, model=response.model, provider=provider.name)
+        logger.warning(f"Transcription via {provider.name} failed: {response.error or 'empty transcript'}")
 
-    return MediaResult.fail("Audio transcription requires OPENAI_API_KEY for Whisper API")
+    if tried:
+        return MediaResult.fail("Audio transcription failed on every transcription-capable provider")
+    return MediaResult.fail(
+        "No transcription-capable provider configured. Any one of: an OpenAI key (Whisper), a Gemini key, "
+        "or LITELLM_TRANSCRIPTION_MODEL (e.g. groq/whisper-large-v3) for the LiteLLM provider."
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -334,7 +342,9 @@ async def route_media_generation(
     """
     if media_type == MediaType.IMAGE:
         # Try image generation providers
-        api_key = os.environ.get("OPENAI_API_KEY", "")
+        api_key = os.environ.get(
+            "OPENAI_API_KEY", ""
+        )  # provider-neutral: ok image generation is an unimplemented stub naming DALL-E
         if api_key:
             return MediaResult.ok(
                 f"Image generation ready. Prompt: '{prompt[:100]}'. Use DALL-E 3 or Imagen via the routing engine.",

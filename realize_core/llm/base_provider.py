@@ -134,6 +134,27 @@ class LLMResponse:
         return self.error == REFUSAL_ERROR
 
 
+#: Audio MIME type -> file extension / audio format name used by transcription APIs.
+AUDIO_FORMATS = {
+    "audio/ogg": "ogg",
+    "audio/opus": "ogg",
+    "audio/mp3": "mp3",
+    "audio/mpeg": "mp3",
+    "audio/wav": "wav",
+    "audio/x-wav": "wav",
+    "audio/webm": "webm",
+    "audio/m4a": "m4a",
+    "audio/mp4": "m4a",
+    "audio/x-m4a": "m4a",
+    "audio/flac": "flac",
+}
+
+
+def audio_format(mime_type: str) -> str:
+    """File extension / format name for an audio MIME type (``ogg`` when unknown)."""
+    return AUDIO_FORMATS.get((mime_type or "").split(";")[0].strip().lower(), "ogg")
+
+
 class BaseLLMProvider(ABC):
     """Abstract base class for LLM providers.
 
@@ -252,6 +273,27 @@ class BaseLLMProvider(ABC):
         Override in providers that support vision.
         """
         raise NotImplementedError(f"{self.name} does not support vision")
+
+    def supports_transcription(self) -> bool:
+        """True when ``transcribe()`` can turn speech into text on this provider.
+
+        A capability, not a provider name: media code asks every available
+        provider and uses the first that says yes.
+        """
+        return False
+
+    async def transcribe(
+        self,
+        audio_data: bytes,
+        mime_type: str = "audio/ogg",
+        language: str | None = None,
+    ) -> LLMResponse:
+        """Transcribe audio to text (``LLMResponse.text`` is the transcript).
+
+        Default implementation raises NotImplementedError; providers that
+        return True from ``supports_transcription()`` override it.
+        """
+        raise NotImplementedError(f"{self.name} does not support transcription")
 
     def is_available(self) -> bool:
         """Check if this provider is available (SDK installed, key configured).

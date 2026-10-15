@@ -12,7 +12,7 @@ import os
 from typing import Any, ClassVar
 
 from realize_core import config
-from realize_core.llm.base_provider import Capability, ModelInfo
+from realize_core.llm.base_provider import STOP_ERROR, Capability, LLMResponse, ModelInfo, audio_format
 from realize_core.llm.providers._litellm_adapter import PrefixedLiteLLMProvider
 
 logger = logging.getLogger(__name__)
@@ -75,6 +75,39 @@ class GeminiProvider(PrefixedLiteLLMProvider):
     def is_available(self) -> bool:
         """True when litellm is installed and GOOGLE_AI_API_KEY is set."""
         return bool(config.google_ai_api_key()) and importlib.util.find_spec("litellm") is not None
+
+    def supports_transcription(self) -> bool:
+        """Gemini reads audio in a chat message (an ``input_audio`` content part)."""
+        return True
+
+    async def transcribe(
+        self,
+        audio_data: bytes,
+        mime_type: str = "audio/ogg",
+        language: str | None = None,
+    ) -> LLMResponse:
+        """Transcribe with the fast Gemini model and the audio as an ``input_audio`` part."""
+        import base64
+
+        model = self._flash()
+        instruction = "Transcribe this audio verbatim. Reply with the transcript only."
+        if language:
+            instruction += f" The speech is in language '{language}'."
+        content = [
+            {"type": "text", "text": instruction},
+            {
+                "type": "input_audio",
+                "input_audio": {"data": base64.b64encode(audio_data).decode(), "format": audio_format(mime_type)},
+            },
+        ]
+        try:
+            response = await self._get_litellm().acompletion(
+                **self._acompletion_kwargs("", [{"role": "user", "content": content}], model, 4096, 0.0, 120.0)
+            )
+            return self._build_response(response, model)
+        except Exception as e:
+            logger.warning(f"Gemini transcription error ({model}): {e}")
+            return LLMResponse(text="", model=model, provider=self.name, error=str(e), stop_reason=STOP_ERROR)
 
     def _min_max_tokens(self, model: str) -> int:
         return _MIN_MAX_TOKENS

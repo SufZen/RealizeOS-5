@@ -49,6 +49,13 @@ class PrefixedLiteLLMProvider(LiteLLMProvider):
         kwargs.update(extra)
         return kwargs
 
+    def _transcription_model(self) -> str | None:
+        """A pinned provider transcribes only when its subclass names a model (LITELLM_TRANSCRIPTION_MODEL is the gateway's)."""
+        return None
+
+    def _transcription_kwargs(self, model: str) -> dict[str, Any]:
+        return {}
+
     def _supports_response_schema(self, model: str) -> bool:
         return super()._supports_response_schema(self._litellm_model(model))
 

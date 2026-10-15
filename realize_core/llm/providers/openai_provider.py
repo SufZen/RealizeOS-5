@@ -56,6 +56,10 @@ class OpenAIProvider(PrefixedLiteLLMProvider):
             ),
         ]
 
+    def _transcription_model(self) -> str | None:
+        """Whisper, through ``litellm.atranscription`` (LiteLLM reads OPENAI_API_KEY)."""
+        return "openai/whisper-1"
+
     def is_available(self) -> bool:
         """True when litellm is installed and OPENAI_API_KEY is set."""
         return bool(os.getenv("OPENAI_API_KEY")) and importlib.util.find_spec("litellm") is not None

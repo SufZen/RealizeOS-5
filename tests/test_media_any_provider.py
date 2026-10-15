@@ -166,3 +166,155 @@ def test_media_names_no_provider(name):
     from realize_core import media
 
     assert name not in Path(media.__file__).read_text(encoding="utf-8")
+
+
+# ---------------------------------------------------------------------------
+# PDFs on text-only providers, audio on any transcription-capable provider
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def no_limits():
+    with (
+        patch("realize_core.llm.router._check_rate_limit", return_value=True),
+        patch("realize_core.llm.router._check_cost_limit", return_value=True),
+    ):
+        yield
+
+
+async def test_pdf_with_only_a_text_provider_is_read_as_text(no_limits):
+    from realize_core.media import MediaType, analyze_image
+
+    ollama = _TextOnly("ollama")
+    with _registry(ollama):
+        result = await analyze_image(_pdf("Invoice 4521 total 360000"), mime_type="application/pdf", prompt="Summarise")
+
+    assert result.success, result.error
+    assert result.media_type == MediaType.DOCUMENT
+    assert result.output == "ollama read the text"
+    sent = ollama.text_calls[0]["messages"][-1]["content"]
+    assert "Summarise" in sent
+    assert "Invoice 4521 total 360000" in sent
+
+
+async def test_image_with_only_a_text_provider_still_fails_cleanly(no_limits):
+    from realize_core.media import analyze_image
+
+    ollama = _TextOnly("ollama")
+    with _registry(ollama):
+        result = await analyze_image(b"img")
+
+    assert not result.success
+    assert ollama.text_calls == []
+
+
+class _FakeTranscriber(_TextOnly):
+    def __init__(self, name, *, transcribes=True, fail=False):
+        super().__init__(name)
+        self._transcribes = transcribes
+        self._fail = fail
+        self.audio_calls: list[dict] = []
+
+    def supports_transcription(self):
+        return self._transcribes
+
+    async def transcribe(self, audio_data, mime_type="audio/ogg", language=None):
+        self.audio_calls.append({"size": len(audio_data), "mime_type": mime_type, "language": language})
+        if self._fail:
+            return LLMResponse(text="", provider=self._name, error="stt down")
+        return LLMResponse(text=f"{self._name} heard hello", model=f"{self._name}-stt", provider=self._name)
+
+
+async def test_audio_uses_the_first_transcription_capable_provider():
+    from realize_core.media import MediaType, transcribe_audio
+
+    textonly = _FakeTranscriber("claude", transcribes=False)
+    broken = _FakeTranscriber("gemini", fail=True)
+    groq = _FakeTranscriber("litellm")
+    with _registry(textonly, broken, groq):
+        result = await transcribe_audio(b"OggS...", mime_type="audio/ogg", language="he")
+
+    assert result.success, result.error
+    assert result.output == "litellm heard hello"
+    assert result.media_type == MediaType.AUDIO
+    assert result.metadata["provider"] == "litellm"
+    assert textonly.audio_calls == []
+    assert broken.audio_calls[0] == {"size": 7, "mime_type": "audio/ogg", "language": "he"}
+
+
+async def test_audio_without_a_transcription_provider_says_so():
+    from realize_core.media import transcribe_audio
+
+    with _registry(_FakeTranscriber("ollama", transcribes=False)):
+        result = await transcribe_audio(b"OggS...")
+
+    assert not result.success
+    assert "no transcription-capable provider" in result.error.lower()
+
+
+def test_transcription_capability_of_the_adapters(monkeypatch):
+    from realize_core.llm.litellm_provider import LiteLLMProvider
+    from realize_core.llm.providers.claude_provider import ClaudeProvider
+    from realize_core.llm.providers.gemini_provider import GeminiProvider
+    from realize_core.llm.providers.ollama_provider import OllamaProvider
+    from realize_core.llm.providers.openai_provider import OpenAIProvider
+
+    assert OpenAIProvider().supports_transcription()
+    assert GeminiProvider().supports_transcription()
+    assert not ClaudeProvider().supports_transcription()
+    assert not OllamaProvider().supports_transcription()
+    assert not LiteLLMProvider().supports_transcription()
+    monkeypatch.setenv("LITELLM_TRANSCRIPTION_MODEL", "groq/whisper-large-v3")
+    assert LiteLLMProvider().supports_transcription()
+
+
+async def test_openai_and_litellm_transcribe_through_litellm(monkeypatch):
+    from unittest.mock import AsyncMock
+
+    from realize_core.llm.litellm_provider import LiteLLMProvider
+    from realize_core.llm.providers.openai_provider import OpenAIProvider
+
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    monkeypatch.setenv("LITELLM_TRANSCRIPTION_MODEL", "groq/whisper-large-v3")
+    fake = AsyncMock(return_value=type("T", (), {"text": "shalom"})())
+    with patch("litellm.atranscription", fake):
+        openai_resp = await OpenAIProvider().transcribe(b"abc", "audio/ogg", "he")
+        groq_resp = await LiteLLMProvider().transcribe(b"abc", "audio/mpeg")
+
+    assert openai_resp.ok
+    assert openai_resp.text == "shalom"
+    assert groq_resp.text == "shalom"
+    first, second = (c.kwargs for c in fake.call_args_list)
+    assert first["model"] == "openai/whisper-1"
+    assert first["language"] == "he"
+    assert first["file"][0] == "audio.ogg"
+    assert first["file"][1] == b"abc"
+    assert second["model"] == "groq/whisper-large-v3"
+    assert "language" not in second
+
+
+async def test_gemini_transcribes_with_an_audio_content_part(monkeypatch):
+    import base64
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    from realize_core.llm.providers.gemini_provider import GeminiProvider
+
+    monkeypatch.setenv("GOOGLE_AI_API_KEY", "g-test")
+    reply = SimpleNamespace(
+        choices=[
+            SimpleNamespace(message=SimpleNamespace(content="hello there", tool_calls=None), finish_reason="stop")
+        ],
+        usage=SimpleNamespace(prompt_tokens=5, completion_tokens=2),
+    )
+    fake = AsyncMock(return_value=reply)
+    with patch("litellm.acompletion", fake):
+        resp = await GeminiProvider().transcribe(b"wavdata", "audio/wav", "en")
+
+    assert resp.ok
+    assert resp.text == "hello there"
+    kwargs = fake.call_args.kwargs
+    assert kwargs["model"].startswith("gemini/")
+    parts = kwargs["messages"][-1]["content"]
+    audio = next(p for p in parts if p["type"] == "input_audio")
+    assert audio["input_audio"] == {"data": base64.b64encode(b"wavdata").decode(), "format": "wav"}

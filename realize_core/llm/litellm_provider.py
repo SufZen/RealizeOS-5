@@ -31,6 +31,7 @@ from realize_core.llm.base_provider import (
     LLMResponse,
     ModelInfo,
     ToolCall,
+    audio_format,
     empty_or_text,
 )
 from realize_core.tools.base_tool import convert_tool_schemas
@@ -499,6 +500,50 @@ class LiteLLMProvider(BaseLLMProvider):
                 provider=self.name,
                 error=str(e),
             )
+
+    # -- Transcription ---------------------------------------------------------
+
+    def _transcription_model(self) -> str | None:
+        """LiteLLM model used for speech-to-text, e.g. ``groq/whisper-large-v3`` ($LITELLM_TRANSCRIPTION_MODEL)."""
+        return os.getenv("LITELLM_TRANSCRIPTION_MODEL") or None
+
+    def _transcription_kwargs(self, model: str) -> dict[str, Any]:
+        """Extra ``litellm.atranscription`` kwargs (the gateway URL for the generic provider)."""
+        api_base = os.getenv("LITELLM_API_BASE") or self._api_base
+        return {"api_base": api_base} if api_base else {}
+
+    def supports_transcription(self) -> bool:
+        return self._transcription_model() is not None
+
+    async def transcribe(
+        self,
+        audio_data: bytes,
+        mime_type: str = "audio/ogg",
+        language: str | None = None,
+    ) -> LLMResponse:
+        """Speech-to-text through ``litellm.atranscription`` (Whisper-style APIs)."""
+        model = self._transcription_model()
+        if not model:
+            return LLMResponse(
+                text="", provider=self.name, error="no transcription model configured", stop_reason=STOP_ERROR
+            )
+        kwargs: dict[str, Any] = {
+            "model": model,
+            "file": (f"audio.{audio_format(mime_type)}", audio_data),
+            **self._transcription_kwargs(model),
+        }
+        if language:
+            kwargs["language"] = language
+        try:
+            result = await self._get_litellm().atranscription(**kwargs)
+        except Exception as e:
+            logger.warning(f"LiteLLM transcription error ({model}): {e}")
+            return LLMResponse(text="", model=model, provider=self.name, error=str(e), stop_reason=STOP_ERROR)
+        text = result.get("text") if isinstance(result, dict) else getattr(result, "text", None)
+        text, error = empty_or_text(text)
+        return LLMResponse(
+            text=text, model=model, provider=self.name, error=error, stop_reason=STOP_ERROR if error else STOP_END
+        )
 
     def _calc_cost(self, model: str, input_tokens: int, output_tokens: int) -> float:
         """Cost of one call: LiteLLM's price table, else the local catalog, else 0.
