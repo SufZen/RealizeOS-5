@@ -124,7 +124,7 @@ STOPWORDS = HEBREW_STOPWORDS | ENGLISH_STOPWORDS
 
 # Niqqud and cantillation marks (U+0591-U+05C7) that aren't letters or punctuation.
 # Hebrew letters (U+05D0-U+05EA) are outside this range.
-_HEBREW_MARKS = re.compile("[֑-ׇֽֿׁׂׅׄ]")
+_HEBREW_MARKS = re.compile("[\u0591-\u05bd\u05bf\u05c1\u05c2\u05c4\u05c5\u05c7]")
 # tokenize='...' / tokenize="..." in a CREATE VIRTUAL TABLE statement.
 _TOKENIZE = re.compile(r"""tokenize\s*=\s*['"]([^'"]*)['"]""", re.IGNORECASE)
 # Runs of letters and digits in any script (``\w`` minus the underscore).

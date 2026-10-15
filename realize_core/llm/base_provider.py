@@ -325,3 +325,11 @@ class BaseLLMProvider(ABC):
     def supports(self, capability: Capability) -> bool:
         """Check if any of this provider's models support a capability."""
         return any(capability in m.capabilities for m in self.list_models())
+
+    def supports_model(self, model_id: str, capability: Capability) -> bool:
+        """Check whether one specific model supports a capability.
+
+        Default: the provider-level answer (``supports``). Providers whose models
+        differ (Ollama: tools/vision depend on the pulled model) override this.
+        """
+        return self.supports(capability)

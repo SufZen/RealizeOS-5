@@ -97,9 +97,9 @@ def _init_index_db(db_path: Path):
 
     Below :data:`KB_SCHEMA_VERSION`, or when the tokenizer recorded in
     ``kb_meta`` isn't the one this SQLite gets (:func:`fts_tokenizer`), the FTS
-    table and its triggers are recreated and rebuilt from ``kb_files``. When
-    the embedding model changed, stored vectors are cleared so the next index
-    run embeds them again.
+    table and its triggers are recreated and rebuilt from ``kb_files``. The
+    embedding-model check is not here: it runs on the index path only
+    (:func:`_sync_embed_model`), so a search never clears vectors.
     """
     conn = _get_conn(db_path)
     try:
@@ -134,18 +134,36 @@ def _init_index_db(db_path: Path):
         else:
             _create_fts(conn)
         conn.commit()
-
-        model = embed_model_name()
-        if model:
-            row = conn.execute("SELECT value FROM kb_meta WHERE key = 'embed_model'").fetchone()
-            if row is None or row["value"] != model:
-                cleared = conn.execute("UPDATE kb_files SET embedding = NULL WHERE embedding IS NOT NULL").rowcount
-                conn.execute("INSERT OR REPLACE INTO kb_meta (key, value) VALUES ('embed_model', ?)", (model,))
-                conn.commit()
-                if cleared:
-                    logger.info("KB embedding model is now %s: %d stored vectors will be re-embedded", model, cleared)
     finally:
         conn.close()
+
+
+def _sync_embed_model(db_path: Path) -> None:
+    """Index path only: when the embedding model changed, clear stored vectors.
+
+    The next index run then embeds every file again with the current model.
+    Searches never call this, so a process with another ``KB_EMBED_MODEL``
+    (say, a CLI with embeddings off next to the server) can't wipe the vectors.
+    """
+    model = embed_model_name()
+    if not model:
+        return
+    conn = _get_conn(db_path)
+    try:
+        if _stored_embed_model(conn) != model:
+            cleared = conn.execute("UPDATE kb_files SET embedding = NULL WHERE embedding IS NOT NULL").rowcount
+            conn.execute("INSERT OR REPLACE INTO kb_meta (key, value) VALUES ('embed_model', ?)", (model,))
+            conn.commit()
+            if cleared:
+                logger.info("KB embedding model is now %s: %d stored vectors will be re-embedded", model, cleared)
+    finally:
+        conn.close()
+
+
+def _stored_embed_model(conn: sqlite3.Connection) -> str | None:
+    """The embedding model the stored vectors were made with (None if never recorded)."""
+    row = conn.execute("SELECT value FROM kb_meta WHERE key = 'embed_model'").fetchone()
+    return row["value"] if row else None
 
 
 def _schema_version(conn: sqlite3.Connection) -> int:
@@ -353,6 +371,7 @@ def index_kb_files(
         db_path = persisted_path("kb_index.db", kb_path, state=False)
 
     _init_index_db(db_path)
+    _sync_embed_model(db_path)
     conn = _get_conn(db_path)
     try:
         return _do_index(conn, kb_path, force, systems_config)
@@ -537,7 +556,9 @@ def semantic_search(
 
     try:
         fts_results = _fts_search(conn, query, system_key, top_k=top_k * 2)
-        query_embedding = _embed_text(query)
+        # Vectors made by another model are not comparable with this query's embedding.
+        same_model = _stored_embed_model(conn) == embed_model_name()
+        query_embedding = _embed_text(query) if same_model else None
 
         if query_embedding is not None:
             vector_results = _vector_search(conn, query_embedding, system_key, top_k=top_k * 2)

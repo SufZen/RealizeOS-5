@@ -145,22 +145,23 @@ def test_migrates_v1_unicode61_index(tmp_path):
 
 
 def test_embedding_model_change_clears_old_vectors(tmp_path, monkeypatch):
-    """Vectors from another model are dropped so the next index run re-embeds them."""
+    """Vectors from another model are dropped (on the index path) so the next index run re-embeds them."""
     db_path = tmp_path / "kb_index.db"
     monkeypatch.setenv("KB_EMBED_MODEL", "model-a")
     indexer._init_index_db(db_path)
+    indexer._sync_embed_model(db_path)
     conn = indexer._get_conn(db_path)
     conn.execute("INSERT INTO kb_files (path, system_key, content, embedding) VALUES ('a.md', 's', 'x', X'0000803F')")
     conn.commit()
     conn.close()
 
-    indexer._init_index_db(db_path)  # same model: kept
+    indexer._sync_embed_model(db_path)  # same model: kept
     conn = indexer._get_conn(db_path)
     assert conn.execute("SELECT embedding FROM kb_files").fetchone()[0] is not None
     conn.close()
 
     monkeypatch.setenv("KB_EMBED_MODEL", "model-b")
-    indexer._init_index_db(db_path)
+    indexer._sync_embed_model(db_path)
     conn = indexer._get_conn(db_path)
     assert conn.execute("SELECT embedding FROM kb_files").fetchone()[0] is None
     conn.close()

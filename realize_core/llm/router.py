@@ -432,13 +432,45 @@ def _tier_model(registry, provider: BaseLLMProvider, tier: str) -> str | None:
     return model_id or provider.default_model_id()
 
 
+#: (tier, LLM_MODEL_<TIER> value, problem) already warned about; each is logged once per process.
+_warned_tier_pins: set[tuple[str, str, str]] = set()
+
+
+def _warn_if_pin_unusable(registry, tier: str, override: str, name: str | None) -> None:
+    """Log once when ``LLM_MODEL_<TIER>`` pins a provider that isn't registered or available."""
+    provider = registry.get_provider_by_name(name) if name else None
+    if provider is None:
+        problem = "not registered"
+    else:
+        try:
+            if provider.is_available():
+                return
+        except Exception as e:
+            logger.debug(f"Availability check failed for {name}: {e}")
+        problem = "not available"
+    key = (tier, override, problem)
+    if key in _warned_tier_pins:
+        return
+    _warned_tier_pins.add(key)
+    logger.warning(
+        "LLM_MODEL_%s=%s pins provider '%s', which is %s; requests for this tier will fall back "
+        "to other providers. Set that provider up or change the pin in Settings.",
+        tier.upper(),
+        override,
+        name,
+        problem,
+    )
+
+
 def _resolve_tier(registry, tier: str) -> tuple[str | None, str | None]:
     _check_tier(tier)
     from realize_core.config import llm_tier_model
 
     override = llm_tier_model(tier)
     if override:
-        return _resolve_model(registry, override)
+        name, model_id = _resolve_model(registry, override)
+        _warn_if_pin_unusable(registry, tier, override, name)
+        return name, model_id
     name = registry.primary_provider_name() or next(iter(registry.fallback_chain()), None)
     provider = registry.get_provider_by_name(name) if name else None
     if not provider:

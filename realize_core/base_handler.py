@@ -224,8 +224,10 @@ def _tool_loop_route(message: str):
     The tier comes from the user message (``message_tier``, ``standard`` when
     no category matches). The provider ``resolve_tier`` picks for it (an
     ``LLM_MODEL_<TIER>`` pin, else the primary) is used with that model when it
-    is available and supports tools. Otherwise the first tool-capable provider
-    (``tool_capable_provider``) runs with its own model for the tier.
+    is available and that model supports tools (checked per model: on Ollama a
+    pinned model may lack tools that the default model has). Otherwise the
+    first tool-capable provider (``tool_capable_provider``) runs with its own
+    model for the tier.
     """
     from realize_core.agents import tool_loop
     from realize_core.llm.base_provider import Capability
@@ -237,7 +239,13 @@ def _tool_loop_route(message: str):
     name, model_id = resolve_tier(tier)
     provider = registry.get_provider_by_name(name) if name else None
     try:
-        usable = bool(provider and provider.is_available() and provider.supports(Capability.TOOLS))
+        usable = bool(
+            provider
+            and provider.is_available()
+            and (
+                provider.supports_model(model_id, Capability.TOOLS) if model_id else provider.supports(Capability.TOOLS)
+            )
+        )
     except Exception as e:
         logger.debug(f"Tool support check failed for {name}: {e}")
         usable = False
