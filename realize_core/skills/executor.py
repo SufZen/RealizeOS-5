@@ -340,6 +340,10 @@ async def _call_llm(
     if response_schema is not None:
         kwargs["response_schema"] = response_schema
     response = await router.route_completion(system_prompt, messages, system_key=system_key, **kwargs)
+    if response.refused:
+        # A refusal is the model's answer: show it, not the bare "refusal" error code.
+        reason = (response.text or "").strip()
+        raise StepFailedError(f"The model declined this step: {reason}" if reason else "The model declined this step.")
     if not response.ok:
         raise StepFailedError(response.error or response.text or "the LLM call failed")
     return response.text
