@@ -52,6 +52,13 @@ describe('LLMRoutingForm', () => {
     expect(render('en', down)).toContain('openai (not available)')
   })
 
+  it('shows a saved primary that no listed provider has', () => {
+    const unlisted = { ...DATA, settings: { ...DATA.settings, primary: 'litellm' } }
+    expect(render('en', unlisted)).toMatch(
+      /<option value="litellm" selected="">litellm \(not available\)<\/option>/,
+    )
+  })
+
   it('prefills the fallback order and offers model suggestions', () => {
     expect(html).toContain('value="gemini, claude"')
     expect(html).toContain('<datalist')
@@ -80,5 +87,12 @@ describe('LLMRoutingForm', () => {
     expect(he).toContain('שמירת הניתוב')
     expect(he).not.toContain('Primary provider')
     expect(he).not.toContain('Save routing')
+  })
+})
+
+describe('routing rule badge', () => {
+  it('is an inline-block <bdi>, so its padding and background lay out in RTL too', async () => {
+    const source = (await import('@/pages/settings/settings-advanced.tsx?raw')).default as string
+    expect(source).toMatch(/<bdi className="inline-block [^"]*bg-brand-400\/10/)
   })
 })

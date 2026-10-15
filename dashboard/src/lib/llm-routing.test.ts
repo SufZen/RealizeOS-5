@@ -5,8 +5,10 @@ import {
   canonicalProvider,
   deadModels,
   formFromSettings,
+  loadSavedPrimary,
   modelSuggestions,
   parseFallback,
+  primaryChoices,
   routingUpdate,
   saveRouting,
   type RoutingProvider,
@@ -31,6 +33,32 @@ describe('provider names', () => {
   it('reads a fallback list: trimmed, lowercased, no empties', () => {
     expect(parseFallback(' Gemini, claude ,, OpenAI ')).toEqual(['gemini', 'claude', 'openai'])
     expect(parseFallback('')).toEqual([])
+  })
+
+  it('folds aliases and drops repeats in a fallback list before it is sent', () => {
+    expect(parseFallback('anthropic, gemini, Claude, google, ollama, gemini')).toEqual([
+      'claude',
+      'gemini',
+      'ollama',
+    ])
+  })
+
+  it('lists the saved primary even when no provider of that name is listed', () => {
+    expect(primaryChoices(['claude', 'gemini'], 'litellm')).toEqual(['claude', 'gemini', 'litellm'])
+    expect(primaryChoices(['claude', 'gemini'], 'anthropic')).toEqual(['claude', 'gemini'])
+    expect(primaryChoices(['anthropic', 'claude'], '')).toEqual(['claude'])
+  })
+})
+
+describe('routingUpdate fallback', () => {
+  it('sends the folded, deduplicated list', () => {
+    const form = { ...formFromSettings(SETTINGS), fallback: 'ollama, anthropic, claude' }
+    expect(routingUpdate(form, SETTINGS)).toEqual({ fallback: ['ollama', 'claude'] })
+  })
+
+  it('treats an alias-only difference as no change', () => {
+    const form = { ...formFromSettings(SETTINGS), fallback: 'google, anthropic, gemini' }
+    expect(routingUpdate(form, SETTINGS)).toBeNull()
   })
 })
 
@@ -117,5 +145,18 @@ describe('models and dead models', () => {
 
   it('lists the models that stopped answering', () => {
     expect(deadModels(providers)).toEqual([{ provider: 'claude', model: 'claude-old' }])
+  })
+})
+
+describe('loadSavedPrimary', () => {
+  it('reads the saved primary as a routing name', async () => {
+    const get = vi.fn().mockResolvedValue({ settings: { primary: 'Anthropic' } })
+    await expect(loadSavedPrimary(get)).resolves.toBe('claude')
+    expect(get).toHaveBeenCalledWith('/llm/routing')
+  })
+
+  it('is automatic when nothing is saved or routing cannot be read', async () => {
+    await expect(loadSavedPrimary(vi.fn().mockResolvedValue({ settings: { primary: '' } }))).resolves.toBe('')
+    await expect(loadSavedPrimary(vi.fn().mockRejectedValue(new Error('down')))).resolves.toBe('')
   })
 })

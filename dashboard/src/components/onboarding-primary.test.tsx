@@ -119,3 +119,30 @@ describe('serverHasAiProvider', () => {
     ).toBe(true)
   })
 })
+
+describe('primary choice shows what is saved', () => {
+  it('keeps a saved primary selected when its provider is not connected here', () => {
+    const html = renderToStaticMarkup(
+      <PrimaryProviderChoice
+        connected={LLM_PROVIDERS.filter((p) => p.id === 'anthropic')}
+        value="ollama"
+        onChoose={save}
+        text={onboardingText('en')}
+      />,
+    )
+    expect(html).toContain('<option value="ollama" selected="">ollama</option>')
+  })
+
+  it('selects the saved connected provider', () => {
+    const html = renderToStaticMarkup(
+      <ConnectStep
+        connected={new Set(['anthropic', 'google_ai'])}
+        onSave={save}
+        primary="gemini"
+        onPrimary={save}
+        text={onboardingText('en')}
+      />,
+    )
+    expect(html).toContain('<option value="gemini" selected="">Gemini (Google)</option>')
+  })
+})
