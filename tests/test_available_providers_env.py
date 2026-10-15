@@ -117,3 +117,60 @@ def test_devmode_check_runs_off_the_event_loop(monkeypatch, tmp_path):
     res = TestClient(api).post("/api/devmode/check")
     assert res.status_code == 200, res.text
     assert record["on_loop"] is False, "the health check (provider probe) ran on the event loop"
+
+
+# --- parity with the adapters (fix round) ------------------------------------------------
+
+_OLLAMA_UP_HOST = "ollama.test"
+
+
+def _fake_ollama_get(url, *args, **kwargs):
+    """Only http://ollama.test:11434 answers /api/tags; every other URL is down."""
+    if url.startswith(f"http://{_OLLAMA_UP_HOST}:11434/"):
+        return httpx.Response(200, json={"models": []})
+    raise httpx.ConnectError("down")
+
+
+@pytest.mark.parametrize(
+    ("env", "expected"),
+    [
+        ({"OPENAI_API_KEY": "sk-test-000000000000"}, ["openai", "litellm"]),
+        ({"ANTHROPIC_API_KEY": "sk-ant-test-00000000000000", "GOOGLE_AI_API_KEY": "g-test"}, ["claude", "gemini"]),
+        ({"LITELLM_API_BASE": "http://gateway.local:4000"}, ["litellm"]),
+        ({"LITELLM_MODEL": "groq/x"}, []),
+        ({"LITELLM_MODEL": "groq/x", "GROQ_API_KEY": "gsk-test"}, ["litellm"]),
+        ({"OLLAMA_HOST": f"{_OLLAMA_UP_HOST}:11434"}, ["ollama"]),
+        ({"OLLAMA_HOST": f"{_OLLAMA_UP_HOST}:11434", "OLLAMA_BASE_URL": "http://down.test:11434"}, []),
+    ],
+    ids=[
+        "openai",
+        "anthropic+google",
+        "litellm-api-base",
+        "litellm-groq-no-key",
+        "litellm-groq-with-key",
+        "ollama-host-only",
+        "ollama-base-url-wins",
+    ],
+)
+def test_env_check_matches_a_fresh_registry(monkeypatch, env, expected):
+    """available_providers(env=...) must agree with the adapters' own is_available()."""
+    from realize_core.llm.providers.claude_provider import ClaudeProvider
+    from realize_core.llm.registry import ProviderRegistry, available_providers
+
+    monkeypatch.setattr(ClaudeProvider, "_dead_models", {})  # no 404 history from other tests
+    for key in (*_KEYS, "GROQ_API_KEY"):
+        monkeypatch.delenv(key, raising=False)
+
+    with (
+        patch("httpx.get", MagicMock(side_effect=_fake_ollama_get)),
+        patch("httpx.post", MagicMock(side_effect=httpx.ConnectError("no /api/show"))),
+    ):
+        from_env = available_providers(env=env)
+        for key, value in env.items():
+            monkeypatch.setenv(key, value)
+        registry = ProviderRegistry()
+        registry.auto_register()
+        from_adapters = registry.list_available()
+
+    assert from_env == from_adapters
+    assert from_env == expected  # the cases are not vacuous
