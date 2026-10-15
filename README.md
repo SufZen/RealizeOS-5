@@ -45,6 +45,7 @@ RealizeOS is a **self-hosted AI operations system** that gives your business a c
 
 - **Choose your provider and models.** Set `LLM_PRIMARY` and `LLM_MODEL_FAST` / `LLM_MODEL_STANDARD` / `LLM_MODEL_DEEP` in `.env`, or use **Settings → LLM Routing** in the dashboard. See [docs/configuration.md](docs/configuration.md#llm-routing).
 - **Agent tools on any tool-capable provider**, and an honest notice in the trail when none is available (no more silent fallback).
+- **Voice notes on any transcription-capable provider:** OpenAI (Whisper), Gemini, or any LiteLLM speech model via `LITELLM_TRANSCRIPTION_MODEL` (e.g. `groq/whisper-large-v3`). Claude and Ollama cannot transcribe audio, so an install with only those gets a clear "no transcription-capable provider" reply.
 - **Skills** can pin `tier:` or `model:`, and steps that feed a tool get validated JSON. See [docs/skill-authoring.md](docs/skill-authoring.md).
 - **Hebrew-ready search** in the knowledge base, memory and Synapse (trigram index and a local multilingual embedding model).
 

@@ -60,30 +60,33 @@
 
 ### 2.3 Registry and routing
 
-- `ProviderRegistry.fallback_chain()` resolves the order: `LLM_FALLBACK` if set, otherwise `LLM_PRIMARY` first and then claude, gemini, openai, ollama, litellm, then any other registered provider. Unknown names are dropped with a warning.
+- `ProviderRegistry.fallback_chain()` resolves the order. It always starts with `LLM_PRIMARY` (when set and registered). With `LLM_FALLBACK` set, its providers follow in order (aliases folded, duplicates dropped) and no others are tried; without it, claude, gemini, openai, ollama, litellm follow, then any other registered provider. Unknown names are dropped with a warning. `LLM_FALLBACK` never replaces the primary.
 - `providers_with_capability(cap)` returns the available providers that have a capability (`TOOLS`, `VISION`), in chain order. This is the only way code asks "who can do tools?".
 - The router works in **tiers**: `fast`, `standard`, `deep`. `select_model(task_type)` returns a tier (simple to fast; content, reasoning, financial, google and web work to standard; complex to deep). Each provider maps tiers to its own models (`tier_models`).
 - `LLM_MODEL_FAST`, `LLM_MODEL_STANDARD` and `LLM_MODEL_DEEP` pin a tier to a LiteLLM model string (`provider/model`). The prefix picks the provider.
-- `route_completion()` is the single call path. It applies rate and cost limits, honours an explicit `model`, `tier` or `task_type`, passes `max_tokens`, `temperature` and `response_schema` only when set, accepts a refusal as final, and otherwise walks the fallback chain using each provider's own model for the same tier. `route_to_llm()` keeps its signature and returns `route_completion(...).text`.
+- `route_completion()` is the single call path. It applies rate and cost limits, honours an explicit `model`, `tier` or `task_type`, passes `max_tokens`, `temperature` and `response_schema` only when set, accepts a refusal as final, and otherwise walks the fallback chain using each provider's own model for the same tier. When a pinned model (`model` or `LLM_MODEL_<TIER>`) fails, its provider stays in the walk and is retried with its own tier model. `route_to_llm()` keeps its signature and returns `route_completion(...).text`.
 - Every caller that used to import a provider client (prompt refiner, skill suggester, evolution intent, semantic skill matcher, skill creator, review) goes through `route_completion`.
-- `/api/status` and the MCP `realize_status` tool report `llm` from the registry (`{provider: "available"}`), not from which environment keys exist.
+- `/api/status` and the MCP `realize_status` tool report `llm` from the registry (`{provider: "available"}`), not from which environment keys exist. So do the security scan, the developer health check, the workspace state, `doctor` and `cli.py status`, through `available_providers()` / `any_provider_available()` (an Ollama-only or LiteLLM-only install passes).
 
 ### 2.4 The agent tool loop on any provider
 
 - `tool_capable_provider()` returns the first provider in the chain with the `TOOLS` capability, or `None`.
+- The loop follows tier routing. The tier comes from the user's message (`message_tier`: a matched task category's tier, `standard` when none matches). The provider `resolve_tier` picks for it (an `LLM_MODEL_<TIER>` pin, else the primary) runs the loop with that model when it is available and supports tools; otherwise `tool_capable_provider()` runs it with its own model for the tier.
 - `run_tool_loop` converts tools once with the provider's `tools_format`, appends `assistant_message` and the provider's own `tool_result_messages`, and handles each stop reason (`refusal` stops, `pause` continues, `max_tokens` and `end` finish). It never reads SDK block attributes.
 - **No silent fallback.** When an agent has tools but no tool-capable provider is available, or the loop ends in an error, the system logs it, emits a `notice` event (`tools_unavailable` or `tools_error`), records the notice in the "what I used" trail, and answers with a note in the system prompt that it has no live data in this turn. The old behaviour (quietly answering from the model alone) is removed.
 
 ### 2.5 Skills
 
 - A skill, or a single step, may set `tier:` (`fast`, `standard`, `deep`) or `model:` (a LiteLLM model string). Precedence: step `model`, step `tier`, skill `model`, skill `tier`, skill `task_type`; with none, the tier follows the classification of the user's own message.
-- An agent step whose output feeds a later tool step's `json_params` is a **JSON step**. It asks the provider for structured output (`response_schema`, always an object at the root), validates the reply against the consumer's parameter schema, and retries once with the reason. A second failure fails the step.
-- **Placeholder guard.** A step prompt that still holds a `{name}` for a known step, variable, `user_message` or `today` fails the step ("unresolved placeholder"). A JSON step whose answer is a bare `{name}` or only the example row's labels is rejected and retried once.
+- An agent step whose output feeds a later tool step's `json_params` is a **JSON step**. It asks the provider for structured output (`response_schema`, always an object at the root), validates the reply against the consumer's parameter schema, and retries once with the reason. A second failure fails the step. When the consumer's schema is empty or untyped, no `response_schema` is sent and the step relies on parsing and the retry. A failed LLM call (`ok` false) fails the step at once with the provider's error, with no JSON retry, and is never passed on as step output.
+- **Placeholder guard.** Only the step's template is scanned: a `{name}` naming a known step that has no result yet fails the step ("unresolved placeholder"). Values are substituted in one pass and never scanned, so a step result or variable that contains `{some_step}` (untrusted data) is inserted as it is. A JSON step whose answer is a bare `{name}` or only the example row's labels is rejected and retried once.
 - The demo packs' payment and requirements skills pin `tier: standard`.
 
 ### 2.6 Media
 
-`analyze_image` walks the providers with the `VISION` capability in chain order. A PDF goes to a provider that accepts PDF input; any other provider gets the extracted text. The first non-empty answer wins, and the result names the provider that gave it.
+`analyze_image` walks the providers with the `VISION` capability in chain order. A PDF goes to a provider that accepts PDF input; any other provider gets the extracted text. The first non-empty answer wins, and the result names the provider that gave it. When no vision provider read a PDF, its extracted text goes through `route_completion` to any text-capable provider, so a text-only Ollama reads PDFs too.
+
+`transcribe_audio` asks the available providers in chain order for the transcription capability (`supports_transcription()` / `transcribe()`). OpenAI (Whisper) and the generic LiteLLM provider (`LITELLM_TRANSCRIPTION_MODEL`, for example `groq/whisper-large-v3`) go through `litellm.atranscription`; Gemini reads the audio as an `input_audio` chat part. Claude and Ollama have no transcription. Without a capable provider the result says "No transcription-capable provider configured".
 
 ### 2.7 Multilingual search
 
@@ -111,7 +114,7 @@
 
 ### 2.9 Guard rails
 
-- `scripts/check_provider_neutral.py` fails CI when code in `realize_core/` or `realize_api/` outside the allow-listed adapter, configuration and setup files calls a provider client, compares to a provider name, or tests a model string for a provider. A single line may opt out with `# provider-neutral: ok <reason>`; the reason is required.
+- `scripts/check_provider_neutral.py` fails CI when code in `realize_core/`, `realize_api/`, `cli.py`, `scripts/` or `plugins/` outside the allow-listed adapter, configuration and setup files calls a provider client, compares to a provider name, tests a model string for a provider, or reads a provider API key (`ANTHROPIC_API_KEY`, `GOOGLE_AI_API_KEY`, `GOOGLE_API_KEY`, `OPENAI_API_KEY`) from the environment. A single line may opt out with `# provider-neutral: ok <reason>`; the reason is required.
 - `tests/test_provider_parity.py` runs the same scenarios on all four adapters (Anthropic, OpenAI, Gemini, Ollama shapes) with only the network transport faked.
 - `scripts/provider_smoke.py` is the live per-provider check (§3, criterion 12).
 
@@ -145,9 +148,13 @@ Rulings made during the build, each with the cost if it was wrong.
 4. **Narrow placeholder-echo guard.** Only a bare `{name}` and the labels of the prompt's own example row are rejected, once, with a retry. A real value that happens to equal an example label passes if the data contains it. Cost: a legitimate row equal to the example labels fails once and is retried.
 5. **Router passes optional arguments only when set**, so older test fakes without `response_schema` keep working.
 6. **Venture scope inside the handler.** The MCP dispatcher already refused out-of-scope `kb_search` calls; the handler now enforces the scope too, as defence in depth. A limited caller never sees `shared` files.
-7. **Provider-name checks outside the adapters are gate violations.** The demo rehearsal preflight accepts any available provider. Two provider-key checks (the project scanner and the developer health check) were found late and are tracked as a follow-up to the release content.
-8. **Gate scope.** The gate scans `realize_core/` and `realize_api/`; the allow-list is the adapters, the alias and configuration tables, and the setup flows. Anything else uses a line pragma.
-9. **The live smoke runs one provider at a time**, with the others switched off, so a broken provider cannot hide behind a working one. Sheets and Drive are stubbed; nothing is written to a real sheet.
+7. **Provider-name checks outside the adapters are gate violations.** The demo rehearsal preflight accepts any available provider. The provider-key checks in the security scanner, the developer health check, the workspace state, `doctor` and `cli.py status` now ask the registry, and a gate rule (`provider-key-env`) keeps new ones out.
+8. **Gate scope.** The gate scans `realize_core/`, `realize_api/`, `cli.py`, `scripts/` and `plugins/` (not itself); the allow-list is the adapters, the alias and configuration tables, and the setup flows. Anything else, `cli.py` included, uses a line pragma.
+9. **The live smoke runs one provider at a time**, with the others switched off, so a broken provider cannot hide behind a working one. Sheets and Drive are stubbed; nothing is written to a real sheet. Each row prints the provider and model that answered it.
+10. **Claude ignores `response_schema`.** The native Claude adapter accepts the argument for interface parity and does not send it. On Claude, a JSON step relies on the prompt, validation and one retry. Cost: a malformed first reply on Claude costs one extra call.
+11. **`LLM_FALLBACK` follows the primary.** It lists the providers tried after `LLM_PRIMARY`, never instead of it. Cost: an operator who used `LLM_FALLBACK` alone to pick the first provider must now also set `LLM_PRIMARY`.
+12. **The tool loop defaults to the `standard` tier.** Plain chat with no matched category stays on the cheap `fast` tier, but an agent with tools answers on `standard` unless the message matches a category. Cost: tool turns on small talk use the standard model.
+13. **Transcription is a capability, routed through LiteLLM.** OpenAI and any `LITELLM_TRANSCRIPTION_MODEL` use `litellm.atranscription`; Gemini uses an audio chat part. Claude and Ollama cannot transcribe, so an install with only those reports that no transcription-capable provider is configured.
 
 ---
 
@@ -155,4 +162,5 @@ Rulings made during the build, each with the cost if it was wrong.
 
 - Publishing and deploying the release. This document describes the 5.31 release content.
 - Per-provider cost dashboards and prompt-cache tuning.
+- **Follow-ups (brief item 18):** provider-neutral prompt caching and token streaming. Streaming currently sends the "what I used" trail events live, and the answer arrives whole.
 - Fine-tuning which provider is best for which task. The tier table is a default, and the operator changes it.

@@ -52,13 +52,27 @@ Knowledge-base search now has a semantic part, and it uses a multilingual model:
 | `OLLAMA_BASE_URL` | `http://localhost:11434` | Ollama server. **`OLLAMA_HOST` still works as an alias** when `OLLAMA_BASE_URL` is empty |
 | `OLLAMA_MODEL` | `llama3.1:8b` | The Ollama model tag. Tool use and vision are detected from Ollama's `/api/show` |
 | `LITELLM_MODEL`, `LITELLM_API_BASE` | unset | Any other provider LiteLLM supports, and an optional gateway URL for it |
+| `LITELLM_TRANSCRIPTION_MODEL` | unset | Speech-to-text model for the LiteLLM provider, e.g. `groq/whisper-large-v3` (OpenAI and Gemini transcribe without it) |
 | `GEMINI_FLASH_MODEL`, `GEMINI_PRO_MODEL` | `gemini-2.5-flash` / `gemini-2.5-pro` | Gemini model ids |
 | `ANTHROPIC_WORKSPACE_ID` | unset | Set it for **workspace-scoped Anthropic keys**; it is sent as the `anthropic-workspace-id` header |
 | `KB_EMBED_MODEL` | unset = the multilingual model above | Embedding model; empty, `none`, `off`, `0` or `false` = keyword search only |
 
 All of these can also be changed in **Settings → LLM Routing** without a restart, and the onboarding wizard asks for the primary provider. See [configuration.md](configuration.md#llm-routing) for examples per provider (Gemini only, OpenAI only, Ollama only, Claude, a LiteLLM proxy).
 
-You do not have to set anything. An existing install with the same keys keeps working: with no `LLM_PRIMARY`, the first available provider is used, in the same Claude, Gemini, OpenAI, Ollama order as before.
+You do not have to set anything: an existing install with the same keys keeps answering, and with no `LLM_PRIMARY` the first available provider (Claude, then Gemini, OpenAI, Ollama) is the primary. **But the routing changes, and so can your bill.**
+
+- **In 5.30**, simple messages went to Gemini Flash and everything else to Claude (Sonnet, or Opus for complex work) whenever both keys were set.
+- **In 5.31**, every tier runs on the primary provider with that provider's own model for the tier. An install with Claude and Gemini keys now sends simple messages to Claude's fast model instead of Gemini Flash.
+
+To keep the 5.30 cost profile, pin the fast tier back to Gemini:
+
+```bash
+LLM_MODEL_FAST=gemini/gemini-2.5-flash
+```
+
+(or set it in **Settings -> LLM Routing**). The other tiers stay on Claude.
+
+If you used `LLM_FALLBACK` (new in the 5.31 previews) to choose the first provider, set `LLM_PRIMARY` as well: the chain is always `LLM_PRIMARY` first, then the `LLM_FALLBACK` providers in order, and no others when `LLM_FALLBACK` is set.
 
 ### Behaviour you'll notice
 
@@ -67,7 +81,11 @@ You do not have to set anything. An existing install with the same keys keeps wo
 - **Skills can pin a model.** Skills and steps accept `tier:` (`fast`, `standard`, `deep`) and `model:` (a LiteLLM model string). Steps that feed JSON to a tool get structured output, validated with one retry. An unresolved `{placeholder}` now fails the step instead of reaching the model. See [skill-authoring.md](skill-authoring.md).
 - **`/api/status` reports providers by what works.** The `llm` field lists registry providers (`claude`, `gemini`, `openai`, `ollama`, `litellm`) that are usable, instead of listing which environment keys exist. The MCP `realize_status` tool does the same.
 - **Routing endpoint.** `GET /api/llm/routing` now returns tiers, the effective primary and fallback chain, and the raw settings; `PUT /api/llm/routing` changes them. `PUT` needs `system:manage` and is closed to venture-limited callers.
-- **Vision and PDF analysis work on any vision-capable provider**, not only Claude and Gemini. A PDF goes to a provider that takes PDFs directly; others get the extracted text.
+- **Vision and PDF analysis work on any vision-capable provider**, not only Claude and Gemini. A PDF goes to a provider that takes PDFs directly; others get the extracted text. A PDF with a text layer is read even when only a text model is available (a text-only Ollama, say).
+- **Voice notes are transcribed by any transcription-capable provider**, not only OpenAI: OpenAI (Whisper), Gemini, or the LiteLLM provider with `LITELLM_TRANSCRIPTION_MODEL` (e.g. `groq/whisper-large-v3`). Claude and Ollama cannot transcribe; with only those, the reply says no transcription-capable provider is configured.
+- **The agent tool loop follows your routing.** Agent tool turns use the tier's model (`LLM_MODEL_STANDARD`, say) on the primary when it supports tools, else the first tool-capable provider with its own model for the tier.
+- **Health checks accept any provider.** `doctor`, `cli.py status`, the security scan and the developer health check no longer report an Ollama-only or LiteLLM-only install as missing an API key.
+- **A failed skill step stops the skill.** When every provider fails, the step fails with the error instead of passing the error text on as its output, and the review command no longer stores a failure as the review.
 - **MCP `kb_search` is scoped to the caller.** A caller limited to some ventures only sees those ventures' documents, and `shared` files are not returned to it.
 - **Token estimates for Hebrew and Arabic are higher** (one token per 1.5 characters instead of 3.5, which was the estimate for all text), so long Hebrew prompts are trimmed a little earlier than before and no longer overrun the model.
 - **A short Hebrew question** (three or more characters) now triggers the knowledge-base lookup; it needed 20 before.
@@ -76,7 +94,7 @@ You do not have to set anything. An existing install with the same keys keeps wo
 
 ### For contributors
 
-- **Provider-neutral CI check.** `python scripts/check_provider_neutral.py` runs in CI and fails when code outside the provider adapters calls a provider client or tests for a provider name. Run it before you push. If a line must name one (a wire-format id, say), end it with `# provider-neutral: ok <reason>`; the reason is required.
+- **Provider-neutral CI check.** `python scripts/check_provider_neutral.py` runs in CI and fails when code outside the provider adapters calls a provider client, tests for a provider name or reads a provider API key from the environment. It scans `realize_core/`, `realize_api/`, `cli.py`, `scripts/` and `plugins/`. Run it before you push. If a line must name one (a wire-format id, say), end it with `# provider-neutral: ok <reason>`; the reason is required.
 - **Cross-provider tests.** New tests use the `fake_llm` fixture, which runs each scenario on all four adapter shapes (`tests/fakes/llm.py`). Never call a real API from a test.
 - **Live smoke test.** `python scripts/provider_smoke.py --provider <claude|gemini|openai|ollama>` runs the webinar storyline against one real provider in a temporary project. It spends real tokens, so run it by hand or on a schedule, not in pull-request CI, and **never against the demo install** (it refuses `D:/realization-demo`). `--dry-run` makes no LLM call.
 - The CI test job sets `GOOGLE_AI_API_KEY` to a fake value, and the tests set `KB_EMBED_MODEL=none` so nothing downloads a model.

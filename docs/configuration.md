@@ -368,7 +368,7 @@ GOOGLE_AI_API_KEY=<key>
 ANTHROPIC_API_KEY=<key>
 OPENAI_API_KEY=<key>
 LLM_PRIMARY=gemini
-LLM_FALLBACK=gemini,anthropic,openai
+LLM_FALLBACK=anthropic,openai
 LLM_MODEL_DEEP=anthropic/claude-opus-5-5
 ```
 
@@ -397,6 +397,7 @@ OLLAMA_BASE_URL=http://localhost:11434  # Local models, no key (OLLAMA_HOST also
 OLLAMA_MODEL=llama3.1:8b
 LITELLM_MODEL=                      # Any other LiteLLM model string
 LITELLM_API_BASE=                   # Optional gateway URL for LITELLM_MODEL
+LITELLM_TRANSCRIPTION_MODEL=        # Optional speech-to-text model, e.g. groq/whisper-large-v3
 LLM_PRIMARY=                        # anthropic | gemini | openai | ollama | litellm
 LLM_FALLBACK=                       # e.g. gemini,openai,ollama
 LLM_MODEL_FAST=                     # e.g. gemini/gemini-2.5-flash
