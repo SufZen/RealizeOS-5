@@ -62,6 +62,52 @@ class Result:
     name: str
     status: str  # PASS | FAIL | SKIP
     detail: str = ""
+    route: str = "-"  # provider:model that answered (evidence for live runs)
+
+
+class CallRecorder:
+    """Records which provider and model answered every LLM call.
+
+    ``install`` wraps the completion methods of each registered provider; a
+    call's model is the one in the reply, else the one requested, else the
+    provider's default.
+    """
+
+    _METHODS = ("complete", "complete_with_tools", "complete_with_vision")
+
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, str]] = []
+
+    def install(self, registry) -> None:
+        for name in registry.list_all():
+            provider = registry.get_provider_by_name(name)
+            for method in self._METHODS:
+                original = getattr(provider, method, None)
+                if original is not None:
+                    setattr(provider, method, self._wrap(provider, original))
+
+    def _wrap(self, provider, original):
+        async def recorded(*args, **kwargs):
+            response = await original(*args, **kwargs)
+            model = getattr(response, "model", "") or kwargs.get("model") or provider.default_model_id() or "?"
+            self.calls.append((provider.name, model))
+            return response
+
+        return recorded
+
+    def mark(self) -> int:
+        return len(self.calls)
+
+    def since(self, mark: int) -> str:
+        """``provider:model`` pairs used since ``mark``, in first-use order ("-" for none)."""
+        seen = list(dict.fromkeys(f"{p}:{m}" for p, m in self.calls[mark:]))
+        return ", ".join(seen) or "-"
+
+
+def _with_route(results: list[Result], route: str) -> list[Result]:
+    for r in results:
+        r.route = route
+    return results
 
 
 def is_protected(path: str | Path) -> bool:
@@ -316,16 +362,21 @@ async def run(provider: str, root: Path, dry_run: bool) -> list[Result]:
             Result(f"Provider {provider} available", "FAIL", f"available: {', '.join(available) or 'none'}"),
         ]
     results.append(Result(f"Provider {provider} available", "PASS", f"chain: {', '.join(registry.fallback_chain())}"))
-    results += await _check_question(runtime)
-    results += await _check_payment(runtime, stub)
+    recorder = CallRecorder()
+    recorder.install(registry)
+    mark = recorder.mark()
+    results += _with_route(await _check_question(runtime), recorder.since(mark))
+    mark = recorder.mark()
+    results += _with_route(await _check_payment(runtime, stub), recorder.since(mark))
     return results
 
 
 def _print_table(provider: str, results: list[Result]) -> None:
     width = max(len(r.name) for r in results)
+    route_width = max(len(r.route) for r in results)
     print(f"\nProvider smoke: {provider}\n")
     for r in results:
-        print(f"{r.status:<4}  {r.name.ljust(width)}  {r.detail}")
+        print(f"{r.status:<4}  {r.name.ljust(width)}  {r.route.ljust(route_width)}  {r.detail}")
     failed = sum(r.status == "FAIL" for r in results)
     print(f"\n{'FAIL' if failed else 'PASS'}: {len(results) - failed}/{len(results)} checks passed")
 
