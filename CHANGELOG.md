@@ -4,6 +4,19 @@ All notable changes to RealizeOS are documented in this file.
 This changelog is automatically generated from [Conventional Commits](https://conventionalcommits.org).
 
 
+## [5.31.1](https://github.com/SufZen/RealizeOS-5/compare/v5.31.0...v5.31.1) (2026-10-15)
+
+### Bug Fixes
+
+* **api:** run the startup security scan in a worker thread ([25b456b](https://github.com/SufZen/RealizeOS-5/commit/25b456b634effb36b4c5d4ea9578c0963a3a3c09))
+* **dashboard:** fold and dedupe the fallback list; show the saved primary ([6cbaf1f](https://github.com/SufZen/RealizeOS-5/commit/6cbaf1f7895d2f6093c9167a17e92e401561caf8))
+* **gate:** anchor line-start rules on every line of a joined statement ([4198374](https://github.com/SufZen/RealizeOS-5/commit/419837429bfdd94fa0a42294fc852e6f0350330b))
+* **gate:** match provider-neutral rules across wrapped statements ([1078a68](https://github.com/SufZen/RealizeOS-5/commit/1078a68b432bd7e942b0efd30a3077e421cbd16a))
+* **llm,kb:** deferred 5.31 minors (per-model Ollama tools, pause turns, KB vectors) ([e0cc041](https://github.com/SufZen/RealizeOS-5/commit/e0cc041661084e50adb1c886f7c5afcfe0833032))
+* **llm:** check available_providers(env=...) without mutating os.environ ([e096e6a](https://github.com/SufZen/RealizeOS-5/commit/e096e6afefdaf4b19c458447d650f53dc6880b4b))
+* **setup:** refuse Unicode line separators in .env values and split .env on LF only ([c1e63c5](https://github.com/SufZen/RealizeOS-5/commit/c1e63c538f5345b51cd49eea7dab5ab3f3615621))
+* **skills:** report a refused step with the model's refusal text ([e444b46](https://github.com/SufZen/RealizeOS-5/commit/e444b466ab5bb55943642e4b109f386899f0c07e))
+
 ## [5.31.0](https://github.com/SufZen/RealizeOS-5/compare/v5.30.0...v5.31.0) (2026-10-15)
 
 ### Features
