@@ -301,16 +301,15 @@ def cmd_status(args):
         if routing:
             print(f"    Pipelines: {', '.join(routing.keys())}")
 
-    # Check API keys
+    # LLM providers: any one available provider is enough
+    from realize_core.llm.registry import get_registry
+
     print("\nLLM Providers:")
-    if os.environ.get("ANTHROPIC_API_KEY"):
-        print("  Anthropic: configured")
-    else:
-        print("  Anthropic: NOT configured")
-    if os.environ.get("GOOGLE_AI_API_KEY"):
-        print("  Google AI: configured")
-    else:
-        print("  Google AI: NOT configured")
+    providers = get_registry().list_all()
+    for name, available in providers.items():
+        print(f"  {name}: {'available' if available else 'not available'}")
+    if not any(providers.values()):
+        print("  No LLM provider is available. Configure any one: an API key, LiteLLM or Ollama.")
 
     # Check tools
     print("\nTools:")

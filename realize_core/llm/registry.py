@@ -6,6 +6,8 @@ Auto-discovers available providers at startup based on installed SDKs and API ke
 """
 
 import logging
+import os
+from collections.abc import Mapping
 
 from realize_core.llm.base_provider import BaseLLMProvider, Capability, ModelInfo
 
@@ -291,3 +293,37 @@ def reset_registry():
     """Reset the registry (for testing)."""
     global _registry
     _registry = None
+
+
+def available_providers(env: Mapping[str, str] | None = None) -> list[str]:
+    """Names of the LLM providers usable right now; any one of them is enough.
+
+    Without ``env`` this asks the global registry. With ``env`` (for example
+    the values of a ``.env`` file that is not loaded into the process) a fresh
+    registry is checked with those values laid over the current environment,
+    which is restored afterwards. Ollama is probed here, at call time.
+    """
+    if env is None:
+        return get_registry().list_available()
+    overlay = {k: str(v) for k, v in env.items() if v is not None}
+    saved = {k: os.environ.get(k) for k in overlay}
+    try:
+        os.environ.update(overlay)
+        registry = ProviderRegistry()
+        registry.auto_register()
+        return registry.list_available()
+    finally:
+        for key, value in saved.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+
+
+def any_provider_available(env: Mapping[str, str] | None = None) -> bool:
+    """True when at least one LLM provider is usable (see ``available_providers``)."""
+    try:
+        return bool(available_providers(env))
+    except Exception as e:
+        logger.warning(f"Could not check LLM providers: {e}")
+        return False

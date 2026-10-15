@@ -337,7 +337,9 @@ def discover_workspace_state(root: Path | None = None, config: dict | None = Non
         )
 
     unconfigured_system_dirs = [name for name in discovered_system_dirs if name not in configured_keys]
-    has_provider = any(bool(os.getenv(key)) for key in ("ANTHROPIC_API_KEY", "GOOGLE_AI_API_KEY", "OPENAI_API_KEY"))
+    from realize_core.llm.registry import any_provider_available
+
+    has_provider = any_provider_available()
     has_runtime_databases = any((root / filename).exists() for filename in ("realize_data.db", "kb_index.db"))
 
     warnings = []
@@ -351,7 +353,7 @@ def discover_workspace_state(root: Path | None = None, config: dict | None = Non
             + ", ".join(unconfigured_system_dirs)
         )
     if not has_provider:
-        warnings.append("No LLM provider API keys are configured")
+        warnings.append("No LLM provider is available")
 
     return {
         "root": str(root),

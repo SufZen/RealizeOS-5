@@ -482,7 +482,7 @@ def _current_failures_for_block(
                 + ", ".join(workspace["unconfigured_system_dirs"])
             )
         if not workspace["has_provider"]:
-            findings.append("No LLM provider API key is configured, so agent routing cannot be validated end-to-end.")
+            findings.append("No LLM provider is available, so agent routing cannot be validated end-to-end.")
         if dashboard_build and not dashboard_build["ok"]:
             findings.append(str(dashboard_build["message"]))
 

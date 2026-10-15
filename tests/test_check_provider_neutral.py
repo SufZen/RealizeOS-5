@@ -35,6 +35,12 @@ def test_the_tree_is_provider_neutral(capsys):
         ('if name in ("openai", "ollama"):', "provider-in-list"),
         ('vision = model.startswith("claude-")', "provider-prefix"),
         ('if model.startswith(("anthropic/", "x")):', "provider-prefix"),
+        ('key = os.getenv("ANTHROPIC_API_KEY", "")', "provider-key-env"),
+        ('key = os.environ.get("GOOGLE_AI_API_KEY")', "provider-key-env"),
+        ('key = os.environ["OPENAI_API_KEY"]', "provider-key-env"),
+        ('key = getenv("GOOGLE_API_KEY")', "provider-key-env"),
+        ('if "OPENAI_API_KEY" in os.environ:', "provider-key-env"),
+        ('if "ANTHROPIC_API_KEY" not in environ:', "provider-key-env"),
     ],
 )
 def test_offending_code_fails(tmp_path, capsys, line, rule):
@@ -54,6 +60,10 @@ def test_offending_code_fails(tmp_path, capsys, line, rule):
         '# if name == "claude": an old comment',
         'models = {"claude": "claude", "gemini": "gemini"}',
         'if provider.supports(Capability.VISION) and name == "fast":',
+        'key = os.getenv("BRAVE_API_KEY")',
+        'key = os.getenv("REALIZE_API_KEY")',
+        'key = os.getenv("ANTHROPIC_API_KEY")  # provider-neutral: ok format check of an optional key',
+        'KEY_NAME = "OPENAI_API_KEY"',
     ],
 )
 def test_allowed_code_passes(tmp_path, line):
@@ -85,3 +95,32 @@ def test_allow_listed_file_is_skipped(tmp_path):
     adapter.write_text('if name == "claude":\n    pass\n', encoding="utf-8")
 
     assert gate.scan([tmp_path], root=tmp_path) == []
+
+
+def test_default_roots_include_cli_scripts_and_plugins():
+    assert set(gate.DEFAULT_ROOTS) >= {"realize_core", "realize_api", "cli.py", "scripts", "plugins"}
+    assert not gate.is_allowed("cli.py")
+
+
+def test_gate_script_itself_is_not_scanned(tmp_path):
+    script = tmp_path / "scripts" / "check_provider_neutral.py"
+    script.parent.mkdir()
+    script.write_text('x = os.getenv("OPENAI_API_KEY")\n', encoding="utf-8")
+    other = tmp_path / "scripts" / "tool.py"
+    other.write_text('x = os.getenv("OPENAI_API_KEY")\n', encoding="utf-8")
+
+    offences = gate.scan([tmp_path], root=tmp_path)
+
+    assert offences == ['scripts/tool.py:1: [provider-key-env] x = os.getenv("OPENAI_API_KEY")']
+
+
+def test_direct_client_rules_apply_to_cli_and_scripts(tmp_path):
+    cli = tmp_path / "cli.py"
+    cli.write_text("from realize_core.llm.claude_client import _get_client\n", encoding="utf-8")
+    script = tmp_path / "scripts" / "smoke.py"
+    script.parent.mkdir()
+    script.write_text("text = call_gemini(prompt)\n", encoding="utf-8")
+
+    offences = gate.scan([tmp_path], root=tmp_path)
+
+    assert sorted(o.split(":")[0] for o in offences) == ["cli.py", "scripts/smoke.py"]

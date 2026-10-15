@@ -2,7 +2,8 @@
 
 Every feature must work on every provider (Anthropic, Gemini, OpenAI, Ollama,
 anything LiteLLM routes to). Only the provider adapters may name a provider.
-This script greps ``realize_core/`` and ``realize_api/`` for code that does:
+This script greps ``realize_core/``, ``realize_api/``, ``cli.py``, ``scripts/``
+and ``plugins/`` (this gate script excepted) for code that does:
 
     direct-client-call     call_claude*() / call_gemini*()
     direct-client-import   an import of claude_client / gemini_client
@@ -11,6 +12,9 @@ This script greps ``realize_core/`` and ``realize_api/`` for code that does:
     provider-in            "gemini" in model   (literal on the left of `in`)
     provider-in-list       x in ("claude", ...)  (not `for x in (...)` loops)
     provider-prefix        .startswith("claude...") / .endswith(...)
+    provider-key-env       os.getenv / os.environ reads of ANTHROPIC_API_KEY,
+                           GOOGLE_AI_API_KEY, GOOGLE_API_KEY or OPENAI_API_KEY
+                           (use realize_core.llm.registry.any_provider_available)
 
 A provider-name literal is a quoted string starting with claude, anthropic,
 gemini, openai or ollama (any case), e.g. "claude", 'gemini/', "openai-x".
@@ -39,7 +43,9 @@ import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
-DEFAULT_ROOTS = ("realize_core", "realize_api")
+DEFAULT_ROOTS = ("realize_core", "realize_api", "cli.py", "scripts", "plugins")
+#: Never scanned: this gate names every pattern it looks for.
+EXCLUDED = ("scripts/check_provider_neutral.py",)
 
 #: Repo-relative files, or folders ending in "/", that may name providers.
 ALLOWED = (
@@ -54,7 +60,6 @@ ALLOWED = (
     "realize_core/devmode/context_generator.py",
     "realize_core/setup_wizard.py",
     "realize_core/init.py",
-    "cli.py",
 )
 # Everything else that must name a provider uses a line pragma, so the rest of
 # its file stays checked (e.g. realize_core/tools/base_tool.py's wire-format names).
@@ -62,7 +67,12 @@ ALLOWED = (
 PRAGMA = re.compile(r"#\s*provider-neutral:\s*ok\b(?P<reason>.*)$")
 
 _NAME = r"[\"'](?:claude|anthropic|gemini|openai|ollama)[^\"'\s]*[\"']"
+_KEY = r"[\"'](?:ANTHROPIC|GOOGLE_AI|GOOGLE|OPENAI)_API_KEY[\"']"
 RULES: dict[str, re.Pattern[str]] = {
+    # First: a key name such as "ANTHROPIC_API_KEY" also looks like a provider literal.
+    "provider-key-env": re.compile(
+        rf"(?:\bgetenv\(|\benviron(?:\.get\(|\[))\s*{_KEY}|{_KEY}\s+(?:not\s+)?in\s+(?:os\.)?environ\b"
+    ),
     "direct-client-call": re.compile(r"\bcall_(?:claude|gemini)\w*"),
     "direct-client-import": re.compile(r"^\s*(?:from|import)\s+[\w.]*\b(?:claude_client|gemini_client)\b"),
     "provider-by-name": re.compile(r"get_provider_by_name\(\s*[\"']"),
@@ -117,7 +127,7 @@ def scan(paths: list[Path], root: Path = REPO) -> list[str]:
     offences = []
     for path in _files(paths):
         rel = _relative(path, root)
-        if is_allowed(rel):
+        if rel in EXCLUDED or is_allowed(rel):
             continue
         offences.extend(scan_text(path.read_text(encoding="utf-8", errors="replace"), rel))
     return offences
