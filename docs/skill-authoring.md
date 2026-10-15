@@ -214,12 +214,16 @@ needs a particular model.
 
 ## Unresolved placeholders stop the step
 
-`{step_id}`, `{variable}`, `{user_message}` and `{today}` are filled in before a step runs. If
-one of those names is still in the prompt or params afterwards, for example because it refers to a
-step that was skipped, the step fails with "unresolved placeholder {name} in step ..." and the
-skill stops with an answer that names the step. Nothing is sent to the model with a literal
-`{name}` in it, and nothing is written. Text in braces that is not a known name (JSON examples,
-for instance `{"a": 1}`) is left alone.
+`{step_id}`, `{variable}`, `{user_message}` and `{today}` are filled in before a step runs, in
+one pass. If the step's prompt or params name a step that has no result yet, for example one that
+was skipped, the step fails with "unresolved placeholder {name} in step ..." and the skill stops
+with an answer that names the step. Nothing is sent to the model with that literal `{name}` in it,
+and nothing is written. Only your template is checked: a value that is filled in (a step result,
+the user's message) may itself contain `{something}`, and it is passed on as it is. Text in braces
+that is not a known name (JSON examples, for instance `{"a": 1}`) is left alone.
+
+A step whose LLM call fails (every provider errored) stops the skill with that error; the error is
+never passed to the next step as if it were the step's output.
 
 ## Variables and Context Injection
 
