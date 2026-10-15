@@ -156,7 +156,9 @@ describe('loadSavedPrimary', () => {
   })
 
   it('is automatic when nothing is saved or routing cannot be read', async () => {
-    await expect(loadSavedPrimary(vi.fn().mockResolvedValue({ settings: { primary: '' } }))).resolves.toBe('')
+    await expect(
+      loadSavedPrimary(vi.fn().mockResolvedValue({ settings: { primary: '' } })),
+    ).resolves.toBe('')
     await expect(loadSavedPrimary(vi.fn().mockRejectedValue(new Error('down')))).resolves.toBe('')
   })
 })
