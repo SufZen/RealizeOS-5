@@ -299,25 +299,77 @@ def available_providers(env: Mapping[str, str] | None = None) -> list[str]:
     """Names of the LLM providers usable right now; any one of them is enough.
 
     Without ``env`` this asks the global registry. With ``env`` (for example
-    the values of a ``.env`` file that is not loaded into the process) a fresh
-    registry is checked with those values laid over the current environment,
-    which is restored afterwards. Ollama is probed here, at call time.
+    the values of a ``.env`` file that is not loaded into the process) the
+    check reads those values laid over a *copy* of the current environment;
+    ``os.environ`` is never modified, so a concurrent request cannot see them.
+    Ollama is probed here, at call time, at the URL the mapping names. This
+    blocks for up to the probe timeout: call it from async code via
+    ``asyncio.to_thread``.
     """
     if env is None:
         return get_registry().list_available()
-    overlay = {k: str(v) for k, v in env.items() if v is not None}
-    saved = {k: os.environ.get(k) for k in overlay}
+    merged = {**os.environ, **{k: str(v) for k, v in env.items() if v is not None}}
+    return _available_in_env(merged)
+
+
+# Key-based providers: (provider name, API-key variable, module the adapter needs).
+_KEYED_PROVIDERS = (
+    ("claude", "ANTHROPIC_API_KEY", "anthropic"),
+    ("gemini", "GOOGLE_AI_API_KEY", "litellm"),
+    ("openai", "OPENAI_API_KEY", "litellm"),
+)
+
+
+def _available_in_env(env: Mapping[str, str]) -> list[str]:
+    """Providers usable with the variables in ``env`` (read-only; mirrors each adapter's is_available).
+
+    Same order as ``auto_register``: Claude, Gemini, OpenAI, Ollama, LiteLLM.
+    """
+    import importlib.util
+
+    names = [
+        name for name, key, module in _KEYED_PROVIDERS if env.get(key) and importlib.util.find_spec(module) is not None
+    ]
+    if _ollama_answers(env):
+        names.append("ollama")
+    if _litellm_configured(env):
+        names.append("litellm")
+    return names
+
+
+def _ollama_answers(env: Mapping[str, str]) -> bool:
+    """True when the Ollama server named by ``env`` answers ``/api/tags``."""
+    import httpx
+
+    from realize_core.config import ollama_base_url
+    from realize_core.llm.providers.ollama_provider import _PROBE_TIMEOUT
+
     try:
-        os.environ.update(overlay)
-        registry = ProviderRegistry()
-        registry.auto_register()
-        return registry.list_available()
-    finally:
-        for key, value in saved.items():
-            if value is None:
-                os.environ.pop(key, None)
-            else:
-                os.environ[key] = value
+        return httpx.get(f"{ollama_base_url(env)}/api/tags", timeout=_PROBE_TIMEOUT).status_code == 200
+    except Exception:
+        return False
+
+
+def _litellm_configured(env: Mapping[str, str]) -> bool:
+    """True when the generic LiteLLM provider has an endpoint or the keys its default model needs."""
+    try:
+        import litellm
+
+        from realize_core.llm.litellm_provider import _FALLBACK_MODEL
+    except Exception:
+        return False
+    if env.get("LITELLM_API_BASE"):
+        return True
+    model = env.get("LITELLM_MODEL") or _FALLBACK_MODEL
+    try:
+        # Reads os.environ only; the keys it reports missing are then looked up in ``env``.
+        result = litellm.validate_environment(model=model)
+    except Exception:
+        return False
+    if result.get("keys_in_environment"):
+        return True
+    missing = result.get("missing_keys") or []
+    return bool(missing) and all(env.get(k) for k in missing)
 
 
 def any_provider_available(env: Mapping[str, str] | None = None) -> bool:
