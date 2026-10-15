@@ -4,6 +4,47 @@ All notable changes to RealizeOS are documented in this file.
 This changelog is automatically generated from [Conventional Commits](https://conventionalcommits.org).
 
 
+## [5.31.0](https://github.com/SufZen/RealizeOS-5/compare/v5.30.0...v5.31.0) (2026-10-15)
+
+### Features
+
+* **agents:** run the tool loop on any tool-capable provider, never drop tools silently ([bd20d0d](https://github.com/SufZen/RealizeOS-5/commit/bd20d0d6d171a833eb007e0b0d1c193cac4ecc60))
+* **dashboard:** choose primary provider and per-tier models, EN and HE ([a3b1dff](https://github.com/SufZen/RealizeOS-5/commit/a3b1dff79f18e2e7d14b43297b24b0b44bbe8c96))
+* **kb:** multilingual KB search with trigram FTS and safe OR queries ([c6324c7](https://github.com/SufZen/RealizeOS-5/commit/c6324c70d36d36cf0bb3d8779d070ad34bf9c215))
+* **llm:** configurable routing settings, GET/PUT /api/llm/routing ([6586661](https://github.com/SufZen/RealizeOS-5/commit/658666185ac025f324f839054cecb8cf0b43238a))
+* **llm:** LiteLLM-backed Gemini/OpenAI/Ollama adapters, Claude normalisation, env-driven fallback order ([5ff4ab5](https://github.com/SufZen/RealizeOS-5/commit/5ff4ab5fba055673d6bd272fa116c359144dbc48))
+* **llm:** neutral tool-call types, schema converter, provider-agnostic LiteLLM adapter ([65e660b](https://github.com/SufZen/RealizeOS-5/commit/65e660bb55dfddc46a23ba207d0c3a48955c9bcc))
+* **llm:** provider-neutral tiers and route_completion in the router ([136cd00](https://github.com/SufZen/RealizeOS-5/commit/136cd007b5fee6a5fba37f6d69be4c144506f227))
+* **media:** PDFs on text-only providers, transcription on any capable provider ([61ac85f](https://github.com/SufZen/RealizeOS-5/commit/61ac85fcc2b2025349e199d82c0073e7d36c9299))
+* **scripts:** live provider smoke test of the webinar storyline ([a21dcb6](https://github.com/SufZen/RealizeOS-5/commit/a21dcb61795f14d73a01f52375cd8febe7a4a29d))
+* **scripts:** provider smoke prints the provider and model per row ([dca4ede](https://github.com/SufZen/RealizeOS-5/commit/dca4edeaffbb17e44a123a508340a41564748925))
+* **search:** multilingual FTS for memory and Synapse, /api/kb/reindex, Hebrew token estimate ([22d9789](https://github.com/SufZen/RealizeOS-5/commit/22d978998af594a20e8d1986ea7e7150a13a93a3))
+* **skills:** structured JSON steps, model/tier pinning and placeholder guards ([d5d7411](https://github.com/SufZen/RealizeOS-5/commit/d5d74112e1130d990be36a5d7c0f6477102cc3b9))
+
+### Bug Fixes
+
+* **agents:** a failed review is reported, not stored as the review ([71b564b](https://github.com/SufZen/RealizeOS-5/commit/71b564bb4f55039a64d0222f9e293235658bd067))
+* **agents:** the agent tool loop follows tier and model routing ([2f53283](https://github.com/SufZen/RealizeOS-5/commit/2f53283de7a7432f522e8efa4e77a47db3deb5a3))
+* **api:** refuse line breaks in values written to .env ([94004a5](https://github.com/SufZen/RealizeOS-5/commit/94004a5206c0d6f57879546beee51782ad94bd36))
+* **dashboard:** notice words are looked up by own key only ([9aae9fb](https://github.com/SufZen/RealizeOS-5/commit/9aae9fb788166d3c0472052b8f2ecae1f5356871))
+* **demo:** rehearsal preflight accepts any available LLM provider ([dd4b3e7](https://github.com/SufZen/RealizeOS-5/commit/dd4b3e7a6269af980232709cbd1477328f7276ae))
+* health, security, doctor and status checks accept any one provider ([f07394a](https://github.com/SufZen/RealizeOS-5/commit/f07394a68fb259f56914a9d632b101c9e62fbc19))
+* **kb:** rebuild FTS on tokenizer change, re-key moved venture files ([a2fea50](https://github.com/SufZen/RealizeOS-5/commit/a2fea50b5bb58ed9dba089332b4f9d9e3dfce375))
+* **kb:** scope MCP kb_search to the caller's ventures ([57c6c3d](https://github.com/SufZen/RealizeOS-5/commit/57c6c3d91e53b177f0ffa5f645b55ead68200cf9))
+* **llm:** a failed pinned model leaves its provider in the fallback walk ([cbc2dbb](https://github.com/SufZen/RealizeOS-5/commit/cbc2dbb6edba2574e97facfa028ba56d52cd6e3c))
+* **llm:** LLM_FALLBACK follows LLM_PRIMARY instead of replacing it ([0a4eb81](https://github.com/SufZen/RealizeOS-5/commit/0a4eb818d019a575a966934889cbcaa8f565d4d6))
+* **llm:** price LiteLLM calls with cost_per_token ([d6c408e](https://github.com/SufZen/RealizeOS-5/commit/d6c408e649a487778637793de2b08a4a2837e3b0))
+* **llm:** refusals carry text on every provider, Ollama vision models are used ([7634553](https://github.com/SufZen/RealizeOS-5/commit/7634553eafae455d70a7f7f447e157a633010d28))
+* **llm:** retry a failed Ollama /api/show probe after a minute ([8397551](https://github.com/SufZen/RealizeOS-5/commit/8397551eee85a28729c047ba3263310426a3de50))
+* **media:** vision and PDF analysis on any vision-capable provider ([b708b15](https://github.com/SufZen/RealizeOS-5/commit/b708b15731c18dc73504812d5bb938ea6ae4dd12))
+* **skills:** placeholder guard scans the template, failed calls fail the step ([588225a](https://github.com/SufZen/RealizeOS-5/commit/588225a9228cf6e738c42ef0ea7872704c757cf0))
+* **synapse:** roll back a failed FTS rebuild and re-raise ([a21ff6d](https://github.com/SufZen/RealizeOS-5/commit/a21ff6d25ff7a01bdea03d33de42625e3527b589))
+
+### Refactoring
+
+* **llm:** remove the unused routing_engine module ([a62be8a](https://github.com/SufZen/RealizeOS-5/commit/a62be8a367a836f827da2e4ad318f5402593fdff))
+* **llm:** route every caller through route_completion, status from registry ([435efb9](https://github.com/SufZen/RealizeOS-5/commit/435efb9d467eecea74f024be7ca4859b24cb31d1))
+
 ## [5.30.0](https://github.com/SufZen/RealizeOS-5/compare/v5.29.1...v5.30.0) (2026-10-13)
 
 ### Features
