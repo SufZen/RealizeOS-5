@@ -2,9 +2,11 @@
 
 RealizeOS can send text completions to OpenAI on your ChatGPT plan instead of an
 API key, through OpenAI's token sharing for open-source and self-hosted apps.
-Plan calls cost $0 and are not stopped by `COST_LIMIT_PER_MONTH_USD`: the
-monthly cap guards billable providers only, so when it is reached the plan (and
-a local Ollama) keep answering while paid fallbacks stop.
+Plan calls cost no API-key money and are not stopped by
+`COST_LIMIT_PER_MONTH_USD`: the monthly cap guards billable providers only, so
+when it is reached the plan (and a local Ollama) keep answering while paid
+fallbacks stop. If your account has ChatGPT credit use enabled, plan calls may
+draw credits; that is governed by the account's usage settings, not by RealizeOS.
 
 **Preview.** OpenAI marks token sharing as a preview. Read the limits before you
 depend on it: <https://developers.openai.com/siwc/token-sharing-open-source>.
@@ -88,10 +90,18 @@ OpenAI never switches billing on its own, and its docs ask apps not to do it
 silently. Here you choose it in advance by listing a paid provider in
 `LLM_FALLBACK`. To stop instead of paying, list only free or local providers.
 
-**Set `LLM_FALLBACK` explicitly.** When it is empty (or names no registered
-provider), the registry falls back to its default order, which includes every
-paid provider that has a key. With the plan as primary that means a usage limit
-would send prompts to a paid model you did not name.
+**Set `LLM_FALLBACK` explicitly.** With `LLM_PRIMARY=chatgpt_plan` and no valid
+`LLM_FALLBACK`, there is no fallback at all: a usage limit stops answers until
+the pause ends, rather than switching to a paid model you did not name.
+
+**Signing in again** (after `needs_reauth`): read the saved registration on the
+server (not secret, no tokens) and pass it to `login`, so the same registration
+and the same account are kept:
+
+```bash
+python -c "import json;d=json.load(open('/path/to/data/chatgpt_plan.json'));print(d['client_id'],d['subject'])"
+python scripts/chatgpt_signin.py login --host-id <server host ID> --client-id <client_id> --subject <subject> --out ~/rz-plan/chatgpt_plan.json
+```
 
 ## Security
 
@@ -106,8 +116,11 @@ would send prompts to a paid model you did not name.
 
 ## Known gaps
 
-- The monthly cap is a soft cap: calls already in flight when the total crosses
-  it still finish (at most one call per worker over).
+- The monthly cap is a soft cap: every call already admitted when the total
+  crosses it still finishes and is charged. A failed ledger write is logged as
+  an error and that charge is missing from the total.
+- The refresh lock is a file lock on Linux; on Windows it only covers threads of
+  one process. Run one RealizeOS process per `DATA_PATH` on Windows.
 - Pre-existing, outside this change: direct vision calls (`realize_core/media`)
   bypass the router's limits, and a paid model LiteLLM cannot price is counted
   as $0. Check that your fallback model has a price (`litellm.cost_per_token`).

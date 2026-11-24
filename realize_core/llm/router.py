@@ -647,9 +647,9 @@ async def route_completion(
         nonlocal last_error
         if response is None:
             return False
+        _record_cost(response.cost_usd)  # a failed call can still have been billed
         if response.ok or response.refused:
             # A refusal is final: retrying it elsewhere would bypass the model's safety decision.
-            _record_cost(response.cost_usd)
             return True
         logger.warning(f"Provider {response.provider or '?'} error: {response.error}")
         last_error = response.error or last_error
@@ -677,12 +677,13 @@ async def route_completion(
         if not provider or not provider.is_available():
             continue
         tried.add(fallback_name)
-        attempts += 1
-        logger.info(f"Fallback attempt {attempts}: trying {fallback_name}")
+        logger.info(f"Fallback attempt {attempts + 1}: trying {fallback_name}")
         response = await _call_provider(provider, _tier_model(registry, provider, tier), system_prompt, messages, extra)
         if response is not None and _accept(response):
             logger.info(f"Fallback answered with {fallback_name}")
             return response
+        if response is None or response.error != "cost_limited_monthly":
+            attempts += 1  # a provider skipped by the monthly cap was not called
 
     if last_error == "cost_limited_monthly":
         return _failure(COST_LIMIT_TEXT, "cost_limited")

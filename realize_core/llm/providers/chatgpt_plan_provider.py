@@ -146,8 +146,10 @@ class StreamParser:
             self.chunks.append(str(event.get("delta", "")))
         elif kind == "response.refusal.delta":
             self.refusal.append(str(event.get("delta", "")))
-        elif kind == "response.refusal.done" and not self.refusal:
-            self.refusal.append(str(event.get("refusal", "")))
+        elif kind == "response.refusal.done":
+            if not self.refusal:
+                self.refusal.append(str(event.get("refusal", "")))
+            return True  # final: do not wait for (or depend on) the rest of the stream
         elif kind == "response.completed":
             self.completed = True
             self.usage = response.get("usage") or {}

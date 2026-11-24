@@ -107,7 +107,8 @@ def cmd_login(args) -> int:
         print("Refusing to write live tokens inside a git checkout. Use --out in a private folder (e.g. %TEMP%).")
         return 1
     previous = chatgpt_plan.load_credentials(out) if out.exists() else None
-    client_id = previous.client_id if previous else None
+    client_id = args.client_id or (previous.client_id if previous else None)
+    expected_subject = args.subject or (previous.subject if previous else None)
     request = chatgpt_plan.build_authorize_request(args.host_id, port=args.port, client_id=client_id)
 
     try:
@@ -136,7 +137,7 @@ def cmd_login(args) -> int:
             query.get("code", ""),
             issued,
             args.host_id,
-            expected_subject=previous.subject if previous else None,
+            expected_subject=expected_subject,
         )
     except chatgpt_plan.TokenError as e:
         print(f"Sign-in failed: {e.code}")
@@ -192,6 +193,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--host-id", required=True, help="the server's host ID (from host-id)")
     p.add_argument("--out", required=True, help="where to write the credential file (outside any git checkout)")
     p.add_argument("--port", type=int, default=chatgpt_plan.DEFAULT_PORT)
+    p.add_argument("--client-id", help="re-sign-in: the issued client ID saved on the server")
+    p.add_argument("--subject", help="re-sign-in: the account subject saved on the server (must match)")
     p.add_argument("--timeout", type=float, default=300.0)
     p.set_defaults(func=cmd_login)
 

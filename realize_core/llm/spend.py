@@ -16,9 +16,11 @@ What it guards: the router checks it before each attempt on a billable
 provider (``BaseLLMProvider.billable``), so reaching the cap stops paid calls
 while zero-cost providers (a ChatGPT plan, a local Ollama) keep answering.
 
-It is a soft cap: the check and the record are separate steps, so calls already
-in flight when the total crosses the cap still finish (at most one call per
-worker over). If the spend table cannot be read, paid calls are refused.
+It is a soft cap: the check and the record are separate steps, so every call
+already admitted when the total crosses the cap still finishes and is charged
+(the overshoot is bounded by the calls in flight, not by a fixed amount). If the
+spend table cannot be read, paid calls are refused; if one write fails, that
+charge is logged as an error and missing from the total.
 """
 
 from __future__ import annotations
@@ -40,15 +42,13 @@ _table_ready_for: str | None = None
 def monthly_limit_usd() -> float:
     """The configured cap in USD; 0 means the cap is off, -1 means the value is invalid.
 
-    Read live from the environment (falling back to ``config``). A value that is
+    Read live from the environment; unset or empty means off. A value that is
     not a finite non-negative number is logged and returned as -1, which blocks
     paid calls: a typo must never mean "no cap".
     """
-    raw = os.getenv("COST_LIMIT_PER_MONTH_USD")
-    if raw is None:
-        from realize_core import config
-
-        raw = str(getattr(config, "COST_LIMIT_PER_MONTH_USD", 0.0) or 0.0)
+    raw = (os.getenv("COST_LIMIT_PER_MONTH_USD") or "").strip()
+    if not raw:
+        return 0.0  # unset or cleared in Setup: off
     try:
         value = float(raw)
     except ValueError:

@@ -25,8 +25,8 @@ def _ts(year, month, day, hour=12):
 
 
 class _Provider(BaseLLMProvider):
-    def __init__(self, name, billable, cost=0.0):
-        self._name, self.billable, self.cost, self.calls = name, billable, cost, 0
+    def __init__(self, name, billable, cost=0.0, error=None):
+        self._name, self.billable, self.cost, self.calls, self.error = name, billable, cost, 0, error
 
     @property
     def name(self):
@@ -34,7 +34,7 @@ class _Provider(BaseLLMProvider):
 
     async def complete(self, system_prompt, messages, model=None, **kw):
         self.calls += 1
-        return LLMResponse(text=self._name, model="m", provider=self._name, cost_usd=self.cost)
+        return LLMResponse(text=self._name, model="m", provider=self._name, cost_usd=self.cost, error=self.error)
 
     def list_models(self):
         return []
@@ -60,7 +60,6 @@ def _registry(monkeypatch, *providers):
 def test_off_by_default_writes_nothing(monkeypatch, tmp_path):
     monkeypatch.setattr("realize_core.memory.store.DB_PATH", tmp_path / "memory.db")
     monkeypatch.delenv("COST_LIMIT_PER_MONTH_USD", raising=False)
-    monkeypatch.setattr("realize_core.config.COST_LIMIT_PER_MONTH_USD", 0.0)
     spend.reset_cache()
     spend.record_spend(50.0)
     assert spend.check_monthly_limit() is True
@@ -161,3 +160,28 @@ def test_hourly_limit_is_unchanged(cap, monkeypatch):
     monkeypatch.setattr("realize_core.config.COST_LIMIT_PER_HOUR_USD", 1.0)
     router._record_cost(1.0)
     assert router._check_cost_limit() is False
+
+
+def test_empty_setting_means_off(cap, monkeypatch):
+    monkeypatch.setenv("COST_LIMIT_PER_MONTH_USD", "")
+    spend.record_spend(100.0)
+    assert spend.check_monthly_limit() is True
+
+
+async def test_a_billed_failure_is_still_counted(cap, monkeypatch):
+    broken = _Provider("claude", billable=True, cost=0.3, error="empty response")
+    ok = _Provider("gemini", billable=True, cost=0.1)
+    _registry(monkeypatch, broken, ok)
+    response = await router.route_completion("s", [{"role": "user", "content": "q"}], tier="standard")
+    assert response.text == "gemini"
+    assert spend.month_spend() == pytest.approx(0.4)
+
+
+async def test_capped_providers_do_not_use_up_retries(cap, monkeypatch):
+    paid = [_Provider(n, billable=True, cost=0.01) for n in ("claude", "gemini", "openai", "litellm")]
+    local = _Provider("ollama", billable=False)
+    _registry(monkeypatch, *paid, local)
+    spend.record_spend(20.0)
+    response = await router.route_completion("s", [{"role": "user", "content": "q"}], tier="standard")
+    assert response.text == "ollama"
+    assert all(p.calls == 0 for p in paid)

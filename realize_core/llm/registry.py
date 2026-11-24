@@ -198,6 +198,11 @@ class ProviderRegistry:
                 return chain + [n for n in listed if n not in chain]
             logger.warning("LLM_FALLBACK has no registered providers; using the default order")
 
+        if chain == ["chatgpt_plan"]:
+            # A plan limit must not switch to paid billing the owner did not name.
+            logger.warning("LLM_PRIMARY=chatgpt_plan without a valid LLM_FALLBACK: no fallback")
+            return chain
+
         rest = [n for n in _DEFAULT_ORDER if n in self._providers]
         rest += [n for n in self._providers if n not in rest]
         return chain + [n for n in rest if n not in chain]

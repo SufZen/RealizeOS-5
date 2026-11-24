@@ -92,7 +92,7 @@ def main(argv: list[str] | None = None) -> int:
     if not args.questions.is_file():
         print(f"No such file: {args.questions}", file=sys.stderr)
         return 2
-    if args.out.resolve() == args.questions.resolve():
+    if args.out.resolve() == args.questions.resolve() or (args.out.exists() and args.out.samefile(args.questions)):
         print("--out must not be the questions file.", file=sys.stderr)
         return 2
     questions = read_questions(args.questions)

@@ -430,3 +430,37 @@ async def test_provider_returns_refusal_that_the_router_keeps(signed_in, monkeyp
     response = await provider.complete("s", [{"role": "user", "content": "q"}])
     assert response.refused
     assert response.text == "No."
+
+
+def test_refusal_done_is_terminal():
+    from realize_core.llm.providers.chatgpt_plan_provider import StreamParser
+
+    parser = StreamParser()
+    line = _sse({"type": "response.refusal.done", "refusal": "No."})[0]
+    assert parser.feed(line) is True
+    assert parser.result()[2] == "refusal"
+
+
+def test_plan_primary_without_fallback_has_no_paid_fallback(signed_in, monkeypatch):
+    from realize_core.llm.base_provider import BaseLLMProvider
+    from realize_core.llm.registry import ProviderRegistry
+
+    class Paid(BaseLLMProvider):
+        @property
+        def name(self):
+            return "claude"
+
+        async def complete(self, *a, **k):
+            raise AssertionError
+
+        def list_models(self):
+            return []
+
+    registry = ProviderRegistry()
+    registry.register(ChatGPTPlanProvider(credentials_file=signed_in))
+    registry.register(Paid())
+    monkeypatch.setenv("LLM_PRIMARY", "chatgpt_plan")
+    monkeypatch.delenv("LLM_FALLBACK", raising=False)
+    assert registry._resolve_fallback_chain() == ["chatgpt_plan"]
+    monkeypatch.setenv("LLM_FALLBACK", "claude")
+    assert registry._resolve_fallback_chain() == ["chatgpt_plan", "claude"]

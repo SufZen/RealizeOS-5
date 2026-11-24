@@ -86,8 +86,8 @@ RATE_LIMIT_PER_MINUTE = int(os.getenv("RATE_LIMIT_PER_MINUTE", "30"))  # LLM cal
 # dashboard alone made more than 30 requests a minute (QA 5.14 S-3 / D-4).
 API_RATE_LIMIT_PER_MINUTE = int(os.getenv("API_RATE_LIMIT_PER_MINUTE", "120"))
 COST_LIMIT_PER_HOUR_USD = float(os.getenv("COST_LIMIT_PER_HOUR_USD", "5.0"))
-# Calendar-month cap (UTC) shared by every process on the same DATA_PATH. 0 = off.
-COST_LIMIT_PER_MONTH_USD = float(os.getenv("COST_LIMIT_PER_MONTH_USD", "0"))
+# COST_LIMIT_PER_MONTH_USD (calendar-month cap, UTC, shared by every process on the
+# same DATA_PATH; empty or 0 = off) is read live by realize_core.llm.spend.
 
 # --- Feature Flags ---
 BROWSER_ENABLED = os.getenv("BROWSER_ENABLED", "false").lower() == "true"
