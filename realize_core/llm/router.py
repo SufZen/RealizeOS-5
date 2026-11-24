@@ -59,8 +59,13 @@ def _check_rate_limit() -> bool:
 
 
 def _check_cost_limit() -> bool:
-    """Check if we're within the hourly cost limit. Returns True if request is allowed."""
+    """Check the hourly cost limit (this process) and the monthly cap (all processes).
+
+    Returns True if the request is allowed. The monthly cap is off unless
+    ``COST_LIMIT_PER_MONTH_USD`` is set (see ``realize_core.llm.spend``).
+    """
     from realize_core.config import COST_LIMIT_PER_HOUR_USD
+    from realize_core.llm.spend import check_monthly_limit
 
     now = time.time()
     cutoff = now - 3600.0
@@ -74,13 +79,16 @@ def _check_cost_limit() -> bool:
         logger.warning(f"Cost limit exceeded: ${hourly_cost:.4f} >= ${COST_LIMIT_PER_HOUR_USD:.2f}/hour")
         return False
 
-    return True
+    return check_monthly_limit(now)
 
 
 def _record_cost(cost_usd: float) -> None:
-    """Record a cost entry for the hourly cost tracker."""
+    """Record a cost entry for the hourly tracker and the monthly cap."""
     if cost_usd > 0:
+        from realize_core.llm.spend import record_spend
+
         _cost_window.append((time.time(), cost_usd))
+        record_spend(cost_usd)
 
 
 def get_hourly_cost() -> float:
@@ -359,7 +367,7 @@ _PREFIX_PROVIDERS = (
 
 RATE_LIMIT_TEXT = "I'm currently handling too many requests. Please wait a moment and try again."
 COST_LIMIT_TEXT = (
-    "The hourly cost limit has been reached. Please wait or contact your administrator to adjust the limit."
+    "The cost limit (hourly or monthly) has been reached. Please wait or contact your administrator to adjust it."
 )
 ALL_FAILED_TEXT = "An error occurred processing your request. Please try again."
 
