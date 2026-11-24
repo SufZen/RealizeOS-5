@@ -2,8 +2,9 @@
 
 RealizeOS can send text completions to OpenAI on your ChatGPT plan instead of an
 API key, through OpenAI's token sharing for open-source and self-hosted apps.
-Plan calls cost $0 against `COST_LIMIT_PER_MONTH_USD`; only the fallback
-providers spend API money.
+Plan calls cost $0 and are not stopped by `COST_LIMIT_PER_MONTH_USD`: the
+monthly cap guards billable providers only, so when it is reached the plan (and
+a local Ollama) keep answering while paid fallbacks stop.
 
 **Preview.** OpenAI marks token sharing as a preview. Read the limits before you
 depend on it: <https://developers.openai.com/siwc/token-sharing-open-source>.
@@ -31,30 +32,35 @@ The sign-in callback goes to `http://127.0.0.1:1455/auth/callback` on the
 machine that runs the browser. On a server you sign in on your own computer and
 copy the credential file over SSH. This is the flow OpenAI describes for VMs.
 
-1. **On the server**, print the server's host ID (created once, kept in `DATA_PATH`):
+1. **On your computer**, in a private folder outside any git checkout, create
+   the server's host ID once (it goes to the server with the sign-in):
 
    ```bash
-   python scripts/chatgpt_signin.py host-id
+   python scripts/chatgpt_signin.py host-id --data ~/rz-plan
    ```
 
-2. **On your computer** (a RealizeOS checkout with its dependencies), sign in for
-   that host. A browser opens; approve plan use.
+2. **Sign in** for that host. The listener on 127.0.0.1 starts before the browser
+   opens; approve plan use. The script refuses to write inside a git checkout.
 
    ```bash
-   python scripts/chatgpt_signin.py login --host-id <the server's host ID> --out chatgpt_plan.json
-   python scripts/chatgpt_signin.py models --creds chatgpt_plan.json
-   python scripts/chatgpt_signin.py check --creds chatgpt_plan.json --model <a slug from the list>
+   python scripts/chatgpt_signin.py login --host-id <the printed ID> --out ~/rz-plan/chatgpt_plan.json
+   python scripts/chatgpt_signin.py models --creds ~/rz-plan/chatgpt_plan.json
+   python scripts/chatgpt_signin.py check --creds ~/rz-plan/chatgpt_plan.json --model <a slug from the list>
    ```
 
-3. **Copy the file to the server** into `DATA_PATH` as `chatgpt_plan.json`, readable
-   by the RealizeOS user only, then delete your local copy. The server does every
-   refresh from now on, and each refresh replaces the refresh token, so a second
-   copy would stop working anyway.
+3. **Copy both files to the server** into `DATA_PATH`, owned by the RealizeOS user
+   with mode 600, then delete your local folder. The server does every refresh
+   from now on, and each refresh replaces the refresh token, so a second copy
+   would stop working anyway.
 
    ```bash
-   scp chatgpt_plan.json server:/path/to/data/chatgpt_plan.json
-   ssh server chmod 600 /path/to/data/chatgpt_plan.json
+   scp ~/rz-plan/chatgpt_plan.json ~/rz-plan/chatgpt_plan_host_id server:/path/to/data/
+   ssh server "chown <realize user> /path/to/data/chatgpt_plan* && chmod 600 /path/to/data/chatgpt_plan*"
+   rm -r ~/rz-plan
    ```
+
+   On Windows, `chmod` does not set an ACL: keep the folder under your own
+   profile (for example `%TEMP%`) and delete it after the copy.
 
 4. **Set the environment** and restart:
 
@@ -82,6 +88,11 @@ OpenAI never switches billing on its own, and its docs ask apps not to do it
 silently. Here you choose it in advance by listing a paid provider in
 `LLM_FALLBACK`. To stop instead of paying, list only free or local providers.
 
+**Set `LLM_FALLBACK` explicitly.** When it is empty (or names no registered
+provider), the registry falls back to its default order, which includes every
+paid provider that has a key. With the plan as primary that means a usage limit
+would send prompts to a paid model you did not name.
+
 ## Security
 
 - `chatgpt_plan.json` holds live tokens. It is written with owner-only
@@ -89,5 +100,14 @@ silently. Here you choose it in advance by listing a paid provider in
   a URL.
 - Refreshes take a lock file (`chatgpt_plan.lock`) so the API and the bots,
   which share `DATA_PATH`, never refresh at the same time.
-- ID-token claims (email, subject) are read for display only; the signature is
-  not checked in this version. Plan access is decided by OpenAI on each request.
+- At sign-in the ID token is verified against OpenAI's published keys (issuer,
+  audience = the issued client ID, expiry, nonce). On a re-sign-in the account
+  must be the same one.
+
+## Known gaps
+
+- The monthly cap is a soft cap: calls already in flight when the total crosses
+  it still finish (at most one call per worker over).
+- Pre-existing, outside this change: direct vision calls (`realize_core/media`)
+  bypass the router's limits, and a paid model LiteLLM cannot price is counted
+  as $0. Check that your fallback model has a price (`litellm.cost_per_token`).

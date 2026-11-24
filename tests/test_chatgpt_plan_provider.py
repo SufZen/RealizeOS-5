@@ -75,7 +75,14 @@ def test_pkce_challenge_matches_verifier():
     assert "=" not in challenge
 
 
-def test_exchange_requires_plan_scope(monkeypatch):
+@pytest.fixture
+def id_ok(monkeypatch):
+    monkeypatch.setattr(
+        chatgpt_plan, "verify_id_token", lambda token, client, nonce: {"sub": "user-1", "email": "a@b.c"}
+    )
+
+
+def test_exchange_requires_plan_scope(monkeypatch, id_ok):
     req = chatgpt_plan.build_authorize_request("urn:uuid:x")
     monkeypatch.setattr(
         chatgpt_plan, "_token_post", lambda form: {"access_token": "a", "refresh_token": "r", "scope": "openid"}
@@ -85,7 +92,7 @@ def test_exchange_requires_plan_scope(monkeypatch):
     assert e.value.code == "plan_scope_not_granted"
 
 
-def test_exchange_sends_issued_client_and_verifier(monkeypatch):
+def test_exchange_sends_issued_client_and_verifier(monkeypatch, id_ok):
     req = chatgpt_plan.build_authorize_request("urn:uuid:x")
     seen = {}
 
@@ -309,3 +316,117 @@ async def test_router_falls_back_when_the_plan_is_limited(signed_in, monkeypatch
     assert first.text == "cheap"
     second = await router.route_completion("s", [{"role": "user", "content": "q"}], tier="standard")
     assert second.text == "cheap"  # plan paused: not even tried
+
+
+def test_exchange_rejects_a_different_account_on_reauth(monkeypatch, id_ok):
+    req = chatgpt_plan.build_authorize_request("urn:uuid:x", client_id="oaiapp_1")
+    monkeypatch.setattr(
+        chatgpt_plan,
+        "_token_post",
+        lambda form: {"access_token": "a", "refresh_token": "r", "scope": chatgpt_plan.SCOPES, "id_token": "t"},
+    )
+    with pytest.raises(chatgpt_plan.TokenError) as e:
+        chatgpt_plan.exchange_code(req, "c", "oaiapp_1", "urn:uuid:x", expected_subject="someone-else")
+    assert e.value.code == "different_account"
+
+
+def test_missing_id_token_is_rejected():
+    with pytest.raises(chatgpt_plan.TokenError) as e:
+        chatgpt_plan.verify_id_token("", "oaiapp_1", "n")
+    assert e.value.code == "no_id_token"
+
+
+def test_id_token_signature_audience_and_nonce_are_checked(monkeypatch):
+    """A real RS256 token against a local key set: good token passes, wrong nonce or audience fails."""
+    import jwt
+    from cryptography.hazmat.primitives.asymmetric import rsa
+
+    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+
+    class Resp:
+        def json(self):
+            return {"issuer": "https://auth.openai.com", "jwks_uri": "https://auth.openai.com/jwks"}
+
+    class FakeJWKClient:
+        def __init__(self, uri):
+            pass
+
+        def get_signing_key_from_jwt(self, token):
+            return type("K", (), {"key": key.public_key()})()
+
+    monkeypatch.setattr("httpx.get", lambda url, timeout=30: Resp())
+    monkeypatch.setattr(jwt, "PyJWKClient", FakeJWKClient)
+
+    def token(**over):
+        claims = {
+            "iss": "https://auth.openai.com",
+            "aud": "oaiapp_1",
+            "sub": "u",
+            "exp": time.time() + 60,
+            "nonce": "n",
+        }
+        claims.update(over)
+        return jwt.encode(claims, key, algorithm="RS256")
+
+    assert chatgpt_plan.verify_id_token(token(), "oaiapp_1", "n")["sub"] == "u"
+    for bad, client in (
+        (token(nonce="other"), "oaiapp_1"),
+        (token(), "oaiapp_2"),
+        (token(exp=time.time() - 60), "oaiapp_1"),
+    ):
+        with pytest.raises(chatgpt_plan.TokenError):
+            chatgpt_plan.verify_id_token(bad, client, "n")
+
+
+@pytest.mark.parametrize("content", ["[]", "null", '{"client_id": 5}', "not json"])
+def test_malformed_credential_file_means_unavailable(tmp_path, monkeypatch, content):
+    monkeypatch.setenv("CHATGPT_PLAN_MODEL", "gpt-test")
+    path = tmp_path / "c.json"
+    path.write_text(content, encoding="utf-8")
+    assert chatgpt_plan.load_credentials(path) is None
+    assert ChatGPTPlanProvider(credentials_file=path).is_available() is False
+
+
+def test_rejected_token_already_replaced_by_another_process_is_not_refreshed(tmp_path, monkeypatch):
+    path = tmp_path / "c.json"
+    chatgpt_plan.save_credentials(_creds(access_token="at-new"), path)
+    monkeypatch.setattr(chatgpt_plan, "_token_post", lambda form: pytest.fail("refreshed again"))
+    assert chatgpt_plan.valid_access_token(path, rejected="at-old") == "at-new"
+
+
+def test_stream_stops_at_the_first_terminal_event():
+    from realize_core.llm.providers.chatgpt_plan_provider import StreamParser
+
+    parser = StreamParser()
+    lines = _sse(
+        {"type": "response.failed", "response": {"error": {"code": "subscription_sharing_usage_limit_exceeded"}}}
+    )
+    assert parser.feed(lines[0]) is True
+    assert parser.result()[2] == "subscription_sharing_usage_limit_exceeded"
+
+
+def test_refusal_is_final_not_an_empty_success():
+    text, _, err = parse_stream(
+        _sse(
+            {"type": "response.refusal.delta", "delta": "I can't help with that."},
+            {"type": "response.completed", "response": {}},
+        )
+    )
+    assert err == "refusal"
+    assert text == "I can't help with that."
+    _, _, err = parse_stream(
+        _sse({"type": "response.incomplete", "response": {"incomplete_details": {"reason": "content_filter"}}})
+    )
+    assert err == "refusal"
+
+
+async def test_provider_returns_refusal_that_the_router_keeps(signed_in, monkeypatch):
+    provider = ChatGPTPlanProvider(credentials_file=signed_in)
+
+    async def refused(body, token, timeout):
+        return 200, "No.", {}, "refusal"
+
+    monkeypatch.setattr(provider, "_post", refused)
+    response = await provider.complete("s", [{"role": "user", "content": "q"}])
+    assert response.refused
+    assert response.text == "No."

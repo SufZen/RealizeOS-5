@@ -6,37 +6,57 @@ bot keep their own window and none of them sees the others' spend. The monthly
 cap is kept in SQLite instead (table ``llm_spend`` in ``memory.db``), so every
 process that shares ``DATA_PATH`` checks one total.
 
-``COST_LIMIT_PER_MONTH_USD`` turns it on; 0 (the default) leaves it off. The
+``COST_LIMIT_PER_MONTH_USD`` turns it on; 0 (the default) leaves it off. It is
+read from the environment on every check, so a value saved in Settings applies
+to the API at once; other processes (bots) pick it up when they restart. The
 month is the calendar month in UTC. Spend is counted from the moment the cap is
 on: while it is off nothing is written.
 
-The router records the cost of every call it routes (``_record_cost``), so
-calls made directly to a provider outside the router are not counted.
+What it guards: the router checks it before each attempt on a billable
+provider (``BaseLLMProvider.billable``), so reaching the cap stops paid calls
+while zero-cost providers (a ChatGPT plan, a local Ollama) keep answering.
+
+It is a soft cap: the check and the record are separate steps, so calls already
+in flight when the total crosses the cap still finish (at most one call per
+worker over). If the spend table cannot be read, paid calls are refused.
 """
 
 from __future__ import annotations
 
 import logging
-import threading
+import math
+import os
 import time
 from datetime import UTC, datetime
 
 logger = logging.getLogger(__name__)
 
 WARN_FRACTION = 0.8  # log a warning once a month when spend passes this share of the cap
-_CACHE_SECONDS = 5.0  # how long a read of the month's total is reused within one process
 
-_lock = threading.Lock()
-_cache: tuple[float, float, float] | None = None  # (month_start, total, read_at)
 _warned_month: float | None = None
 _table_ready_for: str | None = None
 
 
 def monthly_limit_usd() -> float:
-    """The configured cap in USD; 0 or less means the cap is off."""
-    from realize_core import config
+    """The configured cap in USD; 0 means the cap is off, -1 means the value is invalid.
 
-    return float(getattr(config, "COST_LIMIT_PER_MONTH_USD", 0.0) or 0.0)
+    Read live from the environment (falling back to ``config``). A value that is
+    not a finite non-negative number is logged and returned as -1, which blocks
+    paid calls: a typo must never mean "no cap".
+    """
+    raw = os.getenv("COST_LIMIT_PER_MONTH_USD")
+    if raw is None:
+        from realize_core import config
+
+        raw = str(getattr(config, "COST_LIMIT_PER_MONTH_USD", 0.0) or 0.0)
+    try:
+        value = float(raw)
+    except ValueError:
+        value = math.nan
+    if not math.isfinite(value) or value < 0:
+        logger.error(f"COST_LIMIT_PER_MONTH_USD={raw!r} is not a valid amount; paid LLM calls are blocked")
+        return -1.0
+    return value
 
 
 def month_start(now: float | None = None) -> float:
@@ -62,8 +82,7 @@ def _ensure_table(conn) -> None:
 
 def record_spend(cost_usd: float, now: float | None = None) -> None:
     """Add one call's cost to this month's total. Does nothing while the cap is off."""
-    global _cache
-    if cost_usd <= 0 or monthly_limit_usd() <= 0:
+    if cost_usd <= 0 or monthly_limit_usd() == 0:
         return
     from realize_core.memory.store import db_connection
 
@@ -74,48 +93,38 @@ def record_spend(cost_usd: float, now: float | None = None) -> None:
             conn.execute("INSERT INTO llm_spend (created_at, cost_usd) VALUES (?, ?)", (at, cost_usd))
     except Exception as e:
         logger.error(f"Monthly spend not recorded (${cost_usd:.4f}): {e}")
-        return
-    with _lock:
-        if _cache is not None and _cache[0] == month_start(at):
-            _cache = (_cache[0], _cache[1] + cost_usd, _cache[2])
 
 
 def month_spend(now: float | None = None) -> float:
     """Total recorded spend in USD for the current UTC month, across all processes."""
-    global _cache
-    at = time.time() if now is None else now
-    start = month_start(at)
-    with _lock:
-        if _cache is not None and _cache[0] == start and at - _cache[2] < _CACHE_SECONDS:
-            return _cache[1]
     from realize_core.memory.store import db_connection
 
+    start = month_start(now)
     with db_connection() as conn:
         _ensure_table(conn)
         row = conn.execute(
             "SELECT COALESCE(SUM(cost_usd), 0) FROM llm_spend WHERE created_at >= ?", (start,)
         ).fetchone()
-    total = float(row[0] or 0.0)
-    with _lock:
-        _cache = (start, total, at)
-    return total
+    return float(row[0] or 0.0)
 
 
 def check_monthly_limit(now: float | None = None) -> bool:
     """True while this month's spend is under the cap (or the cap is off).
 
-    A database error is logged and the call is allowed: the cap must not take the
-    whole system down when the spend table cannot be read.
+    Call it only before a billable call. When the spend table cannot be read the
+    answer is False: the cap must not silently stop guarding.
     """
     global _warned_month
     limit = monthly_limit_usd()
-    if limit <= 0:
+    if limit == 0:
         return True
+    if limit < 0:
+        return False
     try:
         total = month_spend(now)
     except Exception as e:
-        logger.error(f"Monthly spend could not be read; allowing the call: {e}")
-        return True
+        logger.error(f"Monthly spend could not be read; refusing the paid call: {e}")
+        return False
     if total >= limit:
         logger.warning(f"Monthly cost limit reached: ${total:.4f} >= ${limit:.2f}/month")
         return False
@@ -127,9 +136,7 @@ def check_monthly_limit(now: float | None = None) -> bool:
 
 
 def reset_cache() -> None:
-    """Forget cached totals (tests, or after the data folder changes)."""
-    global _cache, _warned_month, _table_ready_for
-    with _lock:
-        _cache = None
+    """Forget per-process state (tests, or after the data folder changes)."""
+    global _warned_month, _table_ready_for
     _warned_month = None
     _table_ready_for = None

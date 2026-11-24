@@ -31,7 +31,17 @@ from pathlib import Path
 from typing import Any, ClassVar
 
 from realize_core.llm import chatgpt_plan
-from realize_core.llm.base_provider import STOP_END, STOP_ERROR, BaseLLMProvider, Capability, LLMResponse, ModelInfo
+from realize_core.llm.base_provider import (
+    REFUSAL_ERROR,
+    REFUSAL_TEXT,
+    STOP_END,
+    STOP_ERROR,
+    STOP_REFUSAL,
+    BaseLLMProvider,
+    Capability,
+    LLMResponse,
+    ModelInfo,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -102,52 +112,86 @@ def build_body(system_prompt: str, messages: list[dict], model: str, response_sc
     return body
 
 
-def parse_stream(lines) -> tuple[str, dict, str | None]:
-    """Read SSE lines: (text, usage, error code or None).
+class StreamParser:
+    """Reads SSE lines as they arrive and says when the response is final.
 
-    Success is a ``response.completed`` event; a stream that ends without one
-    is an error.
+    Success is a ``response.completed`` event; a stream that ends without a
+    terminal event is an error. A refusal (``response.refusal.*`` or an
+    incomplete response stopped by the content filter) is reported as
+    ``REFUSAL_ERROR`` so the router does not retry it elsewhere.
     """
-    chunks: list[str] = []
-    usage: dict = {}
-    completed = False
-    error: str | None = None
-    for raw in lines:
+
+    def __init__(self) -> None:
+        self.chunks: list[str] = []
+        self.refusal: list[str] = []
+        self.usage: dict = {}
+        self.completed = False
+        self.error: str | None = None
+
+    def feed(self, raw: str | bytes) -> bool:
+        """Take one line; True once a terminal event has been seen."""
         line = raw.decode("utf-8", "replace") if isinstance(raw, bytes) else raw
         if not line.startswith("data:"):
-            continue
+            return False
         data = line[5:].strip()
         if not data or data == "[DONE]":
-            continue
+            return data == "[DONE]"
         try:
             event = json.loads(data)
         except ValueError:
-            continue
+            return False
         kind = event.get("type")
+        response = event.get("response") or {}
         if kind == "response.output_text.delta":
-            chunks.append(str(event.get("delta", "")))
+            self.chunks.append(str(event.get("delta", "")))
+        elif kind == "response.refusal.delta":
+            self.refusal.append(str(event.get("delta", "")))
+        elif kind == "response.refusal.done" and not self.refusal:
+            self.refusal.append(str(event.get("refusal", "")))
         elif kind == "response.completed":
-            completed = True
-            response = event.get("response") or {}
-            usage = response.get("usage") or {}
-            if not chunks and isinstance(response.get("output_text"), str):
-                chunks.append(response["output_text"])
+            self.completed = True
+            self.usage = response.get("usage") or {}
+            if not self.chunks and isinstance(response.get("output_text"), str):
+                self.chunks.append(response["output_text"])
+            return True
         elif kind == "response.failed":
-            err = (event.get("response") or {}).get("error") or {}
-            error = err.get("code") or "response_failed"
+            self.error = (response.get("error") or {}).get("code") or "response_failed"
+            return True
         elif kind == "response.incomplete":
-            error = error or "response_incomplete"
+            reason = (response.get("incomplete_details") or {}).get("reason")
+            if reason == "content_filter":
+                self.refusal.append("")
+            else:
+                self.error = f"response_incomplete:{reason or 'unknown'}"
+            return True
         elif kind == "error":
-            error = event.get("code") or (event.get("error") or {}).get("code") or "stream_error"
-    if error is None and not completed:
-        error = "stream_ended_without_completion"
-    return "".join(chunks), usage, error
+            self.error = event.get("code") or (event.get("error") or {}).get("code") or "stream_error"
+            return True
+        return False
+
+    def result(self) -> tuple[str, dict, str | None]:
+        """(text, usage, error code or None). A refusal gives its text and REFUSAL_ERROR."""
+        if self.refusal:
+            return "".join(self.refusal).strip() or REFUSAL_TEXT, self.usage, REFUSAL_ERROR
+        if self.error is None and not self.completed:
+            return "".join(self.chunks), self.usage, "stream_ended_without_completion"
+        return "".join(self.chunks), self.usage, self.error
+
+
+def parse_stream(lines) -> tuple[str, dict, str | None]:
+    """Parse a whole list of SSE lines (see ``StreamParser``)."""
+    parser = StreamParser()
+    for line in lines:
+        if parser.feed(line):
+            break
+    return parser.result()
 
 
 class ChatGPTPlanProvider(BaseLLMProvider):
     """Text completions on the owner's ChatGPT plan through token sharing."""
 
     tier_models: ClassVar[dict[str, str]] = {}
+    billable: ClassVar[bool] = False  # billed to the ChatGPT plan, not the API
 
     def __init__(self, credentials_file: Path | None = None) -> None:
         self._credentials_file = credentials_file
@@ -191,19 +235,27 @@ class ChatGPTPlanProvider(BaseLLMProvider):
         logger.warning(f"ChatGPT plan paused for {_pause_seconds():.0f}s ({reason}); using the fallback chain")
 
     async def _post(self, body: dict, token: str, timeout: float) -> tuple[int, str, dict, str | None]:
-        """POST and read the stream: (status, text, usage, error code)."""
+        """POST and read the stream as it arrives: (status, text, usage, error code).
+
+        Stops at the first terminal event, and the whole call has a wall-clock
+        deadline of ``timeout`` seconds (a stream kept open by heartbeats still ends).
+        """
         import httpx
 
         headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
-        async with (
-            httpx.AsyncClient(timeout=timeout) as client,
-            client.stream("POST", RESPONSES_URL, json=body, headers=headers) as response,
-        ):
-            if response.status_code != 200:
-                raw = await response.aread()
-                return response.status_code, "", {}, _error_code(raw, response.status_code)
-            lines = [line async for line in response.aiter_lines()]
-        text, usage, error = parse_stream(lines)
+        parser = StreamParser()
+        async with asyncio.timeout(timeout):
+            async with (
+                httpx.AsyncClient(timeout=timeout) as client,
+                client.stream("POST", RESPONSES_URL, json=body, headers=headers) as response,
+            ):
+                if response.status_code != 200:
+                    raw = await response.aread()
+                    return response.status_code, "", {}, _error_code(raw, response.status_code)
+                async for line in response.aiter_lines():
+                    if parser.feed(line):
+                        break
+        text, usage, error = parser.result()
         return 200, text, usage, error
 
     async def complete(
@@ -221,10 +273,11 @@ class ChatGPTPlanProvider(BaseLLMProvider):
             return self._error("", "CHATGPT_PLAN_MODEL is not set")
         body = build_body(system_prompt, messages, model, response_schema)
 
+        rejected: str | None = None
         for attempt in (1, 2):
             try:
                 token = await asyncio.to_thread(
-                    chatgpt_plan.valid_access_token, self.credentials_file, force=attempt == 2
+                    chatgpt_plan.valid_access_token, self.credentials_file, rejected=rejected
                 )
             except chatgpt_plan.ReauthRequiredError as e:
                 return self._error(model, f"chatgpt_plan_reauth_required: {e}")
@@ -235,6 +288,15 @@ class ChatGPTPlanProvider(BaseLLMProvider):
             except Exception as e:  # network, timeout
                 return self._error(model, f"chatgpt_plan_request_failed: {type(e).__name__}")
 
+            if code == REFUSAL_ERROR:
+                # Final: the router returns a refusal as-is and does not retry elsewhere.
+                return LLMResponse(
+                    text=text or REFUSAL_TEXT,
+                    model=model,
+                    provider=NAME,
+                    error=REFUSAL_ERROR,
+                    stop_reason=STOP_REFUSAL,
+                )
             if code is None:
                 return LLMResponse(
                     text=text,
@@ -251,7 +313,8 @@ class ChatGPTPlanProvider(BaseLLMProvider):
                 self._disabled_reason = code
                 logger.error(f"ChatGPT plan disabled: {code}")
             elif (code in REAUTH_CODES or status == 401) and attempt == 1:
-                continue  # one forced refresh, then give up for this call
+                rejected = token  # refresh unless another process already replaced this token
+                continue
             return self._error(model, f"chatgpt_plan: {code}")
         return self._error(model, "chatgpt_plan: unauthorized after refresh")
 

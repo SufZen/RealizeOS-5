@@ -5,7 +5,7 @@ PR CI. Use it before moving a tier (for example LLM_MODEL_FAST) to a cheaper
 model, so a person can judge whether the answers got worse.
 
     python scripts/compare_models.py questions.txt \\
-        --before gemini/gemini-2.5-flash --after gemini/gemini-3.1-flash-lite \\
+        --before <model used today> --after gemini/gemini-3.1-flash-lite \\
         --out compare.md
 
 ``questions.txt`` holds one question per line (blank lines and lines starting
@@ -91,6 +91,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if not args.questions.is_file():
         print(f"No such file: {args.questions}", file=sys.stderr)
+        return 2
+    if args.out.resolve() == args.questions.resolve():
+        print("--out must not be the questions file.", file=sys.stderr)
         return 2
     questions = read_questions(args.questions)
     if not questions:

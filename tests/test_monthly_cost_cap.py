@@ -4,15 +4,15 @@ from datetime import UTC, datetime
 
 import pytest
 from realize_core.llm import router, spend
+from realize_core.llm.base_provider import BaseLLMProvider, LLMResponse
 
 
 @pytest.fixture
 def cap(monkeypatch, tmp_path):
     """A fresh memory.db, an empty hourly window and a $20 monthly cap."""
     monkeypatch.setattr("realize_core.memory.store.DB_PATH", tmp_path / "memory.db")
-    monkeypatch.setattr("realize_core.config.COST_LIMIT_PER_MONTH_USD", 20.0)
+    monkeypatch.setenv("COST_LIMIT_PER_MONTH_USD", "20")
     monkeypatch.setattr("realize_core.config.COST_LIMIT_PER_HOUR_USD", 1000.0)
-    monkeypatch.setattr(spend, "_CACHE_SECONDS", 0.0)
     router._cost_window.clear()
     spend.reset_cache()
     yield
@@ -24,8 +24,42 @@ def _ts(year, month, day, hour=12):
     return datetime(year, month, day, hour, tzinfo=UTC).timestamp()
 
 
+class _Provider(BaseLLMProvider):
+    def __init__(self, name, billable, cost=0.0):
+        self._name, self.billable, self.cost, self.calls = name, billable, cost, 0
+
+    @property
+    def name(self):
+        return self._name
+
+    async def complete(self, system_prompt, messages, model=None, **kw):
+        self.calls += 1
+        return LLMResponse(text=self._name, model="m", provider=self._name, cost_usd=self.cost)
+
+    def list_models(self):
+        return []
+
+
+def _registry(monkeypatch, *providers):
+    from realize_core.llm.registry import ProviderRegistry
+
+    registry = ProviderRegistry()
+    for p in providers:
+        registry.register(p)
+    registry.set_fallback_chain([p.name for p in providers])
+    for tier in ("FAST", "STANDARD", "DEEP"):
+        monkeypatch.delenv(f"LLM_MODEL_{tier}", raising=False)
+    monkeypatch.setenv("LLM_PRIMARY", providers[0].name)
+    monkeypatch.setattr("realize_core.llm.registry.get_registry", lambda: registry)
+    monkeypatch.setattr(router, "_check_rate_limit", lambda: True)
+
+
+# --- the ledger ------------------------------------------------------------------
+
+
 def test_off_by_default_writes_nothing(monkeypatch, tmp_path):
     monkeypatch.setattr("realize_core.memory.store.DB_PATH", tmp_path / "memory.db")
+    monkeypatch.delenv("COST_LIMIT_PER_MONTH_USD", raising=False)
     monkeypatch.setattr("realize_core.config.COST_LIMIT_PER_MONTH_USD", 0.0)
     spend.reset_cache()
     spend.record_spend(50.0)
@@ -54,41 +88,76 @@ def test_month_start_is_utc_first_day():
 
 
 def test_total_is_shared_through_the_database(cap):
-    """Another process writes to the same memory.db; this process sees it."""
+    """Another process writes to the same memory.db; the next check sees it."""
     from realize_core.memory.store import db_connection
 
     now = _ts(2026, 11, 24)
-    spend.month_spend(now)  # creates the table, as any process would
+    assert spend.check_monthly_limit(now) is True  # creates the table, as any process would
     with db_connection() as conn:
         conn.execute("INSERT INTO llm_spend (created_at, cost_usd) VALUES (?, ?)", (now, 21.0))
     assert spend.check_monthly_limit(now) is False
 
 
-def test_router_records_and_enforces(cap):
-    router._record_cost(19.5)
-    assert router._check_cost_limit() is True
-    router._record_cost(0.6)
-    assert router._check_cost_limit() is False
-
-
-def test_hourly_limit_still_applies_first(cap, monkeypatch):
-    monkeypatch.setattr("realize_core.config.COST_LIMIT_PER_HOUR_USD", 1.0)
-    router._record_cost(1.0)
-    assert router._check_cost_limit() is False
-    assert spend.month_spend() == pytest.approx(1.0)
-
-
-def test_unreadable_database_allows_the_call(cap, monkeypatch):
-    def broken():
+def test_unreadable_ledger_blocks_paid_calls(cap, monkeypatch):
+    def broken(now=None):
         raise RuntimeError("disk gone")
 
-    monkeypatch.setattr(spend, "month_spend", lambda now=None: broken())
+    monkeypatch.setattr(spend, "month_spend", broken)
+    assert spend.check_monthly_limit() is False
+
+
+@pytest.mark.parametrize("value", ["nan", "-5", "twenty", "inf"])
+def test_invalid_setting_blocks_instead_of_lifting_the_cap(cap, monkeypatch, value):
+    monkeypatch.setenv("COST_LIMIT_PER_MONTH_USD", value)
+    assert spend.check_monthly_limit() is False
+
+
+def test_setting_is_read_live(cap, monkeypatch):
+    spend.record_spend(30.0)
+    assert spend.check_monthly_limit() is False
+    monkeypatch.setenv("COST_LIMIT_PER_MONTH_USD", "50")
     assert spend.check_monthly_limit() is True
 
 
-async def test_route_returns_cost_limited_when_capped(cap, monkeypatch):
-    monkeypatch.setattr(router, "_check_rate_limit", lambda: True)
-    router._record_cost(20.0)
-    response = await router.route_completion(system_prompt="s", messages=[{"role": "user", "content": "hi"}])
+# --- routing -----------------------------------------------------------------------
+
+
+def test_router_records_spend(cap):
+    router._record_cost(0.25)
+    assert spend.month_spend() == pytest.approx(0.25)
+
+
+async def test_cap_stops_paid_provider_but_not_the_free_one(cap, monkeypatch):
+    free = _Provider("chatgpt_plan", billable=False)
+    paid = _Provider("gemini", billable=True, cost=0.01)
+    _registry(monkeypatch, free, paid)
+    spend.record_spend(20.0)
+
+    response = await router.route_completion("s", [{"role": "user", "content": "q"}], tier="standard")
+    assert response.text == "chatgpt_plan"
+    assert free.calls == 1
+
+
+async def test_capped_fallback_is_skipped_with_a_cost_message(cap, monkeypatch):
+    paid = _Provider("gemini", billable=True, cost=0.01)
+    _registry(monkeypatch, paid)
+    spend.record_spend(20.0)
+
+    response = await router.route_completion("s", [{"role": "user", "content": "q"}], tier="standard")
     assert response.ok is False
     assert response.error == "cost_limited"
+    assert paid.calls == 0
+
+
+async def test_under_the_cap_paid_calls_go_through_and_are_counted(cap, monkeypatch):
+    paid = _Provider("gemini", billable=True, cost=0.5)
+    _registry(monkeypatch, paid)
+    response = await router.route_completion("s", [{"role": "user", "content": "q"}], tier="standard")
+    assert response.ok
+    assert spend.month_spend() == pytest.approx(0.5)
+
+
+def test_hourly_limit_is_unchanged(cap, monkeypatch):
+    monkeypatch.setattr("realize_core.config.COST_LIMIT_PER_HOUR_USD", 1.0)
+    router._record_cost(1.0)
+    assert router._check_cost_limit() is False

@@ -124,3 +124,7 @@ pytest_pipeline_output.txt
 
 # Temporary launch strategy files
 launch-strategy.*
+
+# ChatGPT plan sign-in (live tokens)
+chatgpt_plan.json
+chatgpt_plan_host_id

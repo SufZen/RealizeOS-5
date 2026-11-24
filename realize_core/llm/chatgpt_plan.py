@@ -41,6 +41,7 @@ logger = logging.getLogger(__name__)
 
 AUTHORIZE_URL = "https://auth.openai.com/api/accounts/authorize"
 TOKEN_URL = "https://auth.openai.com/api/accounts/oauth/token"
+OPENID_CONFIG_URL = "https://auth.openai.com/.well-known/openid-configuration"
 RESOURCE = "https://api.openai.com/v1"
 FIRST_CLIENT_ID = "dynamic_agent_client"
 SCOPES = "openid profile email offline_access resource.invoke chatgpt.tokens.use.direct"
@@ -155,9 +156,14 @@ def load_credentials(path: Path | None = None) -> Credentials | None:
     except (OSError, ValueError) as e:
         logger.error(f"ChatGPT plan credentials unreadable at {path.name}: {type(e).__name__}")
         return None
+    if not isinstance(data, dict) or not all(
+        isinstance(data.get(k), str) and data.get(k) for k in ("client_id", "access_token", "refresh_token")
+    ):
+        logger.error(f"ChatGPT plan credentials in {path.name} are not a valid sign-in record")
+        return None
     try:
         return Credentials.from_dict(data)
-    except TypeError as e:
+    except (TypeError, ValueError) as e:
         logger.error(f"ChatGPT plan credentials incomplete in {path.name}: {e}")
         return None
 
@@ -274,8 +280,37 @@ def build_authorize_request(
     )
 
 
+def verify_id_token(id_token: str, issued_client_id: str, nonce: str) -> dict:
+    """Check the ID token as OpenAI's sign-in docs require and return its claims.
+
+    Signature against OpenAI's published keys (JWKS), issuer, audience = the
+    issued client ID, expiry and nonce. Raises TokenError when any check fails.
+    """
+    import httpx
+    import jwt
+
+    if not id_token:
+        raise TokenError("no_id_token")
+    try:
+        config = httpx.get(OPENID_CONFIG_URL, timeout=30).json()
+        key = jwt.PyJWKClient(config["jwks_uri"]).get_signing_key_from_jwt(id_token)
+        claims = jwt.decode(
+            id_token,
+            key.key,
+            algorithms=["RS256", "ES256"],
+            audience=issued_client_id,
+            issuer=config["issuer"],
+            options={"require": ["exp", "iss", "aud", "sub"]},
+        )
+    except (jwt.PyJWTError, KeyError, ValueError, httpx.HTTPError) as e:
+        raise TokenError(f"id_token_invalid:{type(e).__name__}") from e
+    if claims.get("nonce") != nonce:
+        raise TokenError("nonce_mismatch")
+    return claims
+
+
 def jwt_claims(token: str) -> dict:
-    """The payload of a JWT, NOT signature-checked (used only for display fields and nonce)."""
+    """The payload of a JWT, NOT signature-checked (display only; see ``verify_id_token``)."""
     try:
         payload = token.split(".")[1]
         payload += "=" * (-len(payload) % 4)
@@ -306,9 +341,17 @@ class TokenError(RuntimeError):
 
 
 def exchange_code(
-    request: AuthRequest, code: str, issued_client_id: str, ext_agent_host_id: str, now: float | None = None
+    request: AuthRequest,
+    code: str,
+    issued_client_id: str,
+    ext_agent_host_id: str,
+    now: float | None = None,
+    expected_subject: str | None = None,
 ) -> Credentials:
-    """Trade the callback code for tokens and check the plan scope was granted."""
+    """Trade the callback code for tokens, verify the ID token and the plan scope.
+
+    ``expected_subject`` (re-authorization) must match the verified account.
+    """
     body = _token_post(
         {
             "grant_type": "authorization_code",
@@ -319,9 +362,9 @@ def exchange_code(
             "resource": RESOURCE,
         }
     )
-    claims = jwt_claims(body.get("id_token", ""))
-    if claims.get("nonce") not in (None, request.nonce):
-        raise TokenError("nonce_mismatch")
+    claims = verify_id_token(body.get("id_token", ""), issued_client_id, request.nonce)
+    if expected_subject and claims.get("sub") != expected_subject:
+        raise TokenError("different_account")
     creds = Credentials(
         client_id=issued_client_id,
         ext_agent_host_id=ext_agent_host_id,
@@ -366,8 +409,11 @@ def refresh(creds: Credentials, now: float | None = None) -> Credentials:
     return creds
 
 
-def valid_access_token(path: Path | None = None, force: bool = False) -> str:
+def valid_access_token(path: Path | None = None, rejected: str | None = None) -> str:
     """A usable access token, refreshing (under the lock) when it is about to expire.
+
+    ``rejected`` is a token the API just refused: it is refreshed even if not
+    expired, unless another process has already replaced it in the file.
 
     Raises:
         ReauthRequiredError: no sign-in, a sign-in marked for re-auth, or a terminal
@@ -378,13 +424,13 @@ def valid_access_token(path: Path | None = None, force: bool = False) -> str:
     creds = load_credentials(path)
     if creds is None or creds.needs_reauth:
         raise ReauthRequiredError("no usable ChatGPT plan sign-in")
-    if creds.access_valid() and not force:
+    if creds.access_valid() and creds.access_token != rejected:
         return creds.access_token
     with refresh_lock(path.parent):
         creds = load_credentials(path)  # another process may have refreshed meanwhile
         if creds is None or creds.needs_reauth:
             raise ReauthRequiredError("no usable ChatGPT plan sign-in")
-        if creds.access_valid() and not force:
+        if creds.access_valid() and creds.access_token != rejected:
             return creds.access_token
         try:
             creds = refresh(creds)

@@ -43,3 +43,10 @@ def test_empty_file_is_a_setup_error(tmp_path):
     questions = tmp_path / "q.txt"
     questions.write_text("# only comments\n", encoding="utf-8")
     assert _load().main([str(questions), "--before", "a", "--after", "b"]) == 2
+
+
+def test_refuses_to_overwrite_the_questions_file(tmp_path):
+    questions = tmp_path / "q.txt"
+    questions.write_text("What?\n", encoding="utf-8")
+    assert _load().main([str(questions), "--before", "a", "--after", "b", "--out", str(questions)]) == 2
+    assert questions.read_text(encoding="utf-8") == "What?\n"

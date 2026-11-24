@@ -234,7 +234,7 @@ async def run_tool_loop(
     Raises:
         RuntimeError: No tool-capable provider is available.
     """
-    from realize_core.llm.router import _check_cost_limit, _check_rate_limit, _record_cost
+    from realize_core.llm.router import _check_cost_limit, _check_rate_limit, _monthly_allows, _record_cost
     from realize_core.tools.tool_registry import get_tool_registry
 
     registry = registry or get_tool_registry()
@@ -250,7 +250,7 @@ async def run_tool_loop(
 
     for iteration in range(1, max_iterations + 2):  # +1: the forced wrap-up turn
         wrap_up = iteration > max_iterations
-        if not _check_rate_limit() or not _check_cost_limit():
+        if not _check_rate_limit() or not _check_cost_limit() or not _monthly_allows(provider):
             result.text = "I've hit this system's usage limit for now. Please try again in a few minutes."
             result.stop_reason = "limit"
             break

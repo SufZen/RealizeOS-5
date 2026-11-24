@@ -59,13 +59,12 @@ def _check_rate_limit() -> bool:
 
 
 def _check_cost_limit() -> bool:
-    """Check the hourly cost limit (this process) and the monthly cap (all processes).
+    """Check the hourly cost limit (this process). Returns True if the request is allowed.
 
-    Returns True if the request is allowed. The monthly cap is off unless
-    ``COST_LIMIT_PER_MONTH_USD`` is set (see ``realize_core.llm.spend``).
+    The monthly cap is checked per billable provider attempt instead
+    (``_monthly_allows``), so zero-cost providers keep answering once it is reached.
     """
     from realize_core.config import COST_LIMIT_PER_HOUR_USD
-    from realize_core.llm.spend import check_monthly_limit
 
     now = time.time()
     cutoff = now - 3600.0
@@ -79,7 +78,16 @@ def _check_cost_limit() -> bool:
         logger.warning(f"Cost limit exceeded: ${hourly_cost:.4f} >= ${COST_LIMIT_PER_HOUR_USD:.2f}/hour")
         return False
 
-    return check_monthly_limit(now)
+    return True
+
+
+def _monthly_allows(provider: BaseLLMProvider) -> bool:
+    """True when ``provider`` costs nothing or this month's spend is under the cap."""
+    if not getattr(provider, "billable", True):
+        return True
+    from realize_core.llm.spend import check_monthly_limit
+
+    return check_monthly_limit()
 
 
 def _record_cost(cost_usd: float) -> None:
@@ -363,6 +371,7 @@ _PREFIX_PROVIDERS = (
     ("openai/", "openai", "openai/"),
     ("ollama_chat/", "ollama", "ollama_chat/"),
     ("ollama/", "ollama", "ollama_chat/"),
+    ("chatgpt_plan/", "chatgpt_plan", ""),
 )
 
 RATE_LIMIT_TEXT = "I'm currently handling too many requests. Please wait a moment and try again."
@@ -573,6 +582,9 @@ async def _call_provider(
     if not provider.is_model_usable(model_id or ""):
         logger.info(f"Skipping {provider.name}: model {model_id} is unusable")
         return None
+    if not _monthly_allows(provider):
+        logger.info(f"Skipping {provider.name}: monthly cost limit reached")
+        return LLMResponse(text="", model=model_id or "", provider=provider.name, error="cost_limited_monthly")
     try:
         return await provider.complete(system_prompt=system_prompt, messages=messages, model=model_id, **extra)
     except Exception as e:
@@ -672,6 +684,8 @@ async def route_completion(
             logger.info(f"Fallback answered with {fallback_name}")
             return response
 
+    if last_error == "cost_limited_monthly":
+        return _failure(COST_LIMIT_TEXT, "cost_limited")
     logger.error(f"All LLM providers failed (tier={tier}): {last_error}")
     return _failure(ALL_FAILED_TEXT, last_error)
 

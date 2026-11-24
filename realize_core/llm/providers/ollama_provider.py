@@ -32,6 +32,7 @@ class OllamaProvider(PrefixedLiteLLMProvider):
     """Ollama provider. Cost is always zero."""
 
     prefix = "ollama_chat/"
+    billable: ClassVar[bool] = False
     tier_models: ClassVar[dict[str, str]] = {"fast": "ollama", "standard": "ollama", "deep": "ollama"}
 
     def __init__(self) -> None:
