@@ -185,3 +185,11 @@ async def test_capped_providers_do_not_use_up_retries(cap, monkeypatch):
     response = await router.route_completion("s", [{"role": "user", "content": "q"}], tier="standard")
     assert response.text == "ollama"
     assert all(p.calls == 0 for p in paid)
+
+
+def test_litellm_calls_drop_unsupported_params():
+    """gemini-3.5-flash-lite rejects temperature; LiteLLM must drop it, not fail the call."""
+    from realize_core.llm.litellm_provider import LiteLLMProvider
+
+    kwargs = LiteLLMProvider()._acompletion_kwargs("s", [], "gemini/gemini-3.5-flash-lite", 100, temperature=0.7)
+    assert kwargs["drop_params"] is True

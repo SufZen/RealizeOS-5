@@ -236,6 +236,9 @@ class LiteLLMProvider(BaseLLMProvider):
             "messages": full_messages,
             "max_tokens": max_tokens,
             "timeout": timeout,
+            # Newer models reject some OpenAI params (gemini-3.5-flash-lite: temperature).
+            # Drop them instead of failing the call; gemini-2.5-flash is remapped there from 2026-12-01.
+            "drop_params": True,
         }
         if temperature is not None:
             kwargs["temperature"] = temperature
