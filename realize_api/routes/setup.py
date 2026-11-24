@@ -248,6 +248,15 @@ CONNECTION_DEFINITIONS = [
         "description": "Max LLM spend per hour (USD)",
         "help": "Default: $5.00",
     },
+    {
+        "id": "cost_limit_month",
+        "name": "Monthly Cost Limit",
+        "category": "system",
+        "env_key": "COST_LIMIT_PER_MONTH_USD",
+        "type": "number",
+        "description": "Max LLM spend per calendar month (USD), shared by every process",
+        "help": "Default: 0 (off)",
+    },
 ]
 
 # Env vars that cannot be changed via the API

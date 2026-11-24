@@ -20,6 +20,7 @@ _PROVIDER_NAMES = {
     "openai": "openai",
     "ollama": "ollama",
     "litellm": "litellm",
+    "chatgpt_plan": "chatgpt_plan",
 }
 _TIER_KEYS = ("fast", "standard", "deep")
 _BODY_KEYS = {"primary", "tiers", "fallback"}

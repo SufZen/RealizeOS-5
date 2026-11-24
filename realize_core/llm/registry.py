@@ -198,6 +198,11 @@ class ProviderRegistry:
                 return chain + [n for n in listed if n not in chain]
             logger.warning("LLM_FALLBACK has no registered providers; using the default order")
 
+        if chain == ["chatgpt_plan"]:
+            # A plan limit must not switch to paid billing the owner did not name.
+            logger.warning("LLM_PRIMARY=chatgpt_plan without a valid LLM_FALLBACK: no fallback")
+            return chain
+
         rest = [n for n in _DEFAULT_ORDER if n in self._providers]
         rest += [n for n in self._providers if n not in rest]
         return chain + [n for n in rest if n not in chain]
@@ -240,6 +245,14 @@ class ProviderRegistry:
             self.register(OpenAIProvider(), model_keys())
         except Exception as e:
             logger.debug(f"OpenAI provider not registered: {e}")
+
+        # ChatGPT plan (token sharing; available once signed in and CHATGPT_PLAN_MODEL is set)
+        try:
+            from realize_core.llm.providers.chatgpt_plan_provider import ChatGPTPlanProvider
+
+            self.register(ChatGPTPlanProvider())
+        except Exception as e:
+            logger.debug(f"ChatGPT plan provider not registered: {e}")
 
         # Ollama (available only while a local server answers)
         try:

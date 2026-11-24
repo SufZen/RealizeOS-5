@@ -214,7 +214,7 @@ To enable Gmail, Calendar, Drive, and Sheets tools:
 - [ ] Use HTTPS via a reverse proxy (see below)
 - [ ] Never expose port 8080 directly to the internet
 - [ ] Keep `.env` and `.credentials/` out of version control
-- [ ] Set `RATE_LIMIT_PER_MINUTE` and `COST_LIMIT_PER_HOUR_USD`
+- [ ] Set `RATE_LIMIT_PER_MINUTE`, `COST_LIMIT_PER_HOUR_USD` (per process) and `COST_LIMIT_PER_MONTH_USD` (one monthly total for every process on the same `DATA_PATH`; 0 = off)
 - [ ] Review and restrict Docker volume permissions
 - [ ] Enable JWT authentication for multi-user deployments
 - [ ] Configure audit logging for compliance

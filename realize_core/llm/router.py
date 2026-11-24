@@ -59,7 +59,11 @@ def _check_rate_limit() -> bool:
 
 
 def _check_cost_limit() -> bool:
-    """Check if we're within the hourly cost limit. Returns True if request is allowed."""
+    """Check the hourly cost limit (this process). Returns True if the request is allowed.
+
+    The monthly cap is checked per billable provider attempt instead
+    (``_monthly_allows``), so zero-cost providers keep answering once it is reached.
+    """
     from realize_core.config import COST_LIMIT_PER_HOUR_USD
 
     now = time.time()
@@ -77,10 +81,22 @@ def _check_cost_limit() -> bool:
     return True
 
 
+def _monthly_allows(provider: BaseLLMProvider) -> bool:
+    """True when ``provider`` costs nothing or this month's spend is under the cap."""
+    if not getattr(provider, "billable", True):
+        return True
+    from realize_core.llm.spend import check_monthly_limit
+
+    return check_monthly_limit()
+
+
 def _record_cost(cost_usd: float) -> None:
-    """Record a cost entry for the hourly cost tracker."""
+    """Record a cost entry for the hourly tracker and the monthly cap."""
     if cost_usd > 0:
+        from realize_core.llm.spend import record_spend
+
         _cost_window.append((time.time(), cost_usd))
+        record_spend(cost_usd)
 
 
 def get_hourly_cost() -> float:
@@ -355,11 +371,12 @@ _PREFIX_PROVIDERS = (
     ("openai/", "openai", "openai/"),
     ("ollama_chat/", "ollama", "ollama_chat/"),
     ("ollama/", "ollama", "ollama_chat/"),
+    ("chatgpt_plan/", "chatgpt_plan", ""),
 )
 
 RATE_LIMIT_TEXT = "I'm currently handling too many requests. Please wait a moment and try again."
 COST_LIMIT_TEXT = (
-    "The hourly cost limit has been reached. Please wait or contact your administrator to adjust the limit."
+    "The cost limit (hourly or monthly) has been reached. Please wait or contact your administrator to adjust it."
 )
 ALL_FAILED_TEXT = "An error occurred processing your request. Please try again."
 
@@ -565,6 +582,9 @@ async def _call_provider(
     if not provider.is_model_usable(model_id or ""):
         logger.info(f"Skipping {provider.name}: model {model_id} is unusable")
         return None
+    if not _monthly_allows(provider):
+        logger.info(f"Skipping {provider.name}: monthly cost limit reached")
+        return LLMResponse(text="", model=model_id or "", provider=provider.name, error="cost_limited_monthly")
     try:
         return await provider.complete(system_prompt=system_prompt, messages=messages, model=model_id, **extra)
     except Exception as e:
@@ -627,9 +647,9 @@ async def route_completion(
         nonlocal last_error
         if response is None:
             return False
+        _record_cost(response.cost_usd)  # a failed call can still have been billed
         if response.ok or response.refused:
             # A refusal is final: retrying it elsewhere would bypass the model's safety decision.
-            _record_cost(response.cost_usd)
             return True
         logger.warning(f"Provider {response.provider or '?'} error: {response.error}")
         last_error = response.error or last_error
@@ -657,13 +677,16 @@ async def route_completion(
         if not provider or not provider.is_available():
             continue
         tried.add(fallback_name)
-        attempts += 1
-        logger.info(f"Fallback attempt {attempts}: trying {fallback_name}")
+        logger.info(f"Fallback attempt {attempts + 1}: trying {fallback_name}")
         response = await _call_provider(provider, _tier_model(registry, provider, tier), system_prompt, messages, extra)
         if response is not None and _accept(response):
             logger.info(f"Fallback answered with {fallback_name}")
             return response
+        if response is None or response.error != "cost_limited_monthly":
+            attempts += 1  # a provider skipped by the monthly cap was not called
 
+    if last_error == "cost_limited_monthly":
+        return _failure(COST_LIMIT_TEXT, "cost_limited")
     logger.error(f"All LLM providers failed (tier={tier}): {last_error}")
     return _failure(ALL_FAILED_TEXT, last_error)
 

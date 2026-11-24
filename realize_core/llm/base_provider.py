@@ -179,6 +179,9 @@ class BaseLLMProvider(ABC):
     # True when complete_with_vision() reads application/pdf natively; other
     # providers get a PDF's extracted text instead.
     supports_pdf_input: ClassVar[bool] = False
+    # False for providers whose calls cost no API money (a local model, a ChatGPT
+    # plan). The monthly spend cap only guards billable providers.
+    billable: ClassVar[bool] = True
 
     @property
     @abstractmethod
