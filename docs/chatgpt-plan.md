@@ -70,6 +70,8 @@ copy the credential file over SSH. This is the flow OpenAI describes for VMs.
    CHATGPT_PLAN_MODEL=<slug>
    LLM_PRIMARY=chatgpt_plan
    LLM_FALLBACK=gemini            # the cheap fallback; list Claude here too if you want it
+   GEMINI_FLASH_MODEL=gemini-3.5-flash-lite
+   GEMINI_PRO_MODEL=gemini-3.5-flash-lite   # Gemini uses its "pro" model for standard/deep: keep the fallback cheap
    LLM_MODEL_FAST=                # leave empty so the fast tier also uses the plan
    LLM_MODEL_DEEP=<model string>  # optional: pin heavy work to another model
    COST_LIMIT_PER_MONTH_USD=20    # caps what the fallback and pinned models spend

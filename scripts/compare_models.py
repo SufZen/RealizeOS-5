@@ -5,7 +5,7 @@ PR CI. Use it before moving a tier (for example LLM_MODEL_FAST) to a cheaper
 model, so a person can judge whether the answers got worse.
 
     python scripts/compare_models.py questions.txt \\
-        --before <model used today> --after gemini/gemini-3.1-flash-lite \\
+        --before <model used today> --after gemini/gemini-3.5-flash-lite \\
         --out compare.md
 
 ``questions.txt`` holds one question per line (blank lines and lines starting
