@@ -241,6 +241,14 @@ class ProviderRegistry:
         except Exception as e:
             logger.debug(f"OpenAI provider not registered: {e}")
 
+        # ChatGPT plan (token sharing; available once signed in and CHATGPT_PLAN_MODEL is set)
+        try:
+            from realize_core.llm.providers.chatgpt_plan_provider import ChatGPTPlanProvider
+
+            self.register(ChatGPTPlanProvider())
+        except Exception as e:
+            logger.debug(f"ChatGPT plan provider not registered: {e}")
+
         # Ollama (available only while a local server answers)
         try:
             from realize_core.llm.providers.ollama_provider import OllamaProvider, model_keys
